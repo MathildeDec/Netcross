@@ -8,6 +8,7 @@ matplotlib.use("Agg")
 import matplotlib.pyplot as plt
 
 from netcross_core.correlate import TOPN_OTHER_LABEL
+from netcross_report.path_metrics import build_path_metrics
 
 
 def chart_topology(r, path):
@@ -149,6 +150,7 @@ def chart_latency(r, path):
     fig, ax = plt.subplots(figsize=(6, 3))
     x = range(len(pairs))
     ax.bar(x, avgs, yerr=jitters, capsize=4, color="#10b981")
+    ax.set_xlim(-0.6, len(labels) - 0.4)
     ax.set_xticks(list(x))
     ax.set_xticklabels(labels)
     ax.set_ylabel("ms")
@@ -296,6 +298,65 @@ def chart_severity_summary(findings, path, scheme=None):
     return path
 
 
+def chart_path_quality(metrics, path):
+    """
+    Qualite le long du chemin observe : delai P95 (barres, axe de gauche)
+    et taux de perte (courbe, axe de droite) segment par segment, dans
+    l'ordre amont -> aval.
+
+    Deux echelles sur un meme graphique parce que c'est precisement leur
+    superposition qui repond a la question de la section : un pic de delai
+    SANS perte et un pic de delai AVEC perte ne se diagnostiquent pas
+    pareil (file d'attente vs rupture). Les tracer separement obligerait a
+    comparer deux images a l'oeil.
+
+    Les segments non mesures sont conserves en abscisse -- un trou dans la
+    mesure est une information de terrain (horloges non synchronisees, pas
+    de trafic commun), le masquer ferait croire a un chemin plus court
+    qu'il ne l'est. `None` si aucun segment.
+    """
+    if not metrics:
+        return None
+
+    labels = [seg.label for seg in metrics]
+    p95 = [seg.delay_p95_ms if seg.delay_p95_ms is not None else 0.0 for seg in metrics]
+    loss = [seg.loss_pct if seg.loss_pct is not None else 0.0 for seg in metrics]
+
+    fig, ax = plt.subplots(figsize=(9, max(3.2, 0.8 * len(labels) + 2.0)))
+    x = range(len(labels))
+    ax.bar(x, p95, color="#3b82f6", width=0.45, label="Delai P95 (ms)")
+    ax.set_ylabel("Delai P95 (ms)", color="#1d4ed8")
+    ax.tick_params(axis="y", labelcolor="#1d4ed8")
+    ax.set_xlim(-0.6, len(labels) - 0.4)
+    ax.set_xticks(list(x))
+    ax.set_xticklabels(labels, rotation=30, ha="right", fontsize=8)
+
+    ax2 = ax.twinx()
+    ax2.plot(list(x), loss, color="#ef4444", marker="o", linewidth=1.6, label="Perte (%)")
+    ax2.set_ylabel("Perte au point aval (%)", color="#b91c1c")
+    ax2.tick_params(axis="y", labelcolor="#b91c1c")
+    ax2.set_ylim(bottom=0)
+
+    for i, seg in enumerate(metrics):
+        if seg.delay_p95_ms is None and seg.loss_pct is None:
+            ax.annotate(
+                "non mesure",
+                (i, 0),
+                textcoords="offset points",
+                xytext=(0, 6),
+                ha="center",
+                fontsize=7,
+                color="#64748b",
+            )
+
+    ax.set_title("Qualite par segment du chemin (amont -> aval)")
+    ax.grid(axis="y", linestyle=":", alpha=0.4)
+    handles = ax.get_legend_handles_labels()[0] + ax2.get_legend_handles_labels()[0]
+    ax.legend(handles=handles, loc="upper left", fontsize=7, framealpha=0.9)
+    _save(fig, path)
+    return path
+
+
 def generate_all_charts(r, findings, tmpdir):
     charts = {}
     for name, fn, args in [
@@ -304,6 +365,7 @@ def generate_all_charts(r, findings, tmpdir):
         ("latency", chart_latency, (r,)),
         ("loss", chart_loss, (r,)),
         ("severity", chart_severity_summary, (findings,)),
+        ("path_quality", chart_path_quality, (build_path_metrics(r),)),
     ]:
         path = f"{tmpdir}/chart_{name}.png"
         result = fn(*args, path)
