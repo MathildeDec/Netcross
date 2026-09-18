@@ -283,6 +283,9 @@ def generate_json_report(
         "health_score": score,
         "health_label": health_label(score),
     }
+    if getattr(r, "voip_calls", None):
+        doc["voip_calls"] = list(r.voip_calls)
+        doc["voip_quality_distribution"] = dict(r.voip_quality_distribution)
     if tls_findings is not None:
         doc["tls_findings"] = [_finding_dict(f) for f in tls_findings]
     if quic_findings is not None:

@@ -384,6 +384,9 @@ class Report:
     encap_frag_correlated: dict[tuple[str, str], int] = field(default_factory=lambda: defaultdict(int))
     # -- RTP (voix/visio) --
     rtp_streams: list[dict] = field(default_factory=list)
+    # -- VoIP orientee appel (Job 24 / §6.12) --
+    voip_calls: list[dict] = field(default_factory=list)
+    voip_quality_distribution: dict[str, int] = field(default_factory=lambda: defaultdict(int))
     # -- decomposition reseau vs serveur --
     server_think_time: dict[str, list[float]] = field(default_factory=lambda: defaultdict(list))
     # -- DHCP --
