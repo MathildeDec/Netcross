@@ -144,7 +144,7 @@ def parse_capture(label, path, raise_on_error=False) -> list[Pkt]:
     pkts: list[Pkt] = []
     for i in range(n):
         pkts.append(_to_pkt(label, raw_packets[i]))
-        raw_packets[i] = None
+        raw_packets[i] = None  # type: ignore[call-overload]  # liberation memoire volontaire
     return pkts
 
 

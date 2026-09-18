@@ -26,8 +26,8 @@ from netcross_report.triage import (
 try:
     from netcross_report.pdf import generate_diff_pdf, generate_pdf
 except ImportError:
-    generate_pdf = None
-    generate_diff_pdf = None
+    generate_pdf = None  # type: ignore[assignment]  # reportlab absent -- repli optionnel
+    generate_diff_pdf = None  # type: ignore[assignment]
 
 __all__ = [
     "DEFAULT_SEVERITY_WEIGHTS",

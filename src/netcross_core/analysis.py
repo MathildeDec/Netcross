@@ -9,9 +9,10 @@ import statistics
 from collections import Counter, defaultdict
 from datetime import datetime, timezone
 from itertools import combinations
+from typing import Any
 
 from netcross_core.correlate import TOPN_DIMENSIONS, compute_throughput, compute_topn_series
-from netcross_core.models import Report
+from netcross_core.models import Pkt, Report
 from netcross_core.parsing import compute_mos
 
 
@@ -451,7 +452,9 @@ def _analyse_idle_timeout(r: Report, all_packets, pairs, idle_timeout_seconds=_I
       point aval -- meme limite structurelle que "jamais vu en aval"
       pour la perte classique (r.loss_count).
     """
-    conn_ts = defaultdict(lambda: defaultdict(list))  # (src,sport,dst,dport) -> point -> [(ts, frame_number), ...]
+    conn_ts: defaultdict[tuple[str, int | None, str, int | None], defaultdict[str, list[tuple[float, int | None]]]] = (
+        defaultdict(lambda: defaultdict(list))
+    )  # (src,sport,dst,dport) -> point -> [(ts, frame_number), ...]
     for pk in all_packets:
         if pk.proto != "TCP":
             continue
@@ -545,8 +548,12 @@ def _analyse_arp_ip_conflict(r: Report, all_packets):
       virtuelles declarees), hors de portee d'une simple lecture de
       capture.
     """
-    seen = defaultdict(lambda: defaultdict(set))  # point -> IP -> {MAC, ...}
-    last_pkt = defaultdict(dict)  # point -> IP -> dernier Pkt ARP observe (pour PacketEvidence, Session 37)
+    seen: defaultdict[str, defaultdict[str, set[str]]] = defaultdict(
+        lambda: defaultdict(set)
+    )  # point -> IP -> {MAC, ...}
+    last_pkt: defaultdict[str, dict[str, Pkt]] = defaultdict(
+        dict
+    )  # point -> IP -> dernier Pkt ARP observe (pour PacketEvidence, Session 37)
     for pk in all_packets:
         if pk.proto != "ARP" or pk.arp_sender_mac is None or pk.src is None:
             continue
@@ -743,7 +750,9 @@ def _analyse_tls_certificate(r: Report, all_packets, pairs):
                 )
                 r.tls_cert_invalid_dates_frames[pk.point].append(pk.frame_number)
 
-    serial_by_point = defaultdict(dict)  # point -> (src, sport, dst, dport) -> (numero de serie, frame_number)
+    serial_by_point: defaultdict[str, dict[tuple[str, int | None, str, int | None], tuple[str, int | None]]] = (
+        defaultdict(dict)
+    )  # point -> (src, sport, dst, dport) -> (numero de serie, frame_number)
     for pk in all_packets:
         if pk.tls_cert_serial is None:
             continue
@@ -1112,7 +1121,9 @@ def _analyse_rtp(r: Report, all_packets, points, points_order, clock_rate):
     estime si disponible), puis MOS/R-factor (E-model simplifie G.711)
     sur la base de la perte au point le plus proche du recepteur.
     """
-    streams = defaultdict(lambda: defaultdict(list))
+    streams: defaultdict[tuple[str, str, int | None, int | None, int | None], defaultdict[str, list[Pkt]]] = (
+        defaultdict(lambda: defaultdict(list))
+    )
     for pk in all_packets:
         if pk.proto == "UDP" and pk.is_rtp:
             skey = (pk.src, pk.dst, pk.sport, pk.dport, pk.rtp_ssrc)
@@ -1128,6 +1139,8 @@ def _analyse_rtp(r: Report, all_packets, points, points_order, clock_rate):
             unwrapped, offset, prev_raw = [], 0, None
             for pkt in pkts_sorted:
                 s = pkt.rtp_seq
+                if s is None:
+                    continue
                 if prev_raw is not None:
                     diff = s - prev_raw
                     if diff < -32768:
@@ -1248,7 +1261,7 @@ def _analyse_dhcp(r: Report, all_packets, points, points_order):
     de nombreux serveurs DHCP ne renseignent pas ces options de facon
     distinctive).
     """
-    tx = defaultdict(lambda: defaultdict(list))  # xid -> point -> [Pkt]
+    tx: defaultdict[str, defaultdict[str, list[Pkt]]] = defaultdict(lambda: defaultdict(list))  # xid -> point -> [Pkt]
     for pk in all_packets:
         if pk.dhcp_msg_type is None:
             continue
@@ -1291,7 +1304,9 @@ def _analyse_sip(r: Report, all_packets, points, points_order):
     texte litteral -- un systeme non-SIP comme le NOE Alcatel proprietaire
     n'est pas couvert ici, faute de specification publique).
     """
-    calls = defaultdict(lambda: defaultdict(list))  # call_id -> point -> [Pkt]
+    calls: defaultdict[str, defaultdict[str, list[Pkt]]] = defaultdict(
+        lambda: defaultdict(list)
+    )  # call_id -> point -> [Pkt]
     for pk in all_packets:
         if pk.sip_msg_type is None or pk.sip_call_id is None:
             continue
@@ -1368,7 +1383,9 @@ def _analyse_dns(r: Report, all_packets, points, points_order):
     possible et n'est pas geree specifiquement ici (les deux
     transactions seraient alors vues comme une seule, a tort).
     """
-    tx = defaultdict(lambda: defaultdict(list))  # txn_id -> point -> [Pkt]
+    tx: defaultdict[str, defaultdict[str, list[Pkt]]] = defaultdict(
+        lambda: defaultdict(list)
+    )  # txn_id -> point -> [Pkt]
     for pk in all_packets:
         if pk.dns_txn_id is None:
             continue
@@ -1465,8 +1482,12 @@ def _analyse_http(r: Report, all_packets, points, points_order):
     glissement peut se reproduire entre les occurrences restantes de
     cette URI -- non gere specifiquement ici.
     """
-    tx = defaultdict(lambda: defaultdict(list))  # (conn_id, uri, occurrence) -> point -> [Pkt]
-    occ_counters = defaultdict(int)  # (point, conn_id, uri) -> occurrence en cours a ce point
+    tx: defaultdict[tuple[Any, str, int], defaultdict[str, list[Pkt]]] = defaultdict(
+        lambda: defaultdict(list)
+    )  # (conn_id, uri, occurrence) -> point -> [Pkt]
+    occ_counters: defaultdict[tuple[str, Any, str], int] = defaultdict(
+        int
+    )  # (point, conn_id, uri) -> occurrence en cours a ce point
 
     for pk in sorted(all_packets, key=lambda p: p.ts):
         if not (pk.http_is_request or pk.http_is_response):

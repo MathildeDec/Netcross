@@ -58,6 +58,8 @@ from collections import defaultdict
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 
+from netcross_report.synthesis import Finding
+
 # Poids par defaut : couvre a la fois le vocabulaire de synthesis.Finding
 # ("anomalie"/"a_surveiller"/"info") et celui de baseline_diff.DiffFinding
 # ("regression"/"a_verifier"/"amelioration"/"stable"). Une amelioration ou
@@ -80,7 +82,7 @@ LOW_SAMPLE_THRESHOLD = 3
 LOW_SAMPLE_WEIGHT_FACTOR = 0.5
 
 
-def _finding_weight(f: object, weights: dict[str, float]) -> float:
+def _finding_weight(f: Finding, weights: dict[str, float]) -> float:
     w = weights.get(f.severity, 0.0)
     sample_size = getattr(f, "sample_size", None)
     if sample_size is not None and sample_size < LOW_SAMPLE_THRESHOLD:
@@ -93,7 +95,7 @@ class SegmentScore:
     segment: str
     score: float
     categories: list[str] = field(default_factory=list)
-    findings: list[object] = field(default_factory=list)
+    findings: list[Finding] = field(default_factory=list)
     low_confidence: bool = False
 
     @property
@@ -105,7 +107,7 @@ class SegmentScore:
 
 
 def rank_segments(
-    findings: Iterable[object],
+    findings: Iterable[Finding],
     severity_weights: dict[str, float] | None = None,
     convergence_bonus: float = 1.5,
     min_score: float = 0.0,
@@ -138,7 +140,7 @@ def rank_segments(
     poids non nul en dependent.
     """
     weights = severity_weights or DEFAULT_SEVERITY_WEIGHTS
-    by_segment: dict[str, list[object]] = defaultdict(list)
+    by_segment: dict[str, list[Finding]] = defaultdict(list)
     for f in findings:
         by_segment[f.segment].append(f)
 
@@ -165,7 +167,7 @@ def rank_segments(
         # baseline_diff.py pour ce qui est annote a ce jour).
         actionable = [f for f in segment_findings if weights.get(f.severity, 0.0) > 0]
         low_confidence = bool(actionable) and all(
-            getattr(f, "sample_size", None) is not None and f.sample_size < LOW_SAMPLE_THRESHOLD for f in actionable
+            (ss := getattr(f, "sample_size", None)) is not None and ss < LOW_SAMPLE_THRESHOLD for f in actionable
         )
         scored.append(SegmentScore(segment, total, categories, segment_findings_sorted, low_confidence))
 

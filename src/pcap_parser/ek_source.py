@@ -108,6 +108,7 @@ def _build_args(
         # sinon tshark bufferise sa sortie et rien n'arrive avant un bon
         # moment). -Q : reduit le bruit sur stderr (pas de compteur de
         # paquets capture).
+        assert interface is not None  # garanti par le check path/interface ci-dessus
         args += ["-i", interface, "-l", "-Q"]
 
     if bpf_filter:
