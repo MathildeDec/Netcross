@@ -8062,7 +8062,7 @@ Ce contexte doit également être réutilisé par le triage et les graphiques.
 
 ### 6.16 Alarmes et surveillance de seuils
 
-**Statut : 🔴 Manquant — priorité moyenne**
+**Statut : 🟡 Partiel — priorité moyenne**
 
 Le moteur de règles prévu en 6.2 doit pouvoir être utilisé en analyse live.
 
@@ -8087,6 +8087,18 @@ notification
 Ne pas déclencher une alarme sur une valeur ponctuelle isolée : chaque règle doit
 pouvoir définir une fenêtre, un échantillon minimal et éventuellement une durée de
 persistance.
+
+#### Avancement (Session 70)
+
+Le module `src/netcross_core/alarms.py` implémente les briques « fenêtre
+glissante → hystérésis → durée minimale de persistance → notification » :
+`AlarmEngine` consomme des `AlarmSignal` (convertibles depuis les `Finding` du
+moteur de règles), applique hystérésis `trigger`/`clear`, ratio minimal
+d'échantillons positifs et durée minimale de persistance avant de lever un
+`AlarmEvent`. 12 tests couvrent le critère d'acceptation (signal isolé ne
+déclenche pas). Le cablage au moteur de règles (`rule_engine.evaluate()` →
+`AlarmSignal`) et à la capture live reste à faire — c'est le périmètre de
+l'issue #33 (diff en direct).
 
 #### Ce que cela apporte
 
