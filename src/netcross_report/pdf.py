@@ -66,6 +66,14 @@ def _styles():
     styles.add(ParagraphStyle("H1b", parent=styles["Heading1"], spaceBefore=18, spaceAfter=8))
     styles.add(ParagraphStyle("H2b", parent=styles["Heading2"], spaceBefore=14, spaceAfter=6))
     styles.add(ParagraphStyle("Small", parent=styles["Normal"], fontSize=8, textColor=colors.grey))
+    # "Cell" : cellules denses contenant des identifiants techniques non
+    # coupables (rfc6349-retransmission-rate-2pct, tcp_retransmission_rate_pct).
+    # reportlab coupe ces jetons en plein milieu quand ils depassent la
+    # largeur de colonne -- et les espaces de largeur nulle s'affichent en
+    # carre noir avec les polices de base. La seule parade fiable est donc
+    # d'assurer que le jeton TIENT : corps reduit + colonnes dimensionnees
+    # sur le plus long identifiant du catalogue (voir _compliance_table).
+    styles.add(ParagraphStyle("Cell", parent=styles["Normal"], fontSize=7.5, leading=9.5))
     return styles
 
 
@@ -171,6 +179,216 @@ def _health_badge(ranked, styles):
     return Paragraph(f"Score de sante : {score}/100 -- {HEALTH_LABELS[label]}", style)
 
 
+# Couleurs des statuts de conformite (netcross_core.compliance) -- meme
+# palette que SEVERITY_COLORS ci-dessus, en mappant l'intention plutot que
+# le vocabulaire : VIOLATION est un ecart franc (rouge, comme anomalie),
+# DEVIATION un ecart mineur dans la marge de tolerance (ambre, comme
+# a_surveiller), INDETERMINE une metrique non mesurable sur cette capture
+# (gris, comme info -- ce n'est pas un resultat, c'est une absence).
+COMPLIANCE_COLORS = {
+    "CONFORME": colors.HexColor("#22c55e"),
+    "DEVIATION": colors.HexColor("#f59e0b"),
+    "VIOLATION": colors.HexColor("#ef4444"),
+    "INDETERMINE": colors.HexColor("#94a3b8"),
+}
+
+# Nombre de lignes affichees par table de la section "Expertise" : le PDF
+# est un livrable de lecture, pas un export -- au-dela, une ligne de
+# renvoi vers --json-report remplace la suite (meme discipline que le
+# plafonnement du rendu console, voir netcross_report.session_objects).
+EXPERT_TABLE_TOP_N = 15
+
+
+def _grid_table(data, col_widths, highlight=None):
+    """Table a en-tete sombre et lignes alternees -- exactement le style
+    deja utilise par _finding_table/_triage_table ci-dessus, factorise ici
+    parce que la section "Expertise" en ajoute quatre d'un coup.
+    highlight : liste de (index_de_ligne, couleur) pour colorer la
+    premiere colonne (gravite/statut), comme le fait _finding_table."""
+    t = Table(data, colWidths=col_widths, repeatRows=1)
+    style = [
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1f2937")),
+        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+        ("FONTSIZE", (0, 0), (-1, -1), 8),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#e5e7eb")),
+        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#f9fafb")]),
+    ]
+    for row, color in highlight or []:
+        style.append(("TEXTCOLOR", (0, row), (0, row), color))
+        style.append(("FONTNAME", (0, row), (0, row), "Helvetica-Bold"))
+    t.setStyle(TableStyle(style))
+    return t
+
+
+def _expert_event_table(events, styles, top_n=EXPERT_TABLE_TOP_N):
+    """events : liste d'ExpertEvent (netcross_core.expert_model). Affiche
+    cause/impact, qui sont precisement ce que le JSON exposait deja et que
+    le PDF ignorait jusqu'ici -- une colonne vide quand le moteur de
+    causalite n'a pas reconnu de pattern pour cet evenement (voir
+    netcross_core.causality : seuls les rule_id participant a un pattern
+    recoivent cause/impact)."""
+    if not events:
+        return Paragraph("Aucun evenement d'expertise.", styles["Normal"])
+    data = [["Gravite", "Categorie", "Segment", "Constat", "Cause probable / impact"]]
+    shown = events[:top_n]
+    for ev in shown:
+        cause = " -- ".join(x for x in (ev.cause, ev.impact) if x)
+        data.append(
+            [
+                SEVERITY_LABELS.get(ev.severity, ev.severity),
+                Paragraph(ev.category, styles["Normal"]),
+                Paragraph(ev.segment, styles["Normal"]),
+                Paragraph(ev.message, styles["Normal"]),
+                Paragraph(cause or "-", styles["Normal"]),
+            ]
+        )
+    highlight = [
+        (i, SEVERITY_COLORS[ev.severity]) for i, ev in enumerate(shown, start=1) if ev.severity in SEVERITY_COLORS
+    ]
+    return _grid_table(data, [1.9 * cm, 2.3 * cm, 2.6 * cm, 5.2 * cm, 4.3 * cm], highlight)
+
+
+def _diagnosis_table(diagnoses, styles, top_n=EXPERT_TABLE_TOP_N):
+    """diagnoses : liste de Diagnosis -- un par segment, cause/impact
+    derives des ExpertEvent deja enrichis (netcross_core.causality)."""
+    if not diagnoses:
+        return Paragraph("Aucun diagnostic par segment.", styles["Normal"])
+    data = [["Segment", "Evenements", "Cause probable", "Impact"]]
+    data.extend(
+        [
+            Paragraph(d.segment, styles["Normal"]),
+            str(len(d.events)),
+            Paragraph(d.cause or "-", styles["Normal"]),
+            Paragraph(d.impact or "-", styles["Normal"]),
+        ]
+        for d in diagnoses[:top_n]
+    )
+    return _grid_table(data, [3.4 * cm, 1.9 * cm, 5.5 * cm, 5.5 * cm])
+
+
+def _compliance_table(results, styles, top_n=EXPERT_TABLE_TOP_N):
+    """results : liste de ComplianceResult (netcross_core.compliance).
+    Les ecarts d'abord (VIOLATION, puis DEVIATION) : meme intention que le
+    triage "par ou commencer", l'operateur doit voir ce qui ne passe pas
+    sans derouler la table entiere."""
+    if not results:
+        return Paragraph("Aucun referentiel evalue.", styles["Normal"])
+    order = ["VIOLATION", "DEVIATION", "CONFORME", "INDETERMINE"]
+    ranked = sorted(
+        results,
+        key=lambda res: (order.index(res.status) if res.status in order else len(order), res.reference.id),
+    )
+    # Metrique/observe/seuil tiennent dans une seule colonne "Mesure" :
+    # six colonnes sur une A4 laissaient trop peu de largeur aux
+    # identifiants, que reportlab coupait alors en plein mot.
+    data = [["Statut", "Referentiel", "Mesure", "Source"]]
+    shown = ranked[:top_n]
+    for res in shown:
+        ref = res.reference
+        observed = "non mesure" if res.observed is None else f"{res.observed:g} {ref.unit}"
+        data.append(
+            [
+                res.status,
+                Paragraph(ref.id, styles["Cell"]),
+                # metrique sur sa propre ligne : la valeur mesuree peut
+                # etre un compteur a plusieurs chiffres, et on ne veut pas
+                # qu'elle pousse le nom de la metrique hors de la colonne.
+                Paragraph(
+                    f"{ref.metric}<br/>{observed} (seuil {ref.operator} {ref.threshold:g} {ref.unit})",
+                    styles["Cell"],
+                ),
+                Paragraph(ref.source, styles["Cell"]),
+            ]
+        )
+    highlight = [
+        (i, COMPLIANCE_COLORS[res.status]) for i, res in enumerate(shown, start=1) if res.status in COMPLIANCE_COLORS
+    ]
+    return _grid_table(data, [2.1 * cm, 4.3 * cm, 5.2 * cm, 5.4 * cm], highlight)
+
+
+def _flow_table(flows, styles, top_n=EXPERT_TABLE_TOP_N):
+    """flows : liste de Flow (netcross_core.expert_model). Tri par volume
+    de paquets decroissant, libelle en second critere pour un ordre stable
+    d'une execution a l'autre -- meme regle que le rendu console
+    (netcross_report.session_objects)."""
+    if not flows:
+        return Paragraph("Aucun flux correle.", styles["Normal"])
+
+    def _label(flow):
+        if flow.endpoints:
+            return f"{flow.endpoints[0]} <-> {flow.endpoints[1]}"
+        return str(flow.key)
+
+    ordered = sorted(flows, key=lambda f: (-sum(f.packet_count.values()), _label(f)))
+    data = [["Flux", "Points de capture", "Paquets", "Octets"]]
+    data.extend(
+        [
+            Paragraph(_label(f), styles["Normal"]),
+            Paragraph(", ".join(f.points), styles["Normal"]),
+            str(sum(f.packet_count.values())),
+            str(sum(f.byte_count.values())),
+        ]
+        for f in ordered[:top_n]
+    )
+    return _grid_table(data, [6.2 * cm, 4.6 * cm, 2.6 * cm, 2.9 * cm])
+
+
+def expert_section_story(session_objects, styles, top_n=EXPERT_TABLE_TOP_N):
+    """Flowables de la section "Expertise" du PDF (Job 4/issue #13).
+
+    session_objects : SessionObjects (netcross_report.session_objects) ou
+    None -- None renvoie une liste vide, donc aucune section : un rapport
+    produit sans ces objets doit rester identique a ce qu'il etait avant
+    cette session (aucune page blanche, aucun titre orphelin).
+
+    Fonction publique separee de generate_pdf() pour etre testable sans
+    produire de PDF : les tests inspectent les Table/Paragraph renvoyes,
+    la ou relire le PDF final imposerait d'en extraire le texte.
+    """
+    if session_objects is None:
+        return []
+    story = [
+        Paragraph("Expertise -- objets enrichis", styles["H1b"]),
+        Paragraph(
+            "Evenements d'expertise, diagnostics par segment, conformite aux referentiels "
+            "et flux correles. Ces objets etaient jusqu'ici reserves a l'export JSON "
+            "(--json-report) : cause probable et impact viennent du moteur de correlation "
+            "causale, qui ne les renseigne que pour les symptomes co-occurrents reconnus "
+            "sur un meme segment.",
+            styles["Normal"],
+        ),
+        Spacer(1, 0.3 * cm),
+        Paragraph("Evenements d'expertise", styles["H2b"]),
+        _expert_event_table(session_objects.expert_events, styles, top_n),
+        Spacer(1, 0.3 * cm),
+        Paragraph("Diagnostics par segment", styles["H2b"]),
+        _diagnosis_table(session_objects.diagnoses, styles, top_n),
+        Spacer(1, 0.3 * cm),
+        Paragraph("Conformite aux referentiels", styles["H2b"]),
+        _compliance_table(session_objects.compliance, styles, top_n),
+    ]
+    # Les flux ne sont construits que si l'appelant a passe le dict brut
+    # de correlate() (voir build_session_objects) : pas de table vide
+    # quand l'information n'a pas ete demandee.
+    if session_objects.flows:
+        story += [
+            Spacer(1, 0.3 * cm),
+            Paragraph("Flux correles", styles["H2b"]),
+            _flow_table(session_objects.flows, styles, top_n),
+        ]
+    # Signaux tshark BRUTS, jamais fondus dans les evenements netcross
+    # ci-dessus (source "tshark" vs "netcross") -- meme separation que la
+    # cle JSON dediee, voir netcross_core.wireshark_expert.
+    if session_objects.wireshark_expert_events:
+        story += [
+            Spacer(1, 0.3 * cm),
+            Paragraph("Expertise tshark (signaux bruts)", styles["H2b"]),
+            _expert_event_table(session_objects.wireshark_expert_events, styles, top_n),
+        ]
+    return story
+
+
 def _kv_table(rows, styles, col_widths=None):
     data = [[Paragraph(str(a), styles["Normal"]), Paragraph(str(b), styles["Normal"])] for a, b in rows]
     t = Table(data, colWidths=col_widths or [5 * cm, 10 * cm])
@@ -195,6 +413,7 @@ def generate_pdf(
     findings=None,
     tls_findings=None,
     quic_findings=None,
+    session_objects=None,
 ):
     """
     r : objet Report (netcross_core.analyse). output_path : chemin du PDF.
@@ -208,6 +427,15 @@ def generate_pdf(
     "par ou commencer" en tete de rapport (memes categories/segments que les
     constats principaux -- rank_segments() est concu pour un melange des
     deux, voir netcross_report/triage.py).
+    session_objects : SessionObjects optionnel (Job 4/issue #13, voir
+    netcross_report.session_objects.build_session_objects()). Si fourni,
+    une section "Expertise -- objets enrichis" est ajoutee avant l'annexe :
+    evenements d'expertise avec cause/impact, diagnostics par segment,
+    conformite aux referentiels, flux correles et signaux tshark bruts --
+    tous reserves jusqu'ici a --json-report. Absent (None) -> section
+    absente, le PDF reste identique a celui des sessions precedentes
+    (meme convention d'absence que tls_findings/quic_findings ci-dessus,
+    et jamais de recalcul ici : ces objets sont construits par l'appelant).
     """
     if findings is None:
         findings = build_findings(r)
@@ -446,6 +674,12 @@ def generate_pdf(
             if quic_findings:
                 story.append(Paragraph("QUIC / HTTP3", styles["Heading3"]))
                 story.append(_finding_table(quic_findings, styles))
+
+        # -- expertise (objets enrichis de la Session 0, issue #13) --
+        expert_story = expert_section_story(session_objects, styles)
+        if expert_story:
+            story.append(PageBreak())
+            story.extend(expert_story)
 
         story.append(Spacer(1, 1 * cm))
         story.append(HRFlowable(width="100%", color=colors.HexColor("#e5e7eb")))

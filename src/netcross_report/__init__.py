@@ -12,6 +12,12 @@ from netcross_report.expert_events import build_diagnoses, build_expert_events
 from netcross_report.history import HistoryEntry, list_history, print_history, record_diff_run, record_run
 from netcross_report.json_report import generate_json_diff, generate_json_report
 from netcross_report.rule_engine import available_rule_ids, evaluate
+from netcross_report.session_objects import (
+    SessionObjects,
+    build_session_objects,
+    format_session_objects,
+    print_session_objects,
+)
 from netcross_report.synthesis import Finding, build_findings
 from netcross_report.triage import (
     DEFAULT_SEVERITY_WEIGHTS,
@@ -36,12 +42,15 @@ __all__ = [
     "Finding",
     "HistoryEntry",
     "SegmentScore",
+    "SessionObjects",
     "available_rule_ids",
     "build_diagnoses",
     "build_expert_events",
     "build_findings",
+    "build_session_objects",
     "evaluate",
     "format_health_line",
+    "format_session_objects",
     "generate_diff_pdf",
     "generate_json_diff",
     "generate_json_report",
@@ -50,6 +59,7 @@ __all__ = [
     "health_score",
     "list_history",
     "print_history",
+    "print_session_objects",
     "print_triage",
     "rank_segments",
     "record_diff_run",

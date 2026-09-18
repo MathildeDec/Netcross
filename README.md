@@ -385,8 +385,9 @@ Options utiles :
   `docs/features-backlog.md` section 13.3 "Session 0") : `flows` (un flux par entrée,
   agrégation multi-points déjà calculée par la corrélation), `conversations`
   (regroupement par paire d'adresses), `expert_events` (vue générique des
-  constats, `cause`/`impact` toujours `null` — le moteur de corrélation
-  causale n'existe pas encore), `diagnoses` (regroupement des
+  constats, avec `cause`/`impact` probables quand le moteur de
+  corrélation causale reconnaît un motif de symptômes co-occurrents sur
+  un même segment, `null` sinon), `diagnoses` (regroupement des
   `expert_events` par segment), `compliance` (statut `CONFORME`/
   `VIOLATION`/`INDETERMINE` contre 2 référentiels par défaut : absence de
   noir PMTUD, taux de perte ≤ 1%). Une sixième clé, `wireshark_expert_events`
@@ -441,6 +442,22 @@ Options utiles :
   timestamp, de couche, de protocole, de flux, de liste complète de
   paquets calculée ni de bibliothèque de remédiation par catégorie —
   voir `netcross_core.expert_model.ExpertEvent`.
+- `--expert-section` : affiche **en console** les objets enrichis décrits
+  ci-dessus (`expert_events` avec cause/impact probables, `diagnoses` par
+  segment, `compliance`, `flows`/`conversations`, signaux tshark bruts),
+  jusqu'ici lisibles uniquement en ouvrant le fichier `--json-report`.
+  Aucun calcul supplémentaire : ce sont les mêmes objets, construits une
+  seule fois et partagés par la console, le PDF et le JSON (voir
+  `netcross_report.session_objects`). Les blocs `flows`/`conversations` et
+  tshark n'apparaissent que si les données correspondantes ont été
+  calculées par le run — un bloc absent signifie « non calculé », pas
+  « calculé et vide ».
+  Indépendamment de cette option, `--pdf-report` reçoit désormais une
+  section « Expertise — objets enrichis » (événements avec cause probable
+  et impact, diagnostics par segment, conformité aux référentiels, flux
+  corrélés, signaux tshark), placée juste avant le pied de rapport : les
+  écarts de conformité (`VIOLATION`, puis `DEVIATION`) y remontent en
+  premier, comme dans le triage « par où commencer ».
 - `--topn-charts N` : nombre de catégories affichées par graphique dans
   la section "Évolution temporelle (top-N)" du rapport `--pdf-report`
   (défaut 5, le reste des catégories est regroupé sous "autres"). Quatre
