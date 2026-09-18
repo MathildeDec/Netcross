@@ -83,29 +83,40 @@ def _finding_dict(f) -> dict:
     return d
 
 
-def _flow_dict(flow) -> dict:
+def _flow_dict(flow, names=None) -> dict:
     """Serialise un Flow (netcross_core.expert_model, Session 36) -- la
     cle brute (tuple Python) n'est pas JSON-serialisable telle quelle,
-    convertie en liste."""
-    return {
+    convertie en liste. Si ``names`` est fourni, ajoute ``endpoints_labels``
+    (noms logiques resolus) a cote des ``endpoints`` bruts."""
+    endpoints = list(flow.endpoints) if flow.endpoints is not None else None
+    doc = {
         "key": list(flow.key),
-        "endpoints": list(flow.endpoints) if flow.endpoints is not None else None,
+        "endpoints": endpoints,
         "points": list(flow.points),
         "packet_count": dict(flow.packet_count),
         "byte_count": dict(flow.byte_count),
         "first_ts": dict(flow.first_ts),
         "last_ts": dict(flow.last_ts),
     }
+    if names is not None and endpoints is not None:
+        doc["endpoints_labels"] = [names.display(a) for a in endpoints]
+    return doc
 
 
-def _conversation_dict(conv) -> dict:
-    """Serialise une Conversation (netcross_core.expert_model, Session 36)."""
-    return {
-        "endpoints": list(conv.endpoints),
+def _conversation_dict(conv, names=None) -> dict:
+    """Serialise une Conversation (netcross_core.expert_model, Session 36).
+    Si ``names`` est fourni, ajoute ``endpoints_labels`` (noms logiques
+    resolus) a cote des ``endpoints`` bruts."""
+    endpoints = list(conv.endpoints)
+    doc = {
+        "endpoints": endpoints,
         "flow_keys": [list(k) for k in conv.flow_keys],
         "packet_count": conv.packet_count,
         "byte_count": conv.byte_count,
     }
+    if names is not None:
+        doc["endpoints_labels"] = [names.display(a) for a in endpoints]
+    return doc
 
 
 def _expert_event_dict(ev) -> dict:
@@ -233,6 +244,7 @@ def generate_json_report(
     compliance=None,
     wireshark_expert_events=None,
     rule_engine_findings=None,
+    names=None,
 ) -> str:
     """
     r : objet Report (netcross_core.analyse). output_path : chemin du
@@ -293,9 +305,9 @@ def generate_json_report(
     if quic_findings is not None:
         doc["quic_findings"] = [_finding_dict(f) for f in quic_findings]
     if flows is not None:
-        doc["flows"] = [_flow_dict(f) for f in flows]
+        doc["flows"] = [_flow_dict(f, names) for f in flows]
     if conversations is not None:
-        doc["conversations"] = [_conversation_dict(c) for c in conversations]
+        doc["conversations"] = [_conversation_dict(c, names) for c in conversations]
     if expert_events is not None:
         doc["expert_events"] = [_expert_event_dict(ev) for ev in expert_events]
     if diagnoses is not None:
@@ -331,6 +343,7 @@ def generate_json_diff(
     diagnoses=None,
     compliance=None,
     wireshark_expert_events=None,
+    names=None,
 ) -> str:
     """
     Pendant de generate_diff_pdf() : findings est la liste de DiffFinding
@@ -390,9 +403,9 @@ def generate_json_diff(
     if quic_findings_current is not None:
         doc["quic_findings_current"] = [_finding_dict(f) for f in quic_findings_current]
     if flows is not None:
-        doc["flows"] = [_flow_dict(f) for f in flows]
+        doc["flows"] = [_flow_dict(f, names) for f in flows]
     if conversations is not None:
-        doc["conversations"] = [_conversation_dict(c) for c in conversations]
+        doc["conversations"] = [_conversation_dict(c, names) for c in conversations]
     if expert_events is not None:
         doc["expert_events"] = [_expert_event_dict(ev) for ev in expert_events]
     if diagnoses is not None:
