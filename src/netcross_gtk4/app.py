@@ -49,6 +49,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from netcross_core import (  # noqa: E402
     AddressRedactor,
     analyse,
+    build_wireshark_expert_events,
     correlate,
     parse_capture,
     parse_captures_parallel,
@@ -374,6 +375,9 @@ class MainWindow(Gtk.ApplicationWindow):
         self.last_findings = None  # mode single : Finding, pour le PDF
         self.last_tls_findings = None  # mode single : TlsFinding, pour le PDF
         self.last_quic_findings = None  # mode single : TlsFinding (QUIC), pour le PDF
+        # mode single : ExpertEvent de source "tshark", pour le JSON et le PDF
+        # (issue #14). None = non calcule, [] = calcule et aucun signal.
+        self.last_wireshark_expert_events = None
         self.last_diff_findings = None  # mode diff : DiffFinding
         self.last_baseline_report = None
         self.last_current_report = None
@@ -1045,7 +1049,17 @@ class MainWindow(Gtk.ApplicationWindow):
             GLib.idle_add(self._reset_live_ui)
             return
         GLib.idle_add(self._log, "Analyse terminee.")
-        GLib.idle_add(self._on_analysis_done, "single", report, flows, findings, text, None, None)
+        GLib.idle_add(
+            self._on_analysis_done,
+            "single",
+            report,
+            flows,
+            findings,
+            text,
+            None,
+            None,
+            build_wireshark_expert_events(all_packets),
+        )
         GLib.idle_add(self._reset_live_ui)
 
     def _reset_live_ui(self):
@@ -1125,6 +1139,15 @@ class MainWindow(Gtk.ApplicationWindow):
                 rtp_rate,
                 topn,
             )
+
+            # Signaux d'expertise BRUTS tshark : calcules ici, tant que les
+            # paquets sont sous la main. Les exports (JSON/PDF) surviennent
+            # apres la fin du thread, quand `all_packets` a ete libere --
+            # c'est le calcul qu'on avance, pas les paquets qu'on retient
+            # (voir _on_analysis_done).
+            GLib.idle_add(self._log, "Expertise tshark (signaux bruts)...")
+            wireshark_expert_events = build_wireshark_expert_events(all_packets)
+            GLib.idle_add(self._log, f"  -> {len(wireshark_expert_events)} signal(aux) d'expertise")
 
             GLib.idle_add(self._log, "Mise en forme du rapport...")
             buf = io.StringIO()
@@ -1210,6 +1233,7 @@ class MainWindow(Gtk.ApplicationWindow):
             text,
             tls_findings,
             quic_findings,
+            wireshark_expert_events,
         )
 
     def _run_diff_thread(
@@ -1361,13 +1385,29 @@ class MainWindow(Gtk.ApplicationWindow):
         self.run_btn.set_sensitive(True)
         return False
 
-    def _on_analysis_done(self, mode, report, flows, findings, text, tls_findings=None, quic_findings=None):
+    def _on_analysis_done(
+        self,
+        mode,
+        report,
+        flows,
+        findings,
+        text,
+        tls_findings=None,
+        quic_findings=None,
+        wireshark_expert_events=None,
+    ):
         self.last_mode = mode
         self.last_report = report
         self.last_flows = flows
         self.last_findings = findings
         self.last_tls_findings = tls_findings
         self.last_quic_findings = quic_findings
+        # Signaux tshark bruts : calcules dans le thread d'analyse, ou les
+        # paquets sont encore disponibles (issue #14). On garde le RESULTAT
+        # plutot que les paquets : conserver `all_packets` dans la fenetre
+        # pour un export JSON eventuel immobiliserait la capture entiere en
+        # memoire jusqu'a l'analyse suivante.
+        self.last_wireshark_expert_events = wireshark_expert_events
         self.last_diff_findings = None
         self.last_baseline_report = None
         self.last_current_report = None
@@ -1403,6 +1443,7 @@ class MainWindow(Gtk.ApplicationWindow):
         self.last_findings = None
         self.last_tls_findings = None
         self.last_quic_findings = None
+        self.last_wireshark_expert_events = None
         self.last_diff_findings = findings
         self.last_baseline_report = baseline_report
         self.last_current_report = current_report
@@ -1472,6 +1513,29 @@ class MainWindow(Gtk.ApplicationWindow):
         self.status_label.set_text("Generation du PDF...")
         threading.Thread(target=self._generate_pdf_thread, args=(path,), daemon=True).start()
 
+    def _session_objects(self):
+        """Objets enrichis du dernier run single (issue #14) : memes objets
+        que ceux de la CLI, construits par le meme point de passage
+        (netcross_report.session_objects) pour que le JSON et le PDF de la
+        GUI portent exactement les memes cles et sections.
+
+        `findings` est recalcule ici quand l'utilisateur n'a pas coche le
+        triage : ils sont la matiere premiere des ExpertEvent/Diagnosis, et
+        `generate_json_report()`/`generate_pdf()` les recalculent de toute
+        facon dans ce cas -- autant les calculer une fois et les partager.
+        Les signaux tshark, eux, ne sont jamais recalcules : ils viennent du
+        thread d'analyse (les paquets bruts ne sont plus disponibles ici).
+        """
+        from netcross_report import build_findings, build_session_objects
+
+        findings = self.last_findings if self.last_findings is not None else build_findings(self.last_report)
+        return build_session_objects(
+            self.last_report,
+            findings,
+            flows=self.last_flows,
+            wireshark_expert_events=self.last_wireshark_expert_events,
+        )
+
     def _generate_pdf_thread(self, path):
         try:
             if self.last_mode == "single":
@@ -1485,6 +1549,7 @@ class MainWindow(Gtk.ApplicationWindow):
                     findings=self.last_findings,
                     tls_findings=self.last_tls_findings,
                     quic_findings=self.last_quic_findings,
+                    session_objects=self._session_objects(),
                 )
             else:
                 from netcross_report import generate_diff_pdf
@@ -1550,6 +1615,7 @@ class MainWindow(Gtk.ApplicationWindow):
                     findings=self.last_findings,
                     tls_findings=self.last_tls_findings,
                     quic_findings=self.last_quic_findings,
+                    **self._session_objects().json_kwargs(),
                 )
             else:
                 from netcross_report import generate_json_diff

@@ -630,7 +630,11 @@ La GUI propose désormais la lecture parallèle, la déduction automatique de
 topologie (case à cocher, équivalent à ne pas passer `--order`), le triage,
 les diagnostics TLS/QUIC, l'export CSV du détail par flux, l'export JSON
 structuré (bouton "Exporter en JSON", équivalent GUI de `--json-report`,
-disponible en mode simple et en mode comparaison), l'anonymisation des
+disponible en mode simple et en mode comparaison — en mode simple, il porte
+désormais **les mêmes clés** que la CLI, objets enrichis compris
+(`flows`/`conversations`/`expert_events`/`diagnoses`/`compliance`/
+`wireshark_expert_events`), et l'export PDF de la GUI reçoit la même section
+« Expertise — objets enrichis » que `--pdf-report`), l'anonymisation des
 adresses (case "Anonymiser les adresses IP/MAC (--redact)", mutuellement
 exclusive avec les diagnostics TLS/QUIC des deux modes), et un **mode
 comparaison** (case à cocher en haut de la page Configuration) qui bascule
