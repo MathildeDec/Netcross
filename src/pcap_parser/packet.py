@@ -642,6 +642,8 @@ def build_packet(ts_seconds: float, layers: dict) -> RawPacket | None:
             http_uri = _intern(http["uri"])
             http_status_code = http["status_code"]
             http_response_time_ms = http["response_time_ms"]
+            http_content_type = _intern(http.get("content_type"))
+            http_content_length = http.get("content_length")
 
         # TLS -- pas de garde "if payload" (comme extract_dns) : lit
         # uniquement la dissection X.509 native de tshark au sein du
