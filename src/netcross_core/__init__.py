@@ -17,6 +17,7 @@ Utilisation typique :
 
 from netcross_core.analysis import analyse
 from netcross_core.baseline_diff import DiffFinding, diff_reports, print_diff_report, write_diff_csv
+from netcross_core.content import HttpObject, extract_http_objects, objects_to_dicts
 from netcross_core.client_diff import (
     ClientComparisonResult,
     ClientReport,
@@ -49,6 +50,9 @@ from netcross_core.wireshark_expert import build_wireshark_expert_events
 
 __all__ = [
     "DEFAULT_REFERENCES",
+    "HttpObject",
+    "extract_http_objects",
+    "objects_to_dicts",
     "AddressRedactor",
     "ClientComparisonResult",
     "ClientReport",
