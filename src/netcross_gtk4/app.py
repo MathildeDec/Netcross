@@ -70,6 +70,16 @@ from netcross_gtk4.dashboard_context import (  # noqa: E402
     select_point,
     select_protocol,
 )
+from netcross_gtk4.stats_view import (  # noqa: E402
+    build_events_by_segment,
+    build_query,
+    flows_for_row,
+    format_flow_summary,
+    format_row,
+    group_options,
+    run_stats,
+    sort_options,
+)
 from netcross_report.comm_map import (  # noqa: E402
     DEFAULT_TOP_N as COMM_MAP_DEFAULT_TOP_N,
 )
@@ -451,6 +461,7 @@ class MainWindow(Gtk.ApplicationWindow):
         # etat du dernier run, pour les exports (varie selon le mode) :
         self.last_mode = None  # "single" ou "diff"
         self.last_flows = None  # mode single : pour --detail-csv et la cartographie
+        self.last_stats_rows = None  # mode single : StatRow pour export CSV/JSON
         # Fichier PNG temporaire de la cartographie : un seul par fenetre,
         # reecrit a chaque changement de filtre. Gtk.Picture lit le fichier,
         # il doit donc survivre a l'appel -- d'ou un attribut plutot qu'un
@@ -910,6 +921,59 @@ class MainWindow(Gtk.ApplicationWindow):
         dash_box.append(self.dashboard_sections_box)
         self.dashboard_expander.set_child(dash_box)
         page.append(self.dashboard_expander)
+
+        # -- exploration statistique interactive (issue #22, section 6.8) --
+        # Vue parametrable : Top-N, tri multi-criteres, regroupement par
+        # endpoint/protocole/segment/flux, drill-down vers les flows.
+        # Replie par defaut, comme le dashboard et la cartographie.
+        self.stats_expander = Gtk.Expander(label="Exploration statistique")
+        self.stats_expander.set_sensitive(False)
+        stats_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+        stats_box.set_margin_top(8)
+
+        # -- ligne de filtres --
+        stats_filters = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        stats_filters.append(Gtk.Label(label="Grouper par"))
+        self.stats_group_drop = Gtk.DropDown.new_from_strings([label for _val, label in group_options()])
+        self.stats_group_drop.connect("notify::selected", lambda *_a: self._refresh_stats())
+        stats_filters.append(self.stats_group_drop)
+
+        stats_filters.append(Gtk.Label(label="Trier par"))
+        self.stats_sort_drop = Gtk.DropDown.new_from_strings([label for _val, label in sort_options()])
+        self.stats_sort_drop.connect("notify::selected", lambda *_a: self._refresh_stats())
+        stats_filters.append(self.stats_sort_drop)
+
+        stats_filters.append(Gtk.Label(label="Top-N"))
+        self.stats_topn_spin = Gtk.SpinButton.new_with_range(0, 500, 1)
+        self.stats_topn_spin.set_value(10)
+        self.stats_topn_spin.connect("value-changed", lambda *_a: self._refresh_stats())
+        stats_filters.append(self.stats_topn_spin)
+        stats_box.append(stats_filters)
+
+        # -- liste des resultats --
+        self.stats_list_box = Gtk.ListBox()
+        self.stats_list_box.set_selection_mode(Gtk.SelectionMode.NONE)
+        self.stats_list_box.append(
+            Gtk.Label(label="(lancer une analyse pour voir les statistiques)", halign=Gtk.Align.START)
+        )
+        stats_frame = Gtk.Frame()
+        stats_frame.set_child(self.stats_list_box)
+        stats_box.append(stats_frame)
+
+        # -- boutons d'export --
+        stats_export_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        self.stats_csv_btn = Gtk.Button(label="Exporter CSV")
+        self.stats_csv_btn.set_sensitive(False)
+        self.stats_csv_btn.connect("clicked", self._on_stats_export_csv)
+        stats_export_row.append(self.stats_csv_btn)
+        self.stats_json_btn = Gtk.Button(label="Exporter JSON")
+        self.stats_json_btn.set_sensitive(False)
+        self.stats_json_btn.connect("clicked", self._on_stats_export_json)
+        stats_export_row.append(self.stats_json_btn)
+        stats_box.append(stats_export_row)
+
+        self.stats_expander.set_child(stats_box)
+        page.append(self.stats_expander)
 
         bottom = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
         self.status_label = Gtk.Label(label="", halign=Gtk.Align.START, hexpand=True)
@@ -1578,6 +1642,9 @@ class MainWindow(Gtk.ApplicationWindow):
         # (desactive en mode diff, ou last_flows est None).
         self.dashboard_selection = DashboardSelection()
         self._refresh_dashboard()
+        # exploration statistique (issue #22) : peuple la vue stats
+        # depuis les memes flows/report que le dashboard.
+        self._refresh_stats()
         self.stack.set_visible_child_name("results")
         return False
 
@@ -1625,6 +1692,7 @@ class MainWindow(Gtk.ApplicationWindow):
         # (desactive en mode diff, ou last_flows est None).
         self.dashboard_selection = DashboardSelection()
         self._refresh_dashboard()
+        self._refresh_stats()
         self.stack.set_visible_child_name("results")
         return False
 
@@ -1673,6 +1741,168 @@ class MainWindow(Gtk.ApplicationWindow):
         """Separe de la callback du dialogue pour pouvoir etre pilote directement (tests)."""
         self.status_label.set_text("Generation du PDF...")
         threading.Thread(target=self._generate_pdf_thread, args=(path,), daemon=True).start()
+
+    # ================= exploration statistique (issue #22, section 6.8) =================
+
+    def _stats_group_value(self) -> str:
+        """Lit la valeur de group_by selectionnee dans le DropDown."""
+        opts = group_options()
+        idx = self.stats_group_drop.get_selected()
+        if 0 <= idx < len(opts):
+            return opts[idx][0]
+        return "endpoint"
+
+    def _stats_sort_value(self) -> str:
+        """Lit la valeur de sort_by selectionnee dans le DropDown."""
+        opts = sort_options()
+        idx = self.stats_sort_drop.get_selected()
+        if 0 <= idx < len(opts):
+            return opts[idx][0]
+        return "bytes"
+
+    def _refresh_stats(self):
+        """Reconstruit la liste des statistiques depuis les memes objets
+        que le rapport. Desactive si pas de flows (mode diff ou analyse
+        non lancee)."""
+        flows = self.last_flows
+        self.stats_expander.set_sensitive(bool(flows))
+        self.stats_csv_btn.set_sensitive(False)
+        self.stats_json_btn.set_sensitive(False)
+        if not flows:
+            self._stats_clear_list()
+            return
+        query = build_query(
+            group_by=self._stats_group_value(),
+            sort_by=self._stats_sort_value(),
+            top_n=int(self.stats_topn_spin.get_value()),
+        )
+        events_by_seg = build_events_by_segment(self.last_findings, flows)
+        rows = run_stats(flows, self.last_report, query, events_by_seg)
+        self.last_stats_rows = rows
+        self._stats_repopulate(rows, flows)
+        self.stats_csv_btn.set_sensitive(bool(rows))
+        self.stats_json_btn.set_sensitive(bool(rows))
+
+    def _stats_clear_list(self):
+        """Vide la ListBox des statistiques."""
+        box = self.stats_list_box
+        child = box.get_first_child()
+        while child is not None:
+            nxt = child.get_next_sibling()
+            box.remove(child)
+            child = nxt
+        box.append(Gtk.Label(label="(vide)", halign=Gtk.Align.START))
+
+    def _stats_repopulate(self, rows, flows):
+        """Repeuple la ListBox avec une ligne par StatRow.
+        Chaque ligne est un bouton cliquable qui declenche le drill-down."""
+        self._stats_clear_list()
+        box = self.stats_list_box
+        if not rows:
+            return
+        for row in rows:
+            btn = Gtk.Button(label=format_row(row), halign=Gtk.Align.START)
+            btn.connect(
+                "clicked",
+                lambda _b, r=row: self._stats_select(r, flows),
+            )
+            box.append(btn)
+
+    def _stats_select(self, row, flows):
+        """Drill-down : affiche les flux d'une ligne statistique.
+        Remplace temporairement le contenu de la ListBox par la liste
+        des flux, avec un bouton de retour."""
+        self._stats_clear_list()
+        box = self.stats_list_box
+
+        back_btn = Gtk.Button(label="<-- Retour aux statistiques", halign=Gtk.Align.START)
+        back_btn.connect("clicked", lambda _b: self._refresh_stats())
+        box.append(back_btn)
+
+        box.append(
+            Gtk.Label(
+                label=f"{row.label} ({len(row.flow_keys)} flux)",
+                halign=Gtk.Align.START,
+                css_classes=["heading"],
+            )
+        )
+
+        detail_flows = flows_for_row(row, flows)
+        if not detail_flows:
+            box.append(Gtk.Label(label="(aucun flux)", halign=Gtk.Align.START))
+            return
+        for f in detail_flows:
+            label = Gtk.Label(label=format_flow_summary(f), halign=Gtk.Align.START)
+            label.set_selectable(True)
+            box.append(label)
+
+    def _on_stats_export_csv(self, _btn):
+        """Exporte les statistiques courantes en CSV."""
+        rows = getattr(self, "last_stats_rows", None)
+        if not rows:
+            return
+
+        dialog = Gtk.FileDialog()
+        dialog.set_title("Exporter les statistiques en CSV")
+        dialog.set_initial_name("netcross_stats.csv")
+        filter_obj = Gtk.FileFilter()
+        filter_obj.set_name("CSV")
+        filter_obj.add_pattern("*.csv")
+        dialog.set_default_filter(filter_obj)
+        dialog.save(self, None, self._on_stats_csv_saved)
+
+    def _on_stats_csv_saved(self, dialog, result):
+        try:
+            file_obj = dialog.save_finish(result)
+        except Exception:
+            return
+        if file_obj is None:
+            return
+        from netcross_core.stats import export_csv
+
+        rows = getattr(self, "last_stats_rows", None)
+        if not rows:
+            return
+        path = file_obj.get_path()
+        try:
+            with open(path, "w", encoding="utf-8") as fh:
+                fh.write(export_csv(rows))
+            self.status_label.set_text(f"Statistiques exportees : {path}")
+        except OSError as exc:
+            self.status_label.set_text(f"Erreur export CSV : {exc}")
+
+    def _on_stats_export_json(self, _btn):
+        """Exporte les statistiques courantes en JSON."""
+        dialog = Gtk.FileDialog()
+        dialog.set_title("Exporter les statistiques en JSON")
+        dialog.set_initial_name("netcross_stats.json")
+        filter_obj = Gtk.FileFilter()
+        filter_obj.set_name("JSON")
+        filter_obj.add_pattern("*.json")
+        dialog.set_default_filter(filter_obj)
+        dialog.save(self, None, self._on_stats_json_saved)
+
+    def _on_stats_json_saved(self, dialog, result):
+        try:
+            file_obj = dialog.save_finish(result)
+        except Exception:
+            return
+        if file_obj is None:
+            return
+        import json
+
+        from netcross_core.stats import export_json
+
+        rows = getattr(self, "last_stats_rows", None)
+        if not rows:
+            return
+        path = file_obj.get_path()
+        try:
+            with open(path, "w", encoding="utf-8") as fh:
+                json.dump(export_json(rows), fh, indent=2, ensure_ascii=False)
+            self.status_label.set_text(f"Statistiques exportees : {path}")
+        except OSError as exc:
+            self.status_label.set_text(f"Erreur export JSON : {exc}")
 
     # ================= cartographie des communications (issue #15) =================
 
