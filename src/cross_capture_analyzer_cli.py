@@ -762,6 +762,13 @@ def main():
         conversations = build_conversations(flow_objs)
         expert_events = build_expert_events(findings)
         diagnoses = build_diagnoses(expert_events)
+        # Moteur de correlation causale (Job 4/issue #4) : enrichit les
+        # ExpertEvent et Diagnosis avec cause/impact probables en
+        # correlant les symptomes co-occurrents sur un meme segment.
+        from netcross_core.causality import correlate_diagnosis_causes, correlate_event_causes
+
+        correlate_event_causes(expert_events)
+        correlate_diagnosis_causes(diagnoses)
         compliance = evaluate_compliance(r)
         # Session 1 (FEATURES.md section 13.3, "exploitation de
         # l'expertise Wireshark/TShark") : signaux d'expertise BRUTS
