@@ -102,3 +102,33 @@ def test_dtls_hors_capwap_ignore():
     }
     tags = detect_encapsulation(layers)
     assert not any("CAPWAP" in t for t in tags)
+
+
+def test_fortinet_vendor_extension_detected():
+    """Fortinet : le post-dissecteur Lua ajoute une couche
+    'fortinet_capwap' dans la sortie EK. detect_encapsulation doit
+    ajouter le tag 'CAPWAP(Fortinet)' en plus du tag CAPWAP data."""
+    layers = {
+        "capwap_data": {"capwap_capwap_preamble_type": "0"},
+        "fortinet_capwap": {
+            "fortinet_capwap_vendor_id": "12356",
+            "fortinet_capwap_payload_type": "0x0004",
+            "fortinet_capwap_wtp_serial": "FGT-AP-1234",
+        },
+        "frame": {"frame_frame_protocols": "eth:ip:udp:capwap.data:fortinet_capwap"},
+    }
+    tags = detect_encapsulation(layers)
+    assert "CAPWAP(decapsule)" in tags or "CAPWAP?(non decode)" in tags
+    assert "CAPWAP(Fortinet)" in tags
+
+
+def test_fortinet_extension_alone_without_capwap_not_tagged():
+    """Une couche 'fortinet_capwap' sans CAPWAP data/controle ne doit
+    pas produire de tag CAPWAP (cas defensif)."""
+    layers = {
+        "fortinet_capwap": {
+            "fortinet_capwap_vendor_id": "12356",
+        },
+    }
+    tags = detect_encapsulation(layers)
+    assert not any("CAPWAP" in t for t in tags)

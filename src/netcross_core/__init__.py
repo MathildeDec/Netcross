@@ -34,6 +34,7 @@ from netcross_core.correlate import (
     correlate,
     flow_key,
 )
+from netcross_core.live_diff import LiveDiffConfig, LiveDiffEngine, LiveDiffState, finding_to_alarm_signal
 from netcross_core.models import Pkt, Report
 from netcross_core.parsing import (
     compute_mos,
@@ -46,6 +47,7 @@ from netcross_core.parsing import (
 )
 from netcross_core.redact import AddressRedactor, redact_packets, write_redaction_map_csv
 from netcross_core.report_text import print_report, write_detail_csv
+from netcross_core.stats import compute_stats, export_csv, export_json
 from netcross_core.voip import Call, build_calls
 from netcross_core.wireshark_expert import build_wireshark_expert_events
 
@@ -57,6 +59,9 @@ __all__ = [
     "ClientReport",
     "DiffFinding",
     "HttpObject",
+    "LiveDiffConfig",
+    "LiveDiffEngine",
+    "LiveDiffState",
     "Pkt",
     "Report",
     "analyse",
@@ -66,13 +71,17 @@ __all__ = [
     "build_wireshark_expert_events",
     "compare_clients",
     "compute_mos",
+    "compute_stats",
     "compute_throughput",
     "compute_topn_series",
     "correlate",
     "detect_encapsulation",
     "diff_reports",
     "evaluate_compliance",
+    "export_csv",
+    "export_json",
     "extract_http_objects",
+    "finding_to_alarm_signal",
     "flow_key",
     "objects_to_dicts",
     "parse_capture",

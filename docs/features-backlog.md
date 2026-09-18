@@ -7778,11 +7778,21 @@ et pas seulement :
 
 ### 6.8 Exploration statistique interactive
 
-**Statut : 🟡 Partiel — priorité moyenne**
+**Statut : 🟡 Partiel — module core créé (Session 72), câblage GUI à faire**
 
 Netcross possède déjà les données de flows, endpoints, topologie, débit, pertes,
-latence et événements, ainsi que des graphiques PDF. Il manque une couche générique
-d'exploration statistique.
+latence et événements, ainsi que des graphiques PDF. Une couche générique
+d'exploration statistique a été ajoutée (Session 72, Job 27).
+
+**Implémenté (Session 72) :**
+- Module `netcross_core/stats.py` : `compute_stats()` avec Top-N, tri multi-critères,
+  regroupement par endpoint/protocole/segment/flux, filtres temporels et par segment
+- Export CSV/JSON pour drill-down
+- 20 tests unitaires
+
+**Reste à faire :**
+- Câblage GUI GTK4 (vue interactive, drill-down, sélection de critères)
+- Intégration avec les vues existantes (conversations, flows, endpoints)
 
 #### Chemin pour y parvenir
 

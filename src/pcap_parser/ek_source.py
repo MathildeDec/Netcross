@@ -96,6 +96,7 @@ def _build_args(
     display_filter: str | None = None,
     extra_prefs: Sequence[str] = (),
     extra_args: Sequence[str] = (),
+    lua_scripts: Sequence[str] = (),
 ) -> list:
     if (path is None) == (interface is None):
         raise ValueError("fournir soit path= (batch), soit interface= (live), pas les deux")
@@ -117,6 +118,8 @@ def _build_args(
         args += ["-Y", display_filter]
     for pref in (*DEFAULT_PREFS, *extra_prefs):
         args += ["-o", pref]
+    for script in lua_scripts:
+        args += ["-X", f"lua_script:{script}"]
     args += ["-T", "ek"]
     args += list(extra_args)
     return args
@@ -171,6 +174,7 @@ def iter_ek_records(
     display_filter: str | None = None,
     extra_prefs: Sequence[str] = (),
     extra_args: Sequence[str] = (),
+    lua_scripts: Sequence[str] = (),
     stop_event: threading.Event | None = None,
 ) -> Iterator[EkRecord]:
     """
@@ -200,6 +204,7 @@ def iter_ek_records(
         display_filter=display_filter,
         extra_prefs=extra_prefs,
         extra_args=extra_args,
+        lua_scripts=lua_scripts,
     )
 
     proc = subprocess.Popen(
