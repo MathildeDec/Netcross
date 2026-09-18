@@ -603,6 +603,22 @@ def print_report(r: Report):
     else:
         print("  aucun trafic SIP detecte dans les captures")
 
+    print("\n-- VoIP orientee appel (SIP + RTP) --")
+    if r.voip_calls:
+        for call in r.voip_calls[:50]:
+            print(
+                f"  {call['call_id'][:40]} : "
+                f"participants={', '.join(call['participants']) or '?'} ; "
+                f"RTP={len(call['rtp_streams'])} ; qualite={call['quality']} ; "
+                f"etablissement={call['setup_duration_ms'] if call['setup_duration_ms'] is not None else 'n/a'}ms ; "
+                f"duree={call['duration_ms'] if call['duration_ms'] is not None else 'n/a'}ms"
+            )
+            for event in call["events"]:
+                print(f"      {event['type']} @ {event['ts']:.3f}s")
+        print(f"  distribution qualite : {dict(r.voip_quality_distribution)}")
+    else:
+        print("  aucun appel SIP consolide")
+
     print("\n-- DNS (resolution de noms) --")
     if r.dns_query_count or r.dns_response_count:
         for p in r.points:
