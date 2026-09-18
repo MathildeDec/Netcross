@@ -56,6 +56,7 @@ def analyse(
     r.topology_branch_points = topo_branch
     r.topology_merge_points = topo_merge
     r.topology_used_for_order = used_topology_for_order
+    r.http_objects = [obj.__dict__ for obj in extract_http_objects(all_packets)]
     if points_order:
         r.topology_order_conflicts = _check_order_consistency(points_order, topo_edges)
 
