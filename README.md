@@ -674,6 +674,26 @@ uniquement (pas de comparaison), TLS/QUIC indisponibles dans ce mode
 affichées par graphique dans le rapport PDF (mode simple) l'est aussi
 (spinbutton dédié, équivalent GUI de `--topn-charts`).
 
+**Cartographie des communications** (section repliable de la page
+Résultats, sans équivalent CLI) : un graphe orienté des échanges observés,
+un nœud par hôte (taille ∝ volume), une flèche par sens (épaisseur ∝
+volume). Rouge = au moins un signal d'expertise (retransmission,
+`expert_flags` tshark) — sur le nœud comme sur l'arête. Trois filtres
+recalculent le dessin à la volée : protocole, Top-N d'arêtes (15 par
+défaut), « anomalies seulement ». Le graphe reste **orienté** : un échange
+TCP produit donc deux flèches, ce qui est précisément ce qui permet de voir
+qu'un sens passe et que l'autre ne répond pas. Deux points de vue sur le
+même paquet ne gonflent pas les volumes : pour chaque flux, le comptage
+retient le point de capture qui en a vu le plus, jamais la somme des points
+(contrairement au diagramme de séquence, où chaque observation est
+volontairement une ligne). La légende sous le dessin annonce le filtrage
+(« 15 arête(s) affichée(s) sur 132 ») pour qu'un graphe tronqué ne passe
+pas pour un graphe complet. Le calcul vit dans
+`netcross_report/comm_map.py` — sans GTK ni matplotlib, donc testable sans
+interface graphique (29 tests) ; le rendu est `charts.chart_comm_map()`. La
+vue se désactive après une comparaison baseline/courant, qui ne conserve
+pas les flux.
+
 **Parité restante avec le CLI** : la capture en direct est désormais
 disponible sur les deux CLI — `--live` sur `cross_capture_analyzer_cli.py`
 et `--live-current` sur `cross_capture_diff_cli.py` (voir ci-dessus, le

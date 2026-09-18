@@ -8,6 +8,14 @@ vaut None plutot que de faire planter l'import de tout le package (un
 appelant qui ne veut que le triage ou le JSON n'a pas a installer
 reportlab)."""
 
+from netcross_report.comm_map import (
+    CommEdge,
+    CommMap,
+    CommNode,
+    available_protocols,
+    build_comm_map,
+    format_comm_map,
+)
 from netcross_report.expert_events import build_diagnoses, build_expert_events
 from netcross_report.history import HistoryEntry, list_history, print_history, record_diff_run, record_run
 from netcross_report.json_report import generate_json_diff, generate_json_report
@@ -51,6 +59,9 @@ except ImportError:
 __all__ = [
     "DEFAULT_SEVERITY_WEIGHTS",
     "HEALTH_LABELS",
+    "CommEdge",
+    "CommMap",
+    "CommNode",
     "Finding",
     "HistoryEntry",
     "SegmentMetrics",
@@ -58,7 +69,9 @@ __all__ = [
     "SequenceStep",
     "SequenceView",
     "SessionObjects",
+    "available_protocols",
     "available_rule_ids",
+    "build_comm_map",
     "build_diagnoses",
     "build_expert_events",
     "build_findings",
@@ -67,6 +80,7 @@ __all__ = [
     "build_session_objects",
     "degradation_summary",
     "evaluate",
+    "format_comm_map",
     "format_health_line",
     "format_session_objects",
     "generate_diff_pdf",
