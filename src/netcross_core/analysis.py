@@ -248,6 +248,7 @@ def analyse(
     _analyse_tls_certificate(r, all_packets, pairs)
     _analyse_tls_handshake(r, all_packets)
     _analyse_retransmission_types(r, all_packets)
+    _analyse_tcp_expert_signals(r, all_packets)
     _analyse_saturation(r)
     _analyse_bufferbloat(r)
     _analyse_handshake(r, flows, points, points_order, nat_tolerant)
@@ -934,6 +935,51 @@ def _analyse_retransmission_types(r: Report, all_packets):
             r.retrans_fast[pk.point] += 1
         elif pk.is_retransmission:
             r.retrans_rto[pk.point] += 1
+
+
+def _analyse_tcp_expert_signals(r: Report, all_packets):
+    """
+    Exploite les signaux d'expertise TCP NATIFS de tshark (tcp.analysis.*)
+    au-dela des trois retransmissions deja decodees en booleens RawPacket
+    (voir _analyse_retransmission_types) : out-of-order, lost segment,
+    window update. Compte par point, complementaire des heuristiques
+    retrans/dup_ack/zero_window (qui restent pour compatibilite avec
+    l'existant -- baseline_diff notamment).
+
+    Objectif (issue #21) : mieux distinguer perte reelle, reordonnancement,
+    retransmission rapide et RTO. tshark dispose d'un moteur d'etat TCP
+    complet qui classe chaque segment ; on reutilise sa classification plutot
+    que de la reimplementer.
+
+    - out_of_order (tcp.analysis.out_of_order) : segment recu dans le
+      desordre -- REORDONNANCEMENT, pas une perte. Distinct des
+      retransmissions (conditions mutuellement exclusives cote tshark) :
+      isole les vraies pertes des simples remises dans le desordre.
+    - lost_segment (tcp.analysis.lost_segment) : tshark a infere qu'un
+      segment a ete perdu (trou dans la numerotation de sequence non
+      recu dans cette capture) -- signal de PERTE REELLE, plus precis
+      que l'heuristique retrans (qui compte aussi le reordonnancement).
+    - window_update (tcp.analysis.window_update) : changement de fenetre
+      de reception -- ni perte ni retransmission, mais signal utile pour
+      diagnostiquer un recepteur qui limite le debit (couple avec
+      zero_window ci-dessus).
+
+    Source : RawPacket.expert_flags, qui capte deja TOUS les noms de
+    condition _ws_expert (voir pcap_parser.ek_fields.expert_flag_names) --
+    aucun decodage supplementaire cote pcap_parser, on exploite juste ce
+    champ deja calcule. Les noms EK normalises suivent la convention
+    tcp_tcp_analysis_<suffixe> (prefixe double, comme tcp_tcp_srcport).
+    """
+    for pk in all_packets:
+        if pk.proto != "TCP":
+            continue
+        flags = pk.expert_flags
+        if "tcp_tcp_analysis_out_of_order" in flags:
+            r.out_of_order[pk.point] += 1
+        if "tcp_tcp_analysis_lost_segment" in flags:
+            r.lost_segment[pk.point] += 1
+        if "tcp_tcp_analysis_window_update" in flags:
+            r.window_update[pk.point] += 1
 
 
 def _analyse_saturation(r: Report):
