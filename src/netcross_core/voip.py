@@ -203,6 +203,4 @@ def build_calls(all_packets, rtp_streams: list[dict]) -> tuple[list[Call], dict[
             )
 
     distribution = Counter(call.quality for call in calls)
-    distribution["rtp_attached"] = attached
-    distribution["rtp_ambiguous"] = ambiguous
     return calls, dict(distribution)
