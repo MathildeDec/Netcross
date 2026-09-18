@@ -467,6 +467,18 @@ Options utiles :
   dégrade-t-elle ? » : le segment le plus dégradé est signalé en rouge
   (pertes d'abord, délai P95 ensuite). Un tiret cadratin signale une
   métrique **non mesurable** sur ce segment, jamais une valeur nulle.
+- `--sequence-diagram [N]` : ajoute au `--pdf-report` un **diagramme de
+  séquence** des échanges pour les N flux les plus volumineux (N=1 si
+  l'option est passée sans valeur). Hôtes en colonnes, temps qui descend,
+  une flèche par paquet — la couleur identifie le **point de capture**, pas
+  le protocole : deux flèches de couleurs différentes à quelques
+  millisecondes d'écart sont le *même* paquet vu à deux endroits, et cet
+  écart est son temps de transit. Sous le dessin, une table donne pour
+  chaque ligne le numéro de trame, la date relative, l'écart avec la ligne
+  précédente, le point et la taille — de quoi retrouver le paquet dans
+  Wireshark. Tronqué à 30 lignes par flux (le **début** de l'échange est
+  conservé : handshake, négociation, première requête ; la troncature est
+  annoncée dans le rapport). Sans effet sans `--pdf-report`.
 - `--topn-charts N` : nombre de catégories affichées par graphique dans
   la section "Évolution temporelle (top-N)" du rapport `--pdf-report`
   (défaut 5, le reste des catégories est regroupé sous "autres"). Quatre
@@ -661,6 +673,26 @@ uniquement (pas de comparaison), TLS/QUIC indisponibles dans ce mode
 "Triage"), équivalent à `--triage-top-n` côté CLI ; le nombre de catégories
 affichées par graphique dans le rapport PDF (mode simple) l'est aussi
 (spinbutton dédié, équivalent GUI de `--topn-charts`).
+
+**Cartographie des communications** (section repliable de la page
+Résultats, sans équivalent CLI) : un graphe orienté des échanges observés,
+un nœud par hôte (taille ∝ volume), une flèche par sens (épaisseur ∝
+volume). Rouge = au moins un signal d'expertise (retransmission,
+`expert_flags` tshark) — sur le nœud comme sur l'arête. Trois filtres
+recalculent le dessin à la volée : protocole, Top-N d'arêtes (15 par
+défaut), « anomalies seulement ». Le graphe reste **orienté** : un échange
+TCP produit donc deux flèches, ce qui est précisément ce qui permet de voir
+qu'un sens passe et que l'autre ne répond pas. Deux points de vue sur le
+même paquet ne gonflent pas les volumes : pour chaque flux, le comptage
+retient le point de capture qui en a vu le plus, jamais la somme des points
+(contrairement au diagramme de séquence, où chaque observation est
+volontairement une ligne). La légende sous le dessin annonce le filtrage
+(« 15 arête(s) affichée(s) sur 132 ») pour qu'un graphe tronqué ne passe
+pas pour un graphe complet. Le calcul vit dans
+`netcross_report/comm_map.py` — sans GTK ni matplotlib, donc testable sans
+interface graphique (29 tests) ; le rendu est `charts.chart_comm_map()`. La
+vue se désactive après une comparaison baseline/courant, qui ne conserve
+pas les flux.
 
 **Parité restante avec le CLI** : la capture en direct est désormais
 disponible sur les deux CLI — `--live` sur `cross_capture_analyzer_cli.py`
