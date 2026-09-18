@@ -3,4 +3,4 @@ netcross (1.0.0) unstable; urgency=medium
   * Version initiale : analyse croisee de captures multi-points, CLI,
     rapport PDF, interface GTK4.
 
- -- Mathilde Deuscher <FIXME-mettre-votre-email@example.com>  Mon, 17 Aug 2026 05:17:44 +0000
+ -- Mathilde Deuscher <149895843+MathildeDec@users.noreply.github.com>  Mon, 17 Aug 2026 05:17:44 +0000

@@ -7,8 +7,8 @@ Architecture: all
 Version: 1.0.0
 Distribution: unstable
 Urgency: medium
-Maintainer: Mathilde Deuscher <FIXME-mettre-votre-email@example.com>
-Changed-By: Mathilde Deuscher <FIXME-mettre-votre-email@example.com>
+Maintainer: Mathilde Deuscher <149895843+MathildeDec@users.noreply.github.com>
+Changed-By: Mathilde Deuscher <149895843+MathildeDec@users.noreply.github.com>
 Description:
  netcross   - Analyse croisee de captures Wireshark multi-points
 Changes:

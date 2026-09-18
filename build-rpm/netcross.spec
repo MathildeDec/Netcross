@@ -3,7 +3,7 @@ Version:        1.0.0
 Release:        1%{?dist}
 Summary:        Analyse croisee de captures Wireshark multi-points
 License:        MIT
-URL:            https://github.com/FIXME-votre-compte/netcross
+URL:            https://github.com/MathildeDec/netcross
 BuildArch:      noarch
 
 # paquet "native" sans tarball amont : les sources sont copiees dans le
@@ -67,6 +67,6 @@ install -m 755 netcross-history-wrapper %{buildroot}%{_bindir}/netcross-history
 %{_bindir}/netcross-history
 
 %changelog
-* Mon Aug 17 2026 Mathilde Deuscher <FIXME-mettre-votre-email@example.com> - 1.0.0-1
+* Mon Aug 17 2026 Mathilde Deuscher <149895843+MathildeDec@users.noreply.github.com> - 1.0.0-1
 - Version initiale : analyse croisee de captures multi-points, CLI,
   rapport PDF, interface GTK4.
