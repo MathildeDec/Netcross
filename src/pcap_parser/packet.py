@@ -131,6 +131,8 @@ class RawPacket:
         "vlan_prio",
         "window",
         "wscale_shift",
+        "http_content_type",
+        "http_content_length",
     )
     ts: float
     # frame.number -- numero de trame 1-indexe attribue par tshark au sein
