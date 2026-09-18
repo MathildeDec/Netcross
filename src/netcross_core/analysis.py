@@ -254,7 +254,8 @@ def analyse(
     _analyse_dhcp(r, all_packets, points, points_order)
     _analyse_sip(r, all_packets, points, points_order)
     from netcross_core.voip import build_calls
-    r.voip_calls, r.voip_quality_distribution = build_calls(all_packets, r.rtp_streams)
+    calls, r.voip_quality_distribution = build_calls(all_packets, r.rtp_streams)
+    r.voip_calls = [call.to_dict() for call in calls]
     _analyse_dns(r, all_packets, points, points_order)
     _analyse_http(r, all_packets, points, points_order)
 
