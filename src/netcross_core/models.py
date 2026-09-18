@@ -376,6 +376,8 @@ class Report:
     http_response_time_ms: list[float] = field(default_factory=list)
     # -- objets applicatifs HTTP (Job 25), metadonnees uniquement
     http_objects: list[dict] = field(default_factory=list)
+    # -- transactions applicatives (Job 23, §6.9/§6.10)
+    application_transactions: list[dict] = field(default_factory=list)
     # -- topologie deduite (ordre + chemins multiples) --
     topology_edges: list[tuple[str, str, dict]] = field(default_factory=list)
     topology_ambiguous: list[tuple[str, str, str]] = field(default_factory=list)

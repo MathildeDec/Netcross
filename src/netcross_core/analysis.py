@@ -12,6 +12,12 @@ from itertools import combinations
 from typing import Any
 
 from netcross_core.content import extract_http_objects
+from netcross_core.application import (
+    TransactionThresholds,
+    build_dns_transactions,
+    build_http_transactions,
+    classify_transaction,
+)
 from netcross_core.correlate import TOPN_DIMENSIONS, compute_throughput, compute_topn_series
 from netcross_core.models import Pkt, Report
 from netcross_core.parsing import compute_mos
@@ -58,6 +64,7 @@ def analyse(
     r.topology_merge_points = topo_merge
     r.topology_used_for_order = used_topology_for_order
     r.http_objects = [obj.__dict__ for obj in extract_http_objects(all_packets)]
+    _analyse_application_transactions(r, all_packets)
     if points_order:
         r.topology_order_conflicts = _check_order_consistency(points_order, topo_edges)
 
@@ -980,6 +987,57 @@ def _analyse_tcp_expert_signals(r: Report, all_packets):
             r.lost_segment[pk.point] += 1
         if "tcp_tcp_analysis_window_update" in flags:
             r.window_update[pk.point] += 1
+
+
+def _analyse_application_transactions(r: Report, all_packets: list[Pkt]):
+    """
+    Construit et classifie les transactions applicatives (Job 23, §6.9/§6.10).
+
+    Modèle : Flow -> protocole applicatif -> requête/réponse -> transaction
+    -> temps réseau + temps serveur + temps total -> classification.
+
+    Couvre HTTP et DNS. La distinction automatique produit :
+    - normal : temps total sous le seuil du protocole
+    - missing_response : requête sans réponse (perte / serveur / proxy)
+    - network_slow : lenteur + signaux TCP (retrans, lost_segment, out_of_order)
+    - server_slow : server_time_ms mesuré et dominant
+    - application_slow : lenteur sans preuve réseau ni serveur
+
+    Les transactions sont stockées dans Report.application_transactions
+    (liste de dicts, comme http_objects) pour consommation par les modules
+    d'analyse et de rapport.
+    """
+    # Collecte des signaux réseau par flux TCP (5-tuple directionnel)
+    network_signals: dict[tuple[str, str, int, int], list[str]] = {}
+    for pk in all_packets:
+        if pk.proto != "TCP":
+            continue
+        flow_key = (pk.src, pk.dst, pk.sport, pk.dport)
+        signals = network_signals.setdefault(flow_key, [])
+        if pk.is_retransmission:
+            signals.append("retransmission")
+        if pk.is_fast_retransmission:
+            signals.append("fast_retransmission")
+        if "tcp_tcp_analysis_lost_segment" in pk.expert_flags:
+            signals.append("lost_segment")
+        if "tcp_tcp_analysis_out_of_order" in pk.expert_flags:
+            signals.append("out_of_order")
+
+    thresholds = TransactionThresholds()
+    transactions = []
+
+    # HTTP : apparieer requêtes/réponses par flux TCP
+    for txn in build_http_transactions(all_packets, network_signals):
+        txn.classification = classify_transaction(txn, thresholds)
+        transactions.append(txn)
+
+    # DNS : apparieer requêtes/réponses par clé (point, endpoints, txn_id, query)
+    for txn in build_dns_transactions(all_packets):
+        txn.classification = classify_transaction(txn, thresholds)
+        transactions.append(txn)
+
+    transactions.sort(key=lambda t: t.request_ts or 0.0)
+    r.application_transactions = [t.to_dict() for t in transactions]
 
 
 def _analyse_saturation(r: Report):
