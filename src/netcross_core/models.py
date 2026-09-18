@@ -182,6 +182,10 @@ class Pkt:
     # ek_fields.expert_flag_details pour le detail complet) -- report a
     # l'identique, aucune transformation.
     expert_details: tuple[tuple[str, str | None, str | None, str | None], ...]
+    # HTTP object metadata (Job 25), optional to preserve the historical
+    # Pkt constructor/API.
+    http_content_type: str | None = None
+    http_content_length: int | None = None
 
 
 @dataclass
