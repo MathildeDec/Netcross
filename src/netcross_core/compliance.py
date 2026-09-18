@@ -201,11 +201,37 @@ DEFAULT_REFERENCES = [
 ]
 
 
+def _compute_status(observed: float, ref: ReferenceProfile, op) -> str:
+    """Determine le statut de conformite : CONFORME, DEVIATION ou
+    VIOLATION.
+
+    DEVIATION : la valeur observee depasse le seuil mais reste dans la
+    marge de tolerance definie par `ref.deviation_margin` (relative au
+    seuil). Ex: seuil=100, margin=0.1 -> DEVIATION entre 100 et 110.
+
+    Sans `deviation_margin` (None), pas de nuance DEVIATION --
+    comportement d'origine : CONFORME ou VIOLATION uniquement.
+    """
+    if op(observed, ref.threshold):
+        return "CONFORME"
+    # Au-dela du seuil : verifier si dans la marge de tolerance
+    if ref.deviation_margin is not None and ref.threshold > 0:
+        margin_abs = ref.threshold * ref.deviation_margin
+        # DEVIATION si observed <= threshold + margin_abs
+        if observed <= ref.threshold + margin_abs:
+            return "DEVIATION"
+    return "VIOLATION"
+
+
 def evaluate_compliance(report, references=None) -> list[ComplianceResult]:
     """Evalue `report` contre `references` (par defaut DEFAULT_REFERENCES
     ci-dessus). Une metrique absente de `_METRIC_FUNCS` produit un
     ComplianceResult a `INDETERMINE` plutot qu'une exception -- un
-    referentiel mal configure ne doit jamais faire planter l'analyse."""
+    referentiel mal configure ne doit jamais faire planter l'analyse.
+
+    Statuts produits : CONFORME, DEVIATION (ecart mineur dans la marge
+    de tolerance), VIOLATION, INDETERMINE.
+    """
     if references is None:
         references = DEFAULT_REFERENCES
     results = []
@@ -216,6 +242,6 @@ def evaluate_compliance(report, references=None) -> list[ComplianceResult]:
             results.append(ComplianceResult(ref, None, "INDETERMINE"))
             continue
         observed = func(report)
-        status = "CONFORME" if op(observed, ref.threshold) else "VIOLATION"
+        status = _compute_status(observed, ref, op)
         results.append(ComplianceResult(ref, observed, status))
     return results
