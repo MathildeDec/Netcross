@@ -18,6 +18,23 @@ que pour un contexte spécifique, pas systématiquement.
   `import-linter`, `mypy` sur les fichiers modifiés) intégralement
   vert ; `pre-commit` non exécutable dans cet environnement (zip livré
   sans `.git` — voir Commandes qualité ci-dessous).
+- **Session 71** : nettoyage mypy complet (issue #28) — les 49 erreurs
+  préexistantes sur 9 fichiers sont TOUTES résolues :
+  `PYTHONPATH=src uv run mypy --ignore-missing-imports src/` renvoie
+  désormais `Success: no issues found in 36 source files`. Corrections
+  par fichier : `analysis.py` (10 — annotations de type sur les
+  `defaultdict` imbriqués + import `Pkt`/`Any`), `tls_diagnostics.py`
+  (18 — refactoring des appels `TlsEvent(**base)` en arguments
+  nommés explicites + `sport or 0`), `triage.py` (9 — import `Finding`
+  et typage des `list[Finding]` au lieu de `list[object]`),
+  `quic_diagnostics.py` (4 — `sport or 0`), `packet.py` (2 —
+  `src or ""`), `history.py` (2 — `points: list[str] | dict[...]`),
+  `__init__.py` (2 — `type: ignore` sur repli `reportlab`),
+  `ek_source.py` (1 — `assert interface is not None`),
+  `parsing.py` (1 — `type: ignore[call-overload]` sur libération
+  mémoire). Aucun changement de comportement — corrections de types
+  uniquement. `pytest` 1138/1138 inchangé, `ruff`/`lint-imports`
+  verts. Détail complet : `docs/sessions/session-71.md`.
 - **Session 69** : suite du chantier ouvert par les Sessions 55-68
   (moteur d'exécution, `netcross_report/rule_engine.py`) : audit bloc
   par bloc, pour la première fois, des CINQ règles du catalogue à
@@ -1120,9 +1137,9 @@ Détail complet et champs restants du schéma cible :
 
 Item indépendant de cette feuille de route (n'a rien à voir avec la
 comparaison OmniPeek) : les 49 erreurs `mypy` remises à jour en Session
-50 (voir État courant) restent un nettoyage optionnel, jamais priorisé
-depuis la Session 38 — à reconsidérer si une session future retouche
-`tls_diagnostics.py`/`quic_diagnostics.py`/`analysis.py` de toute façon.
+50 (voir État courant) sont DÉSORMAIS RÉSOLUES (Session 71, issue #28) :
+`PYTHONPATH=src uv run mypy --ignore-missing-imports src/` renvoie
+`Success: no issues found in 36 source files`.
 
 ## Commandes qualité
 

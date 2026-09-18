@@ -85,7 +85,7 @@ class HistoryEntry:
     label: str | None
     # liste (run_type="analyse") ou {"baseline": [...], "current": [...]}
     # (run_type="diff") -- voir record_run/record_diff_run.
-    points: object
+    points: list[str] | dict[str, list[str]]
     health_score: int
     health_label: str
     total_findings: int
@@ -286,7 +286,9 @@ def print_history(entries: list[HistoryEntry]) -> None:
     for e in entries:
         label_tag = f" [{e.label}]" if e.label else ""
         if e.run_type == "diff":
-            points_txt = f"baseline={','.join(e.points['baseline'])} courant={','.join(e.points['current'])}"
+            points_map = e.points
+            assert isinstance(points_map, dict)
+            points_txt = f"baseline={','.join(points_map['baseline'])} courant={','.join(points_map['current'])}"
         else:
             points_txt = ",".join(e.points)
         counts_txt = ", ".join(f"{sev}={n}" for sev, n in sorted(e.finding_counts.items())) or "aucun"
