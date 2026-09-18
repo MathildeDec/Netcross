@@ -440,6 +440,106 @@ def chart_sequence_diagram(view, path):
     return path
 
 
+def chart_comm_map(cmap, path):
+    """
+    Cartographie des communications : un noeud par hote, une fleche par sens
+    d'echange. Taille du noeud et epaisseur de la fleche proportionnelles au
+    volume ; une arete portant des signaux d'expertise (retransmissions,
+    expert_flags) est tracee en rouge.
+
+    Disposition en ressort (spring layout, graine fixe) : contrairement a la
+    topologie des points de capture, un graphe d'hotes n'a pas de sens
+    "amont -> aval" a respecter, et forcer des couches inventerait une
+    hierarchie qui n'existe pas. La graine fixe garantit qu'une meme capture
+    donne deux fois le meme dessin -- indispensable des lors que l'image
+    illustre un rapport.
+
+    `None` si la carte est vide (aucune arete apres filtrage).
+    """
+    if not cmap or not cmap.edges:
+        return None
+
+    import networkx as nx
+    from matplotlib.patches import Patch
+
+    G = nx.DiGraph()  # noqa: N806 -- convention NetworkX, voir chart_topology
+    for node in cmap.nodes:
+        G.add_node(node.host, volume=node.bytes)
+    for edge in cmap.edges:
+        G.add_edge(edge.src, edge.dst, volume=edge.bytes, anomalies=edge.anomalies)
+
+    pos = nx.spring_layout(G, seed=42, k=0.9)
+    fig, ax = plt.subplots(figsize=(9, max(4.5, min(9.0, 0.45 * len(cmap.nodes) + 3.0))))
+
+    max_bytes = max((n.bytes for n in cmap.nodes), default=1) or 1
+    node_sizes = [400 + 1800 * (n.bytes / max_bytes) for n in cmap.nodes]
+    node_colors = ["#ef4444" if n.anomalies else "#3b82f6" for n in cmap.nodes]
+    nx.draw_networkx_nodes(
+        G,
+        pos,
+        nodelist=[n.host for n in cmap.nodes],
+        node_size=node_sizes,
+        node_color=node_colors,
+        edgecolors="white",
+        linewidths=1.2,
+        ax=ax,
+    )
+    # Etiquettes DECALEES sous les noeuds, sur fond blanc : une adresse IP
+    # est plus large qu'un disque de graphe, et centree elle chevauchait les
+    # fleches voisines (constate au premier rendu).
+    labels_pos = {host: (x, y - 0.11) for host, (x, y) in pos.items()}
+    nx.draw_networkx_labels(
+        G,
+        labels_pos,
+        ax=ax,
+        font_size=7,
+        bbox={"boxstyle": "round,pad=0.15", "fc": "white", "ec": "#cbd5e1", "alpha": 0.9},
+    )
+
+    max_edge = max((e.bytes for e in cmap.edges), default=1) or 1
+    for edge in cmap.edges:
+        nx.draw_networkx_edges(
+            G,
+            pos,
+            edgelist=[(edge.src, edge.dst)],
+            ax=ax,
+            width=0.8 + 2.6 * (edge.bytes / max_edge),
+            edge_color="#ef4444" if edge.anomalies else "#475569",
+            arrowsize=14,
+            arrowstyle="-|>",
+            connectionstyle="arc3,rad=0.12",
+            node_size=1200,
+        )
+    edge_labels = {(e.src, e.dst): ",".join(sorted(e.protocols)) or "?" for e in cmap.edges}
+    nx.draw_networkx_edge_labels(
+        G,
+        pos,
+        edge_labels=edge_labels,
+        ax=ax,
+        font_size=6,
+        rotate=False,
+        bbox={"boxstyle": "round,pad=0.1", "fc": "white", "ec": "none", "alpha": 0.75},
+    )
+
+    ax.set_title(f"Communications observees ({len(cmap.edges)} arete(s) sur {cmap.total_edges})")
+    ax.axis("off")
+    ax.margins(0.12)
+    ax.legend(
+        handles=[
+            Patch(facecolor="#3b82f6", label="Hote sans signal d'expertise"),
+            Patch(facecolor="#ef4444", label="Signal d'expertise (retransmission, flag tshark)"),
+        ],
+        loc="upper center",
+        bbox_to_anchor=(0.5, -0.01),
+        ncol=2,
+        fontsize=7,
+        framealpha=0.9,
+    )
+    fig.savefig(path, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+    return path
+
+
 def generate_all_charts(r, findings, tmpdir):
     charts = {}
     for name, fn, args in [
