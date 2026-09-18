@@ -100,9 +100,11 @@ chacune DEUX tests "declenche" distincts (un par branche de severite,
 meme discipline que `test_pertes_anomalie_au_dessus_de_5_pourcent`/
 `test_pertes_a_surveiller_en_dessous_de_5_pourcent` pour
 `loss_per_segment`), plus pour `saturation` un test dedie a la garde
-"NON correlees". Le role de "regle connue sans evaluateur" passe de
-`saturation` (desormais pilotee) a `rtp_quality_mos` -- voir
-`test_regle_connue_sans_evaluateur_leve_not_implemented_error`.
+"NON correlees". Le role de "regle connue sans evaluateur" disparait avec la Session 70
+(jobs 1 et 2) : `rtp_quality_mos` puis `server_processing_dominant`
+recoivent leur evaluateur, les 41 regles du catalogue sont donc TOUTES
+pilotees et `test_regle_connue_sans_evaluateur_leve_not_implemented_error`
+est retire (il ne restait aucune regle pour tenir ce role).
 """
 
 import pytest
@@ -181,27 +183,6 @@ def test_regle_inconnue_leve_key_error():
         evaluate("regle_qui_nexiste_pas", r)
 
 
-def test_regle_connue_sans_evaluateur_leve_not_implemented_error():
-    r = Report(points=["A", "B"])
-    # "server_processing_dominant" existe bien dans le catalogue (voir
-    # expert_rules.py) mais n'a volontairement pas d'evaluateur
-    # enregistre a ce stade du pilote. Ce role a change plusieurs fois :
-    # "ttl_variation" jusqu'a la Session 60, puis "dhcp_issues" jusqu'a
-    # la Session 63, puis "saturation" jusqu'a la Session 69, puis
-    # "rtp_quality_mos" jusqu'a la Session 70 (job1) -- les CINQ regles a
-    # `correlation_rule` non None ont recu un evaluateur en Session 69,
-    # et "rtp_quality_mos" en Session 70 (job1), la premiere des deux
-    # regles restantes apres cet audit.
-    # "server_processing_dominant" la remplace : source
-    # `r.server_think_time` (dict[str, list[float]], pas un compteur
-    # `dict` ni une liste de dicts), correle deux moyennes avec un ratio
-    # ET un seuil absolu -- forme entierement nouvelle confirmee par
-    # l'audit de la Session 67, qui exige encore une decision de
-    # conception jamais prise.
-    with pytest.raises(NotImplementedError):
-        evaluate("server_processing_dominant", r)
-
-
 def test_available_rule_ids_ne_contient_que_les_regles_pilotees():
     assert available_rule_ids() == [
         "loss_per_segment",
@@ -244,6 +225,7 @@ def test_available_rule_ids_ne_contient_que_les_regles_pilotees():
         "bufferbloat",
         "pmtud_blackhole",
         "rtp_quality_mos",
+        "server_processing_dominant",
     ]
 
 
@@ -2671,3 +2653,76 @@ def test_rtp_quality_mos_equivalent_a_build_findings():
             m.rule_id,
             m.sample_size,
         )
+
+
+# -- server_processing_dominant (Session 70, job2) ---------------------------
+
+
+def test_server_processing_dominant_declenche():
+    r = Report(points=["A", "B"])
+    r.server_think_time = {"A": [100.0, 120.0, 80.0]}  # moy 100ms
+    r.latency[("A", "B")] = [10.0, 12.0, 8.0]  # moy 10ms, 100 > 3*10 and > 20
+    findings = evaluate("server_processing_dominant", r)
+    assert len(findings) == 1
+    f = findings[0]
+    assert f.severity == "a_surveiller"
+    assert f.category == "Reseau/Serveur"
+    assert f.segment == "global"
+    assert f.rule_id == "server_processing_dominant"
+    assert "temps de traitement serveur moyen 100ms" in f.message
+    assert "reseau 10.0ms" in f.message
+    assert f.sample_size == 3
+    assert f.evidence == []
+
+
+def test_server_processing_dominant_ratio_insuffisant_pas_de_finding():
+    r = Report(points=["A", "B"])
+    r.server_think_time = {"A": [30.0]}  # moy 30ms
+    r.latency[("A", "B")] = [15.0]  # moy 15ms, 30 < 3*15=45
+    assert evaluate("server_processing_dominant", r) == []
+
+
+def test_server_processing_dominant_seuil_absolu_non_atteint_pas_de_finding():
+    r = Report(points=["A", "B"])
+    r.server_think_time = {"A": [15.0]}  # moy 15ms, < 20ms seuil absolu
+    r.latency[("A", "B")] = [1.0]  # moy 1ms, 15 > 3*1=3 mais 15 <= 20
+    assert evaluate("server_processing_dominant", r) == []
+
+
+def test_server_processing_dominant_server_think_time_vide_pas_de_finding():
+    r = Report(points=["A", "B"])
+    r.latency[("A", "B")] = [10.0]
+    assert evaluate("server_processing_dominant", r) == []
+
+
+def test_server_processing_dominant_latence_absente_pas_de_finding():
+    r = Report(points=["A", "B"])
+    r.server_think_time = {"A": [100.0, 120.0]}
+    # pas de r.latency[("A", "B")]
+    assert evaluate("server_processing_dominant", r) == []
+
+
+def test_server_processing_dominant_un_seul_point_pas_de_finding():
+    r = Report(points=["A"])
+    r.server_think_time = {"A": [100.0]}
+    # un seul point -> pas de paire -> pas de latence reseau
+    assert evaluate("server_processing_dominant", r) == []
+
+
+def test_server_processing_dominant_equivalent_a_build_findings():
+    r = Report(points=["A", "B", "C"])
+    r.server_think_time = {"A": [100.0, 120.0, 80.0], "B": [90.0]}
+    r.latency[("A", "C")] = [10.0, 12.0, 8.0]
+
+    procedural = [f for f in build_findings(r) if f.rule_id == "server_processing_dominant"]
+    via_moteur = evaluate("server_processing_dominant", r)
+    assert len(procedural) == len(via_moteur) == 1
+    p, m = procedural[0], via_moteur[0]
+    assert (p.severity, p.category, p.segment, p.message, p.rule_id, p.sample_size) == (
+        m.severity,
+        m.category,
+        m.segment,
+        m.message,
+        m.rule_id,
+        m.sample_size,
+    )

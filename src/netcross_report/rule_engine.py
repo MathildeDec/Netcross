@@ -617,6 +617,26 @@ lus depuis `rule.thresholds` (meme discipline que `loss_per_segment`).
 seule regle restant sans evaluateur ; nouveaux tests (declenche anomalie,
 declenche a_surveiller, MOS acceptable pas de finding, mos=None ignore,
 liste vide, equivalence avec `build_findings()`).
+
+Portee de cette session (70, job2) : extension du pilote a UNE regle
+supplementaire (quarante au total, sur 41) -- `server_processing_dominant`,
+derniere regle du catalogue sans evaluateur apres la Session 69. Forme
+entierement nouvelle confirmee par l'audit de la Session 67 : PREMIERE
+regle de ce pilote a CORRELER DEUX champs de `Report` independants
+(`server_think_time` `dict[str, list[float]]` et `latency`
+`dict[tuple[str, str], list[float]]`) par comparaison de leurs MOYENNES
+avec un RATIO (`avg_server > 3 * avg_net`) ET un SEUIL ABSOLU
+(`avg_server > 20`). Segment fixe `"global"` (comme
+`dns_slow_resolution`/`http_slow_response`). Seuils lus depuis
+`rule.thresholds` (`ratio_serveur_reseau` 3.0, `seuil_serveur_ms` 20.0).
+`tests/test_rule_engine.py` : nouveaux tests (declenche, ratio insuffisant,
+seuil absolu non atteint, server_think_time vide, latence absente, un
+seul point, equivalence avec `build_findings()`) ; mise a jour de
+`test_available_rule_ids_ne_contient_que_les_regles_pilotees` (etendue
+au nouvel id) ; le role de « regle connue sans evaluateur »
+(`test_regle_connue_sans_evaluateur_leve_not_implemented_error`) ne peut
+plus etre tenu par `server_processing_dominant` (desormais pilotee) --
+les 41 regles du catalogue ont TOUTES un evaluateur enregistre.
 """
 
 from __future__ import annotations
@@ -2096,6 +2116,58 @@ def _evaluate_rtp_quality_mos(rule: Rule, report: Report) -> list[Finding]:
     return findings
 
 
+def _evaluate_server_processing_dominant(rule: Rule, report: Report) -> list[Finding]:
+    """Reproduit EXACTEMENT le bloc `-- decomposition reseau / serveur --`
+    de `synthesis.py::build_findings()` (lignes ~748-769) -- QUARANTE ET
+    UNIEME evaluateur de ce pilote (41/41, DERNIERE regle du catalogue
+    encore sans evaluateur). Forme entierement nouvelle confirmee par
+    l'audit de la Session 67 : PREMIERE regle de ce pilote a CORRELER
+    DEUX champs de `Report` independants (`server_think_time` et
+    `latency`), tous deux des `dict[*, list[float]]`, par comparaison
+    de leurs MOYENNES avec un RATIO (`avg_server > 3 * avg_net`) ET un
+    SEUIL ABSOLU (`avg_server > 20`). Deux gardes successives (`if r.server_think_time:`
+    puis `if overall:`) reprises a l'identique du bloc procedural source,
+    `import statistics` local au bloc comme dans le source.
+
+    Le segment est fixe `"global"` (comme `dns_slow_resolution`/`http_slow_response`,
+    Session 68) : la decomposition est aglegee sur TOUTE la capture, pas par
+    point ni par paire. La latence reseau reference le PREMIER et le DERNIER
+    point de `report.points` (pas une paire adjacente), verifie dans le
+    bloc source. Seuils lus depuis `rule.thresholds` (`ratio_serveur_reseau`
+    3.0, `seuil_serveur_ms` 20.0) -- meme discipline que `loss_per_segment` :
+    le catalogue pilote les seuils, pas de recopie en dur des constantes 3
+    et 20. Severite UNIQUE lue depuis `rule.severity` ('a_surveiller').
+    Aucune `evidence` (meme absence que `dns_slow_resolution`/`http_slow_response`).
+    `sample_size` = `len(overall)` (nombre de tours requete-reponse mesures),
+    meme discipline que le bloc source."""
+    if not report.server_think_time:
+        return []
+    overall = [t for turns in report.server_think_time.values() for t in turns]
+    if not overall:
+        return []
+    avg_server = statistics.mean(overall)
+    net_pair = (report.points[0], report.points[-1]) if len(report.points) >= 2 else None
+    net_lat = report.latency.get(net_pair) if net_pair else None
+    if not net_lat:
+        return []
+    avg_net = statistics.mean(net_lat)
+    ratio = rule.thresholds["ratio_serveur_reseau"]
+    seuil_ms = rule.thresholds["seuil_serveur_ms"]
+    if avg_server <= ratio * avg_net or avg_server <= seuil_ms:
+        return []
+    return [
+        Finding(
+            rule.severity,
+            rule.domain,
+            "global",
+            f"temps de traitement serveur moyen {avg_server:.0f}ms >> temps "
+            f"reseau {avg_net:.1f}ms -> ralentissement probablement applicatif",
+            sample_size=len(overall),
+            rule_id=rule.id,
+        )
+    ]
+
+
 _EVALUATORS = {
     "loss_per_segment": _evaluate_loss_per_segment,
     "tcp_zero_window": _evaluate_tcp_zero_window,
@@ -2137,6 +2209,7 @@ _EVALUATORS = {
     "bufferbloat": _evaluate_bufferbloat,
     "pmtud_blackhole": _evaluate_pmtud_blackhole,
     "rtp_quality_mos": _evaluate_rtp_quality_mos,
+    "server_processing_dominant": _evaluate_server_processing_dominant,
 }
 
 
