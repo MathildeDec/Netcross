@@ -11,6 +11,7 @@ from datetime import datetime, timezone
 from itertools import combinations
 from typing import Any
 
+from netcross_core.content import extract_http_objects
 from netcross_core.correlate import TOPN_DIMENSIONS, compute_throughput, compute_topn_series
 from netcross_core.models import Pkt, Report
 from netcross_core.parsing import compute_mos
@@ -56,6 +57,7 @@ def analyse(
     r.topology_branch_points = topo_branch
     r.topology_merge_points = topo_merge
     r.topology_used_for_order = used_topology_for_order
+    r.http_objects = [obj.__dict__ for obj in extract_http_objects(all_packets)]
     if points_order:
         r.topology_order_conflicts = _check_order_consistency(points_order, topo_edges)
 

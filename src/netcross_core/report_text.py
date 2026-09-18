@@ -686,6 +686,21 @@ def print_report(r: Report):
     else:
         print("  aucun trafic HTTP detecte dans les captures")
 
+    print("\n-- Objets HTTP transferes (metadonnees, sans corps) --")
+    if r.http_objects:
+        for obj in r.http_objects[:50]:
+            print(
+                f"  {obj.get('status_code') or '?'} {obj.get('method') or '?'} "
+                f"{obj.get('uri') or '?'} : "
+                f"{obj.get('content_type') or 'type inconnu'}, "
+                f"{obj.get('content_length') if obj.get('content_length') is not None else '?'} octets, "
+                f"{obj.get('response_time_ms') if obj.get('response_time_ms') is not None else '?'}ms"
+            )
+        if len(r.http_objects) > 50:
+            print(f"  ... {len(r.http_objects) - 50} objets supplementaires non affiches")
+    else:
+        print("  aucun objet HTTP reponse exploitable")
+
 
 def write_detail_csv(path, flows, points):
     with open(path, "w", newline="") as f:

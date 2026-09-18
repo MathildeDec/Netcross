@@ -182,6 +182,10 @@ class Pkt:
     # ek_fields.expert_flag_details pour le detail complet) -- report a
     # l'identique, aucune transformation.
     expert_details: tuple[tuple[str, str | None, str | None, str | None], ...]
+    # HTTP object metadata (Job 25), optional to preserve the historical
+    # Pkt constructor/API.
+    http_content_type: str | None = None
+    http_content_length: int | None = None
 
 
 @dataclass
@@ -432,6 +436,8 @@ class Report:
     # calcule nativement par tshark (http.time), pas recompose a la main
     # comme dns_duration_ms -- voir _analyse_http
     http_response_time_ms: list[float] = field(default_factory=list)
+    # -- objets applicatifs HTTP (Job 25), metadonnees uniquement
+    http_objects: list[dict] = field(default_factory=list)
     # -- topologie deduite (ordre + chemins multiples) --
     topology_edges: list[tuple[str, str, dict]] = field(default_factory=list)
     topology_ambiguous: list[tuple[str, str, str]] = field(default_factory=list)

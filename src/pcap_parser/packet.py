@@ -131,6 +131,8 @@ class RawPacket:
         "vlan_prio",
         "window",
         "wscale_shift",
+        "http_content_type",
+        "http_content_length",
     )
     ts: float
     # frame.number -- numero de trame 1-indexe attribue par tshark au sein
@@ -324,6 +326,8 @@ class RawPacket:
     # defaut que expert_flags -- les deux champs sont toujours calcules
     # ensemble, a partir des memes couches.
     expert_details: tuple[tuple[str, str | None, str | None, str | None], ...]
+    http_content_type: str | None = None
+    http_content_length: int | None = None
 
 
 def build_packet(ts_seconds: float, layers: dict) -> RawPacket | None:
@@ -494,6 +498,8 @@ def build_packet(ts_seconds: float, layers: dict) -> RawPacket | None:
     http_method = http_uri = None
     http_status_code = None
     http_response_time_ms = None
+    http_content_type = None
+    http_content_length = None
     http_is_request = http_is_response = False
     tls_cert_not_before = tls_cert_not_after = tls_cert_san = tls_cert_serial = None
     tls_client_hello = tls_server_hello = tls_application_data = False
@@ -638,6 +644,8 @@ def build_packet(ts_seconds: float, layers: dict) -> RawPacket | None:
             http_uri = _intern(http["uri"])
             http_status_code = http["status_code"]
             http_response_time_ms = http["response_time_ms"]
+            http_content_type = _intern(http.get("content_type"))
+            http_content_length = http.get("content_length")
 
         # TLS -- pas de garde "if payload" (comme extract_dns) : lit
         # uniquement la dissection X.509 native de tshark au sein du
@@ -754,6 +762,8 @@ def build_packet(ts_seconds: float, layers: dict) -> RawPacket | None:
         http_uri=http_uri,
         http_status_code=http_status_code,
         http_response_time_ms=http_response_time_ms,
+        http_content_type=http_content_type,
+        http_content_length=http_content_length,
         expert_flags=expert_flags,
         expert_details=expert_details,
     )

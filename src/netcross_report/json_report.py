@@ -282,6 +282,7 @@ def generate_json_report(
         # a lui de choisir sa propre traduction/presentation.
         "health_score": score,
         "health_label": health_label(score),
+        "http_objects": list(getattr(r, "http_objects", [])),
     }
     if getattr(r, "voip_calls", None):
         doc["voip_calls"] = list(r.voip_calls)
