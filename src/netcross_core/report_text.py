@@ -702,7 +702,16 @@ def print_report(r: Report):
         print("  aucun objet HTTP reponse exploitable")
 
 
-def write_detail_csv(path, flows, points):
+def write_detail_csv(path, flows, points, names=None):
+    """Ecrit le detail par flux en CSV. Si ``names`` (une
+    ``netcross_core.naming.NameTable``) est fourni, les colonnes src/dst
+    affichent les noms logiques resolus a la place des adresses brutes."""
+
+    def _label(addr) -> str:
+        if names is None:
+            return str(addr)
+        return names.display(str(addr)) if addr is not None else ""
+
     with open(path, "w", newline="") as f:
         w = csv.writer(f)
         w.writerow(
@@ -713,6 +722,11 @@ def write_detail_csv(path, flows, points):
         )
         for key, per_point in flows.items():
             row = list(key)
+            # src (indice 1) et dst (indice 3) du key de flux strict
+            # resolus en noms logiques si une NameTable est fournie.
+            if len(row) > 3:
+                row[1] = _label(row[1])
+                row[3] = _label(row[3])
             row.extend(min(pkt.ts for pkt in per_point[p]) if p in per_point else "" for p in points)
             row.extend(per_point[p][0].dscp if p in per_point else "" for p in points)
             row.extend(per_point[p][0].ttl if p in per_point else "" for p in points)
