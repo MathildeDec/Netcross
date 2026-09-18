@@ -760,6 +760,8 @@ def build_packet(ts_seconds: float, layers: dict) -> RawPacket | None:
         http_uri=http_uri,
         http_status_code=http_status_code,
         http_response_time_ms=http_response_time_ms,
+        http_content_type=http_content_type,
+        http_content_length=http_content_length,
         expert_flags=expert_flags,
         expert_details=expert_details,
     )
