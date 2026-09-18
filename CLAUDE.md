@@ -13,7 +13,7 @@ que pour un contexte spécifique, pas systématiquement.
 
 ## État courant
 
-- **1138/1138 tests** (`pytest`), suite complète rejouée à chaque
+- **1150/1150 tests** (`pytest`), suite complète rejouée à chaque
   session avant tout nouveau code. Outillage qualité (`ruff`,
   `import-linter`, `mypy` sur les fichiers modifiés) intégralement
   vert ; `pre-commit` non exécutable dans cet environnement (zip livré
@@ -35,6 +35,32 @@ que pour un contexte spécifique, pas systématiquement.
   mémoire). Aucun changement de comportement — corrections de types
   uniquement. `pytest` 1138/1138 inchangé, `ruff`/`lint-imports`
   verts. Détail complet : `docs/sessions/session-71.md`.
+- **Session 70** : première briquette du chantier « Alarmes et
+  surveillance de seuils » (§6.16, issue #26) — nouveau module
+  `src/netcross_core/alarms.py` : `AlarmEngine` consommant des
+  `AlarmSignal` (tuples `rule_id`/`segment`/`severity`/`value`
+  convertibles depuis un `Finding` par l'appelant, côté
+  `netcross_report`/CLI — le contrat de couches interdit à
+  `netcross_core` d'importer `Finding`), avec fenêtre glissante
+  paramétrable, hystérésis `trigger_threshold`/`clear_threshold`,
+  durée minimale de persistance, ratio minimal d'échantillons
+  positifs dans la fenêtre, et accumulation d'`AlarmEvent`
+  (`raised`/`cleared`) sans livraison externe (callback à brancher par
+  l'appelant sur `engine.events`). Critère d'acceptation de l'issue :
+  un signal ponctuel isolé au milieu d'une fenêtre calme ne lève
+  JAMAIS d'alarme (vérifié par `test_signal_isole_ne_leve_pas_alarme`).
+  `tests/test_alarms.py` : 12 nouveaux tests (signal isolé/persistance
+  continue/non-re-déclenchement/retour à la normale/hystérésis
+  numérique/ratio minimal/fenêtre glissante/segment None/signal non
+  configuré/value None/active_alarms/re-lever après clear) :
+  `pytest` 1138/1138 → **1150/1150** (+12 net). `ruff check .` propre,
+  `ruff format --check .` propre. `lint-imports` : contrat de couches
+  respecté (`alarms.py` vit dans `netcross_core`, n'importe que
+  `dataclasses` stdlib — aucun nouvel import inter-packages).
+  `mypy` sur `alarms.py` : 0 erreur imputable (14 erreurs
+  préexistantes visibles sur les autres fichiers du sous-graphe,
+  reproduites uniquement SANS `PYTHONPATH=src` — inchangées depuis la
+  Session 69). Détail complet : `docs/sessions/session-70.md`.
 - **Session 69** : suite du chantier ouvert par les Sessions 55-68
   (moteur d'exécution, `netcross_report/rule_engine.py`) : audit bloc
   par bloc, pour la première fois, des CINQ règles du catalogue à
@@ -1140,6 +1166,64 @@ comparaison OmniPeek) : les 49 erreurs `mypy` remises à jour en Session
 50 (voir État courant) sont DÉSORMAIS RÉSOLUES (Session 71, issue #28) :
 `PYTHONPATH=src uv run mypy --ignore-missing-imports src/` renvoie
 `Success: no issues found in 36 source files`.
+
+## Décision d'architecture : bascule build_findings() → moteur d'exécution
+
+**Issue #27 — décision documentée, pas de code.**
+
+### Constat
+
+`build_findings()` (`synthesis.py`) trie sa liste complète en sortie par
+`(SEVERITY_ORDER, category, segment)` — une étape de PRÉSENTATION
+appliquée à l'ensemble des 41 règles à la fois. `evaluate()`
+(`rule_engine.py`) renvoie ses `Finding` dans l'ordre de CONSTRUCTION
+du bloc source et ne reproduit délibérément PAS ce tri. Cette divergence
+a été mise au jour par la Session 63 (`sip_issues`, premier cas où les
+deux ordres diffèrent réellement).
+
+### Décision
+
+1. **`evaluate()` ne triera jamais ses propres `Finding`.** Le tri par
+   `(SEVERITY_ORDER, category, segment)` est une étape de présentation
+   globale, pas une propriété d'une règle prise isolement. Un
+   évaluateur qui trierait ses propres `Finding` donnerait de toute
+   façon un ordre différent du tri global dès que deux règles se
+   mélangent.
+
+2. **La bascule de `build_findings()` vers le moteur d'exécution est
+   RETENUE** comme objectif à long terme, mais pas exécutée maintenant.
+   Les deux chemins coexistent : `build_findings()` reste l'unique
+   source de vérité en production (CLI/GUI), `evaluate()` est un
+   consommateur indépendant vérifiant par construction que le catalogue
+   déclaratif peut piloter une détection réelle.
+
+### Plan de migration (à exécuter quand (a) sera complété)
+
+Prérequis : les 41 règles doivent avoir un évaluateur (2 restantes :
+`rtp_quality_mos`, `server_processing_dominant` — formes entièrement
+nouvelles, voir « Prochaine feature » (a)).
+
+Étapes :
+
+1. Créer une fonction `evaluate_all(report) -> list[Finding]` dans
+   `rule_engine.py` qui itère sur `available_rule_ids()`, appelle
+   `evaluate()` pour chaque règle, concatène les résultats.
+2. Appliquer le tri `(SEVERITY_ORDER, category, segment)` à la liste
+   concaténée — point UNIQUE d'ordonnancement, équivalent au tri final
+   actuel de `build_findings()`.
+3. Remplacer l'appel à `build_findings()` dans le CLI/GUI par
+   `evaluate_all()`. `build_findings()` devient code mort, conservé
+   temporairement pour comparaison.
+4. Vérifier l'équivalence : `evaluate_all(report)` doit produire les
+   MÊMES `Finding` (même contenu, même ordre) que `build_findings(report)`
+   sur les jeux de tests existants (`tests/test_synthesis.py`).
+5. Supprimer `build_findings()` et ses tests d'équivalence une fois la
+   parité vérifiée sur plusieurs sessions.
+
+**Risque identifié** : les 2 règles sans évaluateur produisent
+actuellement des `Finding` via `build_findings()`. La bascule sans
+les avoir pilotées créerait une régression silencieuse (perte de
+2 détections). D'où le prérequis (a).
 
 ## Commandes qualité
 
