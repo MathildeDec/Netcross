@@ -370,6 +370,16 @@ def main():
         "supplementaire (contrairement a --pdf-report).",
     )
     ap.add_argument(
+        "--rule-engine",
+        action="store_true",
+        help="Active le moteur d'execution de regles declaratives "
+        "(netcross_report.rule_engine) : evalue chaque regle du catalogue "
+        "(expert_rules) contre le Report et affiche les Finding produits. "
+        "Integre egalement les resultats au --json-report si fourni. "
+        "Independant du chemin procedural (build_findings) -- les deux "
+        "chemins coexistent, le moteur declaratif ne le remplace pas encore.",
+    )
+    ap.add_argument(
         "--client-group",
         action="append",
         metavar="NOM=IP1[,IP2,...]",
@@ -653,6 +663,26 @@ def main():
             print_triage(ranked, args.triage_top_n)
             print(format_health_line(health_score(ranked)))
 
+    rule_engine_findings = None
+    if args.rule_engine:
+        from netcross_report import available_rule_ids, evaluate
+
+        rule_engine_findings = {}
+        total = 0
+        print("\n" + "=" * 70)
+        print("MOTEUR DE REGLES DECLARATIF (rule_engine)")
+        print("=" * 70)
+        for rule_id in available_rule_ids():
+            rule_findings = evaluate(rule_id, r)
+            rule_engine_findings[rule_id] = rule_findings
+            if rule_findings:
+                total += len(rule_findings)
+                for f in rule_findings:
+                    print(f"  [{f.severity}] {f.category} / {f.segment} -- {f.message}")
+        print(f"\n{len(available_rule_ids())} regles evaluees, {total} Finding produits.")
+        if not args.json_report:
+            print("(utilisez --json-report pour obtenir la sortie JSON structuree)")
+
     if args.tls or args.quic:
         print("\n" + "=" * 70)
         print("DIAGNOSTICS TLS/QUIC (pipeline de decodage independant, relit les memes fichiers)")
@@ -751,6 +781,7 @@ def main():
             diagnoses=diagnoses,
             compliance=compliance,
             wireshark_expert_events=wireshark_expert_events,
+            rule_engine_findings=rule_engine_findings,
             meta={"Anonymisation": "adresses IP/MAC anonymisees (--redact)"} if args.redact else None,
         )
         print(f"Rapport JSON ecrit dans {args.json_report}")

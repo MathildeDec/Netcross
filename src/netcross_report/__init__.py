@@ -11,6 +11,7 @@ reportlab)."""
 from netcross_report.expert_events import build_diagnoses, build_expert_events
 from netcross_report.history import HistoryEntry, list_history, print_history, record_diff_run, record_run
 from netcross_report.json_report import generate_json_diff, generate_json_report
+from netcross_report.rule_engine import available_rule_ids, evaluate
 from netcross_report.synthesis import Finding, build_findings
 from netcross_report.triage import (
     DEFAULT_SEVERITY_WEIGHTS,
@@ -35,9 +36,11 @@ __all__ = [
     "Finding",
     "HistoryEntry",
     "SegmentScore",
+    "available_rule_ids",
     "build_diagnoses",
     "build_expert_events",
     "build_findings",
+    "evaluate",
     "format_health_line",
     "generate_diff_pdf",
     "generate_json_diff",

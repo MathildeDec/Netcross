@@ -232,6 +232,7 @@ def generate_json_report(
     diagnoses=None,
     compliance=None,
     wireshark_expert_events=None,
+    rule_engine_findings=None,
 ) -> str:
     """
     r : objet Report (netcross_core.analyse). output_path : chemin du
@@ -299,6 +300,12 @@ def generate_json_report(
         doc["compliance"] = [_compliance_dict(c) for c in compliance]
     if wireshark_expert_events is not None:
         doc["wireshark_expert_events"] = [_expert_event_dict(ev) for ev in wireshark_expert_events]
+    if rule_engine_findings is not None:
+        doc["rule_engine"] = {
+            rule_id: [_finding_dict(f) for f in rule_list]
+            for rule_id, rule_list in rule_engine_findings.items()
+            if rule_list  # omet les regles sans Finding (liste vide)
+        }
 
     return _write(doc, output_path)
 
