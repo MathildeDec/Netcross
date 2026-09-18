@@ -45,6 +45,7 @@ from netcross_core.parsing import (
 )
 from netcross_core.redact import AddressRedactor, redact_packets, write_redaction_map_csv
 from netcross_core.report_text import print_report, write_detail_csv
+from netcross_core.voip import Call, build_calls
 from netcross_core.wireshark_expert import build_wireshark_expert_events
 
 __all__ = [
@@ -59,6 +60,8 @@ __all__ = [
     "build_conversations",
     "build_flows",
     "build_wireshark_expert_events",
+    "Call",
+    "build_calls",
     "compare_clients",
     "compute_mos",
     "compute_throughput",
