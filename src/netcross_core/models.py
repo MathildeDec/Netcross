@@ -293,6 +293,18 @@ class Report:
     # -- fenetre TCP / ACK dupliques / RST / handshake --
     zero_window: dict[str, int] = field(default_factory=lambda: defaultdict(int))
     dup_ack: dict[str, int] = field(default_factory=lambda: defaultdict(int))
+    # -- signaux d'expertise TCP natifs tshark (tcp.analysis.*, issue #21) --
+    # Compteurs par point, distincts des heuristiques retrans/dup_ack/
+    # zero_window ci-dessus : exploitation directe de la classification
+    # native de tshark (moteur d'etat TCP complet) pour mieux distinguer
+    # perte reelle, reordonnancement, retransmission rapide et RTO. Source :
+    # RawPacket.expert_flags (noms EK tcp_tcp_analysis_*). Complementaire et
+    # non exclusif : un paquet hors-ordre (out_of_order) n'est PAS une
+    # retransmission (conditions mutuellement exclusives cote tshark) --
+    # ce compteur isole le reordonnancement des vraies pertes.
+    out_of_order: dict[str, int] = field(default_factory=lambda: defaultdict(int))
+    lost_segment: dict[str, int] = field(default_factory=lambda: defaultdict(int))
+    window_update: dict[str, int] = field(default_factory=lambda: defaultdict(int))
     rst_count: dict[str, int] = field(default_factory=lambda: defaultdict(int))
     rst_localized: dict[str, int] = field(default_factory=lambda: defaultdict(int))
     syn_no_synack: dict[str, int] = field(default_factory=lambda: defaultdict(int))

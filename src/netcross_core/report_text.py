@@ -413,6 +413,22 @@ def print_report(r: Report):
     else:
         print("  aucune retransmission classifiee par tshark sur cette capture")
 
+    print("\n-- Signaux d'expertise TCP natifs (tcp.analysis.*) --")
+    print("  (issue #21) distingue perte reelle / reordonnancement / RTO")
+    any_tcp_sig = any(r.out_of_order.values()) or any(r.lost_segment.values()) or any(r.window_update.values())
+    if any_tcp_sig:
+        for p in r.points:
+            ooo, lost, wup = r.out_of_order[p], r.lost_segment[p], r.window_update[p]
+            if not (ooo or lost or wup):
+                continue
+            print(
+                f"  {p:15s} : {ooo} hors-ordre(s) (reordonnancement, pas perte), "
+                f"{lost} segment(s) perdu(s) (perte reelle inferee), "
+                f"{wup} maj(s) de fenetre (recepteur limitant le debit)"
+            )
+    else:
+        print("  aucun signal d'expertise TCP supplementaire detecte")
+
     print("\n-- Options TCP negociees au handshake (MSS/Window Scale/SACK) --")
     any_tcp_opts = any(r.mss_clamped.values()) or any(r.wscale_stripped.values()) or any(r.sack_stripped.values())
     if any_tcp_opts:
