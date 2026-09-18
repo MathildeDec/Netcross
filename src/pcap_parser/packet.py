@@ -496,6 +496,8 @@ def build_packet(ts_seconds: float, layers: dict) -> RawPacket | None:
     http_method = http_uri = None
     http_status_code = None
     http_response_time_ms = None
+    http_content_type = None
+    http_content_length = None
     http_is_request = http_is_response = False
     tls_cert_not_before = tls_cert_not_after = tls_cert_san = tls_cert_serial = None
     tls_client_hello = tls_server_hello = tls_application_data = False
