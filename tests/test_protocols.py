@@ -245,6 +245,8 @@ def test_extract_http_requete():
         "uri": "http://127.0.0.1:8080/",
         "status_code": None,
         "response_time_ms": None,
+        "content_type": None,
+        "content_length": None,
     }
 
 
@@ -283,6 +285,8 @@ def test_extract_http_reponse():
         "uri": "http://127.0.0.1:8080/notfound",
         "status_code": 404,
         "response_time_ms": pytest.approx(0.203587),
+        "content_type": None,
+        "content_length": None,
     }
 
 
@@ -433,3 +437,18 @@ def test_compute_mos_delai_negatif_traite_comme_zero():
     r_zero, mos_zero = compute_mos(delay_ms=0.0, loss_pct=0.0)
     assert r_negatif == pytest.approx(r_zero)
     assert mos_negatif == pytest.approx(mos_zero)
+
+
+def test_extract_http_reponse_expose_type_et_taille():
+    layers = {
+        "http": {
+            "http_http_response": True,
+            "http_http_response_code": "200",
+            "http_http_response_for_uri": "/file.pdf",
+            "http_http_content_type": "application/pdf",
+            "http_http_content_length": "12345",
+        }
+    }
+    result = extract_http(layers)
+    assert result["content_type"] == "application/pdf"
+    assert result["content_length"] == 12345
