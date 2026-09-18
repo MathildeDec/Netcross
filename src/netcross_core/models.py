@@ -433,6 +433,8 @@ class Report:
     # calcule nativement par tshark (http.time), pas recompose a la main
     # comme dns_duration_ms -- voir _analyse_http
     http_response_time_ms: list[float] = field(default_factory=list)
+    # -- objets applicatifs HTTP (Job 25), metadonnees uniquement
+    http_objects: list[dict] = field(default_factory=list)
     # -- topologie deduite (ordre + chemins multiples) --
     topology_edges: list[tuple[str, str, dict]] = field(default_factory=list)
     topology_ambiguous: list[tuple[str, str, str]] = field(default_factory=list)
