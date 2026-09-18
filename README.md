@@ -458,6 +458,15 @@ Options utiles :
   corrélés, signaux tshark), placée juste avant le pied de rapport : les
   écarts de conformité (`VIOLATION`, puis `DEVIATION`) y remontent en
   premier, comme dans le triage « par où commencer ».
+  Toujours indépendamment des options, `--pdf-report` reçoit une section
+  « Chemin observé » (juste après « Vue d'ensemble ») : une ligne par
+  segment, de l'amont vers l'aval du chemin déduit, avec délai
+  moyen/P95/P99, gigue, taux de perte au point aval, débit, remarquages
+  DSCP, nouvelles fragmentations et nombre de sauts — plus un graphique
+  délai P95 / perte superposés. Elle répond à « où la qualité se
+  dégrade-t-elle ? » : le segment le plus dégradé est signalé en rouge
+  (pertes d'abord, délai P95 ensuite). Un tiret cadratin signale une
+  métrique **non mesurable** sur ce segment, jamais une valeur nulle.
 - `--topn-charts N` : nombre de catégories affichées par graphique dans
   la section "Évolution temporelle (top-N)" du rapport `--pdf-report`
   (défaut 5, le reste des catégories est regroupé sous "autres"). Quatre
@@ -677,8 +686,12 @@ uv run pytest
 #   pytest
 ```
 
-Non couverts pour l'instant : `netcross_report/charts.py`/`pdf.py`
-(rendu matplotlib/reportlab) et `netcross_gtk4/` (interface graphique),
+Couverture partielle depuis les Jobs 4 et 16 : `netcross_report/pdf.py` et
+`charts.py` ont des tests **structurels** (nombre de lignes des tables,
+sections absentes quand il n'y a rien à dire, fichier PNG produit), pas de
+comparaison de rendu — le rendu reste relu à l'œil sur un PDF de test.
+Non couverts pour l'instant : le reste du rendu matplotlib/reportlab et
+`netcross_gtk4/` (interface graphique),
 ainsi que l'invocation réelle du sous-processus `tshark` — voir
 `docs/sessions/session-06.md` et `docs/features-backlog.md` section 4 pour le détail.
 
