@@ -282,6 +282,7 @@ def generate_json_report(
         # a lui de choisir sa propre traduction/presentation.
         "health_score": score,
         "health_label": health_label(score),
+        "http_objects": list(getattr(r, "http_objects", [])),
     }
     if tls_findings is not None:
         doc["tls_findings"] = [_finding_dict(f) for f in tls_findings]
