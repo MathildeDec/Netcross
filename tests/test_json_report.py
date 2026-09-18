@@ -212,7 +212,7 @@ def test_generate_json_report_expose_compliance(tmp_path):
     out = tmp_path / "report.json"
     generate_json_report(r, out, compliance=compliance)
     doc = _read(out)
-    pmtud_ref = next(c for c in doc["compliance"] if c["reference"]["id"] == "pmtud-no-blackhole")
+    pmtud_ref = next(c for c in doc["compliance"] if c["reference"]["id"] == "rfc6349-pmtud-no-blackhole")
     assert pmtud_ref["status"] == "VIOLATION"
     assert pmtud_ref["observed"] == 1.0
 
@@ -444,7 +444,7 @@ def test_generate_json_diff_expose_flows_conversations_expert_events_diagnoses_c
     assert pmtud_event["cause"] is None
     diag = next(d for d in doc["diagnoses"] if d["segment"] == "A -> B")
     assert any(ev["category"] == "PMTUD" for ev in diag["events"])
-    pmtud_ref = next(c for c in doc["compliance"] if c["reference"]["id"] == "pmtud-no-blackhole")
+    pmtud_ref = next(c for c in doc["compliance"] if c["reference"]["id"] == "rfc6349-pmtud-no-blackhole")
     assert pmtud_ref["status"] == "VIOLATION"
 
 
