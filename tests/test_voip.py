@@ -1,3 +1,5 @@
+import pytest
+
 from netcross_core.analysis import analyse
 from netcross_core.models import Pkt
 
@@ -63,7 +65,7 @@ def test_voip_call_fusionne_signalisation_et_media():
     call = r.voip_calls[0]
     assert call["call_id"] == "call-1"
     assert call["participants"] == ["10.0.0.10", "10.0.0.20"]
-    assert call["setup_duration_ms"] == 100.0
+    assert call["setup_duration_ms"] == pytest.approx(100.0)
     assert call["duration_ms"] == 2000.0
     assert len(call["rtp_streams"]) == 1
     assert any(e["type"] == "media" for e in call["events"])
