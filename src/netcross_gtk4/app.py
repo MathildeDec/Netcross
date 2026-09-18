@@ -60,6 +60,16 @@ from netcross_core import (  # noqa: E402
     write_detail_csv,
 )
 from netcross_core.baseline_diff import diff_reports, print_diff_report, write_diff_csv  # noqa: E402
+from netcross_gtk4.dashboard_context import (  # noqa: E402
+    DashboardSelection,
+    build_dashboard_snapshot,
+    select_bucket,
+    select_endpoint,
+    select_event,
+    select_flow,
+    select_point,
+    select_protocol,
+)
 from netcross_report.comm_map import (  # noqa: E402
     DEFAULT_TOP_N as COMM_MAP_DEFAULT_TOP_N,
 )
@@ -78,6 +88,66 @@ def _visible_scroller(vexpand=True):
     scroller.set_policy(Gtk.PolicyType.NEVER, Gtk.PolicyType.AUTOMATIC)
     scroller.set_overlay_scrolling(False)
     return scroller
+
+
+# -- formateurs de lignes pour le dashboard analytique (issue #18) --
+# Chaque paire (label, cle) : le label alimente le bouton cliquable, la cle
+# est remontee a _dashboard_select pour piloter le contexte partage.
+# Separes des methodes MainWindow pour rester testables sans instancier GTK.
+
+
+def _timeline_row_label(row):
+    return f"{row['label']} — {row['loss_events']} perte(s)"
+
+
+def _timeline_row_key(row):
+    return row["bucket"]
+
+
+def _segment_row_label(row):
+    lat = f", latence {row['latency_ms']} ms" if row["latency_ms"] is not None else ""
+    return f"{row['pair']} — {row['loss']} perte(s), {row['retrans']} retrans{lat}"
+
+
+def _segment_row_key(row):
+    return row["pair_tuple"][0]
+
+
+def _flow_row_label(row):
+    return f"{row['label']} — {row['packets']} paquets, {row['bytes']} octets"
+
+
+def _flow_row_key(row):
+    return row["flow_key"]
+
+
+def _endpoint_row_label(row):
+    peers = ", ".join(row["peers"]) or "?"
+    return f"{row['endpoint']} <-> {peers} — {row['flows']} flux, {row['packets']} paquets"
+
+
+def _endpoint_row_key(row):
+    return row["endpoint"]
+
+
+def _proto_row_label(row):
+    return f"{row['protocol']} — {row['flows']} flux, {row['packets']} paquets"
+
+
+def _proto_row_key(row):
+    return row["protocol"]
+
+
+def _event_row_label(row):
+    cat = row["category"] or "?"
+    sev = row["severity"] or "?"
+    proto = f" [{row['protocol']}]" if row["protocol"] else ""
+    msg = row["message"] or ""
+    return f"#{row['id']} {cat} ({sev}){proto} — {msg}"
+
+
+def _event_row_key(row):
+    return row["id"]
 
 
 class CaptureRow(Gtk.Box):
@@ -399,6 +469,12 @@ class MainWindow(Gtk.ApplicationWindow):
         self.last_diff_tls_findings_current = None
         self.last_diff_quic_findings_baseline = None
         self.last_diff_quic_findings_current = None
+
+        # -- dashboard analytique interactif (issue #18, §6.17) --
+        # Contexte de selection partage entre les six vues ; pur Python
+        # (voir dashboard_context.py), testable sans display. Les widgets
+        # GTK ci-dessous ne font que le cabler.
+        self.dashboard_selection = DashboardSelection()
 
         # etat propre a la capture en direct (mode live, voir _begin_live_capture)
         self._live_capturing = False
@@ -811,6 +887,29 @@ class MainWindow(Gtk.ApplicationWindow):
 
         self.comm_map_expander.set_child(map_box)
         page.append(self.comm_map_expander)
+
+        # -- dashboard analytique interactif (issue #18, §6.17) --
+        # Six vues (timeline, segments, flows, endpoints, protocoles,
+        # evenements) alimentees par les memes objets que le rapport, avec
+        # selections lieees via un contexte partage (dashboard_context).
+        # Replie par defaut, comme la cartographie : decouvrable sans
+        # alourdir la lecture du rapport texte.
+        self.dashboard_expander = Gtk.Expander(label="Dashboard analytique")
+        self.dashboard_expander.set_sensitive(False)
+        dash_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+        dash_box.set_margin_top(8)
+        self.dashboard_context_label = Gtk.Label(
+            label="Contexte selectionne : aucun", halign=Gtk.Align.START, wrap=True
+        )
+        self.dashboard_context_label.set_selectable(True)
+        dash_box.append(self.dashboard_context_label)
+        clear_btn = Gtk.Button(label="Reinitialiser la selection")
+        clear_btn.connect("clicked", lambda _b: self._dashboard_clear())
+        dash_box.append(clear_btn)
+        self.dashboard_sections_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
+        dash_box.append(self.dashboard_sections_box)
+        self.dashboard_expander.set_child(dash_box)
+        page.append(self.dashboard_expander)
 
         bottom = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
         self.status_label = Gtk.Label(label="", halign=Gtk.Align.START, hexpand=True)
@@ -1474,6 +1573,11 @@ class MainWindow(Gtk.ApplicationWindow):
         self.csv_btn.set_sensitive(True)
         self.json_btn.set_sensitive(True)
         self._reset_comm_map_filters()
+        # dashboard analytique (issue #18) : reinitialise le contexte de
+        # selection partage et peuple les six vues depuis le meme run
+        # (desactive en mode diff, ou last_flows est None).
+        self.dashboard_selection = DashboardSelection()
+        self._refresh_dashboard()
         self.stack.set_visible_child_name("results")
         return False
 
@@ -1516,6 +1620,11 @@ class MainWindow(Gtk.ApplicationWindow):
         self.csv_btn.set_sensitive(True)
         self.json_btn.set_sensitive(True)
         self._reset_comm_map_filters()
+        # dashboard analytique (issue #18) : reinitialise le contexte de
+        # selection partage et peuple les six vues depuis le meme run
+        # (desactive en mode diff, ou last_flows est None).
+        self.dashboard_selection = DashboardSelection()
+        self._refresh_dashboard()
         self.stack.set_visible_child_name("results")
         return False
 
@@ -1580,6 +1689,119 @@ class MainWindow(Gtk.ApplicationWindow):
         self.comm_map_expander.set_sensitive(bool(flows))
         self._refresh_comm_map()
         return False
+
+    # ================= dashboard analytique (issue #18, §6.17) =================
+
+    def _dashboard_clear(self):
+        """Reinitialise le contexte de selection partage et rafraichit les
+        six vues. Cablage GTK de netcross_gtk4.dashboard_context."""
+        self.dashboard_selection = DashboardSelection()
+        self._refresh_dashboard()
+
+    def _dashboard_select(self, kind: str, key):
+        """Applique une selection sur une des six vues et propage les champs
+        lies via le contexte partage, puis rafraichit. ``kind`` distingue
+        la vue d'origine (timeline/segment/flow/endpoint/protocol/event).
+        """
+        sel = self.dashboard_selection
+        if kind == "flow":
+            flow = self._flow_by_key(key)
+            if flow is not None:
+                sel = select_flow(sel, flow)
+        elif kind == "endpoint":
+            sel = select_endpoint(sel, key)
+        elif kind == "protocol":
+            sel = select_protocol(sel, key)
+        elif kind == "point":
+            sel = select_point(sel, key)
+        elif kind == "bucket":
+            sel = select_bucket(sel, key)
+        elif kind == "event":
+            sel = select_event(sel, key, self._dashboard_events())
+        self.dashboard_selection = sel
+        self._refresh_dashboard()
+
+    def _flow_by_key(self, key):
+        for f in self.last_flows or []:
+            if f.key == key:
+                return f
+        return None
+
+    def _dashboard_events(self):
+        """Liste fusionnee des evenements (findings + TLS/QUIC + signaux
+        tshark), meme ordre que build_dashboard_snapshot."""
+        events = list(self.last_findings or [])
+        events.extend(self.last_tls_findings or [])
+        events.extend(self.last_quic_findings or [])
+        events.extend(self.last_wireshark_expert_events or [])
+        return events
+
+    def _refresh_dashboard(self):
+        """Reconstruit le snapshot depuis les memes objets que le rapport et
+        repeuple les six vues. Aucune exception ne remonte a l'interface : un
+        snapshot vide (analyse pas encore lancee) desactive simplement
+        l'expander, comme la cartographie."""
+        flows = self.last_flows
+        self.dashboard_expander.set_sensitive(bool(flows))
+        if not flows:
+            # vide aussi les sections : sans cette purge, un run single suivi
+            # d'un diff laisserait l'ancien dashboard dans l'arbre GTK (expander
+            # desactive mais contenu non nettoye).
+            self._dashboard_clear_sections()
+            self.dashboard_context_label.set_text("Contexte selectionne : aucun")
+            return
+        snap = build_dashboard_snapshot(
+            self.last_report,
+            self.last_flows,
+            findings=self.last_findings,
+            tls_findings=self.last_tls_findings,
+            quic_findings=self.last_quic_findings,
+            wireshark_expert_events=self.last_wireshark_expert_events,
+            selection=self.dashboard_selection,
+        )
+        self.dashboard_context_label.set_text(f"Contexte selectionne : {snap.selection_summary}")
+        self._dashboard_repopulate(snap)
+
+    def _dashboard_clear_sections(self):
+        """Retire toutes les sections du dashboard de l'arbre GTK. Utilise
+        aussi bien avant un repeuplage qu'a la desactivation (mode sans
+        flows) pour ne pas laisser de contenu stale."""
+        box = self.dashboard_sections_box
+        child = box.get_first_child()
+        while child is not None:
+            nxt = child.get_next_sibling()
+            box.remove(child)
+            child = nxt
+
+    def _dashboard_repopulate(self, snap):
+        """Vide la boite des sections et la repeuple avec une section par vue.
+        Chaque ligne est un bouton cliquable qui appelle _dashboard_select."""
+        self._dashboard_clear_sections()
+        box = self.dashboard_sections_box
+        sections = [
+            ("Timeline", snap.timeline_rows, "bucket", _timeline_row_label, _timeline_row_key),
+            ("Segments", snap.segment_rows, "point", _segment_row_label, _segment_row_key),
+            ("Flows", snap.flow_rows, "flow", _flow_row_label, _flow_row_key),
+            ("Endpoints", snap.endpoint_rows, "endpoint", _endpoint_row_label, _endpoint_row_key),
+            ("Protocoles", snap.protocol_rows, "protocol", _proto_row_label, _proto_row_key),
+            ("Evenements", snap.event_rows, "event", _event_row_label, _event_row_key),
+        ]
+        for title, rows, kind, label_fn, key_fn in sections:
+            frame = Gtk.Frame(label=f"{title} ({len(rows)})")
+            lst = Gtk.ListBox()
+            lst.set_selection_mode(Gtk.SelectionMode.NONE)
+            if not rows:
+                lst.append(Gtk.Label(label="(vide)", halign=Gtk.Align.START))
+            for row in rows:
+                row_key = key_fn(row)
+                btn = Gtk.Button(label=label_fn(row), halign=Gtk.Align.START)
+                btn.connect(
+                    "clicked",
+                    lambda _b, k=kind, rk=row_key: self._dashboard_select(k, rk),
+                )
+                lst.append(btn)
+            frame.set_child(lst)
+            box.append(frame)
 
     def _comm_map_filters(self):
         """Filtres actifs, lus depuis les widgets. Extrait pour que la
