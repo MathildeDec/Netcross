@@ -40,6 +40,8 @@ class Pkt:
         "http_response_time_ms",
         "http_status_code",
         "http_uri",
+        "http_content_type",
+        "http_content_length",
         "icmp_code",
         "icmp_type",
         "icmpv6_code",
