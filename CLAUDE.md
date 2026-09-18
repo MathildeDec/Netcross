@@ -13,11 +13,37 @@ que pour un contexte spécifique, pas systématiquement.
 
 ## État courant
 
-- **1138/1138 tests** (`pytest`), suite complète rejouée à chaque
+- **1150/1150 tests** (`pytest`), suite complète rejouée à chaque
   session avant tout nouveau code. Outillage qualité (`ruff`,
   `import-linter`, `mypy` sur les fichiers modifiés) intégralement
   vert ; `pre-commit` non exécutable dans cet environnement (zip livré
   sans `.git` — voir Commandes qualité ci-dessous).
+- **Session 70** : première briquette du chantier « Alarmes et
+  surveillance de seuils » (§6.16, issue #26) — nouveau module
+  `src/netcross_core/alarms.py` : `AlarmEngine` consommant des
+  `AlarmSignal` (tuples `rule_id`/`segment`/`severity`/`value`
+  convertibles depuis un `Finding` par l'appelant, côté
+  `netcross_report`/CLI — le contrat de couches interdit à
+  `netcross_core` d'importer `Finding`), avec fenêtre glissante
+  paramétrable, hystérésis `trigger_threshold`/`clear_threshold`,
+  durée minimale de persistance, ratio minimal d'échantillons
+  positifs dans la fenêtre, et accumulation d'`AlarmEvent`
+  (`raised`/`cleared`) sans livraison externe (callback à brancher par
+  l'appelant sur `engine.events`). Critère d'acceptation de l'issue :
+  un signal ponctuel isolé au milieu d'une fenêtre calme ne lève
+  JAMAIS d'alarme (vérifié par `test_signal_isole_ne_leve_pas_alarme`).
+  `tests/test_alarms.py` : 12 nouveaux tests (signal isolé/persistance
+  continue/non-re-déclenchement/retour à la normale/hystérésis
+  numérique/ratio minimal/fenêtre glissante/segment None/signal non
+  configuré/value None/active_alarms/re-lever après clear) :
+  `pytest` 1138/1138 → **1150/1150** (+12 net). `ruff check .` propre,
+  `ruff format --check .` propre. `lint-imports` : contrat de couches
+  respecté (`alarms.py` vit dans `netcross_core`, n'importe que
+  `dataclasses` stdlib — aucun nouvel import inter-packages).
+  `mypy` sur `alarms.py` : 0 erreur imputable (14 erreurs
+  préexistantes visibles sur les autres fichiers du sous-graphe,
+  reproduites uniquement SANS `PYTHONPATH=src` — inchangées depuis la
+  Session 69). Détail complet : `docs/sessions/session-70.md`.
 - **Session 69** : suite du chantier ouvert par les Sessions 55-68
   (moteur d'exécution, `netcross_report/rule_engine.py`) : audit bloc
   par bloc, pour la première fois, des CINQ règles du catalogue à
