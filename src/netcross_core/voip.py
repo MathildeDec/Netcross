@@ -13,7 +13,6 @@ from __future__ import annotations
 from collections import Counter
 from dataclasses import dataclass, field
 
-
 _RTP_GRACE_SECONDS = 300.0
 
 
@@ -103,12 +102,7 @@ def build_calls(all_packets, rtp_streams: list[dict]) -> tuple[list[Call], dict[
             None,
         )
         bye = next(
-            (
-                p
-                for p in packets
-                if p.sip_msg_type in {"BYE", "CANCEL"}
-                and p.ts >= invite.ts
-            ),
+            (p for p in packets if p.sip_msg_type in {"BYE", "CANCEL"} and p.ts >= invite.ts),
             None,
         )
         setup_ms = (ok.ts - invite.ts) * 1000.0 if ok else None
@@ -193,11 +187,7 @@ def build_calls(all_packets, rtp_streams: list[dict]) -> tuple[list[Call], dict[
             call.events.append(
                 {
                     "type": "media",
-                    "ts": min(
-                        s.get("first_ts")
-                        for s in call.rtp_streams
-                        if s.get("first_ts") is not None
-                    ),
+                    "ts": min(ts for s in call.rtp_streams if (ts := s.get("first_ts")) is not None),
                     "streams": len(call.rtp_streams),
                 }
             )

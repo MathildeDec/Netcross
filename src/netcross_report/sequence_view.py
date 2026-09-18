@@ -23,7 +23,7 @@ Ce module ne recalcule rien : il reordonne les `Pkt` deja groupes par
 Couche : `netcross_report` peut importer `netcross_core`, jamais l'inverse.
 """
 
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 
 DEFAULT_MAX_STEPS = 30
 """Nombre de lignes rendues par defaut. Un diagramme de sequence cesse
@@ -95,19 +95,11 @@ class SequenceView:
     """
 
     title: str = ""
-    steps: list[SequenceStep] = None
-    hosts: list[str] = None
-    points: list[str] = None
+    steps: list[SequenceStep] = field(default_factory=list)
+    hosts: list[str] = field(default_factory=list)
+    points: list[str] = field(default_factory=list)
     truncated: int = 0
     total_steps: int = 0
-
-    def __post_init__(self):
-        if self.steps is None:
-            self.steps = []
-        if self.hosts is None:
-            self.hosts = []
-        if self.points is None:
-            self.points = []
 
 
 def build_sequence_view(packets_by_point, title="", max_steps=DEFAULT_MAX_STEPS) -> SequenceView:

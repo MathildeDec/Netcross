@@ -257,6 +257,7 @@ def analyse(
     _analyse_dhcp(r, all_packets, points, points_order)
     _analyse_sip(r, all_packets, points, points_order)
     from netcross_core.voip import build_calls
+
     calls, r.voip_quality_distribution = build_calls(all_packets, r.rtp_streams)
     r.voip_calls = [call.to_dict() for call in calls]
     _analyse_dns(r, all_packets, points, points_order)
@@ -1192,6 +1193,10 @@ def _analyse_rtp(r: Report, all_packets, points, points_order, clock_rate):
         # les points (voir synthesis.py/triage.py, "score de confiance").
         sample_count = len(per_point.get(ref_point, [])) if ref_point is not None else None
 
+        first_ts = (
+            min((pkt.ts for pkt in per_point.get(ref_point, [])), default=None) if ref_point is not None else None
+        )
+
         r.rtp_streams.append(
             {
                 "label": f"{src}:{sport} -> {dst}:{dport} (SSRC=0x{ssrc:08x})",
@@ -1201,10 +1206,8 @@ def _analyse_rtp(r: Report, all_packets, points, points_order, clock_rate):
                 "r_factor": r_factor,
                 "mos": mos,
                 "sample_count": sample_count,
-                "first_ts": min((pkt.ts for pkt in per_point.get(ref_point, [])), default=None),
-                "first_ts_by_point": {
-                    p: min(pkt.ts for pkt in pkts) for p, pkts in per_point.items() if pkts
-                },
+                "first_ts": first_ts,
+                "first_ts_by_point": {p: min(pkt.ts for pkt in pkts) for p, pkts in per_point.items() if pkts},
             }
         )
 

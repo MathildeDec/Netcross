@@ -77,7 +77,7 @@ class ForensicIndex:
                 f.first_ts[point] = min(pk.ts for pk in pkts)
                 f.last_ts[point] = max(pk.ts for pk in pkts)
                 if f.endpoints is None:
-                    f.endpoints = tuple(sorted((pkts[0].src, pkts[0].dst)))
+                    f.endpoints = (min(pkts[0].src, pkts[0].dst), max(pkts[0].src, pkts[0].dst))
             self._flow_by_key[fkey] = f
 
         # Index segment → events
@@ -111,10 +111,10 @@ class ForensicIndex:
             for link in event.evidence:
                 if link.packet and link.packet.point and link.packet.frame_number is not None:
                     pk_key = (link.packet.point, link.packet.frame_number)
-                    fk = self._packet_to_key.get(pk_key)
-                    if fk and fk not in seen_keys:
-                        flows.append(self._flow_by_key[fk])
-                        seen_keys.add(fk)
+                    found_key: tuple | None = self._packet_to_key.get(pk_key)
+                    if found_key and found_key not in seen_keys:
+                        flows.append(self._flow_by_key[found_key])
+                        seen_keys.add(found_key)
 
         # 3. matching par segment (point ou paire "A -> B")
         if not flows:
