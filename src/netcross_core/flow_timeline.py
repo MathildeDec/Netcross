@@ -1,0 +1,250 @@
+r"""
+netcross_core.flow_timeline -- vue temporelle detaillee d'un flux
+(Job 13/issue #10, section 6.4 de FEATURES.md).
+
+Etend le \`FlowView\` (Job 9/issue #6) avec une analyse temporelle fine :
+inter-arrivee des paquets, fenetres de debit glissant, estimation RTT,
+et phases temporelles.
+
+Ce module est un complement de \`flow_view\` : il part des memes \`Pkt\`
+deja disponibles et calcule des metriques temporelles supplementaires.
+Aucun reparse, aucune nouvelle correlation.
+"""
+
+from __future__ import annotations
+
+from dataclasses import dataclass, field
+
+from netcross_core.models import Pkt
+
+
+@dataclass
+class PacketTiming:
+    """Timing d'un paquet dans la timeline d'un flux.
+
+    ``ts`` : timestamp absolu du paquet.
+
+    ``delta_ms`` : temps ecoule depuis le paquet precedent (inter-arrival).
+
+    ``cumulative_bytes`` : total d'octets cumules a ce paquet inclus.
+    """
+
+    ts: float
+    point: str
+    delta_ms: float = 0.0
+    cumulative_bytes: int = 0
+
+
+@dataclass
+class ThroughputWindow:
+    r"""Debit sur une fenetre temporelle de \`window_s\` secondes.
+
+    ``start_ts`` : debut de la fenetre.
+
+    ``end_ts`` : fin de la fenetre.
+
+    ``bytes`` : total d'octets dans la fenetre.
+
+    ``bps`` : debit en bits par seconde.
+    """
+
+    start_ts: float
+    end_ts: float
+    bytes: int = 0
+    bps: float = 0.0
+
+
+@dataclass
+class FlowTimeline:
+    """Vue temporelle detaillee d'un flux.
+
+    ``packet_timings`` : liste ordonnee de \\`PacketTiming\\` (un par paquet).
+
+    ``throughput_windows`` : liste de \\`ThroughputWindow\\` (debit par
+    fenetre glissante de \\`window_s\\` secondes).
+
+    ``inter_arrival_stats`` : statistiques d'inter-arrivee (min, max,
+    moyenne, mediane en ms).
+
+    ``phases`` : phases temporelles detectees (ex: \"slow-start\",
+    \"steady\", \"idle\", \"burst\").
+
+    ``rtt_estimate_ms`` : estimation RTT basee sur les paires
+    SYN/SYN-ACK ou requete/reponse.
+    """
+
+    packet_timings: list[PacketTiming] = field(default_factory=list)
+    throughput_windows: list[ThroughputWindow] = field(default_factory=list)
+    inter_arrival_stats: dict[str, float] = field(default_factory=dict)
+    phases: list[str] = field(default_factory=list)
+    rtt_estimate_ms: float | None = None
+
+
+def build_flow_timeline(
+    packets: list[Pkt],
+    window_s: float = 1.0,
+) -> FlowTimeline:
+    r"""Construit un \`FlowTimeline\` a partir des paquets d'un flux.
+
+    ``window_s`` : duree de la fenetre glissante pour le calcul du debit
+    par troncon (defaut 1.0s).
+    """
+    timeline = FlowTimeline()
+
+    if not packets:
+        return timeline
+
+    # Trier par timestamp
+    sorted_pkts = sorted(packets, key=lambda p: p.ts)
+
+    # -- Packet timings (inter-arrival) -----------------------------------
+    cumulative = 0
+    prev_ts: float | None = None
+    for pk in sorted_pkts:
+        delta_ms = 0.0
+        if prev_ts is not None:
+            delta_ms = (pk.ts - prev_ts) * 1000.0
+        cumulative += pk.length
+        timeline.packet_timings.append(
+            PacketTiming(
+                ts=pk.ts,
+                point=pk.point,
+                delta_ms=delta_ms,
+                cumulative_bytes=cumulative,
+            )
+        )
+        prev_ts = pk.ts
+
+    # -- Inter-arrival stats ----------------------------------------------
+    deltas = [pt.delta_ms for pt in timeline.packet_timings[1:]]  # skip first (0.0)
+    if deltas:
+        deltas_sorted = sorted(deltas)
+        n = len(deltas_sorted)
+        timeline.inter_arrival_stats = {
+            "min_ms": deltas_sorted[0],
+            "max_ms": deltas_sorted[-1],
+            "mean_ms": sum(deltas_sorted) / n,
+            "median_ms": _median(deltas_sorted),
+        }
+
+    # -- Throughput windows (fenetres glissantes) -------------------------
+    ts_min = sorted_pkts[0].ts
+    ts_max = sorted_pkts[-1].ts
+    duration = ts_max - ts_min
+
+    if duration > 0 and window_s > 0:
+        # Fenetres non chevauchantes pour simplicite
+        window_start = ts_min
+        while window_start < ts_max:
+            window_end = window_start + window_s
+            window_bytes = sum(pk.length for pk in sorted_pkts if window_start <= pk.ts < window_end)
+            actual_end = min(window_end, ts_max)
+            actual_duration = actual_end - window_start
+            bps = (window_bytes * 8 / actual_duration) if actual_duration > 0 else 0.0
+            timeline.throughput_windows.append(
+                ThroughputWindow(
+                    start_ts=window_start,
+                    end_ts=actual_end,
+                    bytes=window_bytes,
+                    bps=bps,
+                )
+            )
+            window_start = window_end
+
+    # -- Phases temporelles -----------------------------------------------
+    timeline.phases = _detect_phases(timeline.packet_timings, sorted_pkts)
+
+    # -- RTT estimate ------------------------------------------------------
+    timeline.rtt_estimate_ms = _estimate_rtt(sorted_pkts)
+
+    return timeline
+
+
+def _median(sorted_values: list[float]) -> float:
+    """Mediane d'une liste triee."""
+    n = len(sorted_values)
+    if n == 0:
+        return 0.0
+    if n % 2 == 1:
+        return sorted_values[n // 2]
+    return (sorted_values[n // 2 - 1] + sorted_values[n // 2]) / 2.0
+
+
+def _detect_phases(timings: list[PacketTiming], packets: list[Pkt]) -> list[str]:
+    """Detecte des phases temporelles simples dans un flux.
+
+    Phases possibles :
+    - \"tcp-handshake\" : SYN/SYN-ACK/ACK initial
+    - \"burst\" : plusieurs paquets rapproches (delta < 10ms)
+    - \"steady\" : paquets reguliers (delta entre 10ms et 100ms)
+    - \"idle\" : pause longue (delta > 1000ms)
+    - \"teardown\" : FIN/RST final
+    """
+    phases: list[str] = []
+    if not timings:
+        return phases
+
+    # Phase initiale : handshake ?
+    first_pk = packets[0]
+    if first_pk.proto == "TCP" and first_pk.flags:
+        flags = first_pk.flags if isinstance(first_pk.flags, str) else ""
+        if "S" in flags and "A" not in flags:
+            phases.append("tcp-handshake")
+
+    # Phases intermediaires basees sur les deltas
+    for pt in timings[1:]:
+        if pt.delta_ms < 10.0:
+            if not phases or phases[-1] != "burst":
+                phases.append("burst")
+        elif pt.delta_ms > 1000.0:
+            if not phases or phases[-1] != "idle":
+                phases.append("idle")
+        else:
+            if not phases or phases[-1] not in ("steady", "tcp-handshake"):
+                phases.append("steady")
+
+    # Phase finale : teardown ?
+    last_pk = packets[-1]
+    if last_pk.proto == "TCP" and last_pk.flags:
+        flags = last_pk.flags if isinstance(last_pk.flags, str) else ""
+        if ("F" in flags or "R" in flags) and (not phases or phases[-1] != "teardown"):
+            phases.append("teardown")
+
+    return phases
+
+
+def _estimate_rtt(packets: list[Pkt]) -> float | None:
+    """Estime le RTT a partir des paires SYN/SYN-ACK ou requete/reponse.
+
+    Retourne le RTT en millisecondes, ou None si aucune paire n'est
+    trouvee.
+    """
+    # TCP handshake : SYN -> SYN-ACK
+    syn_ts: float | None = None
+    for pk in packets:
+        if pk.proto != "TCP" or not pk.flags:
+            continue
+        flags = pk.flags if isinstance(pk.flags, str) else ""
+        if "S" in flags and "A" not in flags:
+            syn_ts = pk.ts
+        elif "S" in flags and "A" in flags and syn_ts is not None:
+            return (pk.ts - syn_ts) * 1000.0
+
+    # HTTP : request -> response
+    http_req_ts: float | None = None
+    for pk in packets:
+        if pk.http_is_request:
+            http_req_ts = pk.ts
+        elif pk.http_is_response and http_req_ts is not None:
+            return (pk.ts - http_req_ts) * 1000.0
+
+    # DNS : request -> response
+    dns_req_ts: float | None = None
+    for pk in packets:
+        if pk.dns_txn_id is not None and pk.dns_qry_name:
+            if not pk.dns_is_response:
+                dns_req_ts = pk.ts
+            elif dns_req_ts is not None:
+                return (pk.ts - dns_req_ts) * 1000.0
+
+    return None

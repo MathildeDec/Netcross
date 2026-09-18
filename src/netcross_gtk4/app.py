@@ -34,6 +34,7 @@ import contextlib
 import io
 import os
 import sys
+import tempfile
 import threading
 import time
 
@@ -49,6 +50,7 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 from netcross_core import (  # noqa: E402
     AddressRedactor,
     analyse,
+    build_wireshark_expert_events,
     correlate,
     parse_capture,
     parse_captures_parallel,
@@ -58,6 +60,14 @@ from netcross_core import (  # noqa: E402
     write_detail_csv,
 )
 from netcross_core.baseline_diff import diff_reports, print_diff_report, write_diff_csv  # noqa: E402
+from netcross_report.comm_map import (  # noqa: E402
+    DEFAULT_TOP_N as COMM_MAP_DEFAULT_TOP_N,
+)
+from netcross_report.comm_map import (  # noqa: E402
+    available_protocols,
+    build_comm_map,
+    format_comm_map,
+)
 
 
 def _visible_scroller(vexpand=True):
@@ -370,10 +380,18 @@ class MainWindow(Gtk.ApplicationWindow):
         self.last_report = None
         # etat du dernier run, pour les exports (varie selon le mode) :
         self.last_mode = None  # "single" ou "diff"
-        self.last_flows = None  # mode single : pour --detail-csv
+        self.last_flows = None  # mode single : pour --detail-csv et la cartographie
+        # Fichier PNG temporaire de la cartographie : un seul par fenetre,
+        # reecrit a chaque changement de filtre. Gtk.Picture lit le fichier,
+        # il doit donc survivre a l'appel -- d'ou un attribut plutot qu'un
+        # NamedTemporaryFile local.
+        self._comm_map_png = None
         self.last_findings = None  # mode single : Finding, pour le PDF
         self.last_tls_findings = None  # mode single : TlsFinding, pour le PDF
         self.last_quic_findings = None  # mode single : TlsFinding (QUIC), pour le PDF
+        # mode single : ExpertEvent de source "tshark", pour le JSON et le PDF
+        # (issue #14). None = non calcule, [] = calcule et aucun signal.
+        self.last_wireshark_expert_events = None
         self.last_diff_findings = None  # mode diff : DiffFinding
         self.last_baseline_report = None
         self.last_current_report = None
@@ -758,6 +776,42 @@ class MainWindow(Gtk.ApplicationWindow):
         result_frame.set_vexpand(True)
         page.append(result_frame)
 
+        # -- cartographie des communications (issue #15) : vue exploratoire
+        # repliee par defaut. Repliee et non absente : elle ne sert qu'a
+        # certaines questions ("qui parle a qui ?"), mais elle doit rester
+        # decouvrable sans lire la documentation.
+        self.comm_map_expander = Gtk.Expander(label="Cartographie des communications")
+        self.comm_map_expander.set_sensitive(False)
+        map_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
+        map_box.set_margin_top(8)
+
+        filters = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        filters.append(Gtk.Label(label="Protocole"))
+        self.comm_proto_drop = Gtk.DropDown.new_from_strings(["Tous"])
+        self.comm_proto_drop.connect("notify::selected", lambda *_a: self._refresh_comm_map())
+        filters.append(self.comm_proto_drop)
+        filters.append(Gtk.Label(label="Top-N aretes"))
+        self.comm_topn_spin = Gtk.SpinButton.new_with_range(1, 200, 1)
+        self.comm_topn_spin.set_value(COMM_MAP_DEFAULT_TOP_N)
+        self.comm_topn_spin.connect("value-changed", lambda *_a: self._refresh_comm_map())
+        filters.append(self.comm_topn_spin)
+        self.comm_anomalies_check = Gtk.CheckButton(label="Anomalies seulement")
+        self.comm_anomalies_check.connect("toggled", lambda *_a: self._refresh_comm_map())
+        filters.append(self.comm_anomalies_check)
+        map_box.append(filters)
+
+        self.comm_map_picture = Gtk.Picture()
+        self.comm_map_picture.set_can_shrink(True)
+        self.comm_map_picture.set_size_request(-1, 320)
+        map_box.append(self.comm_map_picture)
+
+        self.comm_map_label = Gtk.Label(label="", halign=Gtk.Align.START, wrap=True)
+        self.comm_map_label.set_selectable(True)
+        map_box.append(self.comm_map_label)
+
+        self.comm_map_expander.set_child(map_box)
+        page.append(self.comm_map_expander)
+
         bottom = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
         self.status_label = Gtk.Label(label="", halign=Gtk.Align.START, hexpand=True)
         bottom.append(self.status_label)
@@ -1045,7 +1099,17 @@ class MainWindow(Gtk.ApplicationWindow):
             GLib.idle_add(self._reset_live_ui)
             return
         GLib.idle_add(self._log, "Analyse terminee.")
-        GLib.idle_add(self._on_analysis_done, "single", report, flows, findings, text, None, None)
+        GLib.idle_add(
+            self._on_analysis_done,
+            "single",
+            report,
+            flows,
+            findings,
+            text,
+            None,
+            None,
+            build_wireshark_expert_events(all_packets),
+        )
         GLib.idle_add(self._reset_live_ui)
 
     def _reset_live_ui(self):
@@ -1125,6 +1189,15 @@ class MainWindow(Gtk.ApplicationWindow):
                 rtp_rate,
                 topn,
             )
+
+            # Signaux d'expertise BRUTS tshark : calcules ici, tant que les
+            # paquets sont sous la main. Les exports (JSON/PDF) surviennent
+            # apres la fin du thread, quand `all_packets` a ete libere --
+            # c'est le calcul qu'on avance, pas les paquets qu'on retient
+            # (voir _on_analysis_done).
+            GLib.idle_add(self._log, "Expertise tshark (signaux bruts)...")
+            wireshark_expert_events = build_wireshark_expert_events(all_packets)
+            GLib.idle_add(self._log, f"  -> {len(wireshark_expert_events)} signal(aux) d'expertise")
 
             GLib.idle_add(self._log, "Mise en forme du rapport...")
             buf = io.StringIO()
@@ -1210,6 +1283,7 @@ class MainWindow(Gtk.ApplicationWindow):
             text,
             tls_findings,
             quic_findings,
+            wireshark_expert_events,
         )
 
     def _run_diff_thread(
@@ -1361,13 +1435,29 @@ class MainWindow(Gtk.ApplicationWindow):
         self.run_btn.set_sensitive(True)
         return False
 
-    def _on_analysis_done(self, mode, report, flows, findings, text, tls_findings=None, quic_findings=None):
+    def _on_analysis_done(
+        self,
+        mode,
+        report,
+        flows,
+        findings,
+        text,
+        tls_findings=None,
+        quic_findings=None,
+        wireshark_expert_events=None,
+    ):
         self.last_mode = mode
         self.last_report = report
         self.last_flows = flows
         self.last_findings = findings
         self.last_tls_findings = tls_findings
         self.last_quic_findings = quic_findings
+        # Signaux tshark bruts : calcules dans le thread d'analyse, ou les
+        # paquets sont encore disponibles (issue #14). On garde le RESULTAT
+        # plutot que les paquets : conserver `all_packets` dans la fenetre
+        # pour un export JSON eventuel immobiliserait la capture entiere en
+        # memoire jusqu'a l'analyse suivante.
+        self.last_wireshark_expert_events = wireshark_expert_events
         self.last_diff_findings = None
         self.last_baseline_report = None
         self.last_current_report = None
@@ -1383,6 +1473,7 @@ class MainWindow(Gtk.ApplicationWindow):
         self.pdf_btn.set_sensitive(True)
         self.csv_btn.set_sensitive(True)
         self.json_btn.set_sensitive(True)
+        self._reset_comm_map_filters()
         self.stack.set_visible_child_name("results")
         return False
 
@@ -1403,6 +1494,7 @@ class MainWindow(Gtk.ApplicationWindow):
         self.last_findings = None
         self.last_tls_findings = None
         self.last_quic_findings = None
+        self.last_wireshark_expert_events = None
         self.last_diff_findings = findings
         self.last_baseline_report = baseline_report
         self.last_current_report = current_report
@@ -1423,6 +1515,7 @@ class MainWindow(Gtk.ApplicationWindow):
         self.pdf_btn.set_sensitive(True)
         self.csv_btn.set_sensitive(True)
         self.json_btn.set_sensitive(True)
+        self._reset_comm_map_filters()
         self.stack.set_visible_child_name("results")
         return False
 
@@ -1472,6 +1565,93 @@ class MainWindow(Gtk.ApplicationWindow):
         self.status_label.set_text("Generation du PDF...")
         threading.Thread(target=self._generate_pdf_thread, args=(path,), daemon=True).start()
 
+    # ================= cartographie des communications (issue #15) =================
+
+    def _reset_comm_map_filters(self):
+        """Reinitialise la liste des protocoles apres une analyse, puis
+        redessine. Appelee aussi apres une comparaison, ou `last_flows` est
+        None : la vue se desactive alors d'elle-meme plutot que d'afficher
+        la carte de l'analyse precedente, qui ne correspondrait plus au
+        rapport affiche."""
+        flows = self.last_flows
+        protocoles = available_protocols(flows) if flows else []
+        self.comm_proto_drop.set_model(Gtk.StringList.new(["Tous", *protocoles]))
+        self.comm_proto_drop.set_selected(0)
+        self.comm_map_expander.set_sensitive(bool(flows))
+        self._refresh_comm_map()
+        return False
+
+    def _comm_map_filters(self):
+        """Filtres actifs, lus depuis les widgets. Extrait pour que la
+        logique de lecture reste verifiable sans piloter l'interface."""
+        model = self.comm_proto_drop.get_model()
+        index = self.comm_proto_drop.get_selected()
+        protocole = None
+        if model is not None and 0 < index < model.get_n_items():
+            protocole = model.get_string(index)
+        return {
+            "protocols": [protocole] if protocole else None,
+            "top_n": int(self.comm_topn_spin.get_value()),
+            "only_anomalies": self.comm_anomalies_check.get_active(),
+        }
+
+    def _refresh_comm_map(self):
+        """Reconstruit la carte et son rendu PNG a partir des filtres
+        courants.
+
+        Le graphe est redessine a chaque changement de filtre plutot que
+        pre-calcule pour toutes les combinaisons : le cout est un rendu
+        matplotlib de quelques dizaines de millisecondes, la ou un cache
+        indexe par filtre serait du code a maintenir pour un gain
+        imperceptible a l'echelle d'un clic.
+
+        Aucune exception ne remonte a l'interface : matplotlib et networkx
+        sont des dependances optionnelles du projet (voir --pdf-report), et
+        une vue exploratoire absente ne doit jamais empecher de lire le
+        rapport ni d'exporter.
+        """
+        if not self.last_flows:
+            self.comm_map_picture.set_filename(None)
+            self.comm_map_label.set_text("Cartographie disponible apres une analyse simple.")
+            return False
+        try:
+            from netcross_report.charts import chart_comm_map
+
+            cmap = build_comm_map(self.last_flows, **self._comm_map_filters())
+            if self._comm_map_png is None:
+                fd, self._comm_map_png = tempfile.mkstemp(prefix="netcross_comm_map_", suffix=".png")
+                os.close(fd)
+            rendu = chart_comm_map(cmap, self._comm_map_png)
+            self.comm_map_picture.set_filename(rendu)
+            self.comm_map_label.set_text(format_comm_map(cmap))
+        except Exception as e:  # noqa: BLE001 -- dependances de rendu optionnelles, voir docstring
+            self.comm_map_picture.set_filename(None)
+            self.comm_map_label.set_text(f"Cartographie indisponible : {e}")
+        return False
+
+    def _session_objects(self):
+        """Objets enrichis du dernier run single (issue #14) : memes objets
+        que ceux de la CLI, construits par le meme point de passage
+        (netcross_report.session_objects) pour que le JSON et le PDF de la
+        GUI portent exactement les memes cles et sections.
+
+        `findings` est recalcule ici quand l'utilisateur n'a pas coche le
+        triage : ils sont la matiere premiere des ExpertEvent/Diagnosis, et
+        `generate_json_report()`/`generate_pdf()` les recalculent de toute
+        facon dans ce cas -- autant les calculer une fois et les partager.
+        Les signaux tshark, eux, ne sont jamais recalcules : ils viennent du
+        thread d'analyse (les paquets bruts ne sont plus disponibles ici).
+        """
+        from netcross_report import build_findings, build_session_objects
+
+        findings = self.last_findings if self.last_findings is not None else build_findings(self.last_report)
+        return build_session_objects(
+            self.last_report,
+            findings,
+            flows=self.last_flows,
+            wireshark_expert_events=self.last_wireshark_expert_events,
+        )
+
     def _generate_pdf_thread(self, path):
         try:
             if self.last_mode == "single":
@@ -1485,6 +1665,7 @@ class MainWindow(Gtk.ApplicationWindow):
                     findings=self.last_findings,
                     tls_findings=self.last_tls_findings,
                     quic_findings=self.last_quic_findings,
+                    session_objects=self._session_objects(),
                 )
             else:
                 from netcross_report import generate_diff_pdf
@@ -1550,6 +1731,7 @@ class MainWindow(Gtk.ApplicationWindow):
                     findings=self.last_findings,
                     tls_findings=self.last_tls_findings,
                     quic_findings=self.last_quic_findings,
+                    **self._session_objects().json_kwargs(),
                 )
             else:
                 from netcross_report import generate_json_diff

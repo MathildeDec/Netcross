@@ -212,7 +212,7 @@ def test_generate_json_report_expose_compliance(tmp_path):
     out = tmp_path / "report.json"
     generate_json_report(r, out, compliance=compliance)
     doc = _read(out)
-    pmtud_ref = next(c for c in doc["compliance"] if c["reference"]["id"] == "pmtud-no-blackhole")
+    pmtud_ref = next(c for c in doc["compliance"] if c["reference"]["id"] == "rfc6349-pmtud-no-blackhole")
     assert pmtud_ref["status"] == "VIOLATION"
     assert pmtud_ref["observed"] == 1.0
 
@@ -444,7 +444,7 @@ def test_generate_json_diff_expose_flows_conversations_expert_events_diagnoses_c
     assert pmtud_event["cause"] is None
     diag = next(d for d in doc["diagnoses"] if d["segment"] == "A -> B")
     assert any(ev["category"] == "PMTUD" for ev in diag["events"])
-    pmtud_ref = next(c for c in doc["compliance"] if c["reference"]["id"] == "pmtud-no-blackhole")
+    pmtud_ref = next(c for c in doc["compliance"] if c["reference"]["id"] == "rfc6349-pmtud-no-blackhole")
     assert pmtud_ref["status"] == "VIOLATION"
 
 
@@ -671,3 +671,70 @@ def test_generate_json_diff_health_score_100_sans_regression(tmp_path):
     doc = _read(out)
     assert doc["health_score"] == 100
     assert doc["health_label"] == "bon"
+
+
+# -- rule_engine_findings (Session 70, job3) --------------------------------
+
+
+def test_generate_json_report_avec_rule_engine_findings(tmp_path):
+    """La cle 'rule_engine' contient les Finding produits par le moteur
+    declaratif, regroupes par rule_id, en omettant les regles sans Finding."""
+    from netcross_report import available_rule_ids, evaluate
+
+    r = Report(points=["A", "B"])
+    r.loss_count["A"] = 10
+    r.seen_count["A"] = 100  # 10% -> anomalie (>= 5%)
+
+    rule_engine_findings = {}
+    for rule_id in available_rule_ids():
+        rule_engine_findings[rule_id] = evaluate(rule_id, r)
+
+    out = tmp_path / "rule_engine.json"
+    generate_json_report(r, out, rule_engine_findings=rule_engine_findings)
+    doc = _read(out)
+
+    assert "rule_engine" in doc
+    re = doc["rule_engine"]
+    # loss_per_segment doit etre present (10% > 5%)
+    assert "loss_per_segment" in re
+    assert len(re["loss_per_segment"]) == 1
+    f = re["loss_per_segment"][0]
+    assert f["severity"] == "anomalie"
+    assert f["category"] == "Pertes"
+    assert f["segment"] == "A"
+    assert f["rule_id"] == "loss_per_segment"
+
+    # Les regles sans Finding ne doivent pas apparaitre
+    for rule_id, findings_list in rule_engine_findings.items():
+        if not findings_list:
+            assert rule_id not in re
+
+
+def test_generate_json_report_sans_rule_engine_findings_pas_de_cle(tmp_path):
+    """Sans rule_engine_findings, la cle 'rule_engine' est absente du JSON."""
+    r = Report(points=["A"])
+    out = tmp_path / "no_rule_engine.json"
+    generate_json_report(r, out)
+    doc = _read(out)
+    assert "rule_engine" not in doc
+
+
+def test_generate_json_report_rule_engine_findings_none_pas_de_cle(tmp_path):
+    """rule_engine_findings=None -> cle absente (meme convention que les autres objets)."""
+    r = Report(points=["A"])
+    out = tmp_path / "none_rule_engine.json"
+    generate_json_report(r, out, rule_engine_findings=None)
+    doc = _read(out)
+    assert "rule_engine" not in doc
+
+
+def test_generate_json_report_rule_engine_findings_vide_dict_vide(tmp_path):
+    """rule_engine_findings={} (aucune regle n'a declenche) -> cle 'rule_engine'
+    presente mais dict vide."""
+    r = Report(points=["A"])
+    rule_engine_findings = {"loss_per_segment": [], "dns_nxdomain": []}
+    out = tmp_path / "empty_rule_engine.json"
+    generate_json_report(r, out, rule_engine_findings=rule_engine_findings)
+    doc = _read(out)
+    assert "rule_engine" in doc
+    assert doc["rule_engine"] == {}

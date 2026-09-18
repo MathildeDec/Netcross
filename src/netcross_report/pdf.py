@@ -21,7 +21,13 @@ from reportlab.platypus import (
     TableStyle,
 )
 
-from netcross_report.charts import DIFF_SEVERITY_SCHEME, chart_severity_summary, generate_all_charts
+from netcross_report.charts import (
+    DIFF_SEVERITY_SCHEME,
+    chart_sequence_diagram,
+    chart_severity_summary,
+    generate_all_charts,
+)
+from netcross_report.path_metrics import build_path_metrics, degradation_summary, rank_path_segments
 from netcross_report.synthesis import build_findings
 from netcross_report.triage import HEALTH_LABELS, health_label, health_score, rank_segments
 
@@ -66,6 +72,14 @@ def _styles():
     styles.add(ParagraphStyle("H1b", parent=styles["Heading1"], spaceBefore=18, spaceAfter=8))
     styles.add(ParagraphStyle("H2b", parent=styles["Heading2"], spaceBefore=14, spaceAfter=6))
     styles.add(ParagraphStyle("Small", parent=styles["Normal"], fontSize=8, textColor=colors.grey))
+    # "Cell" : cellules denses contenant des identifiants techniques non
+    # coupables (rfc6349-retransmission-rate-2pct, tcp_retransmission_rate_pct).
+    # reportlab coupe ces jetons en plein milieu quand ils depassent la
+    # largeur de colonne -- et les espaces de largeur nulle s'affichent en
+    # carre noir avec les polices de base. La seule parade fiable est donc
+    # d'assurer que le jeton TIENT : corps reduit + colonnes dimensionnees
+    # sur le plus long identifiant du catalogue (voir _compliance_table).
+    styles.add(ParagraphStyle("Cell", parent=styles["Normal"], fontSize=7.5, leading=9.5))
     return styles
 
 
@@ -171,6 +185,396 @@ def _health_badge(ranked, styles):
     return Paragraph(f"Score de sante : {score}/100 -- {HEALTH_LABELS[label]}", style)
 
 
+# Couleurs des statuts de conformite (netcross_core.compliance) -- meme
+# palette que SEVERITY_COLORS ci-dessus, en mappant l'intention plutot que
+# le vocabulaire : VIOLATION est un ecart franc (rouge, comme anomalie),
+# DEVIATION un ecart mineur dans la marge de tolerance (ambre, comme
+# a_surveiller), INDETERMINE une metrique non mesurable sur cette capture
+# (gris, comme info -- ce n'est pas un resultat, c'est une absence).
+COMPLIANCE_COLORS = {
+    "CONFORME": colors.HexColor("#22c55e"),
+    "DEVIATION": colors.HexColor("#f59e0b"),
+    "VIOLATION": colors.HexColor("#ef4444"),
+    "INDETERMINE": colors.HexColor("#94a3b8"),
+}
+
+# Nombre de lignes affichees par table de la section "Expertise" : le PDF
+# est un livrable de lecture, pas un export -- au-dela, une ligne de
+# renvoi vers --json-report remplace la suite (meme discipline que le
+# plafonnement du rendu console, voir netcross_report.session_objects).
+EXPERT_TABLE_TOP_N = 15
+
+
+def _grid_table(data, col_widths, highlight=None):
+    """Table a en-tete sombre et lignes alternees -- exactement le style
+    deja utilise par _finding_table/_triage_table ci-dessus, factorise ici
+    parce que la section "Expertise" en ajoute quatre d'un coup.
+    highlight : liste de (index_de_ligne, couleur) pour colorer la
+    premiere colonne (gravite/statut), comme le fait _finding_table."""
+    t = Table(data, colWidths=col_widths, repeatRows=1)
+    style = [
+        ("BACKGROUND", (0, 0), (-1, 0), colors.HexColor("#1f2937")),
+        ("TEXTCOLOR", (0, 0), (-1, 0), colors.white),
+        ("FONTSIZE", (0, 0), (-1, -1), 8),
+        ("VALIGN", (0, 0), (-1, -1), "TOP"),
+        ("GRID", (0, 0), (-1, -1), 0.5, colors.HexColor("#e5e7eb")),
+        ("ROWBACKGROUNDS", (0, 1), (-1, -1), [colors.white, colors.HexColor("#f9fafb")]),
+    ]
+    for row, color in highlight or []:
+        style.append(("TEXTCOLOR", (0, row), (0, row), color))
+        style.append(("FONTNAME", (0, row), (0, row), "Helvetica-Bold"))
+    t.setStyle(TableStyle(style))
+    return t
+
+
+def _expert_event_table(events, styles, top_n=EXPERT_TABLE_TOP_N):
+    """events : liste d'ExpertEvent (netcross_core.expert_model). Affiche
+    cause/impact, qui sont precisement ce que le JSON exposait deja et que
+    le PDF ignorait jusqu'ici -- une colonne vide quand le moteur de
+    causalite n'a pas reconnu de pattern pour cet evenement (voir
+    netcross_core.causality : seuls les rule_id participant a un pattern
+    recoivent cause/impact)."""
+    if not events:
+        return Paragraph("Aucun evenement d'expertise.", styles["Normal"])
+    data = [["Gravite", "Categorie", "Segment", "Constat", "Cause probable / impact"]]
+    shown = events[:top_n]
+    for ev in shown:
+        cause = " -- ".join(x for x in (ev.cause, ev.impact) if x)
+        data.append(
+            [
+                SEVERITY_LABELS.get(ev.severity, ev.severity),
+                Paragraph(ev.category, styles["Normal"]),
+                Paragraph(ev.segment, styles["Normal"]),
+                Paragraph(ev.message, styles["Normal"]),
+                Paragraph(cause or "-", styles["Normal"]),
+            ]
+        )
+    highlight = [
+        (i, SEVERITY_COLORS[ev.severity]) for i, ev in enumerate(shown, start=1) if ev.severity in SEVERITY_COLORS
+    ]
+    return _grid_table(data, [1.9 * cm, 2.3 * cm, 2.6 * cm, 5.2 * cm, 4.3 * cm], highlight)
+
+
+def _diagnosis_table(diagnoses, styles, top_n=EXPERT_TABLE_TOP_N):
+    """diagnoses : liste de Diagnosis -- un par segment, cause/impact
+    derives des ExpertEvent deja enrichis (netcross_core.causality)."""
+    if not diagnoses:
+        return Paragraph("Aucun diagnostic par segment.", styles["Normal"])
+    data = [["Segment", "Evenements", "Cause probable", "Impact"]]
+    data.extend(
+        [
+            Paragraph(d.segment, styles["Normal"]),
+            str(len(d.events)),
+            Paragraph(d.cause or "-", styles["Normal"]),
+            Paragraph(d.impact or "-", styles["Normal"]),
+        ]
+        for d in diagnoses[:top_n]
+    )
+    return _grid_table(data, [3.4 * cm, 1.9 * cm, 5.5 * cm, 5.5 * cm])
+
+
+def _compliance_table(results, styles, top_n=EXPERT_TABLE_TOP_N):
+    """results : liste de ComplianceResult (netcross_core.compliance).
+    Les ecarts d'abord (VIOLATION, puis DEVIATION) : meme intention que le
+    triage "par ou commencer", l'operateur doit voir ce qui ne passe pas
+    sans derouler la table entiere."""
+    if not results:
+        return Paragraph("Aucun referentiel evalue.", styles["Normal"])
+    order = ["VIOLATION", "DEVIATION", "CONFORME", "INDETERMINE"]
+    ranked = sorted(
+        results,
+        key=lambda res: (order.index(res.status) if res.status in order else len(order), res.reference.id),
+    )
+    # Metrique/observe/seuil tiennent dans une seule colonne "Mesure" :
+    # six colonnes sur une A4 laissaient trop peu de largeur aux
+    # identifiants, que reportlab coupait alors en plein mot.
+    data = [["Statut", "Referentiel", "Mesure", "Source"]]
+    shown = ranked[:top_n]
+    for res in shown:
+        ref = res.reference
+        observed = "non mesure" if res.observed is None else f"{res.observed:g} {ref.unit}"
+        data.append(
+            [
+                res.status,
+                Paragraph(ref.id, styles["Cell"]),
+                # metrique sur sa propre ligne : la valeur mesuree peut
+                # etre un compteur a plusieurs chiffres, et on ne veut pas
+                # qu'elle pousse le nom de la metrique hors de la colonne.
+                Paragraph(
+                    f"{ref.metric}<br/>{observed} (seuil {ref.operator} {ref.threshold:g} {ref.unit})",
+                    styles["Cell"],
+                ),
+                Paragraph(ref.source, styles["Cell"]),
+            ]
+        )
+    highlight = [
+        (i, COMPLIANCE_COLORS[res.status]) for i, res in enumerate(shown, start=1) if res.status in COMPLIANCE_COLORS
+    ]
+    return _grid_table(data, [2.1 * cm, 4.3 * cm, 5.2 * cm, 5.4 * cm], highlight)
+
+
+def _flow_table(flows, styles, top_n=EXPERT_TABLE_TOP_N):
+    """flows : liste de Flow (netcross_core.expert_model). Tri par volume
+    de paquets decroissant, libelle en second critere pour un ordre stable
+    d'une execution a l'autre -- meme regle que le rendu console
+    (netcross_report.session_objects)."""
+    if not flows:
+        return Paragraph("Aucun flux correle.", styles["Normal"])
+
+    def _label(flow):
+        if flow.endpoints:
+            return f"{flow.endpoints[0]} <-> {flow.endpoints[1]}"
+        return str(flow.key)
+
+    ordered = sorted(flows, key=lambda f: (-sum(f.packet_count.values()), _label(f)))
+    data = [["Flux", "Points de capture", "Paquets", "Octets"]]
+    data.extend(
+        [
+            Paragraph(_label(f), styles["Normal"]),
+            Paragraph(", ".join(f.points), styles["Normal"]),
+            str(sum(f.packet_count.values())),
+            str(sum(f.byte_count.values())),
+        ]
+        for f in ordered[:top_n]
+    )
+    return _grid_table(data, [6.2 * cm, 4.6 * cm, 2.6 * cm, 2.9 * cm])
+
+
+def _fmt_num(value, unit="", decimals=1):
+    """Valeur numerique ou tiret cadratin si la mesure n'existe pas. Un
+    tiret et un "0.0" ne disent pas la meme chose : le premier signale une
+    absence de mesure, le second une mesure nulle (voir SegmentMetrics)."""
+    if value is None:
+        return "\u2014"
+    return f"{value:.{decimals}f}{unit}"
+
+
+def _fmt_bps(value):
+    """Debit en unite lisible (bit/s -> kbit/s -> Mbit/s -> Gbit/s), meme
+    echelle decimale (1000) que les debits reseau usuels."""
+    if value is None:
+        return "\u2014"
+    for unit, factor in (("Gbit/s", 1e9), ("Mbit/s", 1e6), ("kbit/s", 1e3)):
+        if value >= factor:
+            return f"{value / factor:.2f} {unit}"
+    return f"{value:.0f} bit/s"
+
+
+def _path_table(metrics, styles):
+    """Un segment par ligne, dans l'ordre amont -> aval. Le libelle du
+    segment le plus degrade (voir rank_path_segments) est mis en rouge gras
+    directement dans le balisage du Paragraph : les commandes TEXTCOLOR /
+    FONTNAME de _grid_table ne traversent pas un Paragraph (elles ne
+    s'appliquent qu'aux cellules en texte brut, voir _finding_table). Le
+    tableau
+    garde l'ordre du chemin, qui est celui dans lequel on depanne, tout en
+    designant sans ambiguite ou regarder d'abord."""
+    if not metrics:
+        return Paragraph(
+            "Aucun segment exploitable : ni topologie deduite, ni couple de points fourni.",
+            styles["Normal"],
+        )
+    data = [["Segment", "Delai moy / P95 / P99 (ms)", "Gigue", "Perte aval", "Debit aval", "DSCP / frag", "Sauts"]]
+    ranked = rank_path_segments(metrics)
+    pire = ranked[0].label if ranked else None
+    for seg in metrics:
+        delays = " / ".join(_fmt_num(v) for v in (seg.delay_avg_ms, seg.delay_p95_ms, seg.delay_p99_ms))
+        label = f'<b><font color="#b91c1c">{seg.label}</font></b>' if seg.label == pire else seg.label
+        perte = "\u2014" if seg.loss_pct is None else f"{seg.loss_pct:.2f}% ({seg.loss_count})"
+        data.append(
+            [
+                Paragraph(label, styles["Cell"]),
+                Paragraph(delays if seg.samples else "\u2014", styles["Cell"]),
+                Paragraph(_fmt_num(seg.jitter_ms), styles["Cell"]),
+                Paragraph(perte, styles["Cell"]),
+                Paragraph(_fmt_bps(seg.throughput_bps), styles["Cell"]),
+                Paragraph(f"{seg.dscp_changes} / {seg.frag_new}", styles["Cell"]),
+                Paragraph("\u2014" if seg.hops is None else str(seg.hops), styles["Cell"]),
+            ]
+        )
+    return _grid_table(data, [3.4 * cm, 3.8 * cm, 1.5 * cm, 2.3 * cm, 2.3 * cm, 2.3 * cm, 1.4 * cm])
+
+
+def path_section_story(metrics, styles, chart_path=None):
+    """Flowables de la section "Chemin observe" (Job 16/issue #12,
+    FEATURES.md 6.7) : une vue unique qui repond a "ou la qualite se
+    degrade-t-elle ?".
+
+    Les chiffres eux-memes figuraient deja dans le PDF, mais repartis entre
+    quatre sections (latence, pertes, QoS, fragmentation) et classes par
+    metrique, pas par segment -- impossible de suivre une plainte le long du
+    chemin sans recouper trois pages a la main. Ici l'axe de lecture est le
+    chemin, et la metrique le detail.
+
+    metrics vide (aucun couple de points) renvoie une liste vide, donc
+    aucune section : pas de titre orphelin dans un rapport a un seul point
+    de capture, meme convention que expert_section_story().
+    """
+    if not metrics:
+        return []
+    story = [
+        Paragraph("Chemin observe", styles["H1b"]),
+        Paragraph(
+            "Qualite mesuree segment par segment, de l'amont vers l'aval du chemin deduit. "
+            "Les pertes sont comptees au point AVAL de chaque segment (paquet vu en amont, "
+            "absent en aval), le delai et la gigue sur les paquets correles entre les deux "
+            "points -- ils supposent donc des horloges synchronisees. Un tiret signale une "
+            "metrique non mesurable sur ce segment, pas une valeur nulle.",
+            styles["Normal"],
+        ),
+        Spacer(1, 0.2 * cm),
+        Paragraph(f"<b>{degradation_summary(metrics)}</b>", styles["Normal"]),
+        Spacer(1, 0.3 * cm),
+        _path_table(metrics, styles),
+    ]
+    if chart_path:
+        story += [Spacer(1, 0.3 * cm), Image(chart_path, width=15 * cm, height=8 * cm)]
+    return story
+
+
+def _scaled_image(path, max_w, max_h):
+    """Image mise a l'echelle en conservant son rapport d'aspect reel (lu
+    dans le PNG), bornee par max_w x max_h.
+
+    Sans cela, imposer une largeur ET une hauteur a un Image reportlab
+    deforme le dessin -- passe inapercu sur un histogramme, illisible sur
+    un diagramme de sequence, dont la hauteur depend du nombre de lignes.
+    """
+    from PIL import Image as PILImage
+
+    with PILImage.open(path) as im:
+        img_w, img_h = im.size
+    ratio = min(max_w / img_w, max_h / img_h)
+    return Image(path, width=img_w * ratio, height=img_h * ratio)
+
+
+def _sequence_table(view, styles):
+    """Une ligne par paquet vu a un point -- c'est le critere d'acceptation
+    de l'issue #11 ("chaque ligne reliee a un paquet et un point") : le
+    dessin donne la forme de l'echange, cette table donne les references
+    verifiables (numero de trame, point, taille) qu'on reporte dans
+    Wireshark."""
+    data = [["Trame", "t (ms)", "Delta (ms)", "Source -> Destination", "Point", "Octets", "Detail"]]
+    data.extend(
+        [
+            Paragraph("\u2014" if step.frame_number is None else str(step.frame_number), styles["Cell"]),
+            Paragraph(f"{step.rel_ms:.1f}", styles["Cell"]),
+            Paragraph(f"{step.delta_ms:.1f}", styles["Cell"]),
+            Paragraph(f"{step.src} -> {step.dst}", styles["Cell"]),
+            Paragraph(step.point, styles["Cell"]),
+            Paragraph(str(step.length), styles["Cell"]),
+            Paragraph(step.label, styles["Cell"]),
+        ]
+        for step in view.steps
+    )
+    return _grid_table(
+        data,
+        [1.5 * cm, 1.5 * cm, 1.7 * cm, 5.0 * cm, 2.6 * cm, 1.4 * cm, 3.3 * cm],
+    )
+
+
+def sequence_section_story(views, styles, chart_paths=None):
+    """Flowables de la section "Sequence des echanges" (Job 14/issue #11,
+    FEATURES.md 6.5) : un diagramme + une table de references par flux.
+
+    `chart_paths` : liste parallele a `views` (None ou chemin manquant =
+    table seule, jamais d'image absente silencieusement remplacee par un
+    blanc). Liste vide de vues => aucune section, comme
+    expert_section_story()/path_section_story().
+    """
+    views = [v for v in (views or []) if v.steps]
+    if not views:
+        return []
+    chart_paths = list(chart_paths or [])
+    story = [
+        Paragraph("Sequence des echanges", styles["H1b"]),
+        Paragraph(
+            "Chronologie des paquets d'un flux, hote par hote. Une ligne = un paquet vu a "
+            "UN point de capture : le meme paquet traversant deux points apparait donc deux "
+            "fois, et l'ecart entre ces deux lignes est son temps de transit -- c'est la "
+            "mesure que seule une capture multi-points peut donner. Les dates sont relatives "
+            "au premier paquet du flux ; le numero de trame permet de retrouver chaque ligne "
+            "dans Wireshark.",
+            styles["Normal"],
+        ),
+        Spacer(1, 0.3 * cm),
+    ]
+    for i, view in enumerate(views):
+        if view.title:
+            story.append(Paragraph(view.title, styles["H2b"]))
+        if view.truncated:
+            story.append(
+                Paragraph(
+                    f"{len(view.steps)} premieres lignes sur {view.total_steps} "
+                    f"({view.truncated} non representee(s)) -- le debut de l'echange porte "
+                    "le diagnostic, la suite est de la repetition.",
+                    styles["Normal"],
+                )
+            )
+        chart_path = chart_paths[i] if i < len(chart_paths) else None
+        if chart_path:
+            story.append(_scaled_image(chart_path, 16 * cm, 20 * cm))
+            story.append(Spacer(1, 0.3 * cm))
+        story.append(_sequence_table(view, styles))
+        story.append(Spacer(1, 0.4 * cm))
+    return story
+
+
+def expert_section_story(session_objects, styles, top_n=EXPERT_TABLE_TOP_N):
+    """Flowables de la section "Expertise" du PDF (Job 4/issue #13).
+
+    session_objects : SessionObjects (netcross_report.session_objects) ou
+    None -- None renvoie une liste vide, donc aucune section : un rapport
+    produit sans ces objets doit rester identique a ce qu'il etait avant
+    cette session (aucune page blanche, aucun titre orphelin).
+
+    Fonction publique separee de generate_pdf() pour etre testable sans
+    produire de PDF : les tests inspectent les Table/Paragraph renvoyes,
+    la ou relire le PDF final imposerait d'en extraire le texte.
+    """
+    if session_objects is None:
+        return []
+    story = [
+        Paragraph("Expertise -- objets enrichis", styles["H1b"]),
+        Paragraph(
+            "Evenements d'expertise, diagnostics par segment, conformite aux referentiels "
+            "et flux correles. Ces objets etaient jusqu'ici reserves a l'export JSON "
+            "(--json-report) : cause probable et impact viennent du moteur de correlation "
+            "causale, qui ne les renseigne que pour les symptomes co-occurrents reconnus "
+            "sur un meme segment.",
+            styles["Normal"],
+        ),
+        Spacer(1, 0.3 * cm),
+        Paragraph("Evenements d'expertise", styles["H2b"]),
+        _expert_event_table(session_objects.expert_events, styles, top_n),
+        Spacer(1, 0.3 * cm),
+        Paragraph("Diagnostics par segment", styles["H2b"]),
+        _diagnosis_table(session_objects.diagnoses, styles, top_n),
+        Spacer(1, 0.3 * cm),
+        Paragraph("Conformite aux referentiels", styles["H2b"]),
+        _compliance_table(session_objects.compliance, styles, top_n),
+    ]
+    # Les flux ne sont construits que si l'appelant a passe le dict brut
+    # de correlate() (voir build_session_objects) : pas de table vide
+    # quand l'information n'a pas ete demandee.
+    if session_objects.flows:
+        story += [
+            Spacer(1, 0.3 * cm),
+            Paragraph("Flux correles", styles["H2b"]),
+            _flow_table(session_objects.flows, styles, top_n),
+        ]
+    # Signaux tshark BRUTS, jamais fondus dans les evenements netcross
+    # ci-dessus (source "tshark" vs "netcross") -- meme separation que la
+    # cle JSON dediee, voir netcross_core.wireshark_expert.
+    if session_objects.wireshark_expert_events:
+        story += [
+            Spacer(1, 0.3 * cm),
+            Paragraph("Expertise tshark (signaux bruts)", styles["H2b"]),
+            _expert_event_table(session_objects.wireshark_expert_events, styles, top_n),
+        ]
+    return story
+
+
 def _kv_table(rows, styles, col_widths=None):
     data = [[Paragraph(str(a), styles["Normal"]), Paragraph(str(b), styles["Normal"])] for a, b in rows]
     t = Table(data, colWidths=col_widths or [5 * cm, 10 * cm])
@@ -195,6 +599,8 @@ def generate_pdf(
     findings=None,
     tls_findings=None,
     quic_findings=None,
+    session_objects=None,
+    sequence_views=None,
 ):
     """
     r : objet Report (netcross_core.analyse). output_path : chemin du PDF.
@@ -208,6 +614,21 @@ def generate_pdf(
     "par ou commencer" en tete de rapport (memes categories/segments que les
     constats principaux -- rank_segments() est concu pour un melange des
     deux, voir netcross_report/triage.py).
+    sequence_views : liste de SequenceView optionnelle (Job 14/issue #11,
+    voir netcross_report.sequence_view.top_flow_views()). Absente ou vide,
+    le rapport ne contient aucune section "Sequence des echanges" -- ces
+    vues exigent les paquets bruts, que generate_pdf() ne recoit pas et ne
+    doit pas recevoir (Report suffit a tout le reste du rapport).
+
+    session_objects : SessionObjects optionnel (Job 4/issue #13, voir
+    netcross_report.session_objects.build_session_objects()). Si fourni,
+    une section "Expertise -- objets enrichis" est ajoutee avant l'annexe :
+    evenements d'expertise avec cause/impact, diagnostics par segment,
+    conformite aux referentiels, flux correles et signaux tshark bruts --
+    tous reserves jusqu'ici a --json-report. Absent (None) -> section
+    absente, le PDF reste identique a celui des sessions precedentes
+    (meme convention d'absence que tls_findings/quic_findings ci-dessus,
+    et jamais de recalcul ici : ces objets sont construits par l'appelant).
     """
     if findings is None:
         findings = build_findings(r)
@@ -269,13 +690,7 @@ def generate_pdf(
         story.append(Paragraph("Vue d'ensemble", styles["H1b"]))
         if "topology" in charts:
             story.append(Paragraph("Topologie deduite", styles["H2b"]))
-            from PIL import Image as PILImage
-
-            with PILImage.open(charts["topology"]) as im:
-                img_w, img_h = im.size
-            max_w, max_h = 16 * cm, 13 * cm
-            ratio = min(max_w / img_w, max_h / img_h)
-            story.append(Image(charts["topology"], width=img_w * ratio, height=img_h * ratio))
+            story.append(_scaled_image(charts["topology"], 16 * cm, 13 * cm))
             story.append(Spacer(1, 0.3 * cm))
         for key, caption in [
             ("throughput", "Debit par point"),
@@ -287,6 +702,26 @@ def generate_pdf(
                 story.append(Image(charts[key], width=14 * cm, height=7 * cm))
                 story.append(Spacer(1, 0.3 * cm))
         story.append(PageBreak())
+
+        # -- chemin observe (Job 16/issue #12) : place juste apres la vue
+        # d'ensemble et AVANT les sections par metrique, parce qu'elle sert
+        # a decider quelle metrique aller lire ensuite -- la mettre en
+        # annexe aurait inverse l'ordre de lecture reel.
+        path_story = path_section_story(build_path_metrics(r), styles, charts.get("path_quality"))
+        if path_story:
+            story.extend(path_story)
+            story.append(PageBreak())
+
+        # -- sequence des echanges (Job 14/issue #11) : apres le chemin
+        # (ou la degradation se situe) et avant les graphiques temporels --
+        # on descend du chemin vers le flux, puis du flux vers le paquet.
+        seq_views = [v for v in (sequence_views or []) if v.steps]
+        if seq_views:
+            seq_charts = [
+                chart_sequence_diagram(v, f"{tmpdir}/chart_sequence_{i}.png") for i, v in enumerate(seq_views)
+            ]
+            story.extend(sequence_section_story(seq_views, styles, seq_charts))
+            story.append(PageBreak())
 
         # -- graphiques temporels top-N (protocole/port/IP/DSCP) --
         # un seul point trace (voir netcross_report.charts.generate_topn_charts
@@ -446,6 +881,12 @@ def generate_pdf(
             if quic_findings:
                 story.append(Paragraph("QUIC / HTTP3", styles["Heading3"]))
                 story.append(_finding_table(quic_findings, styles))
+
+        # -- expertise (objets enrichis de la Session 0, issue #13) --
+        expert_story = expert_section_story(session_objects, styles)
+        if expert_story:
+            story.append(PageBreak())
+            story.extend(expert_story)
 
         story.append(Spacer(1, 1 * cm))
         story.append(HRFlowable(width="100%", color=colors.HexColor("#e5e7eb")))

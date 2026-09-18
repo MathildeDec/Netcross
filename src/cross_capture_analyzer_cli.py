@@ -80,12 +80,8 @@ import time
 
 from netcross_core import (
     analyse,
-    build_conversations,
-    build_flows,
-    build_wireshark_expert_events,
     compare_clients,
     correlate,
-    evaluate_compliance,
     parse_capture,
     parse_captures_parallel,
     parse_live,
@@ -370,6 +366,40 @@ def main():
         "supplementaire (contrairement a --pdf-report).",
     )
     ap.add_argument(
+        "--rule-engine",
+        action="store_true",
+        help="Active le moteur d'execution de regles declaratives "
+        "(netcross_report.rule_engine) : evalue chaque regle du catalogue "
+        "(expert_rules) contre le Report et affiche les Finding produits. "
+        "Integre egalement les resultats au --json-report si fourni. "
+        "Independant du chemin procedural (build_findings) -- les deux "
+        "chemins coexistent, le moteur declaratif ne le remplace pas encore.",
+    )
+    ap.add_argument(
+        "--expert-section",
+        action="store_true",
+        help="Affiche en console les objets enrichis (evenements d'expertise "
+        "avec cause/impact probables, diagnostics par segment, conformite aux "
+        "referentiels, flux correles, signaux tshark bruts). Ces objets "
+        "n'etaient jusqu'ici exposes que par --json-report. Egalement ajoutes "
+        "en section dediee du --pdf-report si celui-ci est demande, que cette "
+        "option soit active ou non.",
+    )
+    ap.add_argument(
+        "--sequence-diagram",
+        type=int,
+        nargs="?",
+        const=1,
+        default=0,
+        metavar="N",
+        help="Ajoute au --pdf-report un diagramme de sequence des echanges "
+        "pour les N flux les plus volumineux (N=1 si l'option est passee sans "
+        "valeur). Une ligne par paquet ET par point de capture : le meme "
+        "paquet vu a deux points apparait deux fois, l'ecart entre les deux "
+        "lignes etant son temps de transit. Sans effet sans --pdf-report "
+        "(les vues exigent les paquets bruts, que le rapport ne conserve pas).",
+    )
+    ap.add_argument(
         "--client-group",
         action="append",
         metavar="NOM=IP1[,IP2,...]",
@@ -641,7 +671,7 @@ def main():
     findings = None
     tls_findings = None
     quic_findings = None
-    if args.triage or args.pdf_report or args.json_report or args.history_db:
+    if args.triage or args.pdf_report or args.json_report or args.history_db or args.expert_section:
         # calcule dans tous les cas si --pdf-report/--json-report/--history-db :
         # les trois integrent desormais le meme classement en tete (voir
         # netcross_report.pdf / netcross_report.json_report / netcross_report.history)
@@ -652,6 +682,26 @@ def main():
             ranked = rank_segments(findings)
             print_triage(ranked, args.triage_top_n)
             print(format_health_line(health_score(ranked)))
+
+    rule_engine_findings = None
+    if args.rule_engine:
+        from netcross_report import available_rule_ids, evaluate
+
+        rule_engine_findings = {}
+        total = 0
+        print("\n" + "=" * 70)
+        print("MOTEUR DE REGLES DECLARATIF (rule_engine)")
+        print("=" * 70)
+        for rule_id in available_rule_ids():
+            rule_findings = evaluate(rule_id, r)
+            rule_engine_findings[rule_id] = rule_findings
+            if rule_findings:
+                total += len(rule_findings)
+                for f in rule_findings:
+                    print(f"  [{f.severity}] {f.category} / {f.segment} -- {f.message}")
+        print(f"\n{len(available_rule_ids())} regles evaluees, {total} Finding produits.")
+        if not args.json_report:
+            print("(utilisez --json-report pour obtenir la sortie JSON structuree)")
 
     if args.tls or args.quic:
         print("\n" + "=" * 70)
@@ -700,6 +750,35 @@ def main():
         write_detail_csv(args.detail_csv, flows, r.points)
         print(f"\nDetail par flux ecrit dans {args.detail_csv}")
 
+    # Objets de contrat de la Session 0 (FEATURES.md section 13.3) --
+    # construits UNE fois ici, puis partages par la console
+    # (--expert-section), le PDF et le JSON. Avant l'issue #13, ce bloc
+    # vivait sous `if args.json_report:` et n'etait donc visible que la :
+    # voir netcross_report.session_objects pour l'extraction (meme
+    # sequence d'appels, aucun calcul nouveau).
+    session_objects = None
+    if args.expert_section or args.pdf_report or args.json_report:
+        from netcross_report.session_objects import build_session_objects, print_session_objects
+
+        session_objects = build_session_objects(r, findings, flows, all_packets)
+        if args.expert_section:
+            print()
+            print_session_objects(session_objects)
+
+    # Vues de sequence (Job 14/issue #11) : construites seulement si un PDF
+    # est demande ET l'option passee -- elles repartent des Pkt bruts deja
+    # groupes par correlate(), donc aucun reparse, mais aucune raison de les
+    # calculer pour rien.
+    sequence_views = None
+    if args.sequence_diagram and args.pdf_report:
+        from netcross_report.sequence_view import top_flow_views
+
+        sequence_views = top_flow_views(
+            flows,
+            flow_objects=session_objects.flows if session_objects else None,
+            max_flows=args.sequence_diagram,
+        )
+
     if args.pdf_report:
         try:
             from netcross_report import generate_pdf
@@ -718,40 +797,27 @@ def main():
             findings=findings,
             tls_findings=tls_findings,
             quic_findings=quic_findings,
+            session_objects=session_objects,
+            sequence_views=sequence_views,
             meta={"Anonymisation": "adresses IP/MAC anonymisees (--redact)"} if args.redact else None,
         )
         print(f"Rapport PDF ecrit dans {args.pdf_report}")
 
     if args.json_report:
-        from netcross_report import build_diagnoses, build_expert_events, generate_json_report
+        from netcross_report import generate_json_report
 
-        # Objets de contrat de la Session 0 (FEATURES.md section 13.3,
-        # Session 36) : restructuration/regroupement de donnees deja
-        # calculees ci-dessus (flows, findings, r) -- aucun nouveau calcul.
-        flow_objs = build_flows(flows)
-        conversations = build_conversations(flow_objs)
-        expert_events = build_expert_events(findings)
-        diagnoses = build_diagnoses(expert_events)
-        compliance = evaluate_compliance(r)
-        # Session 1 (FEATURES.md section 13.3, "exploitation de
-        # l'expertise Wireshark/TShark") : signaux d'expertise BRUTS
-        # tshark, jamais fondus dans expert_events ci-dessus (source
-        # "netcross") -- voir netcross_core.wireshark_expert.
-        wireshark_expert_events = build_wireshark_expert_events(all_packets)
-
+        # Memes objets que ci-dessus (construits une seule fois) : les
+        # cles JSON produites sont inchangees par rapport aux sessions
+        # precedentes -- voir netcross_report.session_objects.json_kwargs().
         generate_json_report(
             r,
             args.json_report,
             findings=findings,
             tls_findings=tls_findings,
             quic_findings=quic_findings,
-            flows=flow_objs,
-            conversations=conversations,
-            expert_events=expert_events,
-            diagnoses=diagnoses,
-            compliance=compliance,
-            wireshark_expert_events=wireshark_expert_events,
+            rule_engine_findings=rule_engine_findings,
             meta={"Anonymisation": "adresses IP/MAC anonymisees (--redact)"} if args.redact else None,
+            **session_objects.json_kwargs(),
         )
         print(f"Rapport JSON ecrit dans {args.json_report}")
 
