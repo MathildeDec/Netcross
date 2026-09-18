@@ -458,6 +458,27 @@ Options utiles :
   corrélés, signaux tshark), placée juste avant le pied de rapport : les
   écarts de conformité (`VIOLATION`, puis `DEVIATION`) y remontent en
   premier, comme dans le triage « par où commencer ».
+  Toujours indépendamment des options, `--pdf-report` reçoit une section
+  « Chemin observé » (juste après « Vue d'ensemble ») : une ligne par
+  segment, de l'amont vers l'aval du chemin déduit, avec délai
+  moyen/P95/P99, gigue, taux de perte au point aval, débit, remarquages
+  DSCP, nouvelles fragmentations et nombre de sauts — plus un graphique
+  délai P95 / perte superposés. Elle répond à « où la qualité se
+  dégrade-t-elle ? » : le segment le plus dégradé est signalé en rouge
+  (pertes d'abord, délai P95 ensuite). Un tiret cadratin signale une
+  métrique **non mesurable** sur ce segment, jamais une valeur nulle.
+- `--sequence-diagram [N]` : ajoute au `--pdf-report` un **diagramme de
+  séquence** des échanges pour les N flux les plus volumineux (N=1 si
+  l'option est passée sans valeur). Hôtes en colonnes, temps qui descend,
+  une flèche par paquet — la couleur identifie le **point de capture**, pas
+  le protocole : deux flèches de couleurs différentes à quelques
+  millisecondes d'écart sont le *même* paquet vu à deux endroits, et cet
+  écart est son temps de transit. Sous le dessin, une table donne pour
+  chaque ligne le numéro de trame, la date relative, l'écart avec la ligne
+  précédente, le point et la taille — de quoi retrouver le paquet dans
+  Wireshark. Tronqué à 30 lignes par flux (le **début** de l'échange est
+  conservé : handshake, négociation, première requête ; la troncature est
+  annoncée dans le rapport). Sans effet sans `--pdf-report`.
 - `--topn-charts N` : nombre de catégories affichées par graphique dans
   la section "Évolution temporelle (top-N)" du rapport `--pdf-report`
   (défaut 5, le reste des catégories est regroupé sous "autres"). Quatre
@@ -630,7 +651,11 @@ La GUI propose désormais la lecture parallèle, la déduction automatique de
 topologie (case à cocher, équivalent à ne pas passer `--order`), le triage,
 les diagnostics TLS/QUIC, l'export CSV du détail par flux, l'export JSON
 structuré (bouton "Exporter en JSON", équivalent GUI de `--json-report`,
-disponible en mode simple et en mode comparaison), l'anonymisation des
+disponible en mode simple et en mode comparaison — en mode simple, il porte
+désormais **les mêmes clés** que la CLI, objets enrichis compris
+(`flows`/`conversations`/`expert_events`/`diagnoses`/`compliance`/
+`wireshark_expert_events`), et l'export PDF de la GUI reçoit la même section
+« Expertise — objets enrichis » que `--pdf-report`), l'anonymisation des
 adresses (case "Anonymiser les adresses IP/MAC (--redact)", mutuellement
 exclusive avec les diagnostics TLS/QUIC des deux modes), et un **mode
 comparaison** (case à cocher en haut de la page Configuration) qui bascule
@@ -648,6 +673,26 @@ uniquement (pas de comparaison), TLS/QUIC indisponibles dans ce mode
 "Triage"), équivalent à `--triage-top-n` côté CLI ; le nombre de catégories
 affichées par graphique dans le rapport PDF (mode simple) l'est aussi
 (spinbutton dédié, équivalent GUI de `--topn-charts`).
+
+**Cartographie des communications** (section repliable de la page
+Résultats, sans équivalent CLI) : un graphe orienté des échanges observés,
+un nœud par hôte (taille ∝ volume), une flèche par sens (épaisseur ∝
+volume). Rouge = au moins un signal d'expertise (retransmission,
+`expert_flags` tshark) — sur le nœud comme sur l'arête. Trois filtres
+recalculent le dessin à la volée : protocole, Top-N d'arêtes (15 par
+défaut), « anomalies seulement ». Le graphe reste **orienté** : un échange
+TCP produit donc deux flèches, ce qui est précisément ce qui permet de voir
+qu'un sens passe et que l'autre ne répond pas. Deux points de vue sur le
+même paquet ne gonflent pas les volumes : pour chaque flux, le comptage
+retient le point de capture qui en a vu le plus, jamais la somme des points
+(contrairement au diagramme de séquence, où chaque observation est
+volontairement une ligne). La légende sous le dessin annonce le filtrage
+(« 15 arête(s) affichée(s) sur 132 ») pour qu'un graphe tronqué ne passe
+pas pour un graphe complet. Le calcul vit dans
+`netcross_report/comm_map.py` — sans GTK ni matplotlib, donc testable sans
+interface graphique (29 tests) ; le rendu est `charts.chart_comm_map()`. La
+vue se désactive après une comparaison baseline/courant, qui ne conserve
+pas les flux.
 
 **Parité restante avec le CLI** : la capture en direct est désormais
 disponible sur les deux CLI — `--live` sur `cross_capture_analyzer_cli.py`
@@ -673,8 +718,12 @@ uv run pytest
 #   pytest
 ```
 
-Non couverts pour l'instant : `netcross_report/charts.py`/`pdf.py`
-(rendu matplotlib/reportlab) et `netcross_gtk4/` (interface graphique),
+Couverture partielle depuis les Jobs 4 et 16 : `netcross_report/pdf.py` et
+`charts.py` ont des tests **structurels** (nombre de lignes des tables,
+sections absentes quand il n'y a rien à dire, fichier PNG produit), pas de
+comparaison de rendu — le rendu reste relu à l'œil sur un PDF de test.
+Non couverts pour l'instant : le reste du rendu matplotlib/reportlab et
+`netcross_gtk4/` (interface graphique),
 ainsi que l'invocation réelle du sous-processus `tshark` — voir
 `docs/sessions/session-06.md` et `docs/features-backlog.md` section 4 pour le détail.
 

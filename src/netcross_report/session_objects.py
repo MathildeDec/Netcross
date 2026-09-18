@@ -90,7 +90,9 @@ class SessionObjects:
         return kwargs
 
 
-def build_session_objects(report, findings, flows=None, all_packets=None) -> SessionObjects:
+def build_session_objects(
+    report, findings, flows=None, all_packets=None, wireshark_expert_events=None
+) -> SessionObjects:
     """Construit les objets enrichis a partir de donnees DEJA calculees.
 
     report : objet Report (`netcross_core.analysis.analyse()`).
@@ -101,9 +103,17 @@ def build_session_objects(report, findings, flows=None, all_packets=None) -> Ses
     (cle -> {point: [Pkt, ...]}). Absent -> `flows`/`conversations`
     restent des listes vides : les ExpertEvent/Diagnosis/compliance, eux,
     ne dependent que de `findings` et `report` et restent donc calcules.
-    all_packets : paquets bruts ({point: [Pkt, ...]}) pour l'expertise
-    tshark. Absent -> `wireshark_expert_events` reste `None` (voir
+    all_packets : liste plate de paquets bruts (chaque Pkt porte son
+    `point`, comme l'attend `build_wireshark_expert_events()`) pour
+    l'expertise tshark. Absent -> `wireshark_expert_events` reste `None` (voir
     SessionObjects).
+    wireshark_expert_events : signaux tshark DEJA construits, a utiliser
+    tel quel au lieu de les recalculer depuis `all_packets`. Prevu pour un
+    appelant de longue duree comme la GUI (issue #14), qui conserve le
+    resultat de l'analyse mais PAS les paquets bruts -- les garder en
+    memoire pour un export JSON eventuel couterait la taille de la
+    capture entiere. Prioritaire sur `all_packets` quand les deux sont
+    fournis.
 
     Sequence identique a celle de la CLI (--json-report) : build_flows ->
     build_conversations -> build_expert_events -> build_diagnoses ->
@@ -120,7 +130,8 @@ def build_session_objects(report, findings, flows=None, all_packets=None) -> Ses
     correlate_event_causes(expert_events)
     correlate_diagnosis_causes(diagnoses)
     compliance = evaluate_compliance(report)
-    wireshark_expert_events = build_wireshark_expert_events(all_packets) if all_packets else None
+    if wireshark_expert_events is None and all_packets:
+        wireshark_expert_events = build_wireshark_expert_events(all_packets)
     return SessionObjects(
         flows=flow_objs,
         conversations=conversations,
