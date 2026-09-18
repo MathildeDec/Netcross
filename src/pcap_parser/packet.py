@@ -326,6 +326,8 @@ class RawPacket:
     # defaut que expert_flags -- les deux champs sont toujours calcules
     # ensemble, a partir des memes couches.
     expert_details: tuple[tuple[str, str | None, str | None, str | None], ...]
+    http_content_type: str | None = None
+    http_content_length: int | None = None
 
 
 def build_packet(ts_seconds: float, layers: dict) -> RawPacket | None:
