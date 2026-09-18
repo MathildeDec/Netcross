@@ -6,6 +6,7 @@ import matplotlib
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+from matplotlib.lines import Line2D
 
 from netcross_core.correlate import TOPN_OTHER_LABEL
 from netcross_report.path_metrics import build_path_metrics
@@ -354,6 +355,88 @@ def chart_path_quality(metrics, path):
     handles = ax.get_legend_handles_labels()[0] + ax2.get_legend_handles_labels()[0]
     ax.legend(handles=handles, loc="upper left", fontsize=7, framealpha=0.9)
     _save(fig, path)
+    return path
+
+
+_SEQUENCE_POINT_COLORS = ["#3b82f6", "#f59e0b", "#10b981", "#8b5cf6", "#ef4444", "#06b6d4"]
+
+
+def chart_sequence_diagram(view, path):
+    """
+    Diagramme de sequence d'un flux : les hotes en colonnes (lignes de vie
+    verticales), le temps qui descend, une fleche par paquet vu a un point.
+
+    La couleur de la fleche identifie le POINT DE CAPTURE, pas le
+    protocole : deux fleches de meme couleur a quelques millisecondes
+    d'ecart se lisent comme un meme paquet vu deux fois, ce qui est
+    precisement l'information qu'apporte une capture multi-points. Chaque
+    fleche porte son numero de trame quand la capture le fournit, pour que
+    la ligne du dessin soit retrouvable dans Wireshark.
+
+    `None` si la vue n'a aucune etape ou un seul hote (une fleche qui part
+    et revient au meme endroit ne dessine rien de lisible).
+    """
+    if not view or not view.steps or len(view.hosts) < 2:
+        return None
+
+    x = {host: i for i, host in enumerate(view.hosts)}
+    colors_by_point = {
+        point: _SEQUENCE_POINT_COLORS[i % len(_SEQUENCE_POINT_COLORS)] for i, point in enumerate(view.points)
+    }
+    n = len(view.steps)
+    fig, ax = plt.subplots(figsize=(9, max(3.5, min(22.0, 0.52 * n + 2.0))))
+
+    for host, xi in x.items():
+        ax.axvline(xi, color="#cbd5e1", linewidth=1.0, zorder=1)
+        ax.text(xi, 0.6, host, ha="center", va="bottom", fontsize=8, fontweight="bold")
+
+    for i, step in enumerate(view.steps):
+        y = -i
+        x0, x1 = x[step.src], x[step.dst]
+        color = colors_by_point[step.point]
+        if x0 == x1:
+            # src et dst du meme cote (broadcast/ARP vers une adresse non
+            # vue ailleurs) : une fleche nulle ne se voit pas, on marque le
+            # point sur la ligne de vie.
+            ax.plot([x0], [y], marker="o", color=color, markersize=5, zorder=3)
+        else:
+            ax.annotate(
+                "",
+                xy=(x1, y),
+                xytext=(x0, y),
+                arrowprops={"arrowstyle": "-|>", "color": color, "linewidth": 1.3, "shrinkA": 2, "shrinkB": 2},
+                zorder=3,
+            )
+        trame = f"#{step.frame_number} " if step.frame_number is not None else ""
+        ax.text(
+            (x0 + x1) / 2,
+            y + 0.12,
+            f"{trame}{step.label}",
+            ha="center",
+            va="bottom",
+            fontsize=6.5,
+            color="#1f2937",
+        )
+        ax.text(
+            -0.55,
+            y,
+            f"{step.rel_ms:.1f} ms",
+            ha="right",
+            va="center",
+            fontsize=6.5,
+            color="#64748b",
+        )
+
+    ax.set_xlim(-1.35, len(view.hosts) - 0.4)
+    ax.set_ylim(-n + 0.5, 1.6)
+    ax.set_title(f"Sequence des echanges -- {view.title}" if view.title else "Sequence des echanges")
+    ax.axis("off")
+    handles = [Line2D([0], [0], color=colors_by_point[p], linewidth=2, label=f"Vu a {p}") for p in view.points]
+    if view.truncated:
+        handles.append(Line2D([0], [0], color="none", label=f"{view.truncated} paquet(s) non represente(s)"))
+    ax.legend(handles=handles, loc="upper center", bbox_to_anchor=(0.5, -0.01), ncol=2, fontsize=7, framealpha=0.9)
+    fig.savefig(path, dpi=150, bbox_inches="tight")
+    plt.close(fig)
     return path
 
 

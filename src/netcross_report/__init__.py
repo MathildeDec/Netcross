@@ -18,6 +18,12 @@ from netcross_report.path_metrics import (
     rank_path_segments,
 )
 from netcross_report.rule_engine import available_rule_ids, evaluate
+from netcross_report.sequence_view import (
+    SequenceStep,
+    SequenceView,
+    build_sequence_view,
+    top_flow_views,
+)
 from netcross_report.session_objects import (
     SessionObjects,
     build_session_objects,
@@ -49,12 +55,15 @@ __all__ = [
     "HistoryEntry",
     "SegmentMetrics",
     "SegmentScore",
+    "SequenceStep",
+    "SequenceView",
     "SessionObjects",
     "available_rule_ids",
     "build_diagnoses",
     "build_expert_events",
     "build_findings",
     "build_path_metrics",
+    "build_sequence_view",
     "build_session_objects",
     "degradation_summary",
     "evaluate",
@@ -74,4 +83,5 @@ __all__ = [
     "rank_segments",
     "record_diff_run",
     "record_run",
+    "top_flow_views",
 ]

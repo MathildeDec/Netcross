@@ -467,6 +467,18 @@ Options utiles :
   dégrade-t-elle ? » : le segment le plus dégradé est signalé en rouge
   (pertes d'abord, délai P95 ensuite). Un tiret cadratin signale une
   métrique **non mesurable** sur ce segment, jamais une valeur nulle.
+- `--sequence-diagram [N]` : ajoute au `--pdf-report` un **diagramme de
+  séquence** des échanges pour les N flux les plus volumineux (N=1 si
+  l'option est passée sans valeur). Hôtes en colonnes, temps qui descend,
+  une flèche par paquet — la couleur identifie le **point de capture**, pas
+  le protocole : deux flèches de couleurs différentes à quelques
+  millisecondes d'écart sont le *même* paquet vu à deux endroits, et cet
+  écart est son temps de transit. Sous le dessin, une table donne pour
+  chaque ligne le numéro de trame, la date relative, l'écart avec la ligne
+  précédente, le point et la taille — de quoi retrouver le paquet dans
+  Wireshark. Tronqué à 30 lignes par flux (le **début** de l'échange est
+  conservé : handshake, négociation, première requête ; la troncature est
+  annoncée dans le rapport). Sans effet sans `--pdf-report`.
 - `--topn-charts N` : nombre de catégories affichées par graphique dans
   la section "Évolution temporelle (top-N)" du rapport `--pdf-report`
   (défaut 5, le reste des catégories est regroupé sous "autres"). Quatre

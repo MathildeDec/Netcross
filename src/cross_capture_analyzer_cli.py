@@ -386,6 +386,20 @@ def main():
         "option soit active ou non.",
     )
     ap.add_argument(
+        "--sequence-diagram",
+        type=int,
+        nargs="?",
+        const=1,
+        default=0,
+        metavar="N",
+        help="Ajoute au --pdf-report un diagramme de sequence des echanges "
+        "pour les N flux les plus volumineux (N=1 si l'option est passee sans "
+        "valeur). Une ligne par paquet ET par point de capture : le meme "
+        "paquet vu a deux points apparait deux fois, l'ecart entre les deux "
+        "lignes etant son temps de transit. Sans effet sans --pdf-report "
+        "(les vues exigent les paquets bruts, que le rapport ne conserve pas).",
+    )
+    ap.add_argument(
         "--client-group",
         action="append",
         metavar="NOM=IP1[,IP2,...]",
@@ -751,6 +765,20 @@ def main():
             print()
             print_session_objects(session_objects)
 
+    # Vues de sequence (Job 14/issue #11) : construites seulement si un PDF
+    # est demande ET l'option passee -- elles repartent des Pkt bruts deja
+    # groupes par correlate(), donc aucun reparse, mais aucune raison de les
+    # calculer pour rien.
+    sequence_views = None
+    if args.sequence_diagram and args.pdf_report:
+        from netcross_report.sequence_view import top_flow_views
+
+        sequence_views = top_flow_views(
+            flows,
+            flow_objects=session_objects.flows if session_objects else None,
+            max_flows=args.sequence_diagram,
+        )
+
     if args.pdf_report:
         try:
             from netcross_report import generate_pdf
@@ -770,6 +798,7 @@ def main():
             tls_findings=tls_findings,
             quic_findings=quic_findings,
             session_objects=session_objects,
+            sequence_views=sequence_views,
             meta={"Anonymisation": "adresses IP/MAC anonymisees (--redact)"} if args.redact else None,
         )
         print(f"Rapport PDF ecrit dans {args.pdf_report}")
