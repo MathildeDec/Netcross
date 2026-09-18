@@ -1,0 +1,320 @@
+"""netcross_report.charts -- graphiques matplotlib exportes en PNG pour le PDF."""
+
+import statistics
+
+import matplotlib
+
+matplotlib.use("Agg")
+import matplotlib.pyplot as plt
+
+from netcross_core.correlate import TOPN_OTHER_LABEL
+
+
+def chart_topology(r, path):
+    """
+    Diagramme de la topologie deduite : noeuds = points de capture,
+    disposes par couches (generations topologiques) de l'amont vers
+    l'aval, arcs annotes de la confiance TTL. Points de branchement,
+    convergence et isoles distingues par couleur.
+    """
+    if not r.topology_edges:
+        return None
+
+    import networkx as nx
+    from matplotlib.patches import Patch
+
+    G = nx.DiGraph()  # noqa: N806 -- convention NetworkX (G pour un objet Graph/DiGraph,
+    # reprise telle quelle de la documentation/des exemples officiels de la bibliotheque).
+    G.add_nodes_from(r.points)
+    for u, d, info in r.topology_edges:
+        G.add_edge(u, d, **info)
+
+    try:
+        generations = list(nx.topological_generations(G))
+    except nx.NetworkXUnfeasible:
+        generations = None  # ne devrait pas arriver (reduction transitive deja acyclique)
+
+    pos = {}
+    if generations:
+        for layer_idx, layer_nodes in enumerate(generations):
+            for i, node in enumerate(sorted(layer_nodes)):
+                pos[node] = (layer_idx, -i)
+    if not pos or len(pos) < len(G.nodes()):
+        pos.update(nx.spring_layout(G, seed=42, pos=pos or None))
+
+    max_layer_size = max((len(layer) for layer in generations), default=1) if generations else len(G.nodes())
+    fig_height = max(3.0, min(8.0, 1.4 * max_layer_size + 1.2))
+    fig, ax = plt.subplots(figsize=(9, fig_height))
+
+    node_colors = []
+    for n in G.nodes():
+        if n in r.topology_branch_points:
+            node_colors.append("#f59e0b")
+        elif n in r.topology_merge_points:
+            node_colors.append("#8b5cf6")
+        elif n in r.topology_isolated:
+            node_colors.append("#94a3b8")
+        else:
+            node_colors.append("#3b82f6")
+
+    nx.draw_networkx_nodes(
+        G,
+        pos,
+        ax=ax,
+        node_color=node_colors,
+        node_size=1600,
+        edgecolors="white",
+        linewidths=1.5,
+    )
+    nx.draw_networkx_labels(G, pos, ax=ax, font_size=9, font_color="white", font_weight="bold")
+    nx.draw_networkx_edges(
+        G,
+        pos,
+        ax=ax,
+        arrowsize=18,
+        arrowstyle="-|>",
+        node_size=1600,
+        connectionstyle="arc3,rad=0.08",
+        edge_color="#475569",
+        width=1.4,
+    )
+
+    edge_labels = {(u, d): f"{info['confidence'] * 100:.0f}%" for u, d, info in r.topology_edges}
+    nx.draw_networkx_edge_labels(
+        G,
+        pos,
+        edge_labels=edge_labels,
+        ax=ax,
+        font_size=7,
+        bbox={"boxstyle": "round,pad=0.1", "fc": "white", "ec": "none", "alpha": 0.8},
+    )
+
+    ax.set_title("Topologie deduite (delta TTL + recouvrement de flux)")
+    ax.axis("off")
+    ax.margins(0.15, 0.25)
+
+    legend_elems = [
+        Patch(facecolor="#3b82f6", label="Point normal"),
+        Patch(facecolor="#f59e0b", label="Branchement"),
+        Patch(facecolor="#8b5cf6", label="Convergence"),
+        Patch(facecolor="#94a3b8", label="Isole (peu/pas de trafic commun)"),
+    ]
+    ax.legend(
+        handles=legend_elems,
+        loc="upper center",
+        bbox_to_anchor=(0.5, -0.02),
+        ncol=4,
+        fontsize=7,
+        framealpha=0.9,
+    )
+
+    fig.tight_layout()
+    fig.savefig(path, dpi=150, bbox_inches="tight")
+    plt.close(fig)
+    return path
+
+
+def _save(fig, path):
+    fig.tight_layout()
+    fig.savefig(path, dpi=150)
+    plt.close(fig)
+
+
+def chart_throughput(r, path):
+    points = [p for p in r.points if r.throughput.get(p)]
+    if not points:
+        return None
+    avgs = [statistics.mean(r.throughput[p].values()) * 8 / 1000 / r.bucket_seconds for p in points]
+    maxs = [max(r.throughput[p].values()) * 8 / 1000 / r.bucket_seconds for p in points]
+    fig, ax = plt.subplots(figsize=(6, 3))
+    x = range(len(points))
+    ax.bar([i - 0.2 for i in x], avgs, width=0.4, label="moyen", color="#3b82f6")
+    ax.bar([i + 0.2 for i in x], maxs, width=0.4, label="max", color="#93c5fd")
+    ax.set_xticks(list(x))
+    ax.set_xticklabels(points)
+    ax.set_ylabel("kbps")
+    ax.set_title("Debit par point")
+    ax.legend()
+    _save(fig, path)
+    return path
+
+
+def chart_latency(r, path):
+    pairs = [(a, b) for (a, b) in r.pairs if r.latency.get((a, b))]
+    if not pairs:
+        return None
+    labels = [f"{a}->{b}" for a, b in pairs]
+    avgs = [statistics.mean(r.latency[(a, b)]) for a, b in pairs]
+    jitters = [statistics.pstdev(r.latency[(a, b)]) if len(r.latency[(a, b)]) > 1 else 0 for a, b in pairs]
+    fig, ax = plt.subplots(figsize=(6, 3))
+    x = range(len(pairs))
+    ax.bar(x, avgs, yerr=jitters, capsize=4, color="#10b981")
+    ax.set_xticks(list(x))
+    ax.set_xticklabels(labels)
+    ax.set_ylabel("ms")
+    ax.set_title("Latence moyenne par segment (barre d'erreur = gigue)")
+    _save(fig, path)
+    return path
+
+
+def chart_loss(r, path):
+    points = [p for p in r.points if r.loss_count.get(p, 0) > 0]
+    if not points:
+        return None
+    values = [r.loss_count[p] for p in points]
+    fig, ax = plt.subplots(figsize=(6, 3))
+    ax.bar(points, values, color="#ef4444")
+    ax.set_ylabel("paquets manquants")
+    ax.set_title("Pertes par point")
+    _save(fig, path)
+    return path
+
+
+TOPN_DIMENSION_TITLES = {
+    "protocol": "Protocole",
+    "port": "Port de destination",
+    "ip": "IP de destination",
+    "dscp": "Marquage DSCP",
+}
+
+# Palette qualitative (pas de degrade, categories sans ordre naturel) --
+# "autres" (agregat de la longue traine, voir netcross_core.correlate.
+# compute_topn_series) est toujours en dernier et grise, distinct des
+# vraies categories quel que soit le nombre de series de ce graphique.
+_TOPN_PALETTE = ["#3b82f6", "#f59e0b", "#10b981", "#ef4444", "#8b5cf6", "#06b6d4", "#f472b6"]
+_TOPN_OTHER_COLOR = "#cbd5e1"
+
+
+def chart_topn_timeseries(r, point, dimension, path):
+    """
+    Aire empilee du debit par categorie au fil du temps, pour UN point de
+    capture et UNE dimension ("protocol"/"port"/"ip"/"dscp" -- voir
+    netcross_core.correlate.TOPN_DIMENSIONS). None si aucune donnee pour
+    ce point/cette dimension (point absent de r.topn_timeseries, ou point
+    sans aucun paquet).
+
+    Un seul point est trace par appel (pas tous les points empiles
+    ensemble) : superposer plusieurs points sur la meme figure melangerait
+    des paquets potentiellement vus en double (le meme paquet peut
+    traverser plusieurs points de capture), cassant la lisibilite de
+    l'aire empilee -- meme raison que compute_topn_series() classe le
+    top-N independamment par point plutot que globalement. Voir
+    generate_topn_charts() pour le choix du/des point(s) traces dans le
+    rapport.
+    """
+    by_cat = r.topn_timeseries.get(dimension, {}).get(point)
+    if not by_cat:
+        return None
+
+    all_buckets = sorted({b for buckets in by_cat.values() for b in buckets})
+    if not all_buckets:
+        return None
+
+    # "autres" (s'il existe) trace en dernier et grise -- le reste dans
+    # l'ordre decroissant de volume total, pour un empilement lisible
+    # (categories dominantes en bas).
+    cats = [c for c in by_cat if c != TOPN_OTHER_LABEL]
+    cats.sort(key=lambda c: sum(by_cat[c].values()), reverse=True)
+    if TOPN_OTHER_LABEL in by_cat:
+        cats.append(TOPN_OTHER_LABEL)
+
+    x = [(b - all_buckets[0]) * r.bucket_seconds for b in all_buckets]
+    series = [[by_cat[c].get(b, 0) * 8 / 1000 / r.bucket_seconds for b in all_buckets] for c in cats]
+    colors = [
+        _TOPN_OTHER_COLOR if c == TOPN_OTHER_LABEL else _TOPN_PALETTE[i % len(_TOPN_PALETTE)]
+        for i, c in enumerate(cats)
+    ]
+
+    fig, ax = plt.subplots(figsize=(9, 3.2))
+    ax.stackplot(x, series, labels=cats, colors=colors)
+    ax.set_xlabel("secondes depuis le debut de la capture")
+    ax.set_ylabel("kbps")
+    ax.set_title(f"{TOPN_DIMENSION_TITLES.get(dimension, dimension)} au fil du temps -- point {point}")
+    ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.22), ncol=min(len(cats), 4), fontsize=7, framealpha=0.9)
+    _save(fig, path)
+    return path
+
+
+def generate_topn_charts(r, tmpdir, point=None):
+    """
+    Genere les 4 graphiques temporels top-N (protocole/port/IP/DSCP) pour
+    UN SEUL point de capture -- par defaut le premier de r.points (choix
+    documente : voir chart_topn_timeseries pour pourquoi on n'empile pas
+    plusieurs points ensemble, et FEATURES.md pour la discussion complete
+    de cette limitation assumee). `point` permet de cibler un autre point
+    que le premier sans reanalyser la capture.
+
+    Renvoie {dimension: chemin_png} pour les dimensions ayant produit un
+    graphique (dimension absente du dict si aucune donnee).
+    """
+    if point is None:
+        point = r.points[0] if r.points else None
+    if point is None:
+        return {}
+    charts = {}
+    for dimension in r.topn_timeseries:
+        path = f"{tmpdir}/chart_topn_{dimension}.png"
+        result = chart_topn_timeseries(r, point, dimension, path)
+        if result:
+            charts[dimension] = result
+    return charts
+
+
+DEFAULT_SEVERITY_SCHEME = [
+    ("anomalie", "Anomalies", "#ef4444"),
+    ("a_surveiller", "A surveiller", "#f59e0b"),
+    ("info", "Info", "#94a3b8"),
+]
+
+# vocabulaire de baseline_diff.DiffFinding -- reutilise ce meme graphique
+# pour le rapport PDF de comparaison avant/apres (voir pdf.generate_diff_pdf)
+DIFF_SEVERITY_SCHEME = [
+    ("regression", "Regressions", "#ef4444"),
+    ("a_verifier", "A verifier", "#f59e0b"),
+    ("amelioration", "Ameliorations", "#22c55e"),
+]
+
+
+def chart_severity_summary(findings, path, scheme=None):
+    scheme = scheme or DEFAULT_SEVERITY_SCHEME
+    counts = {key: 0 for key, _, _ in scheme}
+    for f in findings:
+        if f.severity in counts:
+            counts[f.severity] += 1
+    if sum(counts.values()) == 0:
+        return None
+    labels = [label for _, label, _ in scheme]
+    values = [counts[key] for key, _, _ in scheme]
+    bar_colors = [color for _, _, color in scheme]
+    fig, ax = plt.subplots(figsize=(4, 3))
+    ax.bar(labels, values, color=bar_colors)
+    ax.set_title("Constats par gravite")
+    for i, v in enumerate(values):
+        if v:
+            ax.text(i, v, str(v), ha="center", va="bottom")
+    _save(fig, path)
+    return path
+
+
+def generate_all_charts(r, findings, tmpdir):
+    charts = {}
+    for name, fn, args in [
+        ("topology", chart_topology, (r,)),
+        ("throughput", chart_throughput, (r,)),
+        ("latency", chart_latency, (r,)),
+        ("loss", chart_loss, (r,)),
+        ("severity", chart_severity_summary, (findings,)),
+    ]:
+        path = f"{tmpdir}/chart_{name}.png"
+        result = fn(*args, path)
+        if result:
+            charts[name] = result
+    # graphiques temporels top-N : cles prefixees ("topn_protocol", ...)
+    # pour ne pas entrer en collision avec les cles ci-dessus, un point
+    # unique (voir generate_topn_charts) -- pas de parametre `point` ici,
+    # generate_all_charts() reste l'entree "sans reglage" utilisee par
+    # generate_pdf ; passer un autre point se fait en appelant
+    # generate_topn_charts() directement (voir __init__.py).
+    for dimension, path in generate_topn_charts(r, tmpdir).items():
+        charts[f"topn_{dimension}"] = path
+    return charts

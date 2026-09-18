@@ -1,0 +1,33 @@
+# Dependances de developpement uniquement (tests + qualite de code) -- ne pas
+# installer en production, voir requirements.txt pour l'execution normale de
+# l'outil.
+#
+#   pip install -r requirements.txt -r requirements-dev.txt
+#   pytest
+#   pre-commit install        # une fois, active les hooks sur `git commit`
+#   pre-commit run --all-files
+#
+# Depuis la Session 55, repli documente uniquement (comme
+# requirements.txt, voir son en-tete) : `uv sync --extra dev` (source de
+# verite [project.optional-dependencies.dev] dans pyproject.toml +
+# uv.lock) remplace ce chemin pip en usage normal --
+#   uv sync --extra dev
+#   uv run pytest
+#   uv run ruff check . && uv run ruff format --check .
+#   PYTHONPATH=src uv run lint-imports
+
+pytest>=8.0
+
+# ruff : version alignee sur `rev: v0.16.4` dans .pre-commit-config.yaml --
+# a faire evoluer ensemble si l'un des deux bouge (sinon le lint local via
+# `ruff check .` diverge de celui execute par le hook pre-commit).
+ruff==0.16.4
+
+# import-linter : verifie le contrat de couches defini dans pyproject.toml
+# ([tool.importlinter]) -- executable seul via `PYTHONPATH=src lint-imports`,
+# ou automatiquement par le hook local "import-linter" de pre-commit.
+import-linter>=2.13
+
+# Gestionnaire des hooks .pre-commit-config.yaml (ruff, ruff-format,
+# import-linter). Installer les hooks une fois par clone : `pre-commit install`.
+pre-commit>=4.0

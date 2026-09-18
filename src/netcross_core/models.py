@@ -1,0 +1,439 @@
+"""
+netcross_core.models -- structures de donnees partagees : un paquet
+normalise (Pkt) et le resultat d'analyse consolide (Report).
+"""
+
+from __future__ import annotations
+
+from collections import defaultdict
+from dataclasses import dataclass, field
+
+
+@dataclass
+class Pkt:
+    __slots__ = (
+        "ack",
+        "arp_is_gratuitous",
+        "arp_opcode",
+        "arp_sender_mac",
+        "df",
+        "dhcp_msg_type",
+        "dhcp_server_id",
+        "dhcp_vendor_class",
+        "dhcp_xid",
+        "dns_is_response",
+        "dns_qry_name",
+        "dns_rcode",
+        "dns_txn_id",
+        "dport",
+        "dscp",
+        "dst",
+        "ecn",
+        "encap_tags",
+        "expert_details",
+        "expert_flags",
+        "flags",
+        "frame_number",
+        "http_is_request",
+        "http_is_response",
+        "http_method",
+        "http_response_time_ms",
+        "http_status_code",
+        "http_uri",
+        "icmp_code",
+        "icmp_type",
+        "icmpv6_code",
+        "icmpv6_type",
+        "ip_id",
+        "is_fast_retransmission",
+        "is_fragment",
+        "is_retransmission",
+        "is_rtp",
+        "is_spurious_retransmission",
+        "key_id",
+        "length",
+        "mss_val",
+        "payload_hash",
+        "point",
+        "proto",
+        "rtp_seq",
+        "rtp_ssrc",
+        "rtp_ts",
+        "sack_permitted",
+        "seq",
+        "sip_call_id",
+        "sip_cseq",
+        "sip_msg_type",
+        "sip_server",
+        "sip_user_agent",
+        "sport",
+        "src",
+        "stp_bpdu_type",
+        "stp_flags_tc",
+        "stp_root_id",
+        "tls_application_data",
+        "tls_cert_not_after",
+        "tls_cert_not_before",
+        "tls_cert_san",
+        "tls_cert_serial",
+        "tls_client_hello",
+        "tls_server_hello",
+        "ts",
+        "ttl",
+        "vlan_id",
+        "vlan_prio",
+        "window",
+        "wscale_shift",
+    )
+    point: str
+    ts: float
+    # frame.number tshark -- voir pcap_parser.packet.RawPacket.frame_number
+    # pour la justification complete (premiere brique de PacketEvidence).
+    frame_number: int | None
+    proto: str
+    src: str
+    dst: str
+    sport: int | None
+    dport: int | None
+    length: int
+    ttl: int | None
+    dscp: int | None
+    ecn: int | None
+    seq: int | None
+    ack: int | None
+    window: int | None
+    flags: str | None
+    key_id: int | None  # IP ID (UDP/ICMP) ou seq TCP, utilise pour la correlation
+    payload_hash: str | None
+    # Identifiant de datagramme, utilise pour le suivi de fragmentation :
+    # IPv4 (ip.id, toujours present) OU IPv6 (ipv6.fragment.id, present
+    # UNIQUEMENT si l'en-tete d'extension Fragment existe -- None sur un
+    # datagramme IPv6 jamais fragmente, l'information n'existe alors tout
+    # simplement pas cote protocole. Voir pcap_parser.packet pour le
+    # detail et les limites assumees de la correlation inter-points qui
+    # en decoulent (frag_new/encap_frag_correlated cote IPv6).
+    ip_id: int | None
+    is_fragment: bool  # IPv4 : MF actif ou offset != 0 -- IPv6 : en-tete Fragment present
+    df: bool  # bit IPv4 Don't Fragment -- toujours False cote IPv6
+    # classification tshark natif d'une retransmission (mutuellement
+    # exclusifs en pratique, voir pcap_parser.packet.RawPacket)
+    is_retransmission: bool
+    is_fast_retransmission: bool
+    is_spurious_retransmission: bool
+    mss_val: int | None
+    wscale_shift: int | None
+    sack_permitted: bool
+    icmp_type: int | None
+    icmp_code: int | None
+    # ICMPv6 (Session 22) -- champs separes de icmp_type/icmp_code,
+    # meme raisonnement que pcap_parser.packet.RawPacket (espaces de
+    # valeurs ICMPv4/ICMPv6 non comparables numeriquement) ; proto
+    # vaut "ICMPv6" (nouvelle valeur, symetrique de "ICMP") sur ce type
+    # de paquet.
+    icmpv6_type: int | None
+    icmpv6_code: int | None
+    arp_opcode: int | None
+    arp_sender_mac: str | None
+    arp_is_gratuitous: bool
+    stp_bpdu_type: int | None
+    stp_flags_tc: bool
+    stp_root_id: str | None
+    tls_cert_not_before: str | None
+    tls_cert_not_after: str | None
+    tls_cert_san: tuple[str, ...] | None
+    tls_cert_serial: str | None
+    # TLS (Session 54) -- voir pcap_parser.packet.RawPacket pour le detail
+    # complet (meme trois champs, meme discipline booleenne).
+    tls_client_hello: bool
+    tls_server_hello: bool
+    tls_application_data: bool
+    vlan_id: int | None
+    vlan_prio: int | None
+    is_rtp: bool
+    rtp_seq: int | None
+    rtp_ts: int | None
+    rtp_ssrc: int | None
+    encap_tags: tuple[str, ...]  # pile d'encapsulation detectee (VLAN, MPLS, GRE, VXLAN...)
+    dhcp_xid: int | None
+    dhcp_msg_type: str | None
+    dhcp_server_id: str | None
+    dhcp_vendor_class: str | None
+    sip_call_id: str | None
+    sip_msg_type: str | None
+    sip_cseq: str | None
+    sip_user_agent: str | None
+    sip_server: str | None
+    dns_txn_id: int | None
+    dns_is_response: bool
+    dns_qry_name: str | None
+    dns_rcode: int | None
+    http_is_request: bool
+    http_is_response: bool
+    http_method: str | None
+    http_uri: str | None
+    http_status_code: int | None
+    http_response_time_ms: float | None
+    # Signaux d'expertise bruts tshark (Session 1, voir pcap_parser.packet
+    # RawPacket.expert_flags pour le detail complet) -- report a l'identique,
+    # aucune transformation.
+    expert_flags: tuple[str, ...]
+    # Vue enrichie de expert_flags (severite/groupe/message NATIFS tshark
+    # -- voir pcap_parser.packet.RawPacket.expert_details/pcap_parser.
+    # ek_fields.expert_flag_details pour le detail complet) -- report a
+    # l'identique, aucune transformation.
+    expert_details: tuple[tuple[str, str | None, str | None, str | None], ...]
+
+
+@dataclass
+class Report:
+    points: list[str] = field(default_factory=list)
+    pairs: list[tuple[str, str]] = field(default_factory=list)
+    bucket_seconds: float = 1.0
+    rtp_clock_rate: int = 8000
+    seen_count: dict[str, int] = field(default_factory=lambda: defaultdict(int))
+    loss_count: dict[str, int] = field(default_factory=lambda: defaultdict(int))
+    latency: dict[tuple[str, str], list[float]] = field(default_factory=lambda: defaultdict(list))
+    qos_change: dict[tuple[str, str], int] = field(default_factory=lambda: defaultdict(int))
+    retrans: dict[str, int] = field(default_factory=lambda: defaultdict(int))
+    # -- classification tshark native des retransmissions (voir
+    # _analyse_retransmission_types) : complementaire de retrans
+    # ci-dessus (heuristique maison "meme flux vu plusieurs fois a ce
+    # point"), plus precise (moteur d'etat TCP complet de tshark), mais
+    # ne remplace pas retrans -- champ different, garde pour compatibilite
+    # avec l'existant (baseline_diff notamment).
+    retrans_fast: dict[str, int] = field(default_factory=lambda: defaultdict(int))
+    retrans_rto: dict[str, int] = field(default_factory=lambda: defaultdict(int))
+    retrans_spurious: dict[str, int] = field(default_factory=lambda: defaultdict(int))
+    # -- negociation options TCP au handshake (voir _analyse_tcp_options) --
+    mss_clamped: dict[tuple[str, str], int] = field(default_factory=lambda: defaultdict(int))
+    mss_clamped_examples: dict[tuple[str, str], list[str]] = field(default_factory=lambda: defaultdict(list))
+    # Numeros de trame (Pkt.frame_number) du paquet cote POINT A (amont)
+    # de chaque exemple ci-dessus, meme index/plafond -- PacketEvidence
+    # (Session 37, extension du pilote PMTUD de la Session 35).
+    mss_clamped_frames: dict[tuple[str, str], list[int | None]] = field(default_factory=lambda: defaultdict(list))
+    wscale_stripped: dict[tuple[str, str], int] = field(default_factory=lambda: defaultdict(int))
+    sack_stripped: dict[tuple[str, str], int] = field(default_factory=lambda: defaultdict(int))
+    # -- TTL / topologie --
+    hop_delta: dict[tuple[str, str], list[int]] = field(default_factory=lambda: defaultdict(list))
+    hop_delta_outliers: dict[tuple[str, str], int] = field(default_factory=lambda: defaultdict(int))
+    ttl_unstable: dict[str, int] = field(default_factory=lambda: defaultdict(int))
+    # -- correlation QoS x TTL --
+    qos_l2_remark: dict[tuple[str, str], int] = field(default_factory=lambda: defaultdict(int))
+    qos_l3_remark: dict[tuple[str, str], int] = field(default_factory=lambda: defaultdict(int))
+    # -- fragmentation / MTU --
+    frag_count: dict[str, int] = field(default_factory=lambda: defaultdict(int))
+    frag_new: dict[tuple[str, str], int] = field(default_factory=lambda: defaultdict(int))
+    icmp_frag_needed: dict[str, int] = field(default_factory=lambda: defaultdict(int))
+    # Equivalent IPv6 (Session 22) de icmp_frag_needed ci-dessus : ICMPv6
+    # "Packet Too Big" (type 2, RFC 4443 S3.2) -- emis par un routeur
+    # intermediaire qui ne peut PAS fragmenter (seule la source le peut
+    # en IPv6, voir pcap_parser.packet), le signal fonctionnel joue
+    # exactement le meme role que "ICMP Fragmentation Needed" cote IPv4
+    # pour _analyse_pmtud ci-dessous -- compteur separe plutot que
+    # reutilisation du meme dict, meme raisonnement que icmpv6_type/code
+    # sur Pkt (les deux mecanismes ICMP/ICMPv6 restent distincts, un seul
+    # compteur commun aurait mele deux protocoles sous un seul nom).
+    icmpv6_too_big: dict[str, int] = field(default_factory=lambda: defaultdict(int))
+    # -- PMTUD (noir) : segment retransmis en amont, jamais vu en aval,
+    # sans signal ICMP(v6) de MTU insuffisant observe en amont -- IPv4 :
+    # bit DF actif + ICMP Fragmentation Needed ; IPv6 : pas de bit DF
+    # (la semantique "ne pas fragmenter" est implicite pour tout paquet,
+    # seule la source peut fragmenter) + ICMPv6 Packet Too Big. Voir
+    # _analyse_pmtud pour le detail des deux branches.
+    pmtud_blackhole: dict[tuple[str, str], int] = field(default_factory=lambda: defaultdict(int))
+    pmtud_blackhole_examples: dict[tuple[str, str], list[str]] = field(default_factory=lambda: defaultdict(list))
+    # Numeros de trame (Pkt.frame_number) du paquet representatif de
+    # chaque exemple ci-dessus, un par entree, meme index/meme plafond a
+    # 5 -- premier champ de Report a alimenter PacketEvidence
+    # (netcross_core.expert_model, Session 35), voir _analyse_pmtud et
+    # netcross_report.synthesis. `None` si frame_number etait absent sur
+    # le paquet source (tolerance, jamais observe en pratique avec un
+    # vrai tshark -- voir pcap_parser.packet.RawPacket.frame_number).
+    pmtud_blackhole_frames: dict[tuple[str, str], list[int | None]] = field(default_factory=lambda: defaultdict(list))
+    # -- timeout d'inactivite / coupure NAT-FW silencieuse (voir
+    # _analyse_idle_timeout) : un flux TCP deja etabli aux DEUX points,
+    # dont le plus grand ecart entre deux paquets consecutifs au point
+    # amont depasse le seuil (_IDLE_TIMEOUT_SECONDS), et dont le trafic
+    # qui reprend en amont apres ce silence n'atteint plus jamais le
+    # point aval -- signature typique d'une table d'etat NAT/pare-feu qui
+    # a expire l'entree pendant l'inactivite et bloque desormais le
+    # trafic repris sans emettre le moindre RST.
+    idle_timeout_dropped: dict[tuple[str, str], int] = field(default_factory=lambda: defaultdict(int))
+    idle_timeout_examples: dict[tuple[str, str], list[str]] = field(default_factory=lambda: defaultdict(list))
+    # Numero de trame (Pkt.frame_number) du paquet qui reprend le trafic en
+    # amont apres le silence (meme paquet que celui qui determine gap_end
+    # dans _analyse_idle_timeout), meme index/plafond -- PacketEvidence
+    # (Session 37).
+    idle_timeout_frames: dict[tuple[str, str], list[int | None]] = field(default_factory=lambda: defaultdict(list))
+    # -- conflit d'adresse IP (ARP) -- voir _analyse_arp_ip_conflict.
+    # Par POINT (pas par paire de points, contrairement a la plupart des
+    # detecteurs ci-dessus) : un conflit d'adresse se voit deja au sein
+    # d'un seul point de capture (deux MAC differentes qui revendiquent
+    # la meme IP sur le meme segment de diffusion), une correlation
+    # inter-points n'apporte rien de plus ici -- meme granularite que
+    # retrans_fast/retrans_rto/retrans_spurious ci-dessus.
+    arp_ip_conflict: dict[str, int] = field(default_factory=lambda: defaultdict(int))
+    arp_ip_conflict_examples: dict[str, list[str]] = field(default_factory=lambda: defaultdict(list))
+    # Numero de trame (Pkt.frame_number) du dernier paquet ARP observe pour
+    # l'IP en conflit, meme index/plafond -- PacketEvidence (Session 37).
+    arp_ip_conflict_frames: dict[str, list[int | None]] = field(default_factory=lambda: defaultdict(list))
+    # -- instabilite STP (Session 25) -- voir _analyse_stp_instability.
+    # Par POINT, meme granularite que arp_ip_conflict ci-dessus : une
+    # tempete de changements de topologie ou une reelection de pont
+    # racine se voit deja au sein d'un seul point de capture.
+    # stp_topology_change : nombre d'evenements de changement de
+    # topologie observes (BPDU de type TCN OU Configuration BPDU avec le
+    # bit TC actif -- les deux sont des signaux equivalents du meme
+    # phenomene, voir docstring du detecteur). Un reseau STP stable n'en
+    # emet quasiment jamais ; une boucle ou un port qui flappe en genere
+    # en rafale.
+    stp_topology_change: dict[str, int] = field(default_factory=lambda: defaultdict(int))
+    # stp_root_change : nombre de fois ou l'identifiant du pont racine
+    # (priorite/MAC) change de valeur d'une Configuration BPDU a la
+    # suivante, au meme point -- une reelection repetee du pont racine
+    # est un signe classique d'instabilite (boucle, lien qui flappe).
+    stp_root_change: dict[str, int] = field(default_factory=lambda: defaultdict(int))
+    stp_root_change_examples: dict[str, list[str]] = field(default_factory=lambda: defaultdict(list))
+    # Numero de trame (Pkt.frame_number) de la BPDU qui porte la nouvelle
+    # racine, meme index/plafond -- PacketEvidence (Session 37).
+    stp_root_change_frames: dict[str, list[int | None]] = field(default_factory=lambda: defaultdict(list))
+    # -- certificat TLS (Session 26) -- voir _analyse_tls_certificate.
+    # tls_cert_invalid_dates : par POINT (comme ARP/STP ci-dessus) -- un
+    # certificat presente HORS de sa fenetre de validite (deja expire,
+    # OU pas encore valide) au moment du handshake se voit deja au sein
+    # d'un seul point de capture. Les deux cas partagent le meme
+    # compteur (comme stp_topology_change regroupe TCN et bit TC) --
+    # le message d'exemple precise lequel des deux s'est produit.
+    tls_cert_invalid_dates: dict[str, int] = field(default_factory=lambda: defaultdict(int))
+    tls_cert_invalid_dates_examples: dict[str, list[str]] = field(default_factory=lambda: defaultdict(list))
+    # Numero de trame (Pkt.frame_number) du paquet portant le certificat hors
+    # fenetre de validite, meme index/plafond -- PacketEvidence (Session 37).
+    tls_cert_invalid_dates_frames: dict[str, list[int | None]] = field(default_factory=lambda: defaultdict(list))
+    # tls_cert_mismatch : PAR PAIRE de points (a, b), comme pmtud_
+    # blackhole/idle_timeout_dropped -- ici la comparaison EXIGE deux
+    # points : le numero de serie du certificat presente pour une meme
+    # connexion differe entre l'amont et l'aval, signature possible d'une
+    # interception/substitution TLS en cours de chemin (proxy
+    # d'inspection, MITM) plutot qu'un forward transparent du meme
+    # certificat.
+    tls_cert_mismatch: dict[tuple[str, str], int] = field(default_factory=lambda: defaultdict(int))
+    tls_cert_mismatch_examples: dict[tuple[str, str], list[str]] = field(default_factory=lambda: defaultdict(list))
+    # Numero de trame (Pkt.frame_number) du paquet cote POINT A (amont)
+    # portant le numero de serie de reference, meme index/plafond --
+    # PacketEvidence (Session 37).
+    tls_cert_mismatch_frames: dict[tuple[str, str], list[int | None]] = field(default_factory=lambda: defaultdict(list))
+    # -- negociations TLS incompletes (Session 54) -- voir
+    # _analyse_tls_handshake. Concept DIFFERENT du certificat ci-dessus
+    # (voir docstring de _analyse_tls_handshake pour la distinction
+    # complete) : PAR POINT uniquement, comme tls_cert_invalid_dates --
+    # aucune correlation entre points necessaire, une negociation qui ne
+    # va pas a son terme se voit deja au sein d'un seul point de
+    # capture (le point qui verrait un ClientHello amont mais capture
+    # en aval de l'endroit ou la negociation s'est arretee ne verrait
+    # simplement rien du tout -- absence de signal, pas un signal en
+    # soi, meme limite que tout le reste de ce module PAR POINT).
+    # tls_handshake_no_reply : un ClientHello est vu pour une connexion,
+    # mais AUCUN ServerHello n'est jamais observe pour cette meme
+    # connexion a ce meme point -- silence total apres l'ouverture de la
+    # negociation (filtrage, service injoignable, ou timeout de
+    # capture).
+    tls_handshake_no_reply: dict[str, int] = field(default_factory=lambda: defaultdict(int))
+    tls_handshake_no_reply_examples: dict[str, list[str]] = field(default_factory=lambda: defaultdict(list))
+    tls_handshake_no_reply_frames: dict[str, list[int | None]] = field(default_factory=lambda: defaultdict(list))
+    # tls_handshake_incomplete : un ServerHello EST vu (la negociation a
+    # bien commence des deux cotes), mais aucun enregistrement
+    # application_data n'est jamais observe ensuite pour cette meme
+    # connexion a ce meme point -- la negociation demarre puis
+    # s'interrompt avant son terme (abandon client, certificat refuse,
+    # middlebox qui coupe en cours de handshake).
+    tls_handshake_incomplete: dict[str, int] = field(default_factory=lambda: defaultdict(int))
+    tls_handshake_incomplete_examples: dict[str, list[str]] = field(default_factory=lambda: defaultdict(list))
+    tls_handshake_incomplete_frames: dict[str, list[int | None]] = field(default_factory=lambda: defaultdict(list))
+    # -- debit / saturation / bufferbloat --
+    throughput: dict[str, dict[int, int]] = field(default_factory=dict)
+    # -- graphiques temporels top-N (voir netcross_core.correlate.compute_topn_series) :
+    # dimension ("protocol"/"port"/"ip"/"dscp") -> point -> categorie -> bucket -> octets
+    topn_timeseries: dict[str, dict[str, dict[str, dict[int, int]]]] = field(default_factory=dict)
+    loss_event_buckets: dict[tuple[str, str], list[int]] = field(default_factory=lambda: defaultdict(list))
+    latency_by_bucket: dict[tuple[str, str], dict[int, list[float]]] = field(
+        default_factory=lambda: defaultdict(lambda: defaultdict(list))
+    )
+    saturation_verdict: dict[tuple[str, str], str] = field(default_factory=dict)
+    bufferbloat_hint: dict[tuple[str, str], tuple[float, float]] = field(default_factory=dict)
+    # -- fenetre TCP / ACK dupliques / RST / handshake --
+    zero_window: dict[str, int] = field(default_factory=lambda: defaultdict(int))
+    dup_ack: dict[str, int] = field(default_factory=lambda: defaultdict(int))
+    rst_count: dict[str, int] = field(default_factory=lambda: defaultdict(int))
+    rst_localized: dict[str, int] = field(default_factory=lambda: defaultdict(int))
+    syn_no_synack: dict[str, int] = field(default_factory=lambda: defaultdict(int))
+    syn_reply_missing: dict[str, int] = field(default_factory=lambda: defaultdict(int))
+    # -- decalage d'horloge (via handshakes TCP, hypothese de chemin symetrique) --
+    clock_offset_samples: dict[tuple[str, str], list[float]] = field(default_factory=lambda: defaultdict(list))
+    clock_offset_estimate: dict[tuple[str, str], tuple[float, float, int]] = field(default_factory=dict)
+    # -- VLAN 802.1Q --
+    vlan_seen: dict[str, set[int]] = field(default_factory=lambda: defaultdict(set))
+    vlan_change: dict[tuple[str, str], int] = field(default_factory=lambda: defaultdict(int))
+    vlan_tag_flip: dict[tuple[str, str], dict[str, int]] = field(
+        default_factory=lambda: defaultdict(lambda: defaultdict(int))
+    )
+    pcp_change: dict[tuple[str, str], int] = field(default_factory=lambda: defaultdict(int))
+    # -- encapsulation / tunnels --
+    encap_seen: dict[str, set[str]] = field(default_factory=lambda: defaultdict(set))
+    encap_change: dict[tuple[str, str], int] = field(default_factory=lambda: defaultdict(int))
+    encap_change_examples: dict[tuple[str, str], list[str]] = field(default_factory=lambda: defaultdict(list))
+    encap_frag_correlated: dict[tuple[str, str], int] = field(default_factory=lambda: defaultdict(int))
+    # -- RTP (voix/visio) --
+    rtp_streams: list[dict] = field(default_factory=list)
+    # -- decomposition reseau vs serveur --
+    server_think_time: dict[str, list[float]] = field(default_factory=lambda: defaultdict(list))
+    # -- DHCP --
+    dhcp_msg_count: dict[str, dict[str, int]] = field(default_factory=lambda: defaultdict(lambda: defaultdict(int)))
+    dhcp_nak_count: dict[str, int] = field(default_factory=lambda: defaultdict(int))
+    dhcp_server_seen: dict[str, set[str]] = field(default_factory=lambda: defaultdict(set))
+    dhcp_missing: dict[tuple[str, str], list[str]] = field(default_factory=lambda: defaultdict(list))
+    dhcp_duration_ms: list[float] = field(default_factory=list)
+    # -- SIP --
+    sip_msg_count: dict[str, dict[str, int]] = field(default_factory=lambda: defaultdict(lambda: defaultdict(int)))
+    sip_agents_seen: dict[str, set[str]] = field(default_factory=lambda: defaultdict(set))
+    sip_missing: dict[tuple[str, str], list[str]] = field(default_factory=lambda: defaultdict(list))
+    sip_setup_duration_ms: list[float] = field(default_factory=list)
+    sip_failed_calls: list[str] = field(default_factory=list)
+    # -- DNS (voir _analyse_dns) --
+    dns_query_count: dict[str, int] = field(default_factory=lambda: defaultdict(int))
+    dns_response_count: dict[str, int] = field(default_factory=lambda: defaultdict(int))
+    dns_nxdomain_count: dict[str, int] = field(default_factory=lambda: defaultdict(int))
+    dns_servfail_count: dict[str, int] = field(default_factory=lambda: defaultdict(int))
+    dns_missing: dict[tuple[str, str], list[str]] = field(default_factory=lambda: defaultdict(list))
+    dns_timeout: dict[str, list[str]] = field(default_factory=lambda: defaultdict(list))
+    # Numero de trame (Pkt.frame_number) de la requete DNS jamais suivie de
+    # reponse, meme index/plafond -- PacketEvidence (Session 37).
+    dns_timeout_frames: dict[str, list[int | None]] = field(default_factory=lambda: defaultdict(list))
+    dns_duration_ms: list[float] = field(default_factory=list)
+    # -- HTTP/1.x (voir _analyse_http) --
+    http_request_count: dict[str, int] = field(default_factory=lambda: defaultdict(int))
+    http_response_count: dict[str, int] = field(default_factory=lambda: defaultdict(int))
+    http_status_count: dict[str, dict[str, int]] = field(default_factory=lambda: defaultdict(lambda: defaultdict(int)))
+    http_client_error_count: dict[str, int] = field(default_factory=lambda: defaultdict(int))  # 4xx
+    http_server_error_count: dict[str, int] = field(default_factory=lambda: defaultdict(int))  # 5xx
+    http_error_examples: dict[str, list[str]] = field(default_factory=lambda: defaultdict(list))
+    # Numero de trame (Pkt.frame_number) de la reponse d'erreur, meme
+    # index/plafond que http_error_examples -- PacketEvidence (Session 37).
+    # Filtre 4xx/5xx applique au meme moment que _http_error_evidence (voir
+    # synthesis.py/baseline_diff.py), sur cet index partage.
+    http_error_frames: dict[str, list[int | None]] = field(default_factory=lambda: defaultdict(list))
+    http_missing: dict[tuple[str, str], list[str]] = field(default_factory=lambda: defaultdict(list))
+    http_timeout: dict[str, list[str]] = field(default_factory=lambda: defaultdict(list))
+    # Numero de trame (Pkt.frame_number) de la requete jamais suivie de
+    # reponse, meme index/plafond -- PacketEvidence (Session 37).
+    http_timeout_frames: dict[str, list[int | None]] = field(default_factory=lambda: defaultdict(list))
+    # calcule nativement par tshark (http.time), pas recompose a la main
+    # comme dns_duration_ms -- voir _analyse_http
+    http_response_time_ms: list[float] = field(default_factory=list)
+    # -- topologie deduite (ordre + chemins multiples) --
+    topology_edges: list[tuple[str, str, dict]] = field(default_factory=list)
+    topology_ambiguous: list[tuple[str, str, str]] = field(default_factory=list)
+    topology_isolated: list[str] = field(default_factory=list)
+    topology_branch_points: list[str] = field(default_factory=list)
+    topology_merge_points: list[str] = field(default_factory=list)
+    topology_order_conflicts: list[str] = field(default_factory=list)
+    topology_used_for_order: bool = False

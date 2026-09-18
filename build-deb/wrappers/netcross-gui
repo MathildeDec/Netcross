@@ -1,0 +1,7 @@
+#!/bin/sh
+# Wrapper installe dans /usr/bin/netcross-gui par le paquet Debian/RPM.
+# Necessite les paquets python3-gi + gir1.2-gtk-4.0 (Debian/Ubuntu) ou
+# python3-gobject + gtk4 (RHEL/Rocky) -- voir README.md.
+export PYTHONPATH="/usr/share/netcross:${PYTHONPATH:-}"
+cd /usr/share/netcross || exit 1
+exec python3 -m netcross_gtk4.app "$@"

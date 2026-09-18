@@ -1,0 +1,18 @@
+repos:
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.16.4
+    hooks:
+      - id: ruff
+        args: [--fix]
+      - id: ruff-format
+
+  - repo: local
+    hooks:
+      - id: import-linter
+        name: Vérifie les imports circulaires (import-linter)
+        # PYTHONPATH=src : les paquets (netcross_core, pcap_parser, ...)
+        # vivent sous src/ et doivent être importables pour l'analyse.
+        entry: env PYTHONPATH=src lint-imports
+        language: system
+        pass_filenames: false
+        files: \.py$

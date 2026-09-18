@@ -1,0 +1,31 @@
+Source: netcross
+Section: net
+Priority: optional
+Maintainer: Mathilde Deuscher <FIXME-mettre-votre-email@example.com>
+Build-Depends: debhelper-compat (= 13)
+Standards-Version: 4.6.2
+Homepage: https://github.com/FIXME-votre-compte/netcross
+Rules-Requires-Root: no
+
+Package: netcross
+Architecture: all
+Depends: ${misc:Depends},
+ python3,
+ tshark,
+ python3-cryptography,
+ python3-reportlab,
+ python3-matplotlib,
+ python3-networkx
+Recommends: python3-gi, gir1.2-gtk-4.0
+Description: Analyse croisee de captures Wireshark multi-points
+ netcross correle plusieurs captures reseau (.pcap/.pcapng) prises en
+ differents points d'un chemin reseau pour du depannage : pertes,
+ latence/gigue, TTL et topologie deduite automatiquement, QoS, saturation
+ et bufferbloat, fragmentation/MTU, tunnels (MPLS/GRE/VXLAN/GTP-U/ERSPAN/
+ CAPWAP), DHCP, SIP, RTP/MOS, et decomposition reseau vs serveur.
+ .
+ Fournit un CLI (netcross), un CLI de comparaison avant/apres
+ (netcross-diff), un CLI d'interrogation de l'historique --history-db
+ (netcross-history), un generateur de rapport PDF, et une interface
+ graphique GTK4 optionnelle (netcross-gui, necessite les paquets
+ Recommends python3-gi et gir1.2-gtk-4.0).

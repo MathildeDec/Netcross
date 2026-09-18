@@ -1,0 +1,13 @@
+# .gitignore -- absent du projet avant la Session 55 (zip livre sans
+# .git, voir CLAUDE.md). Ajoute uniquement pour l'environnement venv
+# local cree par `uv sync` (voir migration pip -> uv, session-55.md) et
+# les caches d'outillage deja produits localement par pytest/ruff/mypy/
+# import-linter -- aucun de ces repertoires n'est un livrable du projet.
+
+.venv/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.import_linter_cache/

@@ -1,0 +1,75 @@
+[project]
+name = "netcross"
+version = "1.0.0"
+description = "Analyse croisee de captures reseau multi-points (pcap_parser/tshark, netcross_core, netcross_report, CLI, GUI GTK4)"
+requires-python = ">=3.10"
+# >=3.10 (et non >=3.9, la cible historique de `ruff target-version`
+# ci-dessous, qui ne fixe que la syntaxe autorisee, jamais l'interpreteur
+# minimal d'execution) : import-linter>=2.13 (extra dev) exige lui-meme
+# Python>=3.10 -- `uv lock` echoue sinon sur la resolution de l'extra
+# dev ("No solution found ... python_full_version > '3.9' and < '3.10'"),
+# meme si le code applicatif de netcross reste compatible 3.9. Aucun
+# changement de syntaxe necessaire dans src/ pour cette session.
+# Memes bornes que requirements.txt (source historique, conservee pour
+# l'installation systeme via install.sh -- voir commentaire [tool.uv]
+# ci-dessous). GTK4/PyGObject INTENTIONNELLEMENT absent : bibliotheque
+# systeme, jamais installable proprement via pip/uv, voir install.sh.
+dependencies = [
+    "cryptography>=41.0",
+    "reportlab>=4.0",
+    "matplotlib>=3.6",
+    "networkx>=2.8",
+]
+
+[project.optional-dependencies]
+# Memes bornes que requirements-dev.txt -- outillage qualite uniquement,
+# jamais installe en production (voir requirements-dev.txt).
+dev = [
+    "pytest>=8.0",
+    "ruff==0.16.4",
+    "import-linter>=2.13",
+    "pre-commit>=4.0",
+]
+
+[tool.uv]
+# `package = false` : netcross est une application lancee via
+# `PYTHONPATH=src` (voir pytest.ini/README.md), pas une bibliotheque
+# distribuee comme wheel -- uv gere alors la resolution/le lock
+# (uv.lock) et l'environnement (.venv) sans exiger de [build-system]/
+# backend de build, exactement le meme modele que le pip+requirements.txt
+# remplace par cette migration (aucune trace de poetry trouvee dans le
+# projet avant cette session -- pyproject.toml n'avait qu'une section
+# [tool.ruff]/[tool.importlinter], jamais de [tool.poetry] -- migration
+# donc interpretee comme pip+requirements.txt -> uv, voir CLAUDE.md/
+# docs/sessions/session-55.md).
+package = false
+
+[tool.ruff]
+line-length = 120
+target-version = "py39"
+
+[tool.ruff.lint]
+# TID : necessaire pour que `ban-relative-imports` ci-dessous soit reellement applique --
+# sans TID dans ce `select`, la regle TID252 n'est jamais evaluee et le ban est silencieusement
+# inoperant (verifie : 0 violation TID252 remontee sans TID, 76 avec, sur le meme code).
+select = ["E", "W", "F", "I", "B", "C4", "UP", "SIM", "N", "PERF", "RUF", "TID"]
+# RUF100 : ignore les "noqa inutiles" -- le projet utilise des noqa (BLE001, RUF007)
+# pour des regles hors de ce `select`; les garder documente une decision volontaire.
+ignore = ["RUF100"]
+
+[tool.ruff.lint.flake8-tidy-imports]
+ban-relative-imports = "all"
+
+[tool.importlinter]
+root_packages = ["netcross_gtk4", "netcross_report", "netcross_core", "pcap_parser"]
+include_external_packages = true
+
+[[tool.importlinter.contracts]]
+name = "Pas de cycles internes"
+type = "layers"
+layers = [
+    "netcross_gtk4",
+    "netcross_report",
+    "netcross_core",
+    "pcap_parser",
+]

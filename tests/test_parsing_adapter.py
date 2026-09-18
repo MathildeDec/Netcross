@@ -1,0 +1,214 @@
+"""
+netcross_core.parsing -- adaptateur fin entre pcap_parser et le modele
+Pkt de netcross_core. Ne refait aucun decodage lui-meme : on verifie
+donc surtout (1) que _to_pkt/parse_capture cablent bien label + tous
+les champs de RawPacket vers Pkt sans en perdre un, et (2) que la
+gestion d'erreur tshark (absent/en echec) respecte le contrat de
+l'ancienne API (avaler l'erreur sauf raise_on_error=True) -- voir
+claude.md Session 1 : "conserve exactement les memes signatures que
+l'ancienne version scapy".
+"""
+
+import pytest
+
+import netcross_core.parsing as parsing_mod
+from pcap_parser.ek_source import TsharkError, TsharkNotFoundError
+from pcap_parser.packet import RawPacket
+
+
+def _raw(**overrides) -> RawPacket:
+    defaults = {
+        "ts": 1.0,
+        "frame_number": None,
+        "proto": "TCP",
+        "src": "10.0.0.1",
+        "dst": "10.0.0.2",
+        "sport": 1,
+        "dport": 2,
+        "length": 60,
+        "ttl": 64,
+        "dscp": 0,
+        "ecn": 0,
+        "seq": 42,
+        "ack": 0,
+        "window": 1000,
+        "flags": "S",
+        "key_id": 42,
+        "payload_hash": None,
+        "payload": b"",
+        "ip_id": 1,
+        "is_fragment": False,
+        "df": False,
+        "is_retransmission": False,
+        "is_fast_retransmission": False,
+        "is_spurious_retransmission": False,
+        "expert_flags": (),
+        "expert_details": (),
+        "mss_val": None,
+        "wscale_shift": None,
+        "sack_permitted": False,
+        "icmp_type": None,
+        "icmp_code": None,
+        "icmpv6_type": None,
+        "icmpv6_code": None,
+        "arp_opcode": None,
+        "arp_sender_mac": None,
+        "arp_is_gratuitous": False,
+        "stp_bpdu_type": None,
+        "stp_flags_tc": False,
+        "stp_root_id": None,
+        "tls_cert_not_before": None,
+        "tls_cert_not_after": None,
+        "tls_cert_san": None,
+        "tls_cert_serial": None,
+        "tls_client_hello": False,
+        "tls_server_hello": False,
+        "tls_application_data": False,
+        "vlan_id": None,
+        "vlan_prio": None,
+        "is_rtp": False,
+        "rtp_seq": None,
+        "rtp_ts": None,
+        "rtp_ssrc": None,
+        "encap_tags": (),
+        "dhcp_xid": None,
+        "dhcp_msg_type": None,
+        "dhcp_server_id": None,
+        "dhcp_vendor_class": None,
+        "sip_call_id": None,
+        "sip_msg_type": None,
+        "sip_cseq": None,
+        "sip_user_agent": None,
+        "sip_server": None,
+        "dns_txn_id": None,
+        "dns_is_response": False,
+        "dns_qry_name": None,
+        "dns_rcode": None,
+        "http_is_request": False,
+        "http_is_response": False,
+        "http_method": None,
+        "http_uri": None,
+        "http_status_code": None,
+        "http_response_time_ms": None,
+    }
+    defaults.update(overrides)
+    return RawPacket(**defaults)
+
+
+def test_to_pkt_attache_le_label_et_conserve_les_champs():
+    raw = _raw(src="1.2.3.4", seq=999)
+    pkt = parsing_mod._to_pkt("LAN", raw)
+    assert pkt.point == "LAN"
+    assert pkt.src == "1.2.3.4"
+    assert pkt.seq == 999
+    # tous les champs de RawPacket (hors 'payload', absent de Pkt par
+    # design -- voir claude.md Session 3) doivent avoir ete reportes
+    for f in raw.__dataclass_fields__:
+        if f == "payload":
+            continue
+        assert getattr(pkt, f) == getattr(raw, f)
+
+
+def test_to_pkt_conserve_le_flag_df():
+    raw = _raw(df=True)
+    pkt = parsing_mod._to_pkt("LAN", raw)
+    assert pkt.df is True
+
+
+def test_to_pkt_conserve_la_classification_de_retransmission():
+    raw = _raw(is_fast_retransmission=True)
+    pkt = parsing_mod._to_pkt("LAN", raw)
+    assert pkt.is_fast_retransmission is True
+    assert pkt.is_retransmission is False
+    assert pkt.is_spurious_retransmission is False
+
+
+def test_parse_capture_avale_l_erreur_par_defaut(monkeypatch, capsys):
+    def boom(path, raise_on_error=True):
+        raise TsharkNotFoundError("tshark introuvable")
+
+    monkeypatch.setattr(parsing_mod.pcap_parser, "parse_capture", boom)
+    result = parsing_mod.parse_capture("LAN", "capture.pcapng")
+    assert result == []
+    assert "LAN" in capsys.readouterr().err
+
+
+def test_parse_capture_relaie_l_erreur_si_demande(monkeypatch):
+    def boom(path, raise_on_error=True):
+        raise TsharkError("erreur tshark")
+
+    monkeypatch.setattr(parsing_mod.pcap_parser, "parse_capture", boom)
+    with pytest.raises(TsharkError):
+        parsing_mod.parse_capture("LAN", "capture.pcapng", raise_on_error=True)
+
+
+def test_parse_capture_convertit_les_raw_packets(monkeypatch):
+    raws = [_raw(src="1.1.1.1"), _raw(src="2.2.2.2")]
+    monkeypatch.setattr(parsing_mod.pcap_parser, "parse_capture", lambda path, raise_on_error=True: raws)
+    pkts = parsing_mod.parse_capture("WAN", "capture.pcapng")
+    assert [p.src for p in pkts] == ["1.1.1.1", "2.2.2.2"]
+    assert all(p.point == "WAN" for p in pkts)
+
+
+def test_pkt_utilise_des_slots():
+    # Meme piste memoire que RawPacket (voir tests/test_packet.py) --
+    # Pkt est l'objet garde le plus longtemps en RAM (toute l'analyse
+    # tourne dessus), le plus important des deux a optimiser.
+    raw = _raw()
+    pkt = parsing_mod._to_pkt("LAN", raw)
+    assert not hasattr(pkt, "__dict__")
+    with pytest.raises(AttributeError):
+        pkt.champ_inexistant = 1
+
+
+def test_pkt_champs_attendus_dans_slots():
+    from netcross_core.models import Pkt
+
+    field_names = set(Pkt.__dataclass_fields__)
+    assert field_names == set(Pkt.__slots__)
+
+
+def test_parse_capture_libere_les_raw_packets_au_fur_et_a_mesure(monkeypatch):
+    # Piste "gestion memoire des grosses captures" : parse_capture ne doit
+    # plus garder raw_packets et le Pkt correspondant tous les deux vivants
+    # jusqu'a la fin de la fonction -- chaque RawPacket converti est
+    # remplace par None dans la liste source des sa conversion (voir
+    # claude.md pour la mesure du pic memoire transitoire evite).
+    raws = [_raw(src="1.1.1.1"), _raw(src="2.2.2.2"), _raw(src="3.3.3.3")]
+    monkeypatch.setattr(parsing_mod.pcap_parser, "parse_capture", lambda path, raise_on_error=True: raws)
+    pkts = parsing_mod.parse_capture("WAN", "capture.pcapng")
+    assert [p.src for p in pkts] == ["1.1.1.1", "2.2.2.2", "3.3.3.3"]
+    assert raws == [None, None, None]
+
+
+def test_parse_rtp_reexport_heuristique():
+    import struct
+
+    payload = struct.pack("!BBHII", 0x80, 0, 1, 1, 1) + b"\x00" * 20
+    result = parsing_mod.parse_rtp(payload)
+    assert result is not None and result["seq"] == 1
+
+
+def test_parse_sip_reexport_heuristique():
+    payload = b"BYE sip:bob@example.com SIP/2.0\r\nCall-ID: x\r\n\r\n"
+    result = parsing_mod.parse_sip(payload)
+    assert result["msg_type"] == "BYE"
+
+
+def test_detect_encapsulation_reexport():
+    assert parsing_mod.detect_encapsulation({"gre": {}}) == ("GRE",)
+
+
+def test_api_publique_inchangee():
+    # contrat explicite documente dans le module : ces noms doivent
+    # rester exposes tels quels.
+    for name in (
+        "compute_mos",
+        "detect_encapsulation",
+        "parse_capture",
+        "parse_captures_parallel",
+        "parse_live",
+        "parse_rtp",
+        "parse_sip",
+    ):
+        assert hasattr(parsing_mod, name), f"{name} manquant de l'API publique"

@@ -1,0 +1,4 @@
+#!/bin/sh
+# Wrapper installe dans /usr/bin/netcross par le paquet RPM.
+export PYTHONPATH="/usr/share/netcross:${PYTHONPATH:-}"
+exec python3 /usr/share/netcross/cross_capture_analyzer_cli.py "$@"

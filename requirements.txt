@@ -1,0 +1,38 @@
+# Installation alternative via pip, si votre distribution n'est pas geree
+# par install.sh (qui prefere les paquets systeme -- voir README.md).
+#
+#   pip install -r requirements.txt
+#
+# Depuis la Session 55, `uv` est le gestionnaire de dependances canonique
+# du projet (voir pyproject.toml [project]/[project.optional-dependencies]
+# + uv.lock, et CLAUDE.md/docs/sessions/session-55.md pour la migration
+# pip -> uv, aucune trace de poetry trouvee dans le projet avant cette
+# session) : `uv sync --extra dev` remplace desormais
+# `pip install -r requirements.txt -r requirements-dev.txt` en usage
+# normal. Ce fichier SURVIT uniquement comme repli documente pour les
+# environnements sans `uv` (chemin d'erreur d'install.sh ci-dessus, ou
+# distribution non geree) -- volontairement PAS regenere par
+# `uv export` (qui produirait un pin transitif complet, different du
+# style borne-basse `>=` deliberement large de ce fichier) : a tenir a
+# jour MANUELLEMENT en miroir de [project.dependencies] si l'un des deux
+# change.
+#
+# L'interface graphique (PyGObject + GTK4) n'est PAS incluse ici : elle
+# necessite les bibliotheques systeme GTK4/GObject-introspection, plus
+# simples a installer via le gestionnaire de paquets de la distribution
+# (voir install.sh) que via pip.
+
+# tout le decodage de capture (module principal, tls_diagnostics.py,
+# quic_diagnostics.py) passe desormais par tshark en sous-processus --
+# voir src/pcap_parser/. tshark n'est PAS un paquet pip : il vient du
+# paquet systeme tshark/wireshark-cli (voir install.sh / build-rpm /
+# build-deb). netcross ne depend plus de scapy (aucun fallback,
+# aucun module ne l'importe).
+#
+# cryptography reste necessaire pour quic_diagnostics.py (derivation
+# des cles de protection initiale QUIC et dechiffrement AEAD des
+# paquets Initial, --quic).
+cryptography>=41.0
+reportlab>=4.0
+matplotlib>=3.6
+networkx>=2.8

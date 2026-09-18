@@ -1,0 +1,5 @@
+#!/bin/sh
+# Wrapper installe dans /usr/bin/netcross-history par le paquet Debian/RPM.
+# Interrogation seule d'un historique --history-db, sans relancer d'analyse.
+export PYTHONPATH="/usr/share/netcross:${PYTHONPATH:-}"
+exec python3 /usr/share/netcross/cross_history_cli.py "$@"
