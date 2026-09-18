@@ -241,6 +241,7 @@ def test_available_rule_ids_ne_contient_que_les_regles_pilotees():
         "saturation",
         "bufferbloat",
         "pmtud_blackhole",
+        "server_processing_dominant",
     ]
 
 
@@ -2571,4 +2572,77 @@ def test_pmtud_blackhole_equivalent_a_build_findings():
         m.evidence[0].point,
         m.evidence[0].text,
         m.evidence[0].packet,
+    )
+
+
+# -- server_processing_dominant (Session 70, job2) ---------------------------
+
+
+def test_server_processing_dominant_declenche():
+    r = Report(points=["A", "B"])
+    r.server_think_time = {"A": [100.0, 120.0, 80.0]}  # moy 100ms
+    r.latency[("A", "B")] = [10.0, 12.0, 8.0]  # moy 10ms, 100 > 3*10 and > 20
+    findings = evaluate("server_processing_dominant", r)
+    assert len(findings) == 1
+    f = findings[0]
+    assert f.severity == "a_surveiller"
+    assert f.category == "Reseau/Serveur"
+    assert f.segment == "global"
+    assert f.rule_id == "server_processing_dominant"
+    assert "temps de traitement serveur moyen 100ms" in f.message
+    assert "reseau 10.0ms" in f.message
+    assert f.sample_size == 3
+    assert f.evidence == []
+
+
+def test_server_processing_dominant_ratio_insuffisant_pas_de_finding():
+    r = Report(points=["A", "B"])
+    r.server_think_time = {"A": [30.0]}  # moy 30ms
+    r.latency[("A", "B")] = [15.0]  # moy 15ms, 30 < 3*15=45
+    assert evaluate("server_processing_dominant", r) == []
+
+
+def test_server_processing_dominant_seuil_absolu_non_atteint_pas_de_finding():
+    r = Report(points=["A", "B"])
+    r.server_think_time = {"A": [15.0]}  # moy 15ms, < 20ms seuil absolu
+    r.latency[("A", "B")] = [1.0]  # moy 1ms, 15 > 3*1=3 mais 15 <= 20
+    assert evaluate("server_processing_dominant", r) == []
+
+
+def test_server_processing_dominant_server_think_time_vide_pas_de_finding():
+    r = Report(points=["A", "B"])
+    r.latency[("A", "B")] = [10.0]
+    assert evaluate("server_processing_dominant", r) == []
+
+
+def test_server_processing_dominant_latence_absente_pas_de_finding():
+    r = Report(points=["A", "B"])
+    r.server_think_time = {"A": [100.0, 120.0]}
+    # pas de r.latency[("A", "B")]
+    assert evaluate("server_processing_dominant", r) == []
+
+
+def test_server_processing_dominant_un_seul_point_pas_de_finding():
+    r = Report(points=["A"])
+    r.server_think_time = {"A": [100.0]}
+    # un seul point -> pas de paire -> pas de latence reseau
+    assert evaluate("server_processing_dominant", r) == []
+
+
+def test_server_processing_dominant_equivalent_a_build_findings():
+    r = Report(points=["A", "B", "C"])
+    r.server_think_time = {"A": [100.0, 120.0, 80.0], "B": [90.0]}
+    r.latency[("A", "C")] = [10.0, 12.0, 8.0]
+
+    procedural = [f for f in build_findings(r) if f.rule_id == "server_processing_dominant"]
+    via_moteur = evaluate("server_processing_dominant", r)
+    assert len(procedural) == len(via_moteur) == 1
+    p, m = procedural[0], via_moteur[0]
+    assert (p.severity, p.category, p.segment, p.message, p.rule_id, p.sample_size) == (
+        m.severity,
+        m.category,
+        m.segment,
+        m.message,
+        m.rule_id,
+        m.sample_size,
     )
