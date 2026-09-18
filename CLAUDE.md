@@ -1150,6 +1150,64 @@ comparaison OmniPeek) : les 49 erreurs `mypy` remises à jour en Session
 depuis la Session 38 — à reconsidérer si une session future retouche
 `tls_diagnostics.py`/`quic_diagnostics.py`/`analysis.py` de toute façon.
 
+## Décision d'architecture : bascule build_findings() → moteur d'exécution
+
+**Issue #27 — décision documentée, pas de code.**
+
+### Constat
+
+`build_findings()` (`synthesis.py`) trie sa liste complète en sortie par
+`(SEVERITY_ORDER, category, segment)` — une étape de PRÉSENTATION
+appliquée à l'ensemble des 41 règles à la fois. `evaluate()`
+(`rule_engine.py`) renvoie ses `Finding` dans l'ordre de CONSTRUCTION
+du bloc source et ne reproduit délibérément PAS ce tri. Cette divergence
+a été mise au jour par la Session 63 (`sip_issues`, premier cas où les
+deux ordres diffèrent réellement).
+
+### Décision
+
+1. **`evaluate()` ne triera jamais ses propres `Finding`.** Le tri par
+   `(SEVERITY_ORDER, category, segment)` est une étape de présentation
+   globale, pas une propriété d'une règle prise isolement. Un
+   évaluateur qui trierait ses propres `Finding` donnerait de toute
+   façon un ordre différent du tri global dès que deux règles se
+   mélangent.
+
+2. **La bascule de `build_findings()` vers le moteur d'exécution est
+   RETENUE** comme objectif à long terme, mais pas exécutée maintenant.
+   Les deux chemins coexistent : `build_findings()` reste l'unique
+   source de vérité en production (CLI/GUI), `evaluate()` est un
+   consommateur indépendant vérifiant par construction que le catalogue
+   déclaratif peut piloter une détection réelle.
+
+### Plan de migration (à exécuter quand (a) sera complété)
+
+Prérequis : les 41 règles doivent avoir un évaluateur (2 restantes :
+`rtp_quality_mos`, `server_processing_dominant` — formes entièrement
+nouvelles, voir « Prochaine feature » (a)).
+
+Étapes :
+
+1. Créer une fonction `evaluate_all(report) -> list[Finding]` dans
+   `rule_engine.py` qui itère sur `available_rule_ids()`, appelle
+   `evaluate()` pour chaque règle, concatène les résultats.
+2. Appliquer le tri `(SEVERITY_ORDER, category, segment)` à la liste
+   concaténée — point UNIQUE d'ordonnancement, équivalent au tri final
+   actuel de `build_findings()`.
+3. Remplacer l'appel à `build_findings()` dans le CLI/GUI par
+   `evaluate_all()`. `build_findings()` devient code mort, conservé
+   temporairement pour comparaison.
+4. Vérifier l'équivalence : `evaluate_all(report)` doit produire les
+   MÊMES `Finding` (même contenu, même ordre) que `build_findings(report)`
+   sur les jeux de tests existants (`tests/test_synthesis.py`).
+5. Supprimer `build_findings()` et ses tests d'équivalence une fois la
+   parité vérifiée sur plusieurs sessions.
+
+**Risque identifié** : les 2 règles sans évaluateur produisent
+actuellement des `Finding` via `build_findings()`. La bascule sans
+les avoir pilotées créerait une régression silencieuse (perte de
+2 détections). D'où le prérequis (a).
+
 ## Commandes qualité
 
 Depuis la Session 55, `uv` est le gestionnaire de dépendances canonique

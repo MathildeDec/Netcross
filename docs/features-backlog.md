@@ -9467,3 +9467,43 @@ preuve navigable
 
 Cette priorisation maximise la valeur obtenue rapidement et évite de commencer par
 les composants visuels alors que le modèle d'expertise n'est pas encore stabilisé.
+
+---
+
+## 15. Décisions d'architecture
+
+### 15.1 Bascule build_findings() → moteur d'exécution (issue #27)
+
+**Statut : décision documentée, pas de code — Session 70**
+
+**Constat** : `build_findings()` (`synthesis.py`) trie sa liste complète
+en sortie par `(SEVERITY_ORDER, category, segment)` — une étape de
+PRÉSENTATION appliquée à l'ensemble des 41 règles à la fois.
+`evaluate()` (`rule_engine.py`) renvoie ses `Finding` dans l'ordre de
+CONSTRUCTION et ne reproduit délibérément PAS ce tri. Divergence mise au
+jour par la Session 63 (`sip_issues`).
+
+**Décision** :
+
+1. `evaluate()` ne triera jamais ses propres `Finding` — le tri est une
+   étape de présentation globale, pas une propriété d'une règle isolée.
+2. La bascule de `build_findings()` vers le moteur d'exécution est
+   RETENUE comme objectif à long terme, mais pas exécutée maintenant.
+   Les deux chemins coexistent.
+
+**Plan de migration** (à exécuter quand les 41 règles auront un
+évaluateur — 2 restantes : `rtp_quality_mos`,
+`server_processing_dominant`) :
+
+1. Créer `evaluate_all(report) -> list[Finding]` dans `rule_engine.py`
+   qui itère sur `available_rule_ids()`, appelle `evaluate()` pour
+   chaque règle, concatène les résultats.
+2. Appliquer le tri `(SEVERITY_ORDER, category, segment)` à la liste
+   concaténée — point UNIQUE d'ordonnancement.
+3. Remplacer l'appel à `build_findings()` dans le CLI/GUI par
+   `evaluate_all()`.
+4. Vérifier l'équivalence sur les jeux de tests existants.
+5. Supprimer `build_findings()` une fois la parité vérifiée.
+
+**Risque** : basculer sans les 2 règles restantes créerait une
+régression silencieuse (perte de 2 détections). D'où le prérequis.
