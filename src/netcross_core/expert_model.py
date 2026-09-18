@@ -576,6 +576,27 @@ class ReferenceProfile:
 
     `source` : provenance textuelle libre (RFC, bonne pratique
     operationnelle, SLO...) -- affichee telle quelle, jamais interpretee.
+
+    `provenance` (Session 6/Job 10) : type de reference -- "normative"
+    (RFC/standard), "recommandee" (bonne pratique), "baseline" (historique),
+    "slo" (SLA/SLO operationnel). Defaut "recommandee".
+
+    `version` : version du document source (ex: "RFC 6349" -> "6349"),
+    libre, principalement informatif.
+
+    `context` : contexte d'application (ex: "fiber", "mobile", "wan",
+    "datacenter") -- filtre optionnel, None = applicable partout.
+
+    `percentile` : percentile de la distribution observee a comparer au
+    seuil (ex: 95 pour P95). None = valeur brute (moyenne/total).
+
+    `confidence` : niveau de confiance du seuil -- "high" (RFC/standard),
+    "medium" (bonne pratique), "low" (estime). Principalement informatif.
+
+    `deviation_margin` (Session 7/Job 11) : marge de tolerance relative
+    (ex: 0.1 = 10%). Si la valeur observee depasse le seuil de moins de
+    cette marge, le statut est "DEVIATION" au lieu de "VIOLATION".
+    None = pas de nuance DEVIATION (comportement d'origine).
     """
 
     id: str
@@ -584,6 +605,12 @@ class ReferenceProfile:
     threshold: float
     unit: str
     source: str
+    provenance: str = "recommandee"
+    version: str | None = None
+    context: str | None = None
+    percentile: float | None = None
+    confidence: str = "medium"
+    deviation_margin: float | None = None
 
 
 @dataclass

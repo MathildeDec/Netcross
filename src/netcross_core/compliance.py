@@ -1,16 +1,17 @@
 """
-netcross_core.compliance -- evaluateur minimal de conformite, huitieme et
+netcross_core.compliance -- evaluateur de conformite, huitieme et
 neuvieme objets de contrat de la Session 0 (FEATURES.md section 13.3) :
 `ReferenceProfile`/`ComplianceResult` (netcross_core.expert_model).
 
-Volontairement MINIMAL (voir docstring de expert_model.py pour la
-justification complete) : chaque metrique du registre `_METRIC_FUNCS` est
-une agregation EXPLICITE et deja triviale a partir de champs `Report`
-existants (jamais un `getattr(report, ref.metric)` direct -- la plupart
-des champs `Report` sont des dict par point/segment, pas des scalaires
-directement comparables a un seuil). Le statut ne distingue que CONFORME/
-VIOLATION/INDETERMINE -- pas de nuance DEVIATION, explicitement la
-matiere de la Session 7 dediee ("conformite", section 13.3).
+Catalogue enrichi (Session 6/Job 10) : RFC 6349 (debit TCP) et RFC 9544
+(SLO/SLA latence/gigue) comme sources normatives, plus bonnes pratiques
+operationnelles.
+
+Chaque metrique du registre `_METRIC_FUNCS` est une aggregation
+EXPLICITE et deja triviale a partir de champs `Report` existants (jamais
+un `getattr(report, ref.metric)` direct -- la plupart des champs `Report`
+sont des dict par point/segment, pas des scalaires directement
+comparables a un seuil).
 """
 
 from __future__ import annotations
@@ -28,12 +29,61 @@ def _metric_pmtud_blackhole_total(report) -> float:
 def _metric_loss_rate_pct(report) -> float:
     """Taux de perte global (%), agrege sur tous les points -- somme des
     pertes / somme des paquets vus, pas une moyenne des taux par point
-    (qui ponderait a tort un point a faible volume comme un point a fort
+    (qui pondererait a tort un point a faible volume comme un point a fort
     volume)."""
     seen = sum(report.seen_count.values())
     if not seen:
         return 0.0
     return sum(report.loss_count.values()) / seen * 100.0
+
+
+def _metric_tcp_retransmission_rate_pct(report) -> float:
+    """Taux de retransmission TCP global (%) -- RFC 6349 section 4.2 : le
+    ratio de retransmissions sur le total de segments envoyes est un
+    indicateur de sante du chemin. Agrege sur tous les points."""
+    total_segments = sum(report.tcp_total_segments.values()) if hasattr(report, "tcp_total_segments") else 0
+    if not total_segments:
+        return 0.0
+    return sum(report.tcp_retransmissions.values()) / total_segments * 100.0
+
+
+def _metric_avg_rtt_ms(report) -> float:
+    """RTT moyen (ms) -- RFC 6349 section 4.3 : le RTT est un indicateur
+    cle de performance. Moyenne sur tous les segments."""
+    values = [v for v in report.rtt_ms.values() if v and v > 0] if hasattr(report, "rtt_ms") else []
+    if not values:
+        return 0.0
+    return sum(values) / len(values)
+
+
+def _metric_throughput_mbps(report) -> float:
+    """Debit global (Mbps) -- RFC 6349 section 4.4 : le debit observe est
+    compare au debit theorique (BDP). Agrege sur tous les points."""
+    total_bytes = sum(report.total_bytes.values()) if hasattr(report, "total_bytes") else 0
+    duration = (
+        max(report.capture_duration.values()) if hasattr(report, "capture_duration") and report.capture_duration else 0
+    )
+    if duration <= 0:
+        return 0.0
+    return total_bytes * 8 / 1_000_000 / duration
+
+
+def _metric_latency_ms(report) -> float:
+    """Latence moyenne (ms) -- RFC 9544 section 5 : la latence de bout en
+    bout est une metrique SLO fondamentale. Moyenne sur tous les segments."""
+    values = [v for v in report.latency_ms.values() if v and v > 0] if hasattr(report, "latency_ms") else []
+    if not values:
+        return 0.0
+    return sum(values) / len(values)
+
+
+def _metric_jitter_ms(report) -> float:
+    """Gigue moyenne (ms) -- RFC 9544 section 5 : la variation de latence
+    est une metrique SLO. Moyenne sur tous les segments."""
+    values = [v for v in report.jitter_ms.values() if v and v > 0] if hasattr(report, "jitter_ms") else []
+    if not values:
+        return 0.0
+    return sum(values) / len(values)
 
 
 # Registre des metriques evaluables -- voir ReferenceProfile.metric.
@@ -42,6 +92,11 @@ def _metric_loss_rate_pct(report) -> float:
 _METRIC_FUNCS = {
     "pmtud_blackhole_total": _metric_pmtud_blackhole_total,
     "loss_rate_pct": _metric_loss_rate_pct,
+    "tcp_retransmission_rate_pct": _metric_tcp_retransmission_rate_pct,
+    "avg_rtt_ms": _metric_avg_rtt_ms,
+    "throughput_mbps": _metric_throughput_mbps,
+    "latency_ms": _metric_latency_ms,
+    "jitter_ms": _metric_jitter_ms,
 }
 
 _OPERATORS = {
@@ -53,17 +108,86 @@ _OPERATORS = {
 }
 
 # Referentiels par defaut, fournis a titre d'exemple minimal et reel --
-# pas une liste exhaustive (voir Session 7 pour un vrai catalogue de
-# referentiels/profils, section 13.3).
+# catalogue enrichi (Session 6/Job 10) : RFC 6349 (debit TCP), RFC 9544
+# (SLO/SLA latence/gigue), bonnes pratiques operationnelles.
 DEFAULT_REFERENCES = [
+    # -- RFC 6349 : Framework for Benchmarking TCP Throughput --
     ReferenceProfile(
-        id="pmtud-no-blackhole",
+        id="rfc6349-pmtud-no-blackhole",
         metric="pmtud_blackhole_total",
         operator="<=",
         threshold=0.0,
         unit="occurrence(s)",
-        source="RFC 1191 (IPv4) / RFC 8201 (IPv6) -- un chemin PMTUD sain ne doit jamais rester bloque silencieusement",
+        source=(
+            "RFC 6349 section 3.3 / RFC 1191 (IPv4) / RFC 8201 (IPv6)"
+            " -- un chemin PMTUD sain ne doit jamais rester bloque silencieusement"
+        ),
+        provenance="normative",
+        version="6349",
+        confidence="high",
     ),
+    ReferenceProfile(
+        id="rfc6349-loss-rate-1pct",
+        metric="loss_rate_pct",
+        operator="<=",
+        threshold=1.0,
+        unit="%",
+        source="RFC 6349 section 4.2 -- un taux de perte > 1% degrade significativement le debit TCP",
+        provenance="normative",
+        version="6349",
+        confidence="high",
+        deviation_margin=0.5,
+    ),
+    ReferenceProfile(
+        id="rfc6349-retransmission-rate-2pct",
+        metric="tcp_retransmission_rate_pct",
+        operator="<=",
+        threshold=2.0,
+        unit="%",
+        source="RFC 6349 section 4.2 -- les retransmissions indiquent une congestion ou un lien degrade",
+        provenance="normative",
+        version="6349",
+        confidence="high",
+        deviation_margin=1.0,
+    ),
+    ReferenceProfile(
+        id="rfc6349-rtt-50ms",
+        metric="avg_rtt_ms",
+        operator="<=",
+        threshold=50.0,
+        unit="ms",
+        source="RFC 6349 section 4.3 -- RTT moyen, indicateur de sante du chemin",
+        provenance="normative",
+        version="6349",
+        confidence="medium",
+        deviation_margin=0.2,
+    ),
+    # -- RFC 9544 : SLO/SLA Framework --
+    ReferenceProfile(
+        id="rfc9544-latency-100ms",
+        metric="latency_ms",
+        operator="<=",
+        threshold=100.0,
+        unit="ms",
+        source="RFC 9544 section 5 -- latence de bout en bout, seuil SLO typique",
+        provenance="normative",
+        version="9544",
+        confidence="high",
+        deviation_margin=0.1,
+    ),
+    ReferenceProfile(
+        id="rfc9544-jitter-30ms",
+        metric="jitter_ms",
+        operator="<=",
+        threshold=30.0,
+        unit="ms",
+        source="RFC 9544 section 5 -- variation de latence, seuil SLO typique",
+        provenance="normative",
+        version="9544",
+        confidence="high",
+        deviation_margin=0.15,
+    ),
+    # -- Bonne pratique operationnelle --
     ReferenceProfile(
         id="loss-rate-max-1pct",
         metric="loss_rate_pct",
@@ -71,6 +195,8 @@ DEFAULT_REFERENCES = [
         threshold=1.0,
         unit="%",
         source="Bonne pratique operationnelle courante (pas une RFC) -- seuil de perte tolere pour un lien en bon etat",
+        provenance="recommandee",
+        confidence="medium",
     ),
 ]
 
