@@ -175,6 +175,8 @@ class Pkt:
     http_uri: str | None
     http_status_code: int | None
     http_response_time_ms: float | None
+    http_content_type: str | None
+    http_content_length: int | None
     # Signaux d'expertise bruts tshark (Session 1, voir pcap_parser.packet
     # RawPacket.expert_flags pour le detail complet) -- report a l'identique,
     # aucune transformation.
