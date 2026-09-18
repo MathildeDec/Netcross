@@ -22,6 +22,7 @@ Auteur : **Mathilde Deuscher**
 - [Architecture du dépôt](#architecture-du-dépôt)
 - [Construire les paquets .deb / .rpm](#construire-les-paquets-deb--rpm)
 - [Limites connues](#limites-connues)
+- [Suivi des issues](#suivi-des-issues)
 - [Licence](#licence)
 
 ---
@@ -1012,6 +1013,37 @@ avant un déploiement en production.
   **indices heuristiques** basés sur des corrélations statistiques, pas des
   certitudes absolues — à confirmer avec les journaux des équipements
   suspectés.
+
+---
+
+## Suivi des issues
+
+Le projet utilise les [issues GitHub](https://github.com/MathildeDec/Netcross/issues) pour suivre
+les travaux restants (33 issues ouvertes) et l'historique des sessions (69 issues
+fermées).
+
+Le tableau de bord détaillé se trouve dans [ISSUES.md](ISSUES.md) — priorités,
+difficultés, dépendances et correspondance sessions ↔ issues.
+
+### Labels
+
+| Label | Signification |
+|---|---|
+| `P0-fondations` | Priorité 0 — fondations du moteur d'expertise |
+| `P1-différenciation` | Priorité 1 — différenciation Netcross |
+| `P2-exploitation` | Priorité 2 — exploitation et interface |
+| `P3-applicatif` | Priorité 3 — expertise applicative |
+| `P4-admin` | Priorité 4 — validation et administratif |
+| `diff-1-faible` à `diff-5-expert` | Niveau de difficulté (1 à 5) |
+| `rule-engine` | Moteur d'exécution de règles |
+| `architecture` | Décision ou chantier d'architecture |
+| `dette` | Dette technique |
+| `session-archive` | Issue documentant une session historique (fermée) |
+
+### Workflow de développement
+
+Chaque job est développé sur une branche `job<N>` et livré via une pull request
+vers la branche `dev`. La branche `main` reste stable.
 
 ---
 
