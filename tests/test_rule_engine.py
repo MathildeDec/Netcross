@@ -100,9 +100,11 @@ chacune DEUX tests "declenche" distincts (un par branche de severite,
 meme discipline que `test_pertes_anomalie_au_dessus_de_5_pourcent`/
 `test_pertes_a_surveiller_en_dessous_de_5_pourcent` pour
 `loss_per_segment`), plus pour `saturation` un test dedie a la garde
-"NON correlees". Le role de "regle connue sans evaluateur" passe de
-`saturation` (desormais pilotee) a `rtp_quality_mos` -- voir
-`test_regle_connue_sans_evaluateur_leve_not_implemented_error`.
+"NON correlees". Le role de "regle connue sans evaluateur" disparait avec la Session 70
+(jobs 1 et 2) : `rtp_quality_mos` puis `server_processing_dominant`
+recoivent leur evaluateur, les 41 regles du catalogue sont donc TOUTES
+pilotees et `test_regle_connue_sans_evaluateur_leve_not_implemented_error`
+est retire (il ne restait aucune regle pour tenir ce role).
 """
 
 import pytest
@@ -181,25 +183,6 @@ def test_regle_inconnue_leve_key_error():
         evaluate("regle_qui_nexiste_pas", r)
 
 
-def test_regle_connue_sans_evaluateur_leve_not_implemented_error():
-    r = Report(points=["A", "B"])
-    # "rtp_quality_mos" existe bien dans le catalogue (voir
-    # expert_rules.py) mais n'a volontairement pas d'evaluateur
-    # enregistre a ce stade du pilote. Ce role a change plusieurs fois :
-    # "ttl_variation" jusqu'a la Session 60, puis "dhcp_issues" jusqu'a
-    # la Session 63, puis "saturation" jusqu'a la Session 69 -- les
-    # CINQ regles a `correlation_rule` non None viennent d'y recevoir
-    # un evaluateur d'un coup (voir CLAUDE.md, "Prochaine feature"),
-    # "saturation" n'est donc plus disponible pour ce role.
-    # "rtp_quality_mos" la remplace : source `r.rtp_streams` (liste de
-    # dicts, pas un compteur `dict`), deux seuils et une severite
-    # calculee dynamiquement -- forme entierement nouvelle confirmee
-    # par l'audit de la Session 67, qui exige encore une decision de
-    # conception jamais prise.
-    with pytest.raises(NotImplementedError):
-        evaluate("rtp_quality_mos", r)
-
-
 def test_available_rule_ids_ne_contient_que_les_regles_pilotees():
     assert available_rule_ids() == [
         "loss_per_segment",
@@ -241,6 +224,7 @@ def test_available_rule_ids_ne_contient_que_les_regles_pilotees():
         "saturation",
         "bufferbloat",
         "pmtud_blackhole",
+        "rtp_quality_mos",
         "server_processing_dominant",
     ]
 
@@ -2573,6 +2557,102 @@ def test_pmtud_blackhole_equivalent_a_build_findings():
         m.evidence[0].text,
         m.evidence[0].packet,
     )
+
+
+# -- rtp_quality_mos (Session 70, job1) -------------------------------------
+
+
+def _rtp_stream(label: str, mos: float | None, r_factor: float = 80.0, sample_count: int | None = 100) -> dict:
+    """Construit un dict de flux RTP dans le meme format que
+    `analysis.py::_analyse_rtp()` (label, ssrc, r_factor, mos,
+    sample_count) pour les tests ci-dessous."""
+    return {
+        "label": label,
+        "ssrc": 0x12345678,
+        "r_factor": r_factor,
+        "mos": mos,
+        "sample_count": sample_count,
+    }
+
+
+def test_rtp_quality_mos_declenche_anomalie():
+    r = Report(points=["A"])
+    r.rtp_streams = [_rtp_stream("10.0.0.1:5004 -> 10.0.0.2:5006 (SSRC=0x12345678)", 2.5)]
+    findings = evaluate("rtp_quality_mos", r)
+    assert len(findings) == 1
+    f = findings[0]
+    assert f.severity == "anomalie"
+    assert f.category == "RTP/Voix"
+    assert f.segment == "10.0.0.1:5004 -> 10.0.0.2:5006"
+    assert f.rule_id == "rtp_quality_mos"
+    assert "MOS estime 2.50" in f.message
+    assert "R-factor 80" in f.message
+    assert f.sample_size == 100
+    assert f.evidence == []  # liste de dicts, aucun champ *_examples/frames
+
+
+def test_rtp_quality_mos_declenche_a_surveiller():
+    r = Report(points=["A"])
+    r.rtp_streams = [_rtp_stream("10.0.0.1:5004 -> 10.0.0.2:5006 (SSRC=0x12345678)", 3.4)]
+    findings = evaluate("rtp_quality_mos", r)
+    assert len(findings) == 1
+    f = findings[0]
+    assert f.severity == "a_surveiller"
+    assert "MOS estime 3.40" in f.message
+
+
+def test_rtp_quality_mos_mos_acceptable_pas_de_finding():
+    r = Report(points=["A"])
+    r.rtp_streams = [_rtp_stream("10.0.0.1:5004 -> 10.0.0.2:5006 (SSRC=0x12345678)", 4.2)]
+    assert evaluate("rtp_quality_mos", r) == []
+
+
+def test_rtp_quality_mos_mos_none_ignore():
+    r = Report(points=["A"])
+    r.rtp_streams = [_rtp_stream("10.0.0.1:5004 -> 10.0.0.2:5006 (SSRC=0x12345678)", None)]
+    assert evaluate("rtp_quality_mos", r) == []
+
+
+def test_rtp_quality_mos_liste_vide_pas_de_finding():
+    r = Report(points=["A"])
+    assert evaluate("rtp_quality_mos", r) == []
+
+
+def test_rtp_quality_mos_plusieurs_flux_melange():
+    r = Report(points=["A"])
+    r.rtp_streams = [
+        _rtp_stream("10.0.0.1:5004 -> 10.0.0.2:5006 (SSRC=0x11111111)", 2.0),  # anomalie
+        _rtp_stream("10.0.0.3:5004 -> 10.0.0.4:5006 (SSRC=0x22222222)", 3.5),  # a_surveiller
+        _rtp_stream("10.0.0.5:5004 -> 10.0.0.6:5006 (SSRC=0x33333333)", 4.0),  # acceptable
+        _rtp_stream("10.0.0.7:5004 -> 10.0.0.8:5006 (SSRC=0x44444444)", None),  # ignore
+    ]
+    findings = evaluate("rtp_quality_mos", r)
+    assert len(findings) == 2
+    assert findings[0].severity == "anomalie"
+    assert findings[0].segment == "10.0.0.1:5004 -> 10.0.0.2:5006"
+    assert findings[1].severity == "a_surveiller"
+    assert findings[1].segment == "10.0.0.3:5004 -> 10.0.0.4:5006"
+
+
+def test_rtp_quality_mos_equivalent_a_build_findings():
+    r = Report(points=["A", "B"])
+    r.rtp_streams = [
+        _rtp_stream("10.0.0.1:5004 -> 10.0.0.2:5006 (SSRC=0x12345678)", 2.5),
+        _rtp_stream("10.0.0.3:5004 -> 10.0.0.4:5006 (SSRC=0x87654321)", 3.4),
+    ]
+
+    procedural = [f for f in build_findings(r) if f.rule_id == "rtp_quality_mos"]
+    via_moteur = evaluate("rtp_quality_mos", r)
+    assert len(procedural) == len(via_moteur) == 2
+    for p, m in zip(procedural, via_moteur):
+        assert (p.severity, p.category, p.segment, p.message, p.rule_id, p.sample_size) == (
+            m.severity,
+            m.category,
+            m.segment,
+            m.message,
+            m.rule_id,
+            m.sample_size,
+        )
 
 
 # -- server_processing_dominant (Session 70, job2) ---------------------------

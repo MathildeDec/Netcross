@@ -600,6 +600,24 @@ verifie par `test_catalogue_cinq_regles_seulement_ont_une_correlation`
 (`tests/test_expert_rules.py`) ; corrigee en "cinq". Detail complet :
 `docs/sessions/session-69.md`.
 
+Portee de cette session (70, job1) : extension du pilote a UNE regle
+supplementaire (quarante au total, sur 41) -- `rtp_quality_mos`,
+premiere des deux regles restantes apres la Session 69. Source
+`report.rtp_streams` (`list[dict]`), forme entierement nouvelle
+confirmee par l'audit de la Session 67 : PREMIERE regle de ce pilote a
+lire une LISTE DE DICTS (pas un `dict` de compteurs ni une `list[float]`),
+PREMIERE regle ou le segment est derive d'une etiquette de flux (retrait
+du suffixe SSRC du champ `label` du dict, ni un point ni une paire), et
+PREMIERE regle ou la severite est calculee par comparaison a DEUX seuils
+sur une valeur NUMERIQUE continue (le MOS, pas un taux/compteur). Seuils
+lus depuis `rule.thresholds` (meme discipline que `loss_per_segment`).
+`tests/test_rule_engine.py` : le role de « regle connue sans evaluateur »
+(`test_regle_connue_sans_evaluateur_leve_not_implemented_error`) passe de
+`rtp_quality_mos` (desormais pilotee) a `server_processing_dominant`,
+seule regle restant sans evaluateur ; nouveaux tests (declenche anomalie,
+declenche a_surveiller, MOS acceptable pas de finding, mos=None ignore,
+liste vide, equivalence avec `build_findings()`).
+
 Portee de cette session (70, job2) : extension du pilote a UNE regle
 supplementaire (quarante au total, sur 41) -- `server_processing_dominant`,
 derniere regle du catalogue sans evaluateur apres la Session 69. Forme
@@ -2037,6 +2055,67 @@ def _evaluate_pmtud_blackhole(rule: Rule, report: Report) -> list[Finding]:
     return findings
 
 
+def _evaluate_rtp_quality_mos(rule: Rule, report: Report) -> list[Finding]:
+    """Reproduit EXACTEMENT le bloc `-- RTP / qualite voix --` de
+    `synthesis.py::build_findings()` (lignes ~724-745) -- QUARANTIEME
+    evaluateur de ce pilote (40/41), PREMIERE regle a lire une LISTE DE
+    DICTS (`report.rtp_streams`, `list[dict]`) plutot qu'un `dict` de
+    compteurs ou une `list[float]` : chaque entree est un flux RTP
+    individuel decrit par un dict (label, ssrc, r_factor, mos,
+    sample_count). Aucune iteration sur `report.points` ni sur un dict
+    de compteurs -- forme entierement nouvelle confirmee par l'audit
+    de la Session 67.
+
+    DEUX seuils dans `rule.thresholds` (`anomalie_mos_max` 3.0,
+    `a_surveiller_mos_max` 3.6) et DEUX severites produites (comme
+    `loss_per_segment` Session 55, `fragmentation_new`/`saturation`
+    Session 69) -- mais c'est la PREMIERE regle de ce pilote ou la
+    severite est calculee par comparaison a DEUX seuils sur une valeur
+    NUMERIQUE continue (le MOS), pas un taux ou un compteur : MOS < 3.0
+    -> `anomalie`, MOS < 3.6 -> `a_surveiller`, sinon pas de Finding
+    (garde `continue` reprise a l'identique). Le bloc procedural source
+    compare directement aux constantes 3.0/3.6 ; ici les seuils sont lus
+    depuis `rule.thresholds` (meme discipline que `loss_per_segment` : le
+    catalogue pilote les seuils, pas de recopie en dur).
+
+    Le segment est derive du `label` du flux (ex: `"10.0.0.1:5004 ->
+    10.0.0.2:5006 (SSRC=0x1234ABCD)"`) en retirant le suffixe SSRC --
+    PREMIERE regle de ce pilote ou le segment n'est ni un nom de point
+    ni une paire de points, mais une etiquette de flux. Aucune
+    `evidence` possible : `rtp_streams` est une liste de dicts sans
+    champ `*_examples`/`*_frames` associe dans `Report` (verifie dans
+    `models.py`), meme absence que `dns_slow_resolution`/`http_slow_response`
+    (Session 68) -- `evidence == []` verifie dans le test « declenche ».
+    `sample_size` recopie depuis `s.get("sample_count")` (deja annote
+    comme score de confiance ailleurs dans le projet, voir
+    `synthesis.py`/`triage.py`), meme discipline que le bloc source."""
+    anomalie_mos_max = rule.thresholds["anomalie_mos_max"]
+    a_surveiller_mos_max = rule.thresholds["a_surveiller_mos_max"]
+    findings: list[Finding] = []
+    for s in report.rtp_streams:
+        if s.get("mos") is None:
+            continue
+        mos = s["mos"]
+        if mos < anomalie_mos_max:
+            sev = "anomalie"
+        elif mos < a_surveiller_mos_max:
+            sev = "a_surveiller"
+        else:
+            continue
+        short_label = s["label"].split(" (SSRC=")[0]
+        findings.append(
+            Finding(
+                sev,
+                rule.domain,
+                short_label,
+                f"MOS estime {mos:.2f} (R-factor {s['r_factor']:.0f})",
+                sample_size=s.get("sample_count"),
+                rule_id=rule.id,
+            )
+        )
+    return findings
+
+
 def _evaluate_server_processing_dominant(rule: Rule, report: Report) -> list[Finding]:
     """Reproduit EXACTEMENT le bloc `-- decomposition reseau / serveur --`
     de `synthesis.py::build_findings()` (lignes ~748-769) -- QUARANTE ET
@@ -2129,6 +2208,7 @@ _EVALUATORS = {
     "saturation": _evaluate_saturation,
     "bufferbloat": _evaluate_bufferbloat,
     "pmtud_blackhole": _evaluate_pmtud_blackhole,
+    "rtp_quality_mos": _evaluate_rtp_quality_mos,
     "server_processing_dominant": _evaluate_server_processing_dominant,
 }
 
