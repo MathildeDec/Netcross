@@ -253,6 +253,8 @@ def analyse(
     _analyse_response_time(r, flows, all_packets, points, points_order)
     _analyse_dhcp(r, all_packets, points, points_order)
     _analyse_sip(r, all_packets, points, points_order)
+    from netcross_core.voip import build_calls
+    r.voip_calls, r.voip_quality_distribution = build_calls(all_packets, r.rtp_streams)
     _analyse_dns(r, all_packets, points, points_order)
     _analyse_http(r, all_packets, points, points_order)
 
@@ -1183,6 +1185,10 @@ def _analyse_rtp(r: Report, all_packets, points, points_order, clock_rate):
                 "r_factor": r_factor,
                 "mos": mos,
                 "sample_count": sample_count,
+                "first_ts": min((pkt.ts for pkt in per_point.get(ref_point, [])), default=None),
+                "first_ts_by_point": {
+                    p: min(pkt.ts for pkt in pkts) for p, pkts in per_point.items() if pkts
+                },
             }
         )
 
