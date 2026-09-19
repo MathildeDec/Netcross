@@ -545,3 +545,25 @@ class PacketAnnotation:
     tag: str
     comment: str = ""
     color: str | None = None
+
+
+@dataclass(frozen=True)
+class BPFFilter:
+    """Filtre BPF (libpcap) nomme, reutilisable en capture live (Job 47).
+
+    ``expression`` est transmise telle quelle a tshark (``-f``) : aucune
+    validation de syntaxe n'est faite ici (elle exige libpcap, voir
+    ``netcross_core.bpf_filters``). ``name`` identifie le filtre dans les
+    listes deroulantes et le fichier de sauvegarde ; ``description`` est
+    libre et optionnelle (aide contextuelle).
+    """
+
+    name: str
+    expression: str
+    description: str = ""
+
+    def __post_init__(self) -> None:
+        if not self.name.strip():
+            raise ValueError("BPFFilter: 'name' est requis")
+        if not self.expression.strip():
+            raise ValueError("BPFFilter: 'expression' est requise")
