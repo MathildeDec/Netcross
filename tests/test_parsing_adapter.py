@@ -208,7 +208,47 @@ def test_api_publique_inchangee():
         "parse_capture",
         "parse_captures_parallel",
         "parse_live",
+        "parse_live_multi",
         "parse_rtp",
         "parse_sip",
     ):
         assert hasattr(parsing_mod, name), f"{name} manquant de l'API publique"
+
+
+# -- parse_live_multi : capture simultanee sur plusieurs interfaces (Job 48) --
+
+
+def test_parse_live_multi_etiquette_chaque_pkt_du_label_de_son_interface(monkeypatch):
+    def fake_iter_live_multi(interfaces, stop_event=None, *, bpf_filter=None):
+        yield "WAN", _raw(ts=2.0, src="10.0.1.1")
+        yield "LAN", _raw(ts=3.0, src="10.0.0.1")
+
+    monkeypatch.setattr(parsing_mod.pcap_parser, "iter_live_multi", fake_iter_live_multi)
+
+    pkts = list(parsing_mod.parse_live_multi([("LAN", "eth0"), ("WAN", "eth1")]))
+
+    # le label venu de pcap_parser devient le point du Pkt, champs de RawPacket conserves
+    assert [(p.point, p.ts, p.src) for p in pkts] == [("WAN", 2.0, "10.0.1.1"), ("LAN", 3.0, "10.0.0.1")]
+
+
+def test_parse_live_multi_transmet_interfaces_stop_event_et_filtre(monkeypatch):
+    captured = {}
+
+    def fake_iter_live_multi(interfaces, stop_event=None, *, bpf_filter=None):
+        captured.update(interfaces=list(interfaces), stop_event=stop_event, bpf_filter=bpf_filter)
+        return iter([])
+
+    monkeypatch.setattr(parsing_mod.pcap_parser, "iter_live_multi", fake_iter_live_multi)
+    stop_event = object()
+
+    assert list(parsing_mod.parse_live_multi([("LAN", "eth0")], stop_event=stop_event, bpf_filter="udp")) == []
+    assert captured == {"interfaces": [("LAN", "eth0")], "stop_event": stop_event, "bpf_filter": "udp"}
+
+
+def test_parse_live_multi_valide_ses_arguments_des_l_appel():
+    # pas de monkeypatch : c'est bien la validation de pcap_parser qui parle, et
+    # elle doit remonter a l'appel meme (parse_live_multi n'est pas un generateur)
+    with pytest.raises(ValueError, match="au moins une interface"):
+        parsing_mod.parse_live_multi([])
+    with pytest.raises(ValueError, match="en double"):
+        parsing_mod.parse_live_multi([("LAN", "eth0"), ("LAN", "eth1")])
