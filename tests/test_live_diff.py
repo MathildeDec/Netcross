@@ -4,7 +4,7 @@ Tests du module netcross_core.live_diff : conversion DiffFinding -> AlarmSignal,
 fenetre glissante, evaluation periodique du diff, integration AlarmEngine.
 """
 
-from netcross_core.alarms import AlarmEngine
+from netcross_core.alarms import AlarmConfig, AlarmEngine
 from netcross_core.baseline_diff import DiffFinding
 from netcross_core.live_diff import (
     LiveDiffConfig,
@@ -250,3 +250,92 @@ def test_evaluate_diff_increments_total_evaluations():
     engine._add_packet(_pkt(ts=1.0, frame_number=1))
     engine._evaluate_diff()
     assert engine.state.total_evaluations == 1
+
+
+def test_evaluate_diff_produces_findings_and_raises_alarm(monkeypatch):
+    """Critere d'acceptation de l'issue #33 : le diff entre le baseline
+    et la fenetre live doit etre visible en temps reel -- jusqu'a la
+    notification (Job 26 / AlarmEngine), pas seulement calcule puis
+    jete. Isole le pipeline analyse()/correlate()/diff_reports() pour
+    verifier le CABLAGE de _evaluate_diff() plutot que la logique
+    d'analyse elle-meme (deja testee ailleurs : test_analysis.py,
+    test_baseline_diff.py)."""
+    baseline = Report(points=["LAN"])
+
+    fake_finding = DiffFinding(
+        severity="anomalie",
+        category="loss_per_segment",
+        segment="LAN -> WAN",
+        message="Perte 8% (baseline 0%)",
+        before=0.0,
+        after=8.0,
+        sample_size=200,
+        evidence=[],
+    )
+
+    monkeypatch.setattr(
+        "netcross_core.live_diff.diff_reports",
+        lambda base, current: [fake_finding],
+    )
+    monkeypatch.setattr("netcross_core.correlate.correlate", lambda pkts: {})
+    monkeypatch.setattr(
+        "netcross_core.analysis.analyse",
+        lambda flows, points_order=None, all_packets=None: Report(points=["LAN"]),
+    )
+
+    # min_persistence_seconds=0.0 : une seule evaluation positive suffit
+    # a lever l'alarme -- suffisant pour verifier le cablage bout en
+    # bout, la persistance/hysteresis elle-meme etant testee dans
+    # test_alarms.py.
+    alarm_engine = AlarmEngine(
+        [AlarmConfig(rule_id="loss_per_segment", segment="LAN -> WAN", min_persistence_seconds=0.0)]
+    )
+    notified = []
+    engine = LiveDiffEngine(
+        baseline_report=baseline,
+        config=LiveDiffConfig(min_packets_for_diff=1),
+        alarm_engine=alarm_engine,
+        on_alarm=notified.append,
+    )
+    engine._add_packet(_pkt(ts=1.0, frame_number=1))
+
+    findings = engine._evaluate_diff()
+
+    assert findings == [fake_finding]
+    assert engine.state.last_diff_count == 1
+    assert len(alarm_engine.active_alarms) == 1
+    assert notified and notified[0].state == "raised"
+    assert notified[0].rule_id == "loss_per_segment"
+    assert notified[0].segment == "LAN -> WAN"
+
+
+def test_evaluate_diff_sans_divergence_ne_leve_aucune_alarme(monkeypatch):
+    """Controle negatif du test precedent : sans DiffFinding, aucun
+    AlarmSignal n'est transmis au AlarmEngine et aucune notification
+    n'est emise."""
+    baseline = Report(points=["LAN"])
+
+    monkeypatch.setattr("netcross_core.live_diff.diff_reports", lambda base, current: [])
+    monkeypatch.setattr("netcross_core.correlate.correlate", lambda pkts: {})
+    monkeypatch.setattr(
+        "netcross_core.analysis.analyse",
+        lambda flows, points_order=None, all_packets=None: Report(points=["LAN"]),
+    )
+
+    alarm_engine = AlarmEngine(
+        [AlarmConfig(rule_id="loss_per_segment", segment="LAN -> WAN", min_persistence_seconds=0.0)]
+    )
+    notified = []
+    engine = LiveDiffEngine(
+        baseline_report=baseline,
+        config=LiveDiffConfig(min_packets_for_diff=1),
+        alarm_engine=alarm_engine,
+        on_alarm=notified.append,
+    )
+    engine._add_packet(_pkt(ts=1.0, frame_number=1))
+
+    findings = engine._evaluate_diff()
+
+    assert findings == []
+    assert alarm_engine.active_alarms == []
+    assert notified == []
