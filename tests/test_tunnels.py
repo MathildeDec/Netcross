@@ -101,6 +101,31 @@ def test_detect_encapsulation_dtls_hors_ports_capwap_ignore():
     assert detect_encapsulation(layers) == ()
 
 
+def test_detect_encapsulation_capwap_fortinet_extension_detectee():
+    # Job 30 (issue #30) -- le post-dissecteur Lua
+    # netcross_capwap_fortinet.lua ajoute une couche "fortinet_capwap"
+    # quand les extensions vendor-specific Fortinet (vendor ID 12356)
+    # sont presentes dans le canal data CAPWAP deja decapsule par
+    # tshark. _capwap_tags() doit alors ajouter CAPWAP(Fortinet) en
+    # plus du tag CAPWAP standard.
+    layers = {
+        "capwap_data": {"capwap_capwap_preamble_type": "0"},
+        "frame": {"frame_frame_protocols": "eth:ethertype:ip:udp:capwap.data:eth:ip:tcp"},
+        "fortinet_capwap": {},
+    }
+    assert detect_encapsulation(layers) == ("CAPWAP(decapsule)", "CAPWAP(Fortinet)")
+
+
+def test_detect_encapsulation_capwap_fortinet_sans_couche_capwap_ignore():
+    # La couche "fortinet_capwap" seule, sans aucune couche
+    # CAPWAP/DTLS associee, ne doit jamais produire de tag : c'est la
+    # garde `if "fortinet_capwap" in layers and tags:` de
+    # _capwap_tags() qui l'empeche (le post-dissecteur ne peut en
+    # pratique jamais s'activer hors du contexte CAPWAP data).
+    layers = {"fortinet_capwap": {}}
+    assert detect_encapsulation(layers) == ()
+
+
 def test_detect_encapsulation_pile_combinee_ordre_stable():
     layers = {
         "vlan": {"vlan_vlan_id": "100"},
