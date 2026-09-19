@@ -1,0 +1,85 @@
+{
+  "version": 1,
+  "signatures": [
+    {
+      "id": "log4shell-jndi",
+      "name": "Log4Shell (injection JNDI Apache Log4j2)",
+      "cve": ["CVE-2021-44228"],
+      "severity": "anomalie",
+      "description": "Reference de recherche JNDI (${jndi:ldap://, ${jndi:rmi://, ...) dans le User-Agent, l'URI, les en-tetes ou le corps d'une requete HTTP. Les obfuscations courantes (encodage %XX, ${lower:x}, ${upper:x}, ${::-x}, ${env:X:-x}) sont resolues avant comparaison.",
+      "targets": ["http_user_agent", "http_uri", "http_headers", "http_body"],
+      "regex": "\\$\\{\\s*jndi\\s*:",
+      "flags": ["ignorecase"],
+      "normalizers": ["url_decode", "log4j_lookup"],
+      "protocols": ["TCP"],
+      "references": ["https://nvd.nist.gov/vuln/detail/CVE-2021-44228"]
+    },
+    {
+      "id": "shellshock-env-function",
+      "name": "Shellshock (definition de fonction Bash dans une variable d'environnement)",
+      "cve": ["CVE-2014-6271", "CVE-2014-7169"],
+      "severity": "anomalie",
+      "description": "Valeur d'en-tete HTTP commencant par '() {' : Bash n'interprete une definition de fonction importee que si la valeur de la variable d'environnement (HTTP_* cote CGI) debute ainsi. L'ancrage en debut de valeur evite les faux positifs sur du code JavaScript ou JSON transporte dans un en-tete.",
+      "targets": ["http_headers"],
+      "regex": "^[^:\\r\\n]+:[ \\t]*\\(\\)[ \\t]*\\{",
+      "flags": ["multiline"],
+      "protocols": ["TCP"],
+      "references": ["https://nvd.nist.gov/vuln/detail/CVE-2014-6271"]
+    },
+    {
+      "id": "heartbleed-request-malformed",
+      "name": "Heartbleed (requete heartbeat TLS dont payload_length depasse l'enregistrement)",
+      "cve": ["CVE-2014-0160"],
+      "severity": "anomalie",
+      "description": "Enregistrement TLS heartbeat (type 24, en clair, avant ChangeCipherSpec) dont le champ payload_length annonce plus d'octets que l'enregistrement n'en contient (RFC 6520 : type + longueur + payload + au moins 16 octets de padding). C'est la requete d'exploitation de Heartbleed.",
+      "detector": "tls_heartbleed",
+      "params": {"mode": "request"},
+      "protocols": ["TCP"],
+      "references": ["https://nvd.nist.gov/vuln/detail/CVE-2014-0160", "https://www.rfc-editor.org/rfc/rfc6520"]
+    },
+    {
+      "id": "heartbleed-response-oversized",
+      "name": "Heartbleed (reponse heartbeat TLS anormalement volumineuse)",
+      "cve": ["CVE-2014-0160"],
+      "severity": "anomalie",
+      "description": "Reponse heartbeat (type 24, en clair) dont l'enregistrement depasse min_record_length octets : une reponse legitime renvoie le payload de la requete, quelques dizaines d'octets au plus ; un serveur vulnerable renvoie jusqu'a 16 Kio de memoire.",
+      "detector": "tls_heartbleed",
+      "params": {"mode": "response", "min_record_length": 256},
+      "protocols": ["TCP"],
+      "references": ["https://nvd.nist.gov/vuln/detail/CVE-2014-0160"]
+    },
+    {
+      "id": "eternalblue-smb1-trans2",
+      "name": "EternalBlue (SMB1 Trans2 MID 65 apres Tree Connect AndX MID 64)",
+      "cve": ["CVE-2017-0144"],
+      "severity": "anomalie",
+      "description": "Sequence caracteristique de l'exploit EternalBlue sur un meme flux SMB1 : Tree Connect AndX avec Multiplex ID 64 puis requete Trans2 avec Multiplex ID 65. Signature inspiree de regles Suricata communautaires ; a valider sur une capture reelle avant d'en faire une preuve.",
+      "detector": "smb1_eternalblue",
+      "ports": [139, 445],
+      "protocols": ["TCP"],
+      "references": ["https://nvd.nist.gov/vuln/detail/CVE-2017-0144", "https://github.com/xNymia/Suricata-Signatures/blob/master/EquationGroup.rules"]
+    },
+    {
+      "id": "tls-compression-selected",
+      "name": "Compression TLS negociee (exposition a CRIME)",
+      "cve": ["CVE-2012-4929"],
+      "severity": "a_surveiller",
+      "description": "Le ServerHello selectionne une methode de compression non nulle (DEFLATE...) : la session TLS est exposee a l'attaque CRIME. Signale une configuration exposee, pas une exploitation en cours.",
+      "detector": "tls_compression",
+      "params": {"role": "server_selected"},
+      "protocols": ["TCP"],
+      "references": ["https://nvd.nist.gov/vuln/detail/CVE-2012-4929"]
+    },
+    {
+      "id": "tls-compression-offered",
+      "name": "Compression TLS proposee par le client (exposition a CRIME)",
+      "cve": ["CVE-2012-4929"],
+      "severity": "info",
+      "description": "Le ClientHello propose une methode de compression non nulle. Simple indice : la compression n'est effective que si le serveur la selectionne (voir tls-compression-selected).",
+      "detector": "tls_compression",
+      "params": {"role": "client_offered"},
+      "protocols": ["TCP"],
+      "references": ["https://nvd.nist.gov/vuln/detail/CVE-2012-4929"]
+    }
+  ]
+}
