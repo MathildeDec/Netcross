@@ -23,7 +23,6 @@ from netcross_gtk4.stats_view import (
     sort_options,
 )
 
-
 # -- Helpers ----------------------------------------------------------------
 
 
@@ -112,7 +111,7 @@ def test_format_rows_returns_list():
 def test_sort_options_returns_pairs():
     opts = sort_options()
     assert len(opts) == 6
-    assert all(isinstance(v, str) and isinstance(l, str) for v, l in opts)
+    assert all(isinstance(v, str) and isinstance(lbl, str) for v, lbl in opts)
     values = [v for v, _ in opts]
     assert "packets" in values
     assert "bytes" in values
