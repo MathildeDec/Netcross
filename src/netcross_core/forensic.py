@@ -12,9 +12,9 @@ sens :
   concernent ce flux ou ce segment.
 
 L'index est construit a partir de trois sources deja disponibles :
-1. `all_packets` (liste de `Pkt`) — pour l'index paquet → flow
-2. `flows` (dict produit par `correlate()`) — pour l'index flow → paquets
-3. `events` (liste d'`ExpertEvent`) — pour l'index event → flows/paquets
+1. `all_packets` (liste de `Pkt`) -- pour l'index paquet → flow
+2. `flows` (dict produit par `correlate()`) -- pour l'index flow → paquets
+3. `events` (liste d'`ExpertEvent`) -- pour l'index event → flows/paquets
 
 Strategie de mapping event → flow (par ordre de priorite) :
 1. Si `ExpertEvent.flow_keys` est non vide (source "tshark"), matching
@@ -25,18 +25,20 @@ Strategie de mapping event → flow (par ordre de priorite) :
    nomme dans `event.segment` (ex: "A", "B") ou par la paire "A -> B".
 
 Ce module est un CONSOMMATEUR des donnees deja calculees (Pkt, Flow,
-ExpertEvent) — il ne recalcule rien, ne reparse aucune capture, et ne
+ExpertEvent) -- il ne recalcule rien, ne reparse aucune capture, et ne
 modifie pas les objets sources. L'index est construit en UNE passe sur
 chaque source a l'initialisation.
 """
 
 from __future__ import annotations
 
+import json
+import os
 from collections import defaultdict
 
 from netcross_core.correlate import flow_key
 from netcross_core.expert_model import ExpertEvent, Flow, PacketEvidence
-from netcross_core.models import Pkt
+from netcross_core.models import PacketAnnotation, Pkt
 
 
 class ForensicIndex:
@@ -215,3 +217,79 @@ class ForensicIndex:
         for point in flow.points:
             result.extend(per_point.get(point, []))
         return result
+
+
+# -- Etiquetage et signets sur paquets (Job 40/issue #160) -------------------
+#
+# Sidecar JSON : par convention `<capture>.annotations.json` a cote du
+# fichier de capture (meme repertoire, meme radical + suffixe dedie -- pas
+# d'extension `.pcap*.json` ambigue avec un eventuel --json-report). Le
+# sidecar est TOUJOURS optionnel : son absence n'est pas une erreur, elle
+# signifie simplement "aucune annotation" (voir read_annotations).
+#
+# Format sur disque : liste de dicts a plat (un par PacketAnnotation),
+# volontairement PAS un objet englobant versionne -- symetrique du choix
+# deja fait par json_report.py pour --json-report (pas de sur-ingenierie
+# tant qu'un second format n'est pas requis).
+
+
+def annotations_sidecar_path(capture_path: str) -> str:
+    """Chemin du sidecar JSON associe a une capture (`<capture>.annotations.json`).
+
+    Ne verifie PAS l'existence du fichier -- utiliser `read_annotations`
+    pour une lecture tolerante a l'absence."""
+    return f"{capture_path}.annotations.json"
+
+
+def read_annotations(capture_path: str) -> list[PacketAnnotation]:
+    """Lit les annotations du sidecar associe a `capture_path`.
+
+    Retourne une liste VIDE (pas d'exception) si le sidecar n'existe pas
+    -- une capture sans annotation est le cas courant, pas une erreur.
+    Un sidecar present mais illisible (JSON invalide) est en revanche une
+    erreur reelle (fichier corrompu) et remonte l'exception."""
+    path = annotations_sidecar_path(capture_path)
+    if not os.path.exists(path):
+        return []
+    with open(path, encoding="utf-8") as f:
+        raw = json.load(f)
+    return [
+        PacketAnnotation(
+            frame_number=item["frame_number"],
+            tag=item["tag"],
+            comment=item.get("comment", ""),
+            color=item.get("color"),
+        )
+        for item in raw
+    ]
+
+
+def write_annotations(capture_path: str, annotations: list[PacketAnnotation]) -> None:
+    """Ecrit (remplace) le sidecar d'annotations associe a `capture_path`.
+
+    Ecriture integrale (pas de fusion avec un sidecar preexistant) --
+    l'appelant est responsable de relire puis de composer la liste
+    complete avant d'ecrire, meme discipline que les autres sidecars/
+    exports de ce projet (pas d'etat cache cote disque)."""
+    path = annotations_sidecar_path(capture_path)
+    payload = [
+        {
+            "frame_number": ann.frame_number,
+            "tag": ann.tag,
+            "comment": ann.comment,
+            "color": ann.color,
+        }
+        for ann in annotations
+    ]
+    with open(path, "w", encoding="utf-8") as f:
+        json.dump(payload, f, ensure_ascii=False, indent=2)
+
+
+def annotations_by_tag(annotations: list[PacketAnnotation]) -> dict[str, list[PacketAnnotation]]:
+    """Regroupe des annotations par etiquette, pour la vue GUI filtrable
+    par tag (voir netcross_gtk4.annotations_view) et pour la section
+    annotations du rapport texte."""
+    grouped: dict[str, list[PacketAnnotation]] = defaultdict(list)
+    for ann in annotations:
+        grouped[ann.tag].append(ann)
+    return dict(grouped)
