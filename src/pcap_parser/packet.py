@@ -252,6 +252,16 @@ class RawPacket:
     expert_details: tuple[tuple[str, str | None, str | None, str | None], ...]
     http_content_type: str | None = None
     http_content_length: int | None = None
+    # tcp.len (tshark : "TCP Segment Len") -- longueur de la charge utile TCP
+    # du segment, en octets (0 sur un ACK pur/SYN/FIN sans donnees), None hors
+    # TCP. Distinct de `length` (longueur de TRAME, en-tetes inclus) et de
+    # len(payload) (octets effectivement CAPTURES : tronque par un snaplen
+    # court alors que tcp.len reste la vraie longueur du segment, lue dans
+    # l'en-tete IP) -- seule la valeur du fil permet de calculer le numero de
+    # sequence attendu du segment suivant (seq + tcp.len, +1 pour SYN/FIN) et
+    # donc de detecter un trou de sequence (netcross_core.forensic.
+    # detect_sequence_gaps, Job 42/issue #162).
+    tcp_len: int | None = None
 
 
 def build_packet(ts_seconds: float, layers: dict) -> RawPacket | None:
@@ -413,6 +423,7 @@ def build_packet(ts_seconds: float, layers: dict) -> RawPacket | None:
     is_retransmission = is_fast_retransmission = is_spurious_retransmission = False
     mss_val = wscale_shift = None
     sack_permitted = False
+    tcp_len = None
     is_rtp = False
     rtp_seq = rtp_ts = rtp_ssrc = None
     dhcp_xid = dhcp_msg_type = dhcp_server_id = dhcp_vendor_class = None
@@ -454,6 +465,7 @@ def build_packet(ts_seconds: float, layers: dict) -> RawPacket | None:
         # dernier, le "in" substring de l'ancien code (ex: "R" in flags
         # pour RST) ne fonctionnerait pas sur une chaine hex.
         flags = _intern(g(tcp, "tcp_tcp_flags_str"))
+        tcp_len = hex_or_dec_to_int(g(tcp, "tcp_tcp_len"))
         # tcp.analysis.retransmission/.fast_retransmission/.spurious_
         # retransmission : classification NATIVE tshark (moteur d'etat
         # complet -- dup-acks recents, fenetre, ACK deja vu en sens
@@ -690,4 +702,5 @@ def build_packet(ts_seconds: float, layers: dict) -> RawPacket | None:
         http_content_length=http_content_length,
         expert_flags=expert_flags,
         expert_details=expert_details,
+        tcp_len=tcp_len,
     )
