@@ -275,6 +275,13 @@ def main():
     ap.add_argument("--order", help="Ordre physique des points sur le chemin reseau, ex: LAN,WAN,DC")
     ap.add_argument("--detail-csv", help="Chemin de sortie pour le detail par flux (CSV)")
     ap.add_argument(
+        "--names",
+        metavar="PATH",
+        help="Table des noms (JSON/YAML, section 6.15) : remplace les adresses "
+        "IP brutes par des noms logiques (ex: PC-COMPTA-31 -> APP-SQL-01) "
+        "dans le CSV detail et le rapport JSON.",
+    )
+    ap.add_argument(
         "--nat-tolerant",
         action="store_true",
         help="Correle par hash de payload + fenetre temporelle au lieu de "
@@ -500,6 +507,15 @@ def main():
             file=sys.stderr,
         )
         sys.exit(1)
+
+    # Table des noms (section 6.15) : optionnelle, chargee une fois pour
+    # toutes les sorties (CSV detail + JSON). None si --names absent.
+    names = None
+    if args.names:
+        from netcross_core.naming import NameTable
+
+        names = NameTable.load(args.names)
+        print(f"Table des noms chargee : {len(names)} entree(s) depuis {args.names}")
     if args.live:
         if args.parallel:
             print(
@@ -747,7 +763,7 @@ def main():
         print_quic_diagnostics(quic_findings)
 
     if args.detail_csv:
-        write_detail_csv(args.detail_csv, flows, r.points)
+        write_detail_csv(args.detail_csv, flows, r.points, names=names)
         print(f"\nDetail par flux ecrit dans {args.detail_csv}")
 
     # Objets de contrat de la Session 0 (FEATURES.md section 13.3) --
@@ -817,6 +833,7 @@ def main():
             quic_findings=quic_findings,
             rule_engine_findings=rule_engine_findings,
             meta={"Anonymisation": "adresses IP/MAC anonymisees (--redact)"} if args.redact else None,
+            names=names,
             **session_objects.json_kwargs(),
         )
         print(f"Rapport JSON ecrit dans {args.json_report}")

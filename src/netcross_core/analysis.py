@@ -9,9 +9,17 @@ import statistics
 from collections import Counter, defaultdict
 from datetime import datetime, timezone
 from itertools import combinations
+from typing import Any
 
+from netcross_core.application import (
+    TransactionThresholds,
+    build_dns_transactions,
+    build_http_transactions,
+    classify_transaction,
+)
+from netcross_core.content import extract_http_objects
 from netcross_core.correlate import TOPN_DIMENSIONS, compute_throughput, compute_topn_series
-from netcross_core.models import Report
+from netcross_core.models import Pkt, Report
 from netcross_core.parsing import compute_mos
 
 
@@ -55,6 +63,8 @@ def analyse(
     r.topology_branch_points = topo_branch
     r.topology_merge_points = topo_merge
     r.topology_used_for_order = used_topology_for_order
+    r.http_objects = [obj.__dict__ for obj in extract_http_objects(all_packets)]
+    _analyse_application_transactions(r, all_packets)
     if points_order:
         r.topology_order_conflicts = _check_order_consistency(points_order, topo_edges)
 
@@ -245,6 +255,7 @@ def analyse(
     _analyse_tls_certificate(r, all_packets, pairs)
     _analyse_tls_handshake(r, all_packets)
     _analyse_retransmission_types(r, all_packets)
+    _analyse_tcp_expert_signals(r, all_packets)
     _analyse_saturation(r)
     _analyse_bufferbloat(r)
     _analyse_handshake(r, flows, points, points_order, nat_tolerant)
@@ -253,6 +264,10 @@ def analyse(
     _analyse_response_time(r, flows, all_packets, points, points_order)
     _analyse_dhcp(r, all_packets, points, points_order)
     _analyse_sip(r, all_packets, points, points_order)
+    from netcross_core.voip import build_calls
+
+    calls, r.voip_quality_distribution = build_calls(all_packets, r.rtp_streams)
+    r.voip_calls = [call.to_dict() for call in calls]
     _analyse_dns(r, all_packets, points, points_order)
     _analyse_http(r, all_packets, points, points_order)
 
@@ -451,7 +466,9 @@ def _analyse_idle_timeout(r: Report, all_packets, pairs, idle_timeout_seconds=_I
       point aval -- meme limite structurelle que "jamais vu en aval"
       pour la perte classique (r.loss_count).
     """
-    conn_ts = defaultdict(lambda: defaultdict(list))  # (src,sport,dst,dport) -> point -> [(ts, frame_number), ...]
+    conn_ts: defaultdict[tuple[str, int | None, str, int | None], defaultdict[str, list[tuple[float, int | None]]]] = (
+        defaultdict(lambda: defaultdict(list))
+    )  # (src,sport,dst,dport) -> point -> [(ts, frame_number), ...]
     for pk in all_packets:
         if pk.proto != "TCP":
             continue
@@ -545,8 +562,12 @@ def _analyse_arp_ip_conflict(r: Report, all_packets):
       virtuelles declarees), hors de portee d'une simple lecture de
       capture.
     """
-    seen = defaultdict(lambda: defaultdict(set))  # point -> IP -> {MAC, ...}
-    last_pkt = defaultdict(dict)  # point -> IP -> dernier Pkt ARP observe (pour PacketEvidence, Session 37)
+    seen: defaultdict[str, defaultdict[str, set[str]]] = defaultdict(
+        lambda: defaultdict(set)
+    )  # point -> IP -> {MAC, ...}
+    last_pkt: defaultdict[str, dict[str, Pkt]] = defaultdict(
+        dict
+    )  # point -> IP -> dernier Pkt ARP observe (pour PacketEvidence, Session 37)
     for pk in all_packets:
         if pk.proto != "ARP" or pk.arp_sender_mac is None or pk.src is None:
             continue
@@ -743,7 +764,9 @@ def _analyse_tls_certificate(r: Report, all_packets, pairs):
                 )
                 r.tls_cert_invalid_dates_frames[pk.point].append(pk.frame_number)
 
-    serial_by_point = defaultdict(dict)  # point -> (src, sport, dst, dport) -> (numero de serie, frame_number)
+    serial_by_point: defaultdict[str, dict[tuple[str, int | None, str, int | None], tuple[str, int | None]]] = (
+        defaultdict(dict)
+    )  # point -> (src, sport, dst, dport) -> (numero de serie, frame_number)
     for pk in all_packets:
         if pk.tls_cert_serial is None:
             continue
@@ -919,6 +942,102 @@ def _analyse_retransmission_types(r: Report, all_packets):
             r.retrans_fast[pk.point] += 1
         elif pk.is_retransmission:
             r.retrans_rto[pk.point] += 1
+
+
+def _analyse_tcp_expert_signals(r: Report, all_packets):
+    """
+    Exploite les signaux d'expertise TCP NATIFS de tshark (tcp.analysis.*)
+    au-dela des trois retransmissions deja decodees en booleens RawPacket
+    (voir _analyse_retransmission_types) : out-of-order, lost segment,
+    window update. Compte par point, complementaire des heuristiques
+    retrans/dup_ack/zero_window (qui restent pour compatibilite avec
+    l'existant -- baseline_diff notamment).
+
+    Objectif (issue #21) : mieux distinguer perte reelle, reordonnancement,
+    retransmission rapide et RTO. tshark dispose d'un moteur d'etat TCP
+    complet qui classe chaque segment ; on reutilise sa classification plutot
+    que de la reimplementer.
+
+    - out_of_order (tcp.analysis.out_of_order) : segment recu dans le
+      desordre -- REORDONNANCEMENT, pas une perte. Distinct des
+      retransmissions (conditions mutuellement exclusives cote tshark) :
+      isole les vraies pertes des simples remises dans le desordre.
+    - lost_segment (tcp.analysis.lost_segment) : tshark a infere qu'un
+      segment a ete perdu (trou dans la numerotation de sequence non
+      recu dans cette capture) -- signal de PERTE REELLE, plus precis
+      que l'heuristique retrans (qui compte aussi le reordonnancement).
+    - window_update (tcp.analysis.window_update) : changement de fenetre
+      de reception -- ni perte ni retransmission, mais signal utile pour
+      diagnostiquer un recepteur qui limite le debit (couple avec
+      zero_window ci-dessus).
+
+    Source : RawPacket.expert_flags, qui capte deja TOUS les noms de
+    condition _ws_expert (voir pcap_parser.ek_fields.expert_flag_names) --
+    aucun decodage supplementaire cote pcap_parser, on exploite juste ce
+    champ deja calcule. Les noms EK normalises suivent la convention
+    tcp_tcp_analysis_<suffixe> (prefixe double, comme tcp_tcp_srcport).
+    """
+    for pk in all_packets:
+        if pk.proto != "TCP":
+            continue
+        flags = pk.expert_flags
+        if "tcp_tcp_analysis_out_of_order" in flags:
+            r.out_of_order[pk.point] += 1
+        if "tcp_tcp_analysis_lost_segment" in flags:
+            r.lost_segment[pk.point] += 1
+        if "tcp_tcp_analysis_window_update" in flags:
+            r.window_update[pk.point] += 1
+
+
+def _analyse_application_transactions(r: Report, all_packets: list[Pkt]):
+    """
+    Construit et classifie les transactions applicatives (Job 23, §6.9/§6.10).
+
+    Modèle : Flow -> protocole applicatif -> requête/réponse -> transaction
+    -> temps réseau + temps serveur + temps total -> classification.
+
+    Couvre HTTP et DNS. La distinction automatique produit :
+    - normal : temps total sous le seuil du protocole
+    - missing_response : requête sans réponse (perte / serveur / proxy)
+    - network_slow : lenteur + signaux TCP (retrans, lost_segment, out_of_order)
+    - server_slow : server_time_ms mesuré et dominant
+    - application_slow : lenteur sans preuve réseau ni serveur
+
+    Les transactions sont stockées dans Report.application_transactions
+    (liste de dicts, comme http_objects) pour consommation par les modules
+    d'analyse et de rapport.
+    """
+    # Collecte des signaux réseau par flux TCP (5-tuple directionnel)
+    network_signals: dict[tuple[str, str, int, int], list[str]] = {}
+    for pk in all_packets:
+        if pk.proto != "TCP":
+            continue
+        flow_key = (pk.src, pk.dst, pk.sport, pk.dport)
+        signals = network_signals.setdefault(flow_key, [])
+        if pk.is_retransmission:
+            signals.append("retransmission")
+        if pk.is_fast_retransmission:
+            signals.append("fast_retransmission")
+        if "tcp_tcp_analysis_lost_segment" in pk.expert_flags:
+            signals.append("lost_segment")
+        if "tcp_tcp_analysis_out_of_order" in pk.expert_flags:
+            signals.append("out_of_order")
+
+    thresholds = TransactionThresholds()
+    transactions = []
+
+    # HTTP : apparieer requêtes/réponses par flux TCP
+    for txn in build_http_transactions(all_packets, network_signals):
+        txn.classification = classify_transaction(txn, thresholds)
+        transactions.append(txn)
+
+    # DNS : apparieer requêtes/réponses par clé (point, endpoints, txn_id, query)
+    for txn in build_dns_transactions(all_packets):
+        txn.classification = classify_transaction(txn, thresholds)
+        transactions.append(txn)
+
+    transactions.sort(key=lambda t: t.request_ts or 0.0)
+    r.application_transactions = [t.to_dict() for t in transactions]
 
 
 def _analyse_saturation(r: Report):
@@ -1112,7 +1231,9 @@ def _analyse_rtp(r: Report, all_packets, points, points_order, clock_rate):
     estime si disponible), puis MOS/R-factor (E-model simplifie G.711)
     sur la base de la perte au point le plus proche du recepteur.
     """
-    streams = defaultdict(lambda: defaultdict(list))
+    streams: defaultdict[tuple[str, str, int | None, int | None, int | None], defaultdict[str, list[Pkt]]] = (
+        defaultdict(lambda: defaultdict(list))
+    )
     for pk in all_packets:
         if pk.proto == "UDP" and pk.is_rtp:
             skey = (pk.src, pk.dst, pk.sport, pk.dport, pk.rtp_ssrc)
@@ -1128,6 +1249,8 @@ def _analyse_rtp(r: Report, all_packets, points, points_order, clock_rate):
             unwrapped, offset, prev_raw = [], 0, None
             for pkt in pkts_sorted:
                 s = pkt.rtp_seq
+                if s is None:
+                    continue
                 if prev_raw is not None:
                     diff = s - prev_raw
                     if diff < -32768:
@@ -1174,6 +1297,10 @@ def _analyse_rtp(r: Report, all_packets, points, points_order, clock_rate):
         # les points (voir synthesis.py/triage.py, "score de confiance").
         sample_count = len(per_point.get(ref_point, [])) if ref_point is not None else None
 
+        first_ts = (
+            min((pkt.ts for pkt in per_point.get(ref_point, [])), default=None) if ref_point is not None else None
+        )
+
         r.rtp_streams.append(
             {
                 "label": f"{src}:{sport} -> {dst}:{dport} (SSRC=0x{ssrc:08x})",
@@ -1183,6 +1310,8 @@ def _analyse_rtp(r: Report, all_packets, points, points_order, clock_rate):
                 "r_factor": r_factor,
                 "mos": mos,
                 "sample_count": sample_count,
+                "first_ts": first_ts,
+                "first_ts_by_point": {p: min(pkt.ts for pkt in pkts) for p, pkts in per_point.items() if pkts},
             }
         )
 
@@ -1248,7 +1377,7 @@ def _analyse_dhcp(r: Report, all_packets, points, points_order):
     de nombreux serveurs DHCP ne renseignent pas ces options de facon
     distinctive).
     """
-    tx = defaultdict(lambda: defaultdict(list))  # xid -> point -> [Pkt]
+    tx: defaultdict[str, defaultdict[str, list[Pkt]]] = defaultdict(lambda: defaultdict(list))  # xid -> point -> [Pkt]
     for pk in all_packets:
         if pk.dhcp_msg_type is None:
             continue
@@ -1291,7 +1420,9 @@ def _analyse_sip(r: Report, all_packets, points, points_order):
     texte litteral -- un systeme non-SIP comme le NOE Alcatel proprietaire
     n'est pas couvert ici, faute de specification publique).
     """
-    calls = defaultdict(lambda: defaultdict(list))  # call_id -> point -> [Pkt]
+    calls: defaultdict[str, defaultdict[str, list[Pkt]]] = defaultdict(
+        lambda: defaultdict(list)
+    )  # call_id -> point -> [Pkt]
     for pk in all_packets:
         if pk.sip_msg_type is None or pk.sip_call_id is None:
             continue
@@ -1368,7 +1499,9 @@ def _analyse_dns(r: Report, all_packets, points, points_order):
     possible et n'est pas geree specifiquement ici (les deux
     transactions seraient alors vues comme une seule, a tort).
     """
-    tx = defaultdict(lambda: defaultdict(list))  # txn_id -> point -> [Pkt]
+    tx: defaultdict[str, defaultdict[str, list[Pkt]]] = defaultdict(
+        lambda: defaultdict(list)
+    )  # txn_id -> point -> [Pkt]
     for pk in all_packets:
         if pk.dns_txn_id is None:
             continue
@@ -1465,8 +1598,12 @@ def _analyse_http(r: Report, all_packets, points, points_order):
     glissement peut se reproduire entre les occurrences restantes de
     cette URI -- non gere specifiquement ici.
     """
-    tx = defaultdict(lambda: defaultdict(list))  # (conn_id, uri, occurrence) -> point -> [Pkt]
-    occ_counters = defaultdict(int)  # (point, conn_id, uri) -> occurrence en cours a ce point
+    tx: defaultdict[tuple[Any, str, int], defaultdict[str, list[Pkt]]] = defaultdict(
+        lambda: defaultdict(list)
+    )  # (conn_id, uri, occurrence) -> point -> [Pkt]
+    occ_counters: defaultdict[tuple[str, Any, str], int] = defaultdict(
+        int
+    )  # (point, conn_id, uri) -> occurrence en cours a ce point
 
     for pk in sorted(all_packets, key=lambda p: p.ts):
         if not (pk.http_is_request or pk.http_is_response):

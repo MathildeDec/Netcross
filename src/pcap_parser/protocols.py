@@ -255,6 +255,10 @@ def extract_http(layers: dict) -> dict | None:
     else:
         uri = g(http, "http_http_response_for_uri")
     response_time_s = as_float(g(http, "http_http_time"))
+    content_length = hex_or_dec_to_int(g(http, "http_http_content_length"))
+    content_type = g(http, "http_http_content_type")
+    if isinstance(content_type, list):
+        content_type = content_type[0] if content_type else None
     return {
         "is_request": is_request,
         "is_response": is_response,
@@ -262,6 +266,8 @@ def extract_http(layers: dict) -> dict | None:
         "uri": uri,
         "status_code": hex_or_dec_to_int(g(http, "http_http_response_code")),
         "response_time_ms": response_time_s * 1000.0 if response_time_s is not None else None,
+        "content_type": content_type,
+        "content_length": content_length,
     }
 
 

@@ -19,6 +19,17 @@ from netcross_report.comm_map import (
 from netcross_report.expert_events import build_diagnoses, build_expert_events
 from netcross_report.history import HistoryEntry, list_history, print_history, record_diff_run, record_run
 from netcross_report.json_report import generate_json_diff, generate_json_report
+from netcross_report.metric_charts import (
+    ComplianceZone,
+    MetricSeries,
+    Threshold,
+    render_area,
+    render_bars,
+    render_histogram,
+    render_line,
+    render_metric_chart,
+    render_scatter,
+)
 from netcross_report.path_metrics import (
     SegmentMetrics,
     build_path_metrics,
@@ -53,8 +64,8 @@ from netcross_report.triage import (
 try:
     from netcross_report.pdf import generate_diff_pdf, generate_pdf
 except ImportError:
-    generate_pdf = None
-    generate_diff_pdf = None
+    generate_pdf = None  # type: ignore[assignment]  # reportlab absent -- repli optionnel
+    generate_diff_pdf = None  # type: ignore[assignment]
 
 __all__ = [
     "DEFAULT_SEVERITY_WEIGHTS",
@@ -62,13 +73,16 @@ __all__ = [
     "CommEdge",
     "CommMap",
     "CommNode",
+    "ComplianceZone",
     "Finding",
     "HistoryEntry",
+    "MetricSeries",
     "SegmentMetrics",
     "SegmentScore",
     "SequenceStep",
     "SequenceView",
     "SessionObjects",
+    "Threshold",
     "available_protocols",
     "available_rule_ids",
     "build_comm_map",
@@ -97,5 +111,11 @@ __all__ = [
     "rank_segments",
     "record_diff_run",
     "record_run",
+    "render_area",
+    "render_bars",
+    "render_histogram",
+    "render_line",
+    "render_metric_chart",
+    "render_scatter",
     "top_flow_views",
 ]

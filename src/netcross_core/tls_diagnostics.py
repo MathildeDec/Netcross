@@ -263,17 +263,8 @@ def parse_tls_capture(label: str, path: str) -> list[TlsEvent]:
 
         for content_type, _major, _minor, length, body, truncated in _iter_tls_records(payload):
             type_name = TLS_CONTENT_TYPES[content_type]
-            base = {
-                "point": label,
-                "ts": ts,
-                "src": src,
-                "sport": sport,
-                "dst": dst,
-                "dport": dport,
-                "record_type": type_name,
-                "record_length": length,
-                "truncated": truncated,
-            }
+            base_truncated = truncated
+            base_length = length
 
             if content_type == 22:  # handshake
                 for htype, msg_body, msg_truncated in _iter_handshake_messages(body):
@@ -285,7 +276,15 @@ def parse_tls_capture(label: str, path: str) -> list[TlsEvent]:
                         extra = parse_server_hello(msg_body)
                     events.append(
                         TlsEvent(
-                            **{**base, "truncated": truncated or msg_truncated},
+                            point=label,
+                            ts=ts,
+                            src=src,
+                            sport=sport or 0,
+                            dst=dst,
+                            dport=dport or 0,
+                            record_type=type_name,
+                            record_length=base_length,
+                            truncated=base_truncated or msg_truncated,
                             handshake_type=hs_name,
                             sni=extra.get("sni"),
                             tls_version=extra.get("tls_version"),
@@ -296,13 +295,33 @@ def parse_tls_capture(label: str, path: str) -> list[TlsEvent]:
                 extra = parse_alert(body) if not truncated else {}
                 events.append(
                     TlsEvent(
-                        **base,
+                        point=label,
+                        ts=ts,
+                        src=src,
+                        sport=sport or 0,
+                        dst=dst,
+                        dport=dport or 0,
+                        record_type=type_name,
+                        record_length=base_length,
+                        truncated=base_truncated,
                         alert_level=extra.get("level"),
                         alert_description=extra.get("description"),
                     )
                 )
             else:  # change_cipher_spec, application_data : pas de champ supplementaire
-                events.append(TlsEvent(**base))
+                events.append(
+                    TlsEvent(
+                        point=label,
+                        ts=ts,
+                        src=src,
+                        sport=sport or 0,
+                        dst=dst,
+                        dport=dport or 0,
+                        record_type=type_name,
+                        record_length=base_length,
+                        truncated=base_truncated,
+                    )
+                )
 
     return events
 

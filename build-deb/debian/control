@@ -1,10 +1,10 @@
 Source: netcross
 Section: net
 Priority: optional
-Maintainer: Mathilde Deuscher <FIXME-mettre-votre-email@example.com>
+Maintainer: Mathilde Deuscher <149895843+MathildeDec@users.noreply.github.com>
 Build-Depends: debhelper-compat (= 13)
 Standards-Version: 4.6.2
-Homepage: https://github.com/FIXME-votre-compte/netcross
+Homepage: https://github.com/MathildeDec/netcross
 Rules-Requires-Root: no
 
 Package: netcross

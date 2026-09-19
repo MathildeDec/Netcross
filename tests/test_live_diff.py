@@ -1,0 +1,341 @@
+"""tests/test_live_diff.py — Capture en continu + diff en direct (Job 33, issue #33).
+
+Tests du module netcross_core.live_diff : conversion DiffFinding -> AlarmSignal,
+fenetre glissante, evaluation periodique du diff, integration AlarmEngine.
+"""
+
+from netcross_core.alarms import AlarmConfig, AlarmEngine
+from netcross_core.baseline_diff import DiffFinding
+from netcross_core.live_diff import (
+    LiveDiffConfig,
+    LiveDiffEngine,
+    LiveDiffState,
+    finding_to_alarm_signal,
+)
+from netcross_core.models import Pkt, Report
+
+
+def _pkt(**kw):
+    base = dict(  # noqa: C408
+        point="LAN",
+        ts=1.0,
+        frame_number=1,
+        proto="TCP",
+        src="10.0.0.1",
+        dst="10.0.0.2",
+        sport=50000,
+        dport=80,
+        length=100,
+        ttl=64,
+        dscp=0,
+        ecn=0,
+        seq=1,
+        ack=0,
+        window=1000,
+        flags=None,
+        key_id=1,
+        payload_hash=None,
+        ip_id=1,
+        is_fragment=False,
+        df=False,
+        is_retransmission=False,
+        is_fast_retransmission=False,
+        is_spurious_retransmission=False,
+        mss_val=None,
+        wscale_shift=None,
+        sack_permitted=False,
+        icmp_type=None,
+        icmp_code=None,
+        icmpv6_type=None,
+        icmpv6_code=None,
+        arp_opcode=None,
+        arp_sender_mac=None,
+        arp_is_gratuitous=False,
+        stp_bpdu_type=None,
+        stp_flags_tc=False,
+        stp_root_id=None,
+        tls_cert_not_before=None,
+        tls_cert_not_after=None,
+        tls_cert_san=None,
+        tls_cert_serial=None,
+        tls_client_hello=False,
+        tls_server_hello=False,
+        tls_application_data=False,
+        vlan_id=None,
+        vlan_prio=None,
+        is_rtp=False,
+        rtp_seq=None,
+        rtp_ts=None,
+        rtp_ssrc=None,
+        encap_tags=(),
+        dhcp_xid=None,
+        dhcp_msg_type=None,
+        dhcp_server_id=None,
+        dhcp_vendor_class=None,
+        sip_call_id=None,
+        sip_msg_type=None,
+        sip_cseq=None,
+        sip_user_agent=None,
+        sip_server=None,
+        dns_txn_id=None,
+        dns_is_response=False,
+        dns_qry_name=None,
+        dns_rcode=None,
+        http_is_request=False,
+        http_is_response=False,
+        http_method=None,
+        http_uri=None,
+        http_status_code=None,
+        http_response_time_ms=None,
+        expert_flags=(),
+        expert_details=(),
+    )
+    base.update(kw)
+    return Pkt(**base)
+
+
+def test_finding_to_alarm_signal_conversion():
+    finding = DiffFinding(
+        severity="anomalie",
+        category="loss_per_segment",
+        segment="LAN -> WAN",
+        message="Perte 5%",
+        before=1.0,
+        after=5.0,
+        sample_size=1000,
+        evidence=[],
+    )
+    signal = finding_to_alarm_signal(finding)
+    assert signal.rule_id == "loss_per_segment"
+    assert signal.segment == "LAN -> WAN"
+    assert signal.severity == "anomalie"
+    assert signal.value == 5.0
+
+
+def test_finding_to_alarm_signal_with_segment_override():
+    finding = DiffFinding(
+        severity="a_surveiller",
+        category="latency_high",
+        segment="LAN -> WAN",
+        message="Latence elevee",
+        before=50.0,
+        after=150.0,
+        sample_size=500,
+        evidence=[],
+    )
+    signal = finding_to_alarm_signal(finding, segment="custom")
+    assert signal.segment == "custom"
+
+
+def test_live_diff_config_defaults():
+    config = LiveDiffConfig()
+    assert config.eval_interval_seconds == 5.0
+    assert config.window_seconds == 60.0
+    assert config.max_packets_per_window == 100000
+    assert config.min_packets_for_diff == 100
+
+
+def test_live_diff_config_custom():
+    config = LiveDiffConfig(
+        eval_interval_seconds=10.0,
+        window_seconds=120.0,
+        max_packets_per_window=50000,
+        min_packets_for_diff=50,
+    )
+    assert config.eval_interval_seconds == 10.0
+    assert config.window_seconds == 120.0
+    assert config.max_packets_per_window == 50000
+    assert config.min_packets_for_diff == 50
+
+
+def test_live_diff_state_defaults():
+    state = LiveDiffState()
+    assert state.running is False
+    assert len(state.packets_in_window) == 0
+    assert state.last_eval_ts == 0.0
+    assert state.last_diff_count == 0
+    assert state.total_evaluations == 0
+
+
+def test_live_diff_engine_creation():
+    baseline = Report(points=["LAN", "WAN"])
+    engine = LiveDiffEngine(baseline_report=baseline)
+    assert engine.baseline is baseline
+    assert isinstance(engine.alarm_engine, AlarmEngine)
+    assert engine.state.running is False
+
+
+def test_live_diff_engine_with_custom_alarm_engine():
+    baseline = Report(points=["LAN"])
+    custom_alarm = AlarmEngine([])
+    engine = LiveDiffEngine(
+        baseline_report=baseline,
+        alarm_engine=custom_alarm,
+    )
+    assert engine.alarm_engine is custom_alarm
+
+
+def test_live_diff_engine_start_stop():
+    baseline = Report(points=["LAN"])
+    engine = LiveDiffEngine(baseline_report=baseline)
+    # On ne peut pas tester start() sans une vraie interface reseau.
+    # On verifie juste que stop() sur un engine non demarre ne crash pas.
+    engine.stop()
+
+
+def test_live_diff_engine_start_twice_raises():
+    baseline = Report(points=["LAN"])
+    engine = LiveDiffEngine(baseline_report=baseline)
+    # Simuler un engine deja en cours
+    engine.state.running = True
+    try:
+        engine.start("eth0")
+        raise AssertionError("RuntimeError attendu")
+    except RuntimeError:
+        pass
+    finally:
+        engine.state.running = False
+
+
+def test_add_packet_respects_window():
+    """La fenetre glissante doit eliminer les paquets trop anciens."""
+    baseline = Report(points=["LAN"])
+    engine = LiveDiffEngine(
+        baseline_report=baseline,
+        config=LiveDiffConfig(window_seconds=2.0),
+    )
+    # Ajouter des paquets avec des timestamps croissants
+    for i in range(10):
+        engine._add_packet(_pkt(ts=float(i), frame_number=i + 1))
+
+    # Le paquet le plus ancien (ts=0) doit etre elimine car la fenetre
+    # est de 2s et le dernier paquet a ts=9
+    assert all(p.ts >= 7.0 for p in engine.state.packets_in_window)
+
+
+def test_add_packet_respects_max_packets():
+    """La limite de paquets doit etre respectee."""
+    baseline = Report(points=["LAN"])
+    engine = LiveDiffEngine(
+        baseline_report=baseline,
+        config=LiveDiffConfig(max_packets_per_window=5),
+    )
+    for i in range(20):
+        engine._add_packet(_pkt(ts=float(i), frame_number=i + 1))
+
+    assert len(engine.state.packets_in_window) <= 5
+
+
+def test_evaluate_diff_skipped_with_too_few_packets():
+    """L'evaluation doit etre sautee si pas assez de paquets."""
+    baseline = Report(points=["LAN"])
+    engine = LiveDiffEngine(
+        baseline_report=baseline,
+        config=LiveDiffConfig(min_packets_for_diff=100),
+    )
+    engine._add_packet(_pkt(ts=1.0, frame_number=1))
+    findings = engine._evaluate_diff()
+    assert findings == []
+    assert engine.state.total_evaluations == 1
+    assert engine.state.last_diff_count == 0
+
+
+def test_evaluate_diff_increments_total_evaluations():
+    """Chaque appel a _evaluate_diff doit incrementer total_evaluations."""
+    baseline = Report(points=["LAN"])
+    engine = LiveDiffEngine(
+        baseline_report=baseline,
+        config=LiveDiffConfig(min_packets_for_diff=1),
+    )
+    engine._add_packet(_pkt(ts=1.0, frame_number=1))
+    engine._evaluate_diff()
+    assert engine.state.total_evaluations == 1
+
+
+def test_evaluate_diff_produces_findings_and_raises_alarm(monkeypatch):
+    """Critere d'acceptation de l'issue #33 : le diff entre le baseline
+    et la fenetre live doit etre visible en temps reel -- jusqu'a la
+    notification (Job 26 / AlarmEngine), pas seulement calcule puis
+    jete. Isole le pipeline analyse()/correlate()/diff_reports() pour
+    verifier le CABLAGE de _evaluate_diff() plutot que la logique
+    d'analyse elle-meme (deja testee ailleurs : test_analysis.py,
+    test_baseline_diff.py)."""
+    baseline = Report(points=["LAN"])
+
+    fake_finding = DiffFinding(
+        severity="anomalie",
+        category="loss_per_segment",
+        segment="LAN -> WAN",
+        message="Perte 8% (baseline 0%)",
+        before=0.0,
+        after=8.0,
+        sample_size=200,
+        evidence=[],
+    )
+
+    monkeypatch.setattr(
+        "netcross_core.live_diff.diff_reports",
+        lambda base, current: [fake_finding],
+    )
+    monkeypatch.setattr("netcross_core.correlate.correlate", lambda pkts: {})
+    monkeypatch.setattr(
+        "netcross_core.analysis.analyse",
+        lambda flows, points_order=None, all_packets=None: Report(points=["LAN"]),
+    )
+
+    # min_persistence_seconds=0.0 : une seule evaluation positive suffit
+    # a lever l'alarme -- suffisant pour verifier le cablage bout en
+    # bout, la persistance/hysteresis elle-meme etant testee dans
+    # test_alarms.py.
+    alarm_engine = AlarmEngine(
+        [AlarmConfig(rule_id="loss_per_segment", segment="LAN -> WAN", min_persistence_seconds=0.0)]
+    )
+    notified = []
+    engine = LiveDiffEngine(
+        baseline_report=baseline,
+        config=LiveDiffConfig(min_packets_for_diff=1),
+        alarm_engine=alarm_engine,
+        on_alarm=notified.append,
+    )
+    engine._add_packet(_pkt(ts=1.0, frame_number=1))
+
+    findings = engine._evaluate_diff()
+
+    assert findings == [fake_finding]
+    assert engine.state.last_diff_count == 1
+    assert len(alarm_engine.active_alarms) == 1
+    assert notified and notified[0].state == "raised"
+    assert notified[0].rule_id == "loss_per_segment"
+    assert notified[0].segment == "LAN -> WAN"
+
+
+def test_evaluate_diff_sans_divergence_ne_leve_aucune_alarme(monkeypatch):
+    """Controle negatif du test precedent : sans DiffFinding, aucun
+    AlarmSignal n'est transmis au AlarmEngine et aucune notification
+    n'est emise."""
+    baseline = Report(points=["LAN"])
+
+    monkeypatch.setattr("netcross_core.live_diff.diff_reports", lambda base, current: [])
+    monkeypatch.setattr("netcross_core.correlate.correlate", lambda pkts: {})
+    monkeypatch.setattr(
+        "netcross_core.analysis.analyse",
+        lambda flows, points_order=None, all_packets=None: Report(points=["LAN"]),
+    )
+
+    alarm_engine = AlarmEngine(
+        [AlarmConfig(rule_id="loss_per_segment", segment="LAN -> WAN", min_persistence_seconds=0.0)]
+    )
+    notified = []
+    engine = LiveDiffEngine(
+        baseline_report=baseline,
+        config=LiveDiffConfig(min_packets_for_diff=1),
+        alarm_engine=alarm_engine,
+        on_alarm=notified.append,
+    )
+    engine._add_packet(_pkt(ts=1.0, frame_number=1))
+
+    findings = engine._evaluate_diff()
+
+    assert findings == []
+    assert alarm_engine.active_alarms == []
+    assert notified == []

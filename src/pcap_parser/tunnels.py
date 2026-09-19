@@ -71,7 +71,12 @@ def _capwap_tags(layers: dict) -> list:
     toujours DTLS en usage reel) et donnees (5247, DTLS optionnel selon
     le preambule). tshark expose la trame decapsulee sous "capwap_data"
     quand il a pu decoder ; si le canal est chiffre DTLS, il n'y a que
-    "dtls" au-dessus de udp -- rien a decapsuler."""
+    "dtls" au-dessus de udp -- rien a decapsuler.
+
+    Extensions Fortinet : le post-dissecteur Lua (netcross_capwap_fortinet.lua)
+    ajoute une couche "fortinet_capwap" avec les champs vendor-specific.
+    Si presente, on ajoute le tag Fortinet pour signaler que le trafic
+    provient d'un equipement Fortinet (FortiAP/FortiGate)."""
     tags = []
     if "capwap_control" in layers:
         tags.append("CAPWAP(controle)")
@@ -93,6 +98,11 @@ def _capwap_tags(layers: dict) -> list:
         ports = (g(udp, "udp_udp_srcport"), g(udp, "udp_udp_dstport"))
         if "5246" in ports or "5247" in ports:
             tags.append("CAPWAP(chiffre DTLS)")
+
+    # Detection Fortinet via post-dissecteur Lua
+    # (seulement si une couche CAPWAP est deja presente)
+    if "fortinet_capwap" in layers and tags:
+        tags.append("CAPWAP(Fortinet)")
 
     return tags
 

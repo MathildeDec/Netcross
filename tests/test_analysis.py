@@ -1168,6 +1168,100 @@ def test_retransmission_type_aucune_par_defaut():
     assert r.retrans_spurious == {}
 
 
+# -- Signaux d'expertise TCP natifs (tcp.analysis.*, issue #21) ----------
+# Distinction perte reelle / reordonnancement / RTO au-dela des trois
+# retransmissions : out_of_order, lost_segment, window_update, lus depuis
+# Pkt.expert_flags (noms EK tcp_tcp_analysis_*).
+
+
+def test_tcp_expert_out_of_order_compte_reordonnancement():
+    # un segment hors-ordre n'est PAS une retransmission : isole le
+    # reordonnancement des vraies pertes.
+    pkt = make_pkt(
+        point="A",
+        proto="TCP",
+        expert_flags=("tcp_tcp_analysis_out_of_order",),
+    )
+    r = _analyse([pkt])
+    assert r.out_of_order["A"] == 1
+    assert r.lost_segment["A"] == 0
+    assert r.window_update["A"] == 0
+    # hors-ordre n'est pas compte comme retransmission.
+    assert r.retrans_rto["A"] == 0
+    assert r.retrans_fast["A"] == 0
+
+
+def test_tcp_expert_lost_segment_compte_perte_reelle():
+    pkt = make_pkt(
+        point="A",
+        proto="TCP",
+        expert_flags=("tcp_tcp_analysis_lost_segment",),
+    )
+    r = _analyse([pkt])
+    assert r.lost_segment["A"] == 1
+    assert r.out_of_order["A"] == 0
+
+
+def test_tcp_expert_window_update_compte():
+    pkt = make_pkt(
+        point="A",
+        proto="TCP",
+        expert_flags=("tcp_tcp_analysis_window_update",),
+    )
+    r = _analyse([pkt])
+    assert r.window_update["A"] == 1
+
+
+def test_tcp_expert_signaux_ignores_non_tcp():
+    # les conditions tcp.analysis.* ne s'appliquent qu'au TCP.
+    pkt = make_pkt(
+        point="A",
+        proto="UDP",
+        expert_flags=("tcp_tcp_analysis_out_of_order", "tcp_tcp_analysis_lost_segment"),
+    )
+    r = _analyse([pkt])
+    assert r.out_of_order == {}
+    assert r.lost_segment == {}
+    assert r.window_update == {}
+
+
+def test_tcp_expert_signaux_aucun_par_defaut():
+    pkt = make_pkt(point="A", proto="TCP")
+    r = _analyse([pkt])
+    assert r.out_of_order == {}
+    assert r.lost_segment == {}
+    assert r.window_update == {}
+
+
+def test_tcp_expert_plusieurs_signaux_sur_un_seul_paquet():
+    # un meme paquet peut porter plusieurs conditions d'expertise a la fois
+    # (verifie empiriquement, voir ek_fields._ws_expert liste) : chacune
+    # doit incrementer son compteur propre, sans double-comptage croise.
+    pkt = make_pkt(
+        point="A",
+        proto="TCP",
+        expert_flags=(
+            "tcp_tcp_analysis_out_of_order",
+            "tcp_tcp_analysis_lost_segment",
+            "tcp_tcp_analysis_window_update",
+        ),
+    )
+    r = _analyse([pkt])
+    assert r.out_of_order["A"] == 1
+    assert r.lost_segment["A"] == 1
+    assert r.window_update["A"] == 1
+
+
+def test_tcp_expert_signaux_repartis_par_point():
+    a = make_pkt(point="A", proto="TCP", expert_flags=("tcp_tcp_analysis_lost_segment",))
+    b = make_pkt(point="B", proto="TCP", expert_flags=("tcp_tcp_analysis_out_of_order",))
+    r = _analyse([a, b], points_order=("A", "B"))
+    assert r.lost_segment["A"] == 1
+    assert r.lost_segment["B"] == 0
+    assert r.out_of_order["B"] == 1
+    assert r.out_of_order["A"] == 0
+
+
 # -- Negociation options TCP au handshake (MSS/Window Scale/SACK) ---------
 
 

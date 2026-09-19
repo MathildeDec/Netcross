@@ -9,82 +9,8 @@ from collections import defaultdict
 from dataclasses import dataclass, field
 
 
-@dataclass
+@dataclass(slots=True)
 class Pkt:
-    __slots__ = (
-        "ack",
-        "arp_is_gratuitous",
-        "arp_opcode",
-        "arp_sender_mac",
-        "df",
-        "dhcp_msg_type",
-        "dhcp_server_id",
-        "dhcp_vendor_class",
-        "dhcp_xid",
-        "dns_is_response",
-        "dns_qry_name",
-        "dns_rcode",
-        "dns_txn_id",
-        "dport",
-        "dscp",
-        "dst",
-        "ecn",
-        "encap_tags",
-        "expert_details",
-        "expert_flags",
-        "flags",
-        "frame_number",
-        "http_is_request",
-        "http_is_response",
-        "http_method",
-        "http_response_time_ms",
-        "http_status_code",
-        "http_uri",
-        "icmp_code",
-        "icmp_type",
-        "icmpv6_code",
-        "icmpv6_type",
-        "ip_id",
-        "is_fast_retransmission",
-        "is_fragment",
-        "is_retransmission",
-        "is_rtp",
-        "is_spurious_retransmission",
-        "key_id",
-        "length",
-        "mss_val",
-        "payload_hash",
-        "point",
-        "proto",
-        "rtp_seq",
-        "rtp_ssrc",
-        "rtp_ts",
-        "sack_permitted",
-        "seq",
-        "sip_call_id",
-        "sip_cseq",
-        "sip_msg_type",
-        "sip_server",
-        "sip_user_agent",
-        "sport",
-        "src",
-        "stp_bpdu_type",
-        "stp_flags_tc",
-        "stp_root_id",
-        "tls_application_data",
-        "tls_cert_not_after",
-        "tls_cert_not_before",
-        "tls_cert_san",
-        "tls_cert_serial",
-        "tls_client_hello",
-        "tls_server_hello",
-        "ts",
-        "ttl",
-        "vlan_id",
-        "vlan_prio",
-        "window",
-        "wscale_shift",
-    )
     point: str
     ts: float
     # frame.number tshark -- voir pcap_parser.packet.RawPacket.frame_number
@@ -182,6 +108,10 @@ class Pkt:
     # ek_fields.expert_flag_details pour le detail complet) -- report a
     # l'identique, aucune transformation.
     expert_details: tuple[tuple[str, str | None, str | None, str | None], ...]
+    # HTTP object metadata (Job 25), optional to preserve the historical
+    # Pkt constructor/API.
+    http_content_type: str | None = None
+    http_content_length: int | None = None
 
 
 @dataclass
@@ -363,6 +293,18 @@ class Report:
     # -- fenetre TCP / ACK dupliques / RST / handshake --
     zero_window: dict[str, int] = field(default_factory=lambda: defaultdict(int))
     dup_ack: dict[str, int] = field(default_factory=lambda: defaultdict(int))
+    # -- signaux d'expertise TCP natifs tshark (tcp.analysis.*, issue #21) --
+    # Compteurs par point, distincts des heuristiques retrans/dup_ack/
+    # zero_window ci-dessus : exploitation directe de la classification
+    # native de tshark (moteur d'etat TCP complet) pour mieux distinguer
+    # perte reelle, reordonnancement, retransmission rapide et RTO. Source :
+    # RawPacket.expert_flags (noms EK tcp_tcp_analysis_*). Complementaire et
+    # non exclusif : un paquet hors-ordre (out_of_order) n'est PAS une
+    # retransmission (conditions mutuellement exclusives cote tshark) --
+    # ce compteur isole le reordonnancement des vraies pertes.
+    out_of_order: dict[str, int] = field(default_factory=lambda: defaultdict(int))
+    lost_segment: dict[str, int] = field(default_factory=lambda: defaultdict(int))
+    window_update: dict[str, int] = field(default_factory=lambda: defaultdict(int))
     rst_count: dict[str, int] = field(default_factory=lambda: defaultdict(int))
     rst_localized: dict[str, int] = field(default_factory=lambda: defaultdict(int))
     syn_no_synack: dict[str, int] = field(default_factory=lambda: defaultdict(int))
@@ -384,6 +326,9 @@ class Report:
     encap_frag_correlated: dict[tuple[str, str], int] = field(default_factory=lambda: defaultdict(int))
     # -- RTP (voix/visio) --
     rtp_streams: list[dict] = field(default_factory=list)
+    # -- VoIP orientee appel (Job 24 / §6.12) --
+    voip_calls: list[dict] = field(default_factory=list)
+    voip_quality_distribution: dict[str, int] = field(default_factory=lambda: defaultdict(int))
     # -- decomposition reseau vs serveur --
     server_think_time: dict[str, list[float]] = field(default_factory=lambda: defaultdict(list))
     # -- DHCP --
@@ -429,6 +374,10 @@ class Report:
     # calcule nativement par tshark (http.time), pas recompose a la main
     # comme dns_duration_ms -- voir _analyse_http
     http_response_time_ms: list[float] = field(default_factory=list)
+    # -- objets applicatifs HTTP (Job 25), metadonnees uniquement
+    http_objects: list[dict] = field(default_factory=list)
+    # -- transactions applicatives (Job 23, §6.9/§6.10)
+    application_transactions: list[dict] = field(default_factory=list)
     # -- topologie deduite (ordre + chemins multiples) --
     topology_edges: list[tuple[str, str, dict]] = field(default_factory=list)
     topology_ambiguous: list[tuple[str, str, str]] = field(default_factory=list)

@@ -56,82 +56,8 @@ def _intern(value: str | None) -> str | None:
     return value if value is None else sys.intern(value)
 
 
-@dataclass
+@dataclass(slots=True)
 class RawPacket:
-    __slots__ = (
-        "ack",
-        "arp_is_gratuitous",
-        "arp_opcode",
-        "arp_sender_mac",
-        "df",
-        "dhcp_msg_type",
-        "dhcp_server_id",
-        "dhcp_vendor_class",
-        "dhcp_xid",
-        "dns_is_response",
-        "dns_qry_name",
-        "dns_rcode",
-        "dns_txn_id",
-        "dport",
-        "dscp",
-        "dst",
-        "ecn",
-        "encap_tags",
-        "expert_details",
-        "expert_flags",
-        "flags",
-        "frame_number",
-        "http_is_request",
-        "http_is_response",
-        "http_method",
-        "http_response_time_ms",
-        "http_status_code",
-        "http_uri",
-        "icmp_code",
-        "icmp_type",
-        "icmpv6_code",
-        "icmpv6_type",
-        "ip_id",
-        "is_fast_retransmission",
-        "is_fragment",
-        "is_retransmission",
-        "is_rtp",
-        "is_spurious_retransmission",
-        "key_id",
-        "length",
-        "mss_val",
-        "payload",
-        "payload_hash",
-        "proto",
-        "rtp_seq",
-        "rtp_ssrc",
-        "rtp_ts",
-        "sack_permitted",
-        "seq",
-        "sip_call_id",
-        "sip_cseq",
-        "sip_msg_type",
-        "sip_server",
-        "sip_user_agent",
-        "sport",
-        "src",
-        "stp_bpdu_type",
-        "stp_flags_tc",
-        "stp_root_id",
-        "tls_application_data",
-        "tls_cert_not_after",
-        "tls_cert_not_before",
-        "tls_cert_san",
-        "tls_cert_serial",
-        "tls_client_hello",
-        "tls_server_hello",
-        "ts",
-        "ttl",
-        "vlan_id",
-        "vlan_prio",
-        "window",
-        "wscale_shift",
-    )
     ts: float
     # frame.number -- numero de trame 1-indexe attribue par tshark au sein
     # de CE fichier/flux de capture (pas un identifiant global inter-
@@ -324,6 +250,8 @@ class RawPacket:
     # defaut que expert_flags -- les deux champs sont toujours calcules
     # ensemble, a partir des memes couches.
     expert_details: tuple[tuple[str, str | None, str | None, str | None], ...]
+    http_content_type: str | None = None
+    http_content_length: int | None = None
 
 
 def build_packet(ts_seconds: float, layers: dict) -> RawPacket | None:
@@ -494,6 +422,8 @@ def build_packet(ts_seconds: float, layers: dict) -> RawPacket | None:
     http_method = http_uri = None
     http_status_code = None
     http_response_time_ms = None
+    http_content_type = None
+    http_content_length = None
     http_is_request = http_is_response = False
     tls_cert_not_before = tls_cert_not_after = tls_cert_san = tls_cert_serial = None
     tls_client_hello = tls_server_hello = tls_application_data = False
@@ -638,6 +568,8 @@ def build_packet(ts_seconds: float, layers: dict) -> RawPacket | None:
             http_uri = _intern(http["uri"])
             http_status_code = http["status_code"]
             http_response_time_ms = http["response_time_ms"]
+            http_content_type = _intern(http.get("content_type"))
+            http_content_length = http.get("content_length")
 
         # TLS -- pas de garde "if payload" (comme extract_dns) : lit
         # uniquement la dissection X.509 native de tshark au sein du
@@ -687,8 +619,8 @@ def build_packet(ts_seconds: float, layers: dict) -> RawPacket | None:
         ts=ts_seconds,
         frame_number=frame_number,
         proto=proto,
-        src=src,
-        dst=dst,
+        src=src or "",
+        dst=dst or "",
         sport=sport,
         dport=dport,
         length=length,
@@ -754,6 +686,8 @@ def build_packet(ts_seconds: float, layers: dict) -> RawPacket | None:
         http_uri=http_uri,
         http_status_code=http_status_code,
         http_response_time_ms=http_response_time_ms,
+        http_content_type=http_content_type,
+        http_content_length=http_content_length,
         expert_flags=expert_flags,
         expert_details=expert_details,
     )

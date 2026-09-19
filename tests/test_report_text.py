@@ -47,6 +47,49 @@ def test_print_report_scenario_realiste_ne_leve_pas(capsys):
     assert "A" in out and "B" in out
 
 
+def test_print_report_tcp_expert_signaux_affiche_section(capsys):
+    # issue #21 : la section signaux d'expertise TCP natifs apparait et
+    # distingue hors-ordre (reordonnancement) / segment perdu (perte reelle)
+    # / maj de fenetre.
+    pkts = [
+        make_pkt(
+            point="A",
+            proto="TCP",
+            sport=10,
+            expert_flags=("tcp_tcp_analysis_out_of_order",),
+        ),
+        make_pkt(
+            point="A",
+            proto="TCP",
+            sport=11,
+            expert_flags=("tcp_tcp_analysis_lost_segment",),
+        ),
+        make_pkt(
+            point="A",
+            proto="TCP",
+            sport=12,
+            expert_flags=("tcp_tcp_analysis_window_update",),
+        ),
+    ]
+    flows = correlate(pkts)
+    r = analyse(flows, points_order=["A", "B"], all_packets=pkts)
+    print_report(r)
+    out = capsys.readouterr().out
+    assert "Signaux d'expertise TCP natifs" in out
+    assert "hors-ordre" in out
+    assert "segment(s) perdu(s)" in out
+    assert "maj(s) de fenetre" in out
+
+
+def test_print_report_tcp_expert_signaux_aucun_message_defaut(capsys):
+    pkts = [make_pkt(point="A", proto="TCP", sport=1, ts=0.0)]
+    flows = correlate(pkts)
+    r = analyse(flows, points_order=["A", "B"], all_packets=pkts)
+    print_report(r)
+    out = capsys.readouterr().out
+    assert "aucun signal d'expertise TCP supplementaire detecte" in out
+
+
 def test_print_report_pmtud_blackhole_affiche(capsys):
     pkts = [
         make_pkt(point="A", sport=1, ts=0.0, payload_hash="h1", df=True, length=1400),

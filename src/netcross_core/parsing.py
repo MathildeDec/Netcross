@@ -113,6 +113,8 @@ def _to_pkt(label: str, raw: RawPacket) -> Pkt:
         http_uri=raw.http_uri,
         http_status_code=raw.http_status_code,
         http_response_time_ms=raw.http_response_time_ms,
+        http_content_type=raw.http_content_type,
+        http_content_length=raw.http_content_length,
         expert_flags=raw.expert_flags,
         expert_details=raw.expert_details,
     )
@@ -144,7 +146,7 @@ def parse_capture(label, path, raise_on_error=False) -> list[Pkt]:
     pkts: list[Pkt] = []
     for i in range(n):
         pkts.append(_to_pkt(label, raw_packets[i]))
-        raw_packets[i] = None
+        raw_packets[i] = None  # type: ignore[call-overload]  # liberation memoire volontaire
     return pkts
 
 

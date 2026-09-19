@@ -413,6 +413,22 @@ def print_report(r: Report):
     else:
         print("  aucune retransmission classifiee par tshark sur cette capture")
 
+    print("\n-- Signaux d'expertise TCP natifs (tcp.analysis.*) --")
+    print("  (issue #21) distingue perte reelle / reordonnancement / RTO")
+    any_tcp_sig = any(r.out_of_order.values()) or any(r.lost_segment.values()) or any(r.window_update.values())
+    if any_tcp_sig:
+        for p in r.points:
+            ooo, lost, wup = r.out_of_order[p], r.lost_segment[p], r.window_update[p]
+            if not (ooo or lost or wup):
+                continue
+            print(
+                f"  {p:15s} : {ooo} hors-ordre(s) (reordonnancement, pas perte), "
+                f"{lost} segment(s) perdu(s) (perte reelle inferee), "
+                f"{wup} maj(s) de fenetre (recepteur limitant le debit)"
+            )
+    else:
+        print("  aucun signal d'expertise TCP supplementaire detecte")
+
     print("\n-- Options TCP negociees au handshake (MSS/Window Scale/SACK) --")
     any_tcp_opts = any(r.mss_clamped.values()) or any(r.wscale_stripped.values()) or any(r.sack_stripped.values())
     if any_tcp_opts:
@@ -603,6 +619,22 @@ def print_report(r: Report):
     else:
         print("  aucun trafic SIP detecte dans les captures")
 
+    print("\n-- VoIP orientee appel (SIP + RTP) --")
+    if r.voip_calls:
+        for call in r.voip_calls[:50]:
+            print(
+                f"  {call['call_id'][:40]} : "
+                f"participants={', '.join(call['participants']) or '?'} ; "
+                f"RTP={len(call['rtp_streams'])} ; qualite={call['quality']} ; "
+                f"etablissement={call['setup_duration_ms'] if call['setup_duration_ms'] is not None else 'n/a'}ms ; "
+                f"duree={call['duration_ms'] if call['duration_ms'] is not None else 'n/a'}ms"
+            )
+            for event in call["events"]:
+                print(f"      {event['type']} @ {event['ts']:.3f}s")
+        print(f"  distribution qualite : {dict(r.voip_quality_distribution)}")
+    else:
+        print("  aucun appel SIP consolide")
+
     print("\n-- DNS (resolution de noms) --")
     if r.dns_query_count or r.dns_response_count:
         for p in r.points:
@@ -670,8 +702,32 @@ def print_report(r: Report):
     else:
         print("  aucun trafic HTTP detecte dans les captures")
 
+    print("\n-- Objets HTTP transferes (metadonnees, sans corps) --")
+    if r.http_objects:
+        for obj in r.http_objects[:50]:
+            print(
+                f"  {obj.get('status_code') or '?'} {obj.get('method') or '?'} "
+                f"{obj.get('uri') or '?'} : "
+                f"{obj.get('content_type') or 'type inconnu'}, "
+                f"{obj.get('content_length') if obj.get('content_length') is not None else '?'} octets, "
+                f"{obj.get('response_time_ms') if obj.get('response_time_ms') is not None else '?'}ms"
+            )
+        if len(r.http_objects) > 50:
+            print(f"  ... {len(r.http_objects) - 50} objets supplementaires non affiches")
+    else:
+        print("  aucun objet HTTP reponse exploitable")
 
-def write_detail_csv(path, flows, points):
+
+def write_detail_csv(path, flows, points, names=None):
+    """Ecrit le detail par flux en CSV. Si ``names`` (une
+    ``netcross_core.naming.NameTable``) est fourni, les colonnes src/dst
+    affichent les noms logiques resolus a la place des adresses brutes."""
+
+    def _label(addr) -> str:
+        if names is None:
+            return str(addr)
+        return names.display(str(addr)) if addr is not None else ""
+
     with open(path, "w", newline="") as f:
         w = csv.writer(f)
         w.writerow(
@@ -682,6 +738,11 @@ def write_detail_csv(path, flows, points):
         )
         for key, per_point in flows.items():
             row = list(key)
+            # src (indice 1) et dst (indice 3) du key de flux strict
+            # resolus en noms logiques si une NameTable est fournie.
+            if len(row) > 3:
+                row[1] = _label(row[1])
+                row[3] = _label(row[3])
             row.extend(min(pkt.ts for pkt in per_point[p]) if p in per_point else "" for p in points)
             row.extend(per_point[p][0].dscp if p in per_point else "" for p in points)
             row.extend(per_point[p][0].ttl if p in per_point else "" for p in points)
