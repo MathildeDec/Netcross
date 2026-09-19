@@ -330,15 +330,6 @@ Options utiles :
   chronologique. Fonctionne aussi avec `--parallel` (un processus
   `tshark` par segment). Même syntaxe sur `--baseline`/`--current` du
   CLI de comparaison ci-dessous.
-- `--split MODE:VALEUR` : découpe une capture volumineuse en segments plus
-  petits puis s'arrête, sans lancer d'analyse — `time:60` (secondes par
-  segment), `count:10000` (paquets par segment) ou `size:100M` (taille
-  maximale par segment, unités décimales comme `tcpdump -C`). Format
-  d'origine conservé. Segments écrits dans `<--split-output-dir>/NOM/`
-  (défaut `./captures_split`), à rejouer ensuite avec
-  `--capture NOM=seg1,seg2,...`. `time` et `count` nécessitent `editcap`
-  (livré avec `tshark`) ; `size` n'a besoin d'aucun outil externe. Exclusif
-  avec `--merge` (qui fait l'opération inverse).
 - `--bucket-ms` : largeur des fenêtres temporelles pour le débit et la
   corrélation pertes/saturation (défaut 1000ms, réduire pour des
   microbursts).
@@ -779,10 +770,13 @@ netcross/
 ├── docs/
 │   ├── features-backlog.md  fonctionnalites, diagramme de classes, dette, comparaison OmniPeek
 │   └── sessions/             historique detaille session par session (session-01.md ... session-41.md)
+├── scripts/
+│   └── import_nvd.py        import periodique du flux NVD dans la base CVE locale (issue #138)
 ├── tests/                   suite de tests automatisés (pytest)
 ├── src/
 │   ├── cross_capture_analyzer_cli.py   CLI (argparse)
 │   ├── netcross_core/       moteur d'analyse (aucune dependance a une UI)
+│   │   └── security/        base CVE locale + correlation de versions (issue #138)
 │   ├── netcross_report/     generation du rapport PDF (synthese, graphiques)
 │   └── netcross_gtk4/       interface graphique GTK4
 ├── build-deb/               packaging Debian/Ubuntu (.deb)
@@ -837,6 +831,18 @@ avant un déploiement en production.
 
 ## Limites connues
 
+- **Détection passive de vulnérabilités (CVE, `netcross_core.security`)** :
+  la base CVE locale et la corrélation par version (`correlate_banner()`/
+  `correlate_versions()`, issue #138 / CVE-4) sont fonctionnelles et
+  testées hors-ligne (`tests/test_cve_correlation.py`, base SQLite peuplée
+  via `scripts/import_nvd.py`), mais **pas encore câblées sur le pipeline
+  d'analyse** (`Report`/`Pkt`) : elles dépendent explicitement de CVE-1
+  (issue #135, extraction de bannières de version par fingerprinting
+  passif), non mergée à ce jour. `correlate_versions()` accepte donc en
+  entrée un itérable de chaînes `"produit/version"` construites par
+  l'appelant plutôt que des bannières extraites automatiquement d'une
+  capture — aucun changement de signature prévu une fois #135 disponible,
+  seulement un nouvel appelant.
 - **Captures segmentées (`NOM=chemin1,chemin2,...`)** : les segments sont
   lus dans l'ordre où ils sont listés et simplement concaténés, sans tri
   par timestamp — les lister dans l'ordre chronologique (ordre naturel
