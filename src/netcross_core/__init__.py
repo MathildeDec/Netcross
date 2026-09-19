@@ -50,6 +50,7 @@ from netcross_core.report_text import print_report, write_detail_csv
 from netcross_core.stats import compute_stats, export_csv, export_json
 from netcross_core.voip import Call, build_calls
 from netcross_core.wireshark_expert import build_wireshark_expert_events
+from pcap_parser.capture import merge_captures
 
 __all__ = [
     "DEFAULT_REFERENCES",
@@ -83,6 +84,7 @@ __all__ = [
     "extract_http_objects",
     "finding_to_alarm_signal",
     "flow_key",
+    "merge_captures",
     "objects_to_dicts",
     "parse_capture",
     "parse_captures_parallel",
