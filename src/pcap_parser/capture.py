@@ -6,26 +6,21 @@ parse_capture(), parse_captures_parallel(), plus une nouveaute,
 iter_live(), pour la capture en direct sur interface -- meme pipeline
 de dissection, juste une source differente (tshark -i au lieu de -r).
 
-merge_captures() (Job 34) est d'une autre nature : elle ne decode rien,
-elle fusionne plusieurs fichiers de capture en un seul via les outils
-de ligne de commande livres avec tshark (mergecap, reordercap, editcap).
-
-replay_capture() (Job 44) est egalement d'une autre nature : elle ne lit
-ni ne decode rien, elle EMET sur le reseau le contenu d'un fichier de
-capture via tcpreplay (paquet systeme distinct de tshark) -- rejeu de
-trafic controle pour tester un pare-feu, reproduire un probleme reseau
-ou valider une configuration QoS. Voir son docstring pour l'avertissement
-d'usage responsable.
+CaptureRingBuffer (Job 37, issue #157) complete l'orchestration cote
+retention disque : gere la rotation d'une serie de fichiers de capture
+(nombre max, duree max par fichier, suppression automatique du plus
+ancien) -- independamment de iter_live/parse_capture, voir sa docstring.
 """
 
 from __future__ import annotations
 
+import contextlib
 import os
-import shutil
-import subprocess
 import sys
-import tempfile
+import time
+from collections import deque
 from collections.abc import Iterator, Sequence
+from pathlib import Path
 
 from pcap_parser.ek_source import TsharkError, TsharkNotFoundError, iter_ek_records
 from pcap_parser.packet import RawPacket, build_packet
@@ -152,197 +147,100 @@ def iter_live(interface: str, bpf_filter: str | None = None, stop_event=None) ->
             yield pkt
 
 
-def _wireshark_tool_path(name: str) -> str:
-    """Chemin d'un outil de ligne de commande livre avec tshark (mergecap,
-    reordercap, editcap). Meme paquet systeme que tshark lui-meme : meme
-    exception et meme message d'installation que ek_source._tshark_path."""
-    path = shutil.which(name)
-    if path is None:
-        raise TsharkNotFoundError(
-            f"{name} introuvable dans le PATH -- installer le paquet "
-            "'tshark' (apt install tshark / dnf install wireshark-cli), "
-            "qui fournit aussi mergecap, reordercap et editcap."
-        )
-    return path
-
-
-def _run_wireshark_tool(args: list[str]) -> None:
-    proc = subprocess.run(args, capture_output=True, text=True, check=False)
-    if proc.returncode != 0:
-        raise TsharkError(
-            f"{os.path.basename(args[0])} a echoue (code {proc.returncode}) : {proc.stderr.strip()}",
-            returncode=proc.returncode,
-            stderr=proc.stderr,
-        )
-
-
-def merge_captures(paths: Sequence[str], output_path: str, dedup: bool = False) -> None:
+class CaptureRingBuffer:
     """
-    Fusionne plusieurs fichiers de capture (pcap/pcapng, formats
-    melangeables) en UN seul fichier ordonne par timestamp de paquet.
+    Ring buffer de fichiers de capture (Job 37, issue #157) : en capture
+    continue (Job 33 -- voir netcross_core.live_diff.LiveDiffEngine), le
+    fichier de capture grandirait indefiniment sans mecanisme de
+    rotation. Cette classe gere une serie de fichiers de taille/duree
+    fixe dans un repertoire donne, en supprimant automatiquement le plus
+    ancien des que `max_files` est depasse.
 
-    Ne decode rien : simple enveloppe autour des outils livres avec
-    tshark -- mergecap (fusion), reordercap (garantie d'ordre) et,
-    seulement si dedup=True, editcap (deduplication). Le fichier de
-    sortie est en pcap classique si output_path se termine par ".pcap",
-    en pcapng sinon (format par defaut de mergecap). Il est ecrit de
-    facon atomique : en cas d'echec (outil absent, fichier illisible...),
-    output_path n'est ni cree ni modifie.
+    Volontairement ignorante de tshark : elle ne capture ni n'ecrit
+    aucun paquet elle-meme (RawPacket/Pkt ne portent pas les octets
+    bruts de la trame -- voir pcap_parser.packet), elle decide juste
+    QUAND ouvrir un nouveau fichier (rotate()/maybe_rotate()) et QUELS
+    fichiers conserver sur disque. C'est a l'appelant d'ecrire
+    reellement dans current_path (typiquement un `tshark -w`/`-b`
+    pointe sur ce chemin, en reutilisant extra_args -- voir ek_source.
+    _build_args) -- ou, plus simplement, d'appeler maybe_rotate() en
+    continu depuis une boucle de capture deja existante, comme le fait
+    LiveDiffEngine._add_packet() sur son propre flux `iter_live`, pour
+    avancer l'horloge de rotation sans jamais interrompre le diff live.
 
-    Alignement temporel : mergecap intercale deja les paquets par
-    timestamp, mais suppose que chaque fichier d'entree est LUI-MEME
-    ordonne ; reordercap est donc passe systematiquement ensuite, pour
-    que l'ordre global soit garanti meme si une entree ne l'etait pas
-    (captures ecrites par un tampon non FIFO, horloge qui recule...).
-    L'ordre des fichiers dans `paths` est sans effet sur le resultat.
-
-    dedup=True supprime les paquets de contenu identique ET de meme
-    timestamp (fenetre de temps nulle d'editcap) -- typiquement un meme
-    fichier fourni deux fois, ou deux segments qui se chevauchent sur la
-    meme horloge. Deux copies d'un meme paquet vues a deux points de
-    capture distincts portent des timestamps differents (horloges
-    differentes) et ne sont donc PAS considerees comme des doublons --
-    et une vraie retransmission (meme contenu, autre instant) est
-    toujours conservee : c'est exactement la donnee que l'analyse
-    multi-points cherche.
-
-    Leve ValueError (liste vide, ou sortie identique a une entree),
-    FileNotFoundError (entree absente ou repertoire de sortie inexistant),
-    TsharkNotFoundError (outil absent du PATH) ou TsharkError (l'outil a
-    echoue).
+    - directory : repertoire de destination des fichiers (cree au besoin)
+    - prefix : prefixe du nom de fichier (defaut "capture")
+    - max_files : nombre maximal de fichiers conserves simultanement (defaut 10)
+    - max_duration_per_file : duree maximale en secondes avant rotation
+      automatique (defaut 60.0)
+    - extension : suffixe de fichier (defaut ".pcapng")
     """
-    if not paths:
-        raise ValueError("au moins un fichier de capture est requis pour la fusion")
-    output_real = os.path.realpath(output_path)
-    for path in paths:
-        if not os.path.isfile(path):
-            raise FileNotFoundError(f"fichier de capture introuvable : {path}")
-        if os.path.realpath(path) == output_real:
-            raise ValueError(f"le fichier de sortie ne peut pas etre aussi une entree de la fusion : {path}")
 
-    output_dir = os.path.dirname(output_real)
-    if not os.path.isdir(output_dir):
-        raise FileNotFoundError(f"repertoire de sortie introuvable : {output_dir}")
+    def __init__(
+        self,
+        directory: str,
+        prefix: str = "capture",
+        max_files: int = 10,
+        max_duration_per_file: float = 60.0,
+        extension: str = ".pcapng",
+    ) -> None:
+        if max_files < 1:
+            raise ValueError("max_files doit etre >= 1")
+        if max_duration_per_file <= 0:
+            raise ValueError("max_duration_per_file doit etre > 0")
+        self.directory = directory
+        self.prefix = prefix
+        self.max_files = max_files
+        self.max_duration_per_file = max_duration_per_file
+        self.extension = extension
+        self._files: deque[str] = deque()
+        self._rotation_started_ts: float | None = None
+        self._sequence = 0
 
-    mergecap = _wireshark_tool_path("mergecap")
-    reordercap = _wireshark_tool_path("reordercap")
-    editcap = _wireshark_tool_path("editcap") if dedup else None
+    @property
+    def files(self) -> tuple[str, ...]:
+        """Fichiers actuellement suivis, du plus ancien au plus recent."""
+        return tuple(self._files)
 
-    file_type = "pcap" if output_path.lower().endswith(".pcap") else "pcapng"
-    # Intermediaires dans le repertoire de sortie (meme systeme de fichiers)
-    # pour que le os.replace final soit atomique.
-    with tempfile.TemporaryDirectory(dir=output_dir, prefix=".netcross-merge-") as tmp:
-        merged = os.path.join(tmp, "merged")
-        _run_wireshark_tool([mergecap, "-F", file_type, "-w", merged, *paths])
-        ordered = os.path.join(tmp, "ordered")
-        _run_wireshark_tool([reordercap, merged, ordered])
-        result = ordered
-        if editcap is not None:
-            deduped = os.path.join(tmp, "deduped")
-            _run_wireshark_tool([editcap, "-w", "0", "-F", file_type, ordered, deduped])
-            result = deduped
-        os.replace(result, output_real)
+    @property
+    def current_path(self) -> str | None:
+        """Chemin du fichier de capture courant (None avant la premiere rotation)."""
+        return self._files[-1] if self._files else None
 
+    def rotate(self, now: float | None = None) -> str:
+        """Ouvre immediatement un nouveau fichier de capture et le rend
+        courant, en supprimant le plus ancien si `max_files` est
+        depasse. Renvoie le chemin du nouveau fichier.
 
-class TcpreplayNotFoundError(RuntimeError):
-    """tcpreplay n'est pas installe / pas dans le PATH.
+        Le fichier est cree vide (touch) -- c'est a l'appelant d'y
+        ecrire reellement les paquets (voir docstring de la classe).
+        """
+        ts = time.time() if now is None else now
+        os.makedirs(self.directory, exist_ok=True)
+        self._sequence += 1
+        path = os.path.join(self.directory, f"{self.prefix}_{self._sequence:06d}{self.extension}")
+        Path(path).touch(exist_ok=True)
+        self._files.append(path)
+        self._rotation_started_ts = ts
+        self._prune()
+        return path
 
-    tcpreplay n'est PAS livre avec le paquet tshark/wireshark (contrairement
-    a mergecap/reordercap/editcap ci-dessus) -- c'est un paquet systeme
-    distinct, d'ou une exception dediee plutot qu'une reutilisation de
-    TsharkNotFoundError."""
+    def maybe_rotate(self, now: float | None = None) -> str | None:
+        """Ouvre un nouveau fichier SEULEMENT si `max_duration_per_file`
+        secondes se sont ecoulees depuis la derniere rotation (ou si
+        aucune rotation n'a encore eu lieu). Renvoie le nouveau chemin,
+        ou None si la rotation n'etait pas encore necessaire -- pensee
+        pour etre appelee a chaque paquet/tick d'une boucle de capture
+        deja existante sans jamais la ralentir (voir LiveDiffEngine).
+        """
+        ts = time.time() if now is None else now
+        if self._rotation_started_ts is None or (ts - self._rotation_started_ts) >= self.max_duration_per_file:
+            return self.rotate(ts)
+        return None
 
-
-class TcpreplayError(RuntimeError):
-    """tcpreplay a demarre mais a echoue (interface inconnue, permissions
-    insuffisantes, fichier de capture illisible...). Porte le code de
-    retour et stderr pour que l'appelant puisse construire un message
-    utile -- meme forme que TsharkError."""
-
-    def __init__(self, message: str, returncode: int | None = None, stderr: str = ""):
-        super().__init__(message)
-        self.returncode = returncode
-        self.stderr = stderr
-
-
-def _tcpreplay_path() -> str:
-    path = shutil.which("tcpreplay")
-    if path is None:
-        raise TcpreplayNotFoundError(
-            "tcpreplay introuvable dans le PATH -- installer le paquet "
-            "'tcpreplay' (apt install tcpreplay / dnf install tcpreplay)."
-        )
-    return path
-
-
-def _run_tcpreplay(args: list[str]) -> None:
-    proc = subprocess.run(args, capture_output=True, text=True, check=False)
-    if proc.returncode != 0:
-        raise TcpreplayError(
-            f"tcpreplay a echoue (code {proc.returncode}) : {proc.stderr.strip()}",
-            returncode=proc.returncode,
-            stderr=proc.stderr,
-        )
-
-
-def replay_capture(path: str, interface: str, speed: float | str = 1.0, loop: int = 1) -> None:
-    """
-    Rejoue un fichier de capture PCAP/PCAPNG sur une interface reseau via
-    tcpreplay, a vitesse controlee. Ne decode ni ne lit le contenu des
-    paquets -- simple enveloppe autour du binaire tcpreplay, comme
-    merge_captures() l'est pour mergecap/reordercap/editcap.
-
-    ATTENTION -- usage responsable : cette fonction EMET du trafic reseau
-    REEL sur `interface`. Ne jamais l'utiliser sur une interface connectee
-    a un reseau de production sans autorisation explicite : le rejeu peut
-    saturer un lien, declencher des alarmes de securite (IDS/IPS), ou
-    reemettre des paquets usurpant des adresses source qui ne sont pas les
-    votres. Reserver ce mecanisme a un banc de test isole (interface
-    loopback/veth/bridge dedie, environnement de laboratoire), sauf besoin
-    explicite et maitrise d'un rejeu sur un segment reel (test de
-    pare-feu, validation de configuration QoS).
-
-    path : fichier de capture a rejouer (pcap/pcapng).
-    interface : interface reseau de sortie (ex: "eth0") -- transmise a
-    tcpreplay via --intf1 (flag reellement expose par tcpreplay ; le nom
-    plus court "--intf" parfois vu dans la documentation utilisateur est
-    un raccourci informel, pas l'option de la commande elle-meme).
-
-    speed : vitesse de rejeu par rapport a la vitesse d'origine mesuree
-    par les timestamps du fichier (--multiplier de tcpreplay) : 1.0 =
-    vitesse d'origine (valeur par defaut), 0.5 = deux fois plus lent,
-    2.0 = deux fois plus rapide. Doit etre un nombre strictement positif,
-    ou la chaine "topspeed" (insensible a la casse) pour rejouer aussi
-    vite que l'interface/le noyau le permettent SANS respecter les
-    timestamps d'origine (--topspeed de tcpreplay).
-
-    loop : nombre de fois que le fichier est rejoue integralement (1 =
-    une seule passe, valeur par defaut -- --loop de tcpreplay). Doit etre
-    superieur ou egal a 1.
-
-    Leve ValueError si speed n'est ni un nombre strictement positif ni
-    "topspeed", ou si loop < 1 ; FileNotFoundError si `path` n'existe pas ;
-    TcpreplayNotFoundError si tcpreplay n'est pas installe ; TcpreplayError
-    si tcpreplay a demarre mais a echoue (code de retour non nul).
-    """
-    if not os.path.isfile(path):
-        raise FileNotFoundError(f"fichier de capture introuvable : {path}")
-    if loop < 1:
-        raise ValueError(f"loop doit etre >= 1 (recu {loop!r})")
-
-    topspeed = isinstance(speed, str) and speed.strip().lower() == "topspeed"
-    if not topspeed:
-        try:
-            speed = float(speed)
-        except (TypeError, ValueError):
-            raise ValueError(
-                f"speed doit etre un nombre strictement positif ou la chaine 'topspeed' (recu {speed!r})"
-            ) from None
-        if speed <= 0:
-            raise ValueError(f"speed doit etre strictement positif (recu {speed!r})")
-
-    tcpreplay = _tcpreplay_path()
-    args = [tcpreplay, f"--intf1={interface}", f"--loop={loop}"]
-    args.append("--topspeed" if topspeed else f"--multiplier={speed}")
-    args.append(path)
-    _run_tcpreplay(args)
+    def _prune(self) -> None:
+        """Supprime le(s) plus ancien(s) fichier(s) au-dela de max_files."""
+        while len(self._files) > self.max_files:
+            oldest = self._files.popleft()
+            with contextlib.suppress(FileNotFoundError):
+                os.remove(oldest)
