@@ -386,3 +386,28 @@ class Report:
     topology_merge_points: list[str] = field(default_factory=list)
     topology_order_conflicts: list[str] = field(default_factory=list)
     topology_used_for_order: bool = False
+
+
+@dataclass(slots=True)
+class PacketAnnotation:
+    """Etiquette/signet pose par l'analyste sur un paquet ou un groupe de
+    paquets (Job 40/issue #160, §Metadonnees et annotation).
+
+    Persistee dans un fichier sidecar JSON a cote de la capture (voir
+    `netcross_core.forensic.read_annotations`/`write_annotations`) -- ne
+    fait PAS partie du `Report` : contrairement aux champs ci-dessus,
+    calcules par l'analyse, une annotation est saisie manuellement par
+    l'analyste et doit survivre a une reanalyse (donc stockee a part,
+    jamais recalculee).
+
+    `frame_number` seul (pas de `point`) : le sidecar est associe a UNE
+    capture d'UN point (meme convention que `RawPacket`/`Pkt.frame_number`
+    cote pcap_parser) -- annoter un paquet vu depuis plusieurs points
+    demande donc une annotation par point, ce qui correspond a l'usage
+    (l'analyste ouvre la capture d'un point donne pour annoter).
+    """
+
+    frame_number: int
+    tag: str
+    comment: str = ""
+    color: str | None = None
