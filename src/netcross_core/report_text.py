@@ -8,7 +8,8 @@ import csv
 import statistics
 from collections import Counter
 
-from netcross_core.models import Report
+from netcross_core.forensic import annotations_by_tag
+from netcross_core.models import PacketAnnotation, Report
 
 
 def print_report(r: Report):
@@ -716,6 +717,29 @@ def print_report(r: Report):
             print(f"  ... {len(r.http_objects) - 50} objets supplementaires non affiches")
     else:
         print("  aucun objet HTTP reponse exploitable")
+
+
+def print_annotations(annotations: list[PacketAnnotation]):
+    """Affiche la section annotations (Job 40/issue #160) : etiquettes et
+    signets poses par l'analyste sur des paquets individuels.
+
+    Prend une liste de `PacketAnnotation` en parametre plutot qu'un champ
+    du `Report` -- une annotation vient du sidecar JSON associe a une
+    capture (voir `netcross_core.forensic.read_annotations`), pas du
+    calcul d'analyse : l'appelant (CLI/GUI) est responsable de la lire et
+    de la passer ici, symetrique de `write_detail_csv` ci-dessous qui
+    prend `flows`/`points` directement plutot que de deduire un chemin
+    de capture."""
+    print("\n-- Annotations (etiquettes et signets sur paquets) --")
+    if not annotations:
+        print("  aucune annotation (pas de sidecar, ou sidecar vide)")
+        return
+    by_tag = annotations_by_tag(annotations)
+    for tag in sorted(by_tag):
+        print(f"  [{tag}] {len(by_tag[tag])} paquet(s)")
+        for ann in sorted(by_tag[tag], key=lambda a: a.frame_number):
+            suffix = f" -- {ann.comment}" if ann.comment else ""
+            print(f"    trame #{ann.frame_number}{suffix}")
 
 
 def write_detail_csv(path, flows, points, names=None):

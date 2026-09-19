@@ -14,6 +14,8 @@ Organisation en couches (bas en haut) :
     protocols   -- RTP / DHCP / SIP (lecture des champs deja disseques + repli heuristique)
     packet      -- assemblage du RawPacket normalise
     capture     -- API publique : parse_capture / parse_captures_parallel / iter_live
+                   (+ merge_captures : fusion de fichiers via mergecap, sans decodage
+                   + replay_capture : rejeu de trafic via tcpreplay, sans decodage)
 
 Utilisation typique :
 
@@ -24,7 +26,15 @@ Utilisation typique :
         ...
 """
 
-from pcap_parser.capture import iter_live, parse_capture, parse_captures_parallel
+from pcap_parser.capture import (
+    TcpreplayError,
+    TcpreplayNotFoundError,
+    iter_live,
+    merge_captures,
+    parse_capture,
+    parse_captures_parallel,
+    replay_capture,
+)
 from pcap_parser.ek_source import TsharkError, TsharkNotFoundError
 from pcap_parser.packet import RawPacket
 from pcap_parser.protocols import (
@@ -39,6 +49,8 @@ from pcap_parser.tunnels import detect_encapsulation, is_tunnel, select_innermos
 
 __all__ = [
     "RawPacket",
+    "TcpreplayError",
+    "TcpreplayNotFoundError",
     "TsharkError",
     "TsharkNotFoundError",
     "compute_mos",
@@ -50,7 +62,9 @@ __all__ = [
     "extract_tls_certificate",
     "is_tunnel",
     "iter_live",
+    "merge_captures",
     "parse_capture",
     "parse_captures_parallel",
+    "replay_capture",
     "select_innermost_layers",
 ]

@@ -50,6 +50,7 @@ from netcross_core.report_text import print_report, write_detail_csv
 from netcross_core.stats import compute_stats, export_csv, export_json
 from netcross_core.voip import Call, build_calls
 from netcross_core.wireshark_expert import build_wireshark_expert_events
+from pcap_parser.capture import TcpreplayError, TcpreplayNotFoundError, merge_captures, replay_capture
 
 __all__ = [
     "DEFAULT_REFERENCES",
@@ -64,6 +65,8 @@ __all__ = [
     "LiveDiffState",
     "Pkt",
     "Report",
+    "TcpreplayError",
+    "TcpreplayNotFoundError",
     "analyse",
     "build_calls",
     "build_conversations",
@@ -83,6 +86,7 @@ __all__ = [
     "extract_http_objects",
     "finding_to_alarm_signal",
     "flow_key",
+    "merge_captures",
     "objects_to_dicts",
     "parse_capture",
     "parse_captures_parallel",
@@ -93,6 +97,7 @@ __all__ = [
     "print_diff_report",
     "print_report",
     "redact_packets",
+    "replay_capture",
     "write_client_diff_csv",
     "write_detail_csv",
     "write_diff_csv",

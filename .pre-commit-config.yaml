@@ -16,3 +16,15 @@ repos:
         language: system
         pass_filenames: false
         files: \.py$
+
+      - id: class-diagram
+        name: Regenere le diagramme de classes (docs/class-diagram.md)
+        # Issue #140 : docs/class-diagram.md est GENERE depuis src/ (analyse
+        # statique, stdlib uniquement -- aucune dependance a installer). Si le
+        # fichier change, pre-commit fait echouer le commit (comme `ruff --fix`) :
+        # `git add docs/class-diagram.md` puis recommiter. Le script lui-meme est
+        # dans `files` : modifier le generateur regenere aussi le diagramme.
+        entry: python3 scripts/generate_class_diagram.py
+        language: system
+        pass_filenames: false
+        files: ^(src/.*\.py|scripts/generate_class_diagram\.py)$
