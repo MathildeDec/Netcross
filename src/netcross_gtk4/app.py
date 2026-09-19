@@ -25,6 +25,9 @@ pcap_parser.iter_live, jusqu'ici orpheline, aucune CLI ne l'exposait) :
       de capture, arret propre via un stop_event partage qui termine le
       sous-processus tshark directement (reactif meme sans trafic sur
       l'interface -- cf. pcap_parser.ek_source._terminate_on_event)
+    - une ligne peut porter plusieurs interfaces d'une meme machine
+      ("eth0, eth1") : chacune devient un point "NOM:interface" (Job 48,
+      voir netcross_gtk4.live_capture_points)
     - arret manuel (bouton) ou automatique (duree max optionnelle)
     - TLS/QUIC indisponibles dans ce mode : ces diagnostics relisent les
       fichiers passes a --capture, et une capture live n'en produit pas
@@ -70,6 +73,7 @@ from netcross_gtk4.dashboard_context import (  # noqa: E402
     select_point,
     select_protocol,
 )
+from netcross_gtk4.live_capture_points import duplicate_labels, expand_live_points  # noqa: E402
 from netcross_gtk4.stats_view import (  # noqa: E402
     build_events_by_segment,
     build_query,
@@ -229,9 +233,11 @@ class LiveCaptureRow(Gtk.Box):
     """Une ligne = un point de capture EN DIRECT (nom + interface + filtre
     BPF optionnel), reordonnable -- pendant de CaptureRow pour la source
     live plutot que fichier. Pas de chemin : rien a choisir via un
-    selecteur de fichiers, les champs sont editables directement."""
+    selecteur de fichiers, les champs sont editables directement. Le champ
+    interface accepte plusieurs interfaces separees par des virgules : la
+    ligne represente alors une machine, chaque interface un point."""
 
-    def __init__(self, default_label, interface="", bpf_filter=""):
+    def __init__(self, default_label, interface="", bpf_filter="", on_change=None):
         super().__init__(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
         self.set_margin_top(4)
         self.set_margin_bottom(4)
@@ -246,11 +252,18 @@ class LiveCaptureRow(Gtk.Box):
 
         self.interface_entry = Gtk.Entry()
         self.interface_entry.set_text(interface)
+        if on_change is not None:
+            # une seule ligne "eth0, eth1" suffit a demarrer : la sensibilite du
+            # bouton depend du contenu du champ, pas seulement du nombre de lignes
+            self.interface_entry.connect("changed", lambda _entry: on_change())
         self.interface_entry.set_width_chars(10)
-        self.interface_entry.set_placeholder_text("eth0, wlan0...")
+        self.interface_entry.set_placeholder_text("eth0 ou eth0, eth1...")
         self.interface_entry.set_tooltip_text(
             "Nom de l'interface reseau a capturer (voir `tshark -D` ou "
-            "`ip link` pour lister les interfaces disponibles)"
+            "`ip link` pour lister les interfaces disponibles). Plusieurs "
+            "interfaces separees par des virgules (ex: eth0, eth1) sont "
+            "capturees simultanement : chacune devient un point "
+            "'NOM:interface', dans l'ordre saisi (= chemin physique reseau)."
         )
         self.interface_entry.set_hexpand(True)
         self.append(self.interface_entry)
@@ -429,7 +442,7 @@ class LiveCaptureListPanel(Gtk.Box):
     def add_row(self, default_label=None, interface="", bpf_filter=""):
         if default_label is None:
             default_label = f"POINT{len(self.rows()) + 1}"
-        row = LiveCaptureRow(default_label, interface, bpf_filter)
+        row = LiveCaptureRow(default_label, interface, bpf_filter, on_change=self._on_change)
         self.listbox.append(row)
         if self._on_change:
             self._on_change()
@@ -449,7 +462,8 @@ class LiveCaptureListPanel(Gtk.Box):
     def captures(self):
         """Liste de (label, interface, bpf_filter) dans l'ordre visuel
         courant -- meme role que CaptureListPanel.captures() pour la
-        source live."""
+        source live. `interface` est le texte brut du champ, qui peut
+        contenir plusieurs interfaces : voir expand_live_points()."""
         return [(row.label or f"POINT{i + 1}", row.interface, row.bpf_filter) for i, row in enumerate(self.rows())]
 
 
@@ -772,7 +786,8 @@ class MainWindow(Gtk.ApplicationWindow):
         if self.diff_check.get_active():
             ok = len(self.baseline_panel.rows()) >= 2 and len(self.current_panel.rows()) >= 2
         elif self.live_check.get_active():
-            ok = len(self.live_panel.rows()) >= 2
+            # points apres eclatement : une seule ligne "eth0, eth1" en donne deux
+            ok = len(expand_live_points(self.live_panel.captures())) >= 2
         else:
             ok = len(self.single_panel.rows()) >= 2
         self.run_btn.set_sensitive(ok)
@@ -1102,13 +1117,24 @@ class MainWindow(Gtk.ApplicationWindow):
     # marchent donc sans rien y changer.
 
     def _begin_live_capture(self):
-        rows_data = self.live_panel.captures()  # [(label, interface, bpf_filter), ...]
+        # une ligne a plusieurs interfaces ("eth0, eth1") est eclatee en un
+        # point par interface -- la suite (un thread par point, points_order,
+        # compteurs du journal) n'a ainsi rien a savoir du multi-interfaces.
+        rows_data = expand_live_points(self.live_panel.captures())  # [(label, interface, bpf_filter), ...]
         missing = [label for label, iface, _ in rows_data if not iface]
         if missing:
             self.stack.set_visible_child_name("log")
             self._log(
                 f"Interface manquante pour : {', '.join(missing)} -- "
                 f"capture annulee (renseignez une interface par point)."
+            )
+            return
+        duplicates = duplicate_labels(rows_data)
+        if duplicates:
+            self.stack.set_visible_child_name("log")
+            self._log(
+                f"Nom de point en double : {', '.join(duplicates)} -- "
+                f"capture annulee (un nom distinct par point de capture)."
             )
             return
 
