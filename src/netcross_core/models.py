@@ -118,6 +118,46 @@ class Pkt:
     # `threshold_ms` (port miroir qui renvoie le trafic, par exemple).
     # False par defaut : aucun constructeur existant n'a a le passer.
     is_duplicate: bool = False
+    # tcp.len : longueur de la charge utile TCP du segment (voir
+    # RawPacket.tcp_len pour la justification complete), None hors TCP ou quand
+    # l'information n'existe pas (paquets synthetiques de l'adaptateur NetFlow...).
+    tcp_len: int | None = None
+
+
+# Cause d'un trou de sequence TCP (SequenceGap.cause) -- criteres de
+# classification dans netcross_core.forensic.detect_sequence_gaps.
+SEQ_GAP_CAPTURE_DROP = "capture_drop"
+SEQ_GAP_NETWORK_LOSS = "network_loss"
+SEQ_GAP_INDETERMINATE = "indeterminate"
+
+
+@dataclass(slots=True)
+class SequenceGap:
+    """Trou dans la numerotation TCP d'un sens de connexion, vu a un point de
+    capture : les octets [start_seq, end_seq) n'ont jamais ete observes alors
+    que des octets posterieurs l'ont ete, et aucune retransmission ni paquet
+    hors-ordre ne les a combles avant la fin de la capture.
+
+    Les numeros de sequence sont les valeurs brutes du fil (32 bits, non
+    relatives). `ts` et `frame_number` designent le premier segment recu APRES
+    le trou (celui qui le revele). `cause` vaut SEQ_GAP_CAPTURE_DROP (octets
+    acquittes par le recepteur mais absents de la capture), SEQ_GAP_NETWORK_LOSS
+    (octets non acquittes, sans retransmission visible) ou SEQ_GAP_INDETERMINATE
+    (pas de retour exploitable du recepteur a ce point) ; `evidence` en donne la
+    justification lisible. Voir netcross_core.forensic.detect_sequence_gaps."""
+
+    point: str
+    src: str
+    sport: int
+    dst: str
+    dport: int
+    start_seq: int
+    end_seq: int
+    missing_bytes: int
+    ts: float
+    frame_number: int | None
+    cause: str
+    evidence: str
 
 
 @dataclass
@@ -315,6 +355,10 @@ class Report:
     rst_localized: dict[str, int] = field(default_factory=lambda: defaultdict(int))
     syn_no_synack: dict[str, int] = field(default_factory=lambda: defaultdict(int))
     syn_reply_missing: dict[str, int] = field(default_factory=lambda: defaultdict(int))
+    # Trous de sequence TCP (Job 42/issue #162) : octets jamais vus a un point de
+    # capture alors que des octets posterieurs l'ont ete, sans retransmission
+    # ulterieure -- alimente par netcross_core.forensic.detect_sequence_gaps.
+    sequence_gaps: list[SequenceGap] = field(default_factory=list)
     # -- decalage d'horloge (via handshakes TCP, hypothese de chemin symetrique) --
     clock_offset_samples: dict[tuple[str, str], list[float]] = field(default_factory=lambda: defaultdict(list))
     clock_offset_estimate: dict[tuple[str, str], tuple[float, float, int]] = field(default_factory=dict)
