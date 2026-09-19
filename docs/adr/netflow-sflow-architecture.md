@@ -6,8 +6,11 @@ Netcross analyse actuellement des captures pcap multi-points via tshark.
 Le chantier NetFlow/sFlow vise a accepter ces protocoles de collecte de flux
 comme source de donnees alternative aux captures paquet par paquet.
 
-**Statut : à cadrer avant de coder** — ce document est la decision
-d'architecture.
+**Statut : Phases 1 et 2 implementees** (voir `src/netcross_core/netflow/`
+et `tests/test_netflow_v5.py`) — parseur NetFlow v5 et adaptateur
+FlowRecord -> Pkt. Phases 3-5 (collecteur UDP live, NetFlow v9
+templates, sFlow v5) restent a faire, voir "Plan d'implementation"
+ci-dessous pour le detail phase par phase.
 
 ## Decision
 
@@ -79,11 +82,22 @@ un iterateur de Pkt (synthetiques pour NetFlow, reels pour pcap).
 
 ## Plan d'implementation
 
-1. **Phase 1** : parseur NetFlow v5 (le plus simple, format fixe)
-2. **Phase 2** : adaptateur FlowRecord -> Pkt + test d'integration avec
-   `correlate()` et `analyse()`
-3. **Phase 3** : collecteur UDP passif
-4. **Phase 4** : parseur NetFlow v9 (templates dynamiques)
-5. **Phase 5** : parseur sFlow v5
+1. **Phase 1 (fait)** : parseur NetFlow v5 (le plus simple, format fixe)
+   — `netflow_v5.py` : `parse_netflow_v5_packet()` (un datagramme) et
+   `iter_netflow_v5_file()` (mode fichier, rejeu de datagrammes
+   concatenes). En-tete et enregistrements decodes via `struct`,
+   erreurs fortes (`NetflowV5Error`) sur version inattendue ou
+   datagramme tronque plutot que des FlowRecord partiels.
+2. **Phase 2 (fait)** : adaptateur FlowRecord -> Pkt — `adapter.py` :
+   `flow_record_to_pkt()`/`flow_records_to_pkts()`. Tous les champs
+   Pkt non derivables d'un agregat sont mis a une valeur neutre
+   explicite (jamais devinee), voir docstring du module. Integration
+   directe avec `correlate()`/`analyse()` non testee ici (necessite un
+   vrai jeu de flux multi-flow representatif) : a valider en Phase 3
+   quand le mode collecteur permettra un test de bout en bout.
+3. **Phase 3 (a faire)** : collecteur UDP passif (`collector.py`,
+   `iter_netflow()` mirroir de `pcap_parser.capture.iter_live()`)
+4. **Phase 4 (a faire)** : parseur NetFlow v9 (templates dynamiques)
+5. **Phase 5 (a faire)** : parseur sFlow v5
 
 Chaque phase est cadrable en une session, testable independamment.
