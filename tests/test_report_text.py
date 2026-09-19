@@ -12,7 +12,8 @@ from conftest import make_pkt
 
 from netcross_core.analysis import analyse
 from netcross_core.correlate import correlate
-from netcross_core.report_text import print_report, write_detail_csv
+from netcross_core.models import PacketAnnotation
+from netcross_core.report_text import print_annotations, print_report, write_detail_csv
 
 
 def test_print_report_report_vide_ne_leve_pas(capsys):
@@ -431,3 +432,35 @@ def test_write_detail_csv_flux_absent_a_un_point_laisse_les_cellules_vides(tmp_p
     _header, row = rows[0], dict(zip(rows[0], rows[1]))
     assert row["B_dscp"] == ""
     assert row["B_ttl"] == ""
+
+
+# -- Etiquetage et signets sur paquets (Job 40/issue #160) -------------------
+
+
+def test_print_annotations_liste_vide_ne_leve_pas(capsys):
+    print_annotations([])
+    out = capsys.readouterr().out
+    assert "aucune annotation" in out
+
+
+def test_print_annotations_affiche_tag_et_trame(capsys):
+    annotations = [
+        PacketAnnotation(frame_number=7, tag="suspect", comment="a revoir"),
+        PacketAnnotation(frame_number=3, tag="suspect"),
+    ]
+    print_annotations(annotations)
+    out = capsys.readouterr().out
+    assert "[suspect] 2 paquet(s)" in out
+    assert "trame #7" in out
+    assert "trame #3" in out
+    assert "a revoir" in out
+
+
+def test_print_annotations_trie_par_numero_de_trame_dans_un_tag(capsys):
+    annotations = [
+        PacketAnnotation(frame_number=99, tag="x"),
+        PacketAnnotation(frame_number=1, tag="x"),
+    ]
+    print_annotations(annotations)
+    out = capsys.readouterr().out
+    assert out.index("trame #1") < out.index("trame #99")

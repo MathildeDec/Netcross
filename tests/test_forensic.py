@@ -11,8 +11,14 @@ from conftest import make_pkt
 
 from netcross_core.correlate import correlate
 from netcross_core.expert_model import EvidenceLink, ExpertEvent, Flow, PacketEvidence
-from netcross_core.forensic import ForensicIndex
-from netcross_core.models import Pkt
+from netcross_core.forensic import (
+    ForensicIndex,
+    annotations_by_tag,
+    annotations_sidecar_path,
+    read_annotations,
+    write_annotations,
+)
+from netcross_core.models import PacketAnnotation, Pkt
 
 
 def _pkt(**overrides) -> Pkt:
@@ -332,3 +338,54 @@ def test_event_to_flows_dedoublonne():
     idx = _build_index(packets=packets, events=[ev])
     result = idx.event_to_flows(ev)
     assert len(result) == 1
+
+
+# -- Etiquetage et signets sur paquets (Job 40/issue #160) -------------------
+
+
+def test_read_annotations_sans_sidecar_retourne_liste_vide(tmp_path):
+    """Aucun sidecar sur disque : pas une erreur, juste "pas d'annotation"
+    (critere d'acceptation explicite de l'issue #160)."""
+    capture = str(tmp_path / "capture.pcapng")
+    assert read_annotations(capture) == []
+
+
+def test_write_puis_read_annotations_persiste(tmp_path):
+    capture = str(tmp_path / "capture.pcapng")
+    annotations = [
+        PacketAnnotation(frame_number=12, tag="suspect", comment="retransmission etrange"),
+        PacketAnnotation(frame_number=42, tag="a-verifier", color="#ff0000"),
+    ]
+    write_annotations(capture, annotations)
+    reread = read_annotations(capture)
+    assert reread == annotations
+
+
+def test_write_annotations_ecrase_le_sidecar_precedent(tmp_path):
+    """write_annotations remplace integralement -- pas de fusion."""
+    capture = str(tmp_path / "capture.pcapng")
+    write_annotations(capture, [PacketAnnotation(frame_number=1, tag="premier")])
+    write_annotations(capture, [PacketAnnotation(frame_number=2, tag="second")])
+    reread = read_annotations(capture)
+    assert reread == [PacketAnnotation(frame_number=2, tag="second")]
+
+
+def test_annotations_sidecar_path_deduit_du_chemin_de_capture(tmp_path):
+    capture = str(tmp_path / "run1.pcapng")
+    assert annotations_sidecar_path(capture) == f"{capture}.annotations.json"
+
+
+def test_annotations_by_tag_regroupe():
+    annotations = [
+        PacketAnnotation(frame_number=1, tag="suspect"),
+        PacketAnnotation(frame_number=2, tag="suspect"),
+        PacketAnnotation(frame_number=3, tag="ok"),
+    ]
+    grouped = annotations_by_tag(annotations)
+    assert set(grouped.keys()) == {"suspect", "ok"}
+    assert len(grouped["suspect"]) == 2
+    assert len(grouped["ok"]) == 1
+
+
+def test_annotations_by_tag_liste_vide():
+    assert annotations_by_tag([]) == {}
