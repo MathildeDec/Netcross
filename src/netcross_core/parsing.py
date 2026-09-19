@@ -115,6 +115,7 @@ def _to_pkt(label: str, raw: RawPacket) -> Pkt:
         http_response_time_ms=raw.http_response_time_ms,
         http_content_type=raw.http_content_type,
         http_content_length=raw.http_content_length,
+        tcp_len=raw.tcp_len,
         expert_flags=raw.expert_flags,
         expert_details=raw.expert_details,
     )
