@@ -11,7 +11,7 @@
 > Il remplace l'ancienne section 3 de `docs/features-backlog.md`, tenue à la main, qui avait dérivé
 > (voir `docs/sessions/session-36.md`, issue #140).
 
-85 modules · 116 classes · 242 fonctions publiques de module.
+86 modules · 117 classes · 247 fonctions publiques de module.
 
 Conventions : `+` public, `-` privé (préfixe `_`) ; `int?` = `int | None` ; `list~str~` = `list[str]` ;
 `<<module>>` regroupe les fonctions publiques d'un module ; `A --> B : champ` = `A` a un champ annoté
@@ -33,7 +33,7 @@ flowchart TD
     CLI -->|"12 imports"| netcross_report
     CLI -->|"9 imports"| netcross_core
     netcross_gtk4 -->|"10 imports"| netcross_report
-    netcross_gtk4 -->|"15 imports"| netcross_core
+    netcross_gtk4 -->|"17 imports"| netcross_core
     netcross_report -->|"11 imports"| netcross_core
     netcross_core -->|"11 imports"| pcap_parser
 ```
@@ -255,6 +255,7 @@ classDiagram
 | `netcross_core.analysis` | coeur analytique : construit un Report a partir des flux correles (pertes, latence, TTL/topologie, QoS, fragmentation, saturation/bufferbloat, TCP avance, VLAN, decalage d'horloge, RTP, decomposition… |
 | `netcross_core.baseline_diff` | compare deux Report (avant/apres un correctif, site A / site B, ou toute paire de scenarios comparables) et produit des constats de regression/amelioration. |
 | `netcross_core.baseline_profile` | profil de reference dynamique construit a partir de l'historique SQLite (Job 12/issue #9, section 8.5 de FEATURES.md). |
+| `netcross_core.bpf_filters` | catalogue de filtres BPF predefinis et filtres sauvegardes par l'utilisateur (Job 47 / issue #167). |
 | `netcross_core.causality` | moteur de correlation causale (Session 3 de la section 13.3 de FEATURES.md, Job 4/issue #4). |
 | `netcross_core.client_diff` | comparaison "client vs client" : meme capture, memes points, seule la source (l'IP du poste) change. |
 | `netcross_core.compliance` | evaluateur de conformite, huitieme et neuvieme objets de contrat de la Session 0 (FEATURES.md section 13.3) : `ReferenceProfile`/`ComplianceResult` (netcross_core.expert_model). |
@@ -367,6 +368,16 @@ classDiagram
         +build_baseline_profile(metric, values) BaselineProfile
         +load_baseline_from_db(db_path, metric, label, limit) BaselineProfile?
         +load_all_baselines(db_path, label, limit) list~BaselineProfile~
+    }
+
+    %% ===== netcross_core.bpf_filters =====
+    class mod_netcross_core_bpf_filters["netcross_core.bpf_filters"] {
+        <<module>>
+        +default_bpf_filters_path() Path
+        +save_bpf_filters(filters, path) Path
+        +load_bpf_filters(path) list~BPFFilter~
+        +available_bpf_filters(path) list~BPFFilter~
+        +upsert_bpf_filter(new, path) list~BPFFilter~
     }
 
     %% ===== netcross_core.causality =====
@@ -1033,6 +1044,12 @@ classDiagram
         +str tag
         +str comment
         +str? color
+    }
+    class BPFFilter {
+        <<dataclass, frozen>>
+        +str name
+        +str expression
+        +str description
     }
 
     %% ===== netcross_core.naming =====
@@ -2066,6 +2083,7 @@ classDiagram
     }
     class LiveCaptureRow {
         <<Gtk.Box>>
+        +set_filters(filters)
         +label()
         +interface()
         +bpf_filter()
