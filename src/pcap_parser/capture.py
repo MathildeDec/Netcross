@@ -25,12 +25,14 @@ la taille.
 
 from __future__ import annotations
 
+import contextlib
 import math
 import os
 import re
 import shutil
 import subprocess
 import sys
+import tempfile
 import time
 from collections import deque
 from collections.abc import Iterator, Sequence
@@ -189,6 +191,136 @@ class CaptureRingBuffer:
     - max_duration_per_file : duree maximale en secondes avant rotation
       automatique (defaut 60.0)
     - extension : suffixe de fichier (defaut ".pcapng")
+    """
+
+    def __init__(
+        self,
+        directory: str,
+        prefix: str = "capture",
+        max_files: int = 10,
+        max_duration_per_file: float = 60.0,
+        extension: str = ".pcapng",
+    ) -> None:
+        if max_files < 1:
+            raise ValueError("max_files doit etre >= 1")
+        if max_duration_per_file <= 0:
+            raise ValueError("max_duration_per_file doit etre > 0")
+        self.directory = directory
+        self.prefix = prefix
+        self.max_files = max_files
+        self.max_duration_per_file = max_duration_per_file
+        self.extension = extension
+        self._files: deque[str] = deque()
+        self._rotation_started_ts: float | None = None
+        self._sequence = 0
+
+    @property
+    def files(self) -> tuple[str, ...]:
+        """Fichiers actuellement suivis, du plus ancien au plus recent."""
+        return tuple(self._files)
+
+    @property
+    def current_path(self) -> str | None:
+        """Chemin du fichier de capture courant (None avant la premiere rotation)."""
+        return self._files[-1] if self._files else None
+
+    def rotate(self, now: float | None = None) -> str:
+        """Ouvre immediatement un nouveau fichier de capture et le rend
+        courant, en supprimant le plus ancien si `max_files` est
+        depasse. Renvoie le chemin du nouveau fichier.
+
+        Le fichier est cree vide (touch) -- c'est a l'appelant d'y
+        ecrire reellement les paquets (voir docstring de la classe).
+        """
+        ts = time.time() if now is None else now
+        os.makedirs(self.directory, exist_ok=True)
+        self._sequence += 1
+        path = os.path.join(self.directory, f"{self.prefix}_{self._sequence:06d}{self.extension}")
+        Path(path).touch(exist_ok=True)
+        self._files.append(path)
+        self._rotation_started_ts = ts
+        self._prune()
+        return path
+
+    def maybe_rotate(self, now: float | None = None) -> str | None:
+        """Ouvre un nouveau fichier SEULEMENT si `max_duration_per_file`
+        secondes se sont ecoulees depuis la derniere rotation (ou si
+        aucune rotation n'a encore eu lieu). Renvoie le nouveau chemin,
+        ou None si la rotation n'etait pas encore necessaire -- pensee
+        pour etre appelee a chaque paquet/tick d'une boucle de capture
+        deja existante sans jamais la ralentir (voir LiveDiffEngine).
+        """
+        ts = time.time() if now is None else now
+        if self._rotation_started_ts is None or (ts - self._rotation_started_ts) >= self.max_duration_per_file:
+            return self.rotate(ts)
+        return None
+
+    def _prune(self) -> None:
+        """Supprime le(s) plus ancien(s) fichier(s) au-dela de max_files."""
+        while len(self._files) > self.max_files:
+            oldest = self._files.popleft()
+            with contextlib.suppress(FileNotFoundError):
+                os.remove(oldest)
+
+
+def _wireshark_tool_path(name: str) -> str:
+    """Chemin d'un outil de ligne de commande livre avec tshark (mergecap,
+    reordercap, editcap). Meme paquet systeme que tshark lui-meme : meme
+    exception et meme message d'installation que ek_source._tshark_path."""
+    path = shutil.which(name)
+    if path is None:
+        raise TsharkNotFoundError(
+            f"{name} introuvable dans le PATH -- installer le paquet "
+            "'tshark' (apt install tshark / dnf install wireshark-cli), "
+            "qui fournit aussi mergecap, reordercap et editcap."
+        )
+    return path
+
+
+def _run_wireshark_tool(args: list[str]) -> None:
+    proc = subprocess.run(args, capture_output=True, text=True, check=False)
+    if proc.returncode != 0:
+        raise TsharkError(
+            f"{os.path.basename(args[0])} a echoue (code {proc.returncode}) : {proc.stderr.strip()}",
+            returncode=proc.returncode,
+            stderr=proc.stderr,
+        )
+
+
+def merge_captures(paths: Sequence[str], output_path: str, dedup: bool = False) -> None:
+    """
+    Fusionne plusieurs fichiers de capture (pcap/pcapng, formats
+    melangeables) en UN seul fichier ordonne par timestamp de paquet.
+
+    Ne decode rien : simple enveloppe autour des outils livres avec
+    tshark -- mergecap (fusion), reordercap (garantie d'ordre) et,
+    seulement si dedup=True, editcap (deduplication). Le fichier de
+    sortie est en pcap classique si output_path se termine par ".pcap",
+    en pcapng sinon (format par defaut de mergecap). Il est ecrit de
+    facon atomique : en cas d'echec (outil absent, fichier illisible...),
+    output_path n'est ni cree ni modifie.
+
+    Alignement temporel : mergecap intercale deja les paquets par
+    timestamp, mais suppose que chaque fichier d'entree est LUI-MEME
+    ordonne ; reordercap est donc passe systematiquement ensuite, pour
+    que l'ordre global soit garanti meme si une entree ne l'etait pas
+    (captures ecrites par un tampon non FIFO, horloge qui recule...).
+    L'ordre des fichiers dans `paths` est sans effet sur le resultat.
+
+    dedup=True supprime les paquets de contenu identique ET de meme
+    timestamp (fenetre de temps nulle d'editcap) -- typiquement un meme
+    fichier fourni deux fois, ou deux segments qui se chevauchent sur la
+    meme horloge. Deux copies d'un meme paquet vues a deux points de
+    capture distincts portent des timestamps differents (horloges
+    differentes) et ne sont donc PAS considerees comme des doublons --
+    et une vraie retransmission (meme contenu, autre instant) est
+    toujours conservee : c'est exactement la donnee que l'analyse
+    multi-points cherche.
+
+    Leve ValueError (liste vide, ou sortie identique a une entree),
+    FileNotFoundError (entree absente ou repertoire de sortie inexistant),
+    TsharkNotFoundError (outil absent du PATH) ou TsharkError (l'outil a
+    echoue).
     """
     if not paths:
         raise ValueError("au moins un fichier de capture est requis pour la fusion")
