@@ -121,6 +121,11 @@ point de vue de l'utilisateur final, sauf usage direct en bibliothèque).
 
 - ✅ `parse_capture(path)` — décodage d'un fichier `.pcap`/`.pcapng`
 - ✅ `parse_captures_parallel(captures)` — un processus tshark par fichier
+- ✅ **Nouveau (Job 34, issue #154)** : `merge_captures(paths, output_path,
+  dedup=False)` — fusionne plusieurs fichiers `.pcap`/`.pcapng` (formats
+  mélangeables) en UN seul, ordonné par timestamp de paquet ; enveloppe
+  de `mergecap` + `reordercap` (+ `editcap -w 0` si `dedup=True`), sans
+  aucun décodage. Voir section 4, « fusion de captures PCAP — Job 34 ».
 - ✅ `iter_live(interface, bpf_filter, stop_event=None)` — capture en
   direct sur interface ; câblé depuis la GUI (mode "Capture en direct",
   voir `netcross_gtk4.app`), depuis `cross_capture_analyzer_cli.py`
@@ -1160,6 +1165,17 @@ point de vue de l'utilisateur final, sauf usage direct en bibliothèque).
   trient déjà explicitement en interne plutôt que de faire confiance à
   l'ordre de `all_packets`, voir `netcross_core.analysis`. Non applicable
   à `--live`/`--live-current` (pas de fichiers).
+- ✅ **Nouveau (Job 34, issue #154)** : `cross_capture_analyzer_cli.py
+  --merge SORTIE [--merge-dedup]` — fusionne tous les fichiers des
+  `--capture` en un seul fichier ordonné par timestamp (voir
+  `pcap_parser.capture.merge_captures`), puis s'arrête SANS lancer
+  d'analyse ; les `NOM=` sont ignorés (une capture fusionnée n'a plus de
+  notion de point). Refusé avec `--live` et avec les options
+  d'analyse/de rapport (`--pdf-report`, `--json-report`, `--detail-csv`,
+  `--history-db`, `--client-group`, `--redact`, `--triage`, `--tls`,
+  `--quic`, `--parallel`) plutôt qu'ignoré en silence ; `--merge-dedup`
+  exige `--merge`. Différent de `NOM=chemin1,chemin2` (Session 27) qui
+  concatène à la lecture sans produire de fichier.
 - ✅ `cross_capture_analyzer_cli.py` : `--capture`, `--order`,
   `--detail-csv`, `--nat-tolerant`, `--nat-window-ms`, `--bucket-ms`,
   `--rtp-clock-rate`, `--pdf-report`, `--parallel`, `--parallel-workers`,
@@ -1993,6 +2009,64 @@ classDiagram
 ## 4. Dette identifiée / reste à faire
 
 Classé par effort estimé (croissant), pour prioriser.
+
+### ✅ Nouvelle fonctionnalité ajoutée dans cette passe (fusion de captures PCAP — Job 34, issue #154)
+
+- **Constat de départ** : Netcross analysait des captures multi-points
+  mais ne pouvait pas les fusionner en un seul fichier — l'analyste qui
+  avait capturé à plusieurs endroits devait ouvrir chaque fichier
+  séparément, ou passer par `mergecap` à la main (la Session 27 avait
+  seulement rendu possible de *lire* plusieurs segments comme un point
+  continu, sans jamais produire de fichier).
+- **Livré** : `pcap_parser.capture.merge_captures(paths, output_path,
+  dedup=False)`, réexportée par `pcap_parser` et `netcross_core` (import
+  direct dans `netcross_core/__init__.py`, sans passer par l'adaptateur
+  `parsing.py` — aucune notion de label ici), et `--merge`/`--merge-dedup`
+  sur `cross_capture_analyzer_cli.py`.
+- **Choix de conception** :
+  - *Alignement temporel* : `mergecap` intercale par timestamp mais
+    suppose chaque entrée déjà ordonnée — `reordercap` est donc passé
+    systématiquement après, pour garantir l'ordre global (vérifié sur
+    une entrée volontairement désordonnée). L'ordre des fichiers dans
+    `paths` est sans effet.
+  - *Déduplication* : `editcap -w 0` (fenêtre de temps nulle), et NON
+    `editcap -d` — vérifié empiriquement : `-d` retire tout paquet de
+    contenu identique parmi les 5 précédents quel que soit son
+    timestamp, donc supprimerait de vraies retransmissions, exactement
+    la donnée que l'analyse cherche (`test_fusion_dedup_conserve_une_
+    retransmission_a_un_autre_instant` échoue avec `-d`). Limite
+    assumée et documentée : une même trame vue à deux points de capture
+    a des timestamps différents (horloges différentes) et n'est PAS
+    dédupliquée — la déduplication vise un fichier fourni deux fois ou
+    des segments qui se chevauchent sur la même horloge.
+  - *Format de sortie* : pcap classique si le nom finit par `.pcap`
+    (insensible à la casse), pcapng sinon (défaut de `mergecap`).
+  - *Écriture atomique* : intermédiaires dans un répertoire temporaire
+    du dossier de sortie, puis `os.replace` — un échec (outil absent,
+    fichier corrompu) ne crée ni ne modifie la sortie et ne laisse
+    aucun intermédiaire.
+  - *Erreurs* : `ValueError` (liste vide, sortie == entrée),
+    `FileNotFoundError` (entrée ou dossier de sortie absent),
+    `TsharkNotFoundError`/`TsharkError` (mêmes types que le reste de
+    `pcap_parser`) ; la CLI les convertit en message + code de sortie 1.
+  - *CLI* : `--merge` ne lance aucune analyse (une capture fusionnée
+    perd la notion de point) ; il est refusé avec `--live` et avec les
+    options d'analyse/de rapport plutôt que de les ignorer en silence.
+- **Validation** : `tests/test_merge_captures.py`, 35 tests — unitaires
+  (outils simulés : séquence d'outils, arguments, format, erreurs,
+  nettoyage) et d'intégration avec les vrais `mergecap`/`reordercap`/
+  `editcap` (2 pcap fusionnés → 6 paquets, dédup → 5, ordre, formats
+  mélangeables, fichier corrompu), ces derniers sautés si les outils
+  sont absents du `PATH`. Trois mutations vérifiées détectées (retrait
+  de `reordercap`, `-d` au lieu de `-w 0`, `mergecap -a`). `ruff`,
+  `lint-imports` verts ; `mypy` : aucune erreur sur les fichiers
+  modifiés. Échecs sans lien constatés sur `main` : `test_live_diff.py`
+  (2) et `test_class_diagram.py` (3, `docs/class-diagram.md` absent).
+- **Hors périmètre** : fenêtre de déduplication paramétrable (utile
+  pour deux points partageant une horloge NTP à la milliseconde près) ;
+  compte de paquets fusionnés/supprimés en retour de fonction ; câblage
+  de la fusion à `cross_capture_diff_cli.py`/GTK4 ; mention dans le
+  `README.md`.
 
 ### ✅ Nouvelle fonctionnalité ajoutée dans cette passe (extension du moteur d'EXÉCUTION aux CINQ règles à corrélation, lot complet — Session 69)
 
