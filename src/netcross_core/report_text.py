@@ -21,6 +21,21 @@ def print_report(r: Report):
     for p in r.points:
         print(f"  {p:15s} : {r.seen_count[p]}")
 
+    if r.duplicate_count:
+        # Job 41/issue #161 -- section absente si la detection n'a pas ete
+        # demandee ou n'a rien trouve : la sortie historique reste inchangee.
+        print("\n-- Doublons inter-captures (meme payload vu a deux points quasi simultanement) --")
+        for (a, b), n in sorted(r.duplicate_count.items()):
+            print(f"  {a} <-> {b} : {n} paquet(s) duplique(s)")
+        if r.duplicates_excluded:
+            print("  (ces doublons sont EXCLUS des compteurs, debits et de la correlation de ce rapport)")
+        else:
+            print(
+                "  ATTENTION : ces doublons sont ENCORE COMPTES dans les statistiques "
+                "ci-dessous (paquets/octets potentiellement doubles) -- "
+                "--exclude-duplicates les en retire."
+            )
+
     print("\n-- Topologie deduite (delta TTL + recouvrement de flux entre points) --")
     if r.topology_edges:
         for u, d, info in r.topology_edges:

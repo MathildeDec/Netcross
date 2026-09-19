@@ -28,9 +28,22 @@ def flow_key(pk: Pkt, nat_tolerant=False, nat_window_ms=200):
     return (pk.proto, pk.src, pk.sport, pk.dst, pk.dport, pk.key_id)
 
 
-def correlate(all_packets, nat_tolerant=False, nat_window_ms=200):
+def correlate(all_packets, nat_tolerant=False, nat_window_ms=200, exclude_duplicates=False):
+    """Groupe les paquets par cle de flux puis par point.
+
+    exclude_duplicates (Job 41/issue #161, defaut False -> comportement
+    historique inchange) : ignore les paquets marques `Pkt.is_duplicate`
+    par netcross_core.forensic.detect_cross_capture_duplicates() -- qui
+    doit donc avoir ete appelee AVANT. ATTENTION : un doublon exclu n'est
+    plus compte comme une presence de son flux a SON point. Si le point du
+    doublon n'a vu ce flux QUE via ce paquet, le flux y apparait comme
+    absent (et une perte sera rapportee en aval avec --order) : c'est le
+    prix de ne plus doubler les compteurs de paquets/octets.
+    """
     flows = defaultdict(dict)  # cle -> {point: [Pkt, ...]}
     for pk in all_packets:
+        if exclude_duplicates and pk.is_duplicate:
+            continue
         if pk.proto in ("ARP", "STP"):
             # ARP (Session 24) et STP (Session 25) sont tous les deux
             # diffuses/locaux par nature (RFC 826 pour ARP ; IEEE 802.1D,

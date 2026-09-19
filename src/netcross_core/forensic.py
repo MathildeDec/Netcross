@@ -28,6 +28,10 @@ Ce module est un CONSOMMATEUR des donnees deja calculees (Pkt, Flow,
 ExpertEvent) -- il ne recalcule rien, ne reparse aucune capture, et ne
 modifie pas les objets sources. L'index est construit en UNE passe sur
 chaque source a l'initialisation.
+
+Seule exception, definie juste avant la classe : detect_cross_capture_duplicates()
+(Job 41/issue #161) MARQUE `Pkt.is_duplicate` en place -- c'est son role,
+et elle est appelee AVANT correlate()/analyse(), pas sur leurs sorties.
 """
 
 from __future__ import annotations
@@ -39,6 +43,96 @@ from collections import defaultdict
 from netcross_core.correlate import flow_key
 from netcross_core.expert_model import ExpertEvent, Flow, PacketEvidence
 from netcross_core.models import PacketAnnotation, Pkt
+
+# -- Detection de doublons inter-captures (Job 41/issue #161) ---------------
+
+# Delta maximal (ms) entre deux observations du meme payload a deux points
+# differents pour les considerer comme UN doublon plutot que comme le meme
+# paquet vu successivement le long du chemin. Valeur volontairement basse :
+# une capture multi-points sert justement a voir le meme paquet a plusieurs
+# points, avec la latence qui les separe -- un seuil trop large marquerait
+# ce trafic normal comme doublon. A regler sous la plus petite latence
+# attendue entre deux points (voir detect_cross_capture_duplicates).
+DEFAULT_DUPLICATE_THRESHOLD_MS = 1.0
+
+
+def detect_cross_capture_duplicates(
+    packets: list[Pkt],
+    threshold_ms: float = DEFAULT_DUPLICATE_THRESHOLD_MS,
+) -> dict[tuple[str, str], int]:
+    """Detecte et marque les paquets dupliques entre points de capture.
+
+    Cas vise : un port miroir (SPAN) qui renvoie le meme trafic a deux
+    sondes, si bien que le meme paquet est capture deux fois presque
+    simultanement -- les compteurs de paquets/octets sont alors doubles.
+
+    Critere de doublon (Job 41) : meme `payload_hash` ET `ts` a moins de
+    `threshold_ms` d'un paquet DEJA vu a un AUTRE point. Le plus ancien
+    paquet du groupe est l'« original » ; le ou les suivants (a un autre
+    point, dans la fenetre) recoivent `is_duplicate = True`. A egalite
+    stricte de `ts`, l'ordre de la liste `packets` departage (tri stable).
+    Un doublon n'est compare qu'aux ORIGINAUX, jamais a un autre doublon :
+    pas de derive en chaine (A -> B a 0,9 ms -> C a 1,8 ms de A n'est pas
+    un doublon de C).
+
+    Ne compte jamais deux paquets d'un MEME point (c'est le domaine de la
+    detection de retransmissions, deja couverte ailleurs) ni les paquets
+    sans `payload_hash` (ACK purs, SYN...) -- sans contenu, rien ne permet
+    d'affirmer que deux paquets sont le meme.
+
+    LIMITE ASSUMEE : la seule difference entre un doublon et le meme paquet
+    vu en deux points successifs du chemin est le delai entre les deux
+    observations. Si la latence reelle entre deux points est inferieure a
+    `threshold_ms`, le trafic normal de ce segment sera marque doublon :
+    ajuster le seuil (et/ou ne pas activer la detection) en connaissance
+    de la topologie.
+
+    Effets de bord : REINITIALISE `is_duplicate` a False sur tous les
+    paquets de `packets` avant de recalculer (rappeler avec un autre seuil
+    ne laisse aucune marque perimee), puis marque les doublons en place --
+    contrairement a ForensicIndex, ce n'est pas un consommateur passif.
+
+    Retourne le nombre de doublons par paire de points NON ORDONNEE
+    (tuple trie alphabetiquement), forme attendue par
+    `Report.duplicate_count`. Dict vide si aucun doublon.
+
+    Raises ValueError si `threshold_ms` est negatif (0 est accepte et ne
+    detecte rien : le critere est un delta STRICTEMENT inferieur).
+    """
+    if threshold_ms < 0:
+        raise ValueError(f"threshold_ms doit etre >= 0, recu {threshold_ms!r}")
+
+    by_hash: dict[str, list[Pkt]] = defaultdict(list)
+    for pk in packets:
+        pk.is_duplicate = False
+        if pk.payload_hash is not None:
+            by_hash[pk.payload_hash].append(pk)
+
+    threshold_s = threshold_ms / 1000.0
+    counts: dict[tuple[str, str], int] = defaultdict(int)
+
+    for group in by_hash.values():
+        if len(group) < 2:
+            continue
+        group.sort(key=lambda pk: pk.ts)
+        # originaux encore dans la fenetre : trie par ts croissant, donc tout
+        # original trop ancien pour le paquet courant l'est aussi pour tous
+        # les suivants -- `start` ne fait qu'avancer (O(n) par groupe au
+        # lieu de O(n^2) sur un payload tres repete, ex: keepalive).
+        window: list[Pkt] = []
+        start = 0  # index du plus ancien original encore dans la fenetre
+        for pk in group:
+            while start < len(window) and pk.ts - window[start].ts >= threshold_s:
+                start += 1
+            original = next((o for o in window[start:] if o.point != pk.point), None)
+            if original is None:
+                window.append(pk)
+                continue
+            pk.is_duplicate = True
+            pair = (original.point, pk.point) if original.point <= pk.point else (pk.point, original.point)
+            counts[pair] += 1
+
+    return dict(counts)
 
 
 class ForensicIndex:
