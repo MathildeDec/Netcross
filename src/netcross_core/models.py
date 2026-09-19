@@ -378,6 +378,25 @@ class Report:
     http_objects: list[dict] = field(default_factory=list)
     # -- transactions applicatives (Job 23, §6.9/§6.10)
     application_transactions: list[dict] = field(default_factory=list)
+    # -- securite / detection passive de vulnerabilites (CVE-5, issue #139,
+    # parent #133). Deux listes de dicts a plat, sur le modele de
+    # http_objects/application_transactions ci-dessus, alimentees par les
+    # modules CVE-1 a CVE-4 (fingerprinting de versions, signatures
+    # d'exploits, alertes Expert Info, correlation CVE) et consommees par
+    # netcross_report.security_report -- le rapport consolide ne detecte
+    # rien lui-meme, il ne fait que regrouper et classer. Vides par defaut :
+    # tant qu'aucun module amont ne les renseigne, le rapport de securite
+    # est vide (jamais de constat invente).
+    #
+    # service_fingerprints : un dict par service detecte, cles `service`
+    # (obligatoire), `version`, `host`, `port`, `point`.
+    service_fingerprints: list[dict] = field(default_factory=list)
+    # security_findings : un dict par constat, cles `severity`
+    # (critique/elevee/moyenne/faible), `category` (exploit/anomalie/cve),
+    # `detail` ; pour une CVE, egalement `cve_id` et `cvss` ; `service`,
+    # `version`, `host`, `port`, `point` quand ils sont connus (ils
+    # servent a rattacher une CVE a un service detecte).
+    security_findings: list[dict] = field(default_factory=list)
     # -- topologie deduite (ordre + chemins multiples) --
     topology_edges: list[tuple[str, str, dict]] = field(default_factory=list)
     topology_ambiguous: list[tuple[str, str, str]] = field(default_factory=list)
