@@ -9,6 +9,13 @@ de dissection, juste une source differente (tshark -i au lieu de -r).
 merge_captures() (Job 34) est d'une autre nature : elle ne decode rien,
 elle fusionne plusieurs fichiers de capture en un seul via les outils
 de ligne de commande livres avec tshark (mergecap, reordercap, editcap).
+
+replay_capture() (Job 44) est egalement d'une autre nature : elle ne lit
+ni ne decode rien, elle EMET sur le reseau le contenu d'un fichier de
+capture via tcpreplay (paquet systeme distinct de tshark) -- rejeu de
+trafic controle pour tester un pare-feu, reproduire un probleme reseau
+ou valider une configuration QoS. Voir son docstring pour l'avertissement
+d'usage responsable.
 """
 
 from __future__ import annotations
@@ -235,3 +242,107 @@ def merge_captures(paths: Sequence[str], output_path: str, dedup: bool = False) 
             _run_wireshark_tool([editcap, "-w", "0", "-F", file_type, ordered, deduped])
             result = deduped
         os.replace(result, output_real)
+
+
+class TcpreplayNotFoundError(RuntimeError):
+    """tcpreplay n'est pas installe / pas dans le PATH.
+
+    tcpreplay n'est PAS livre avec le paquet tshark/wireshark (contrairement
+    a mergecap/reordercap/editcap ci-dessus) -- c'est un paquet systeme
+    distinct, d'ou une exception dediee plutot qu'une reutilisation de
+    TsharkNotFoundError."""
+
+
+class TcpreplayError(RuntimeError):
+    """tcpreplay a demarre mais a echoue (interface inconnue, permissions
+    insuffisantes, fichier de capture illisible...). Porte le code de
+    retour et stderr pour que l'appelant puisse construire un message
+    utile -- meme forme que TsharkError."""
+
+    def __init__(self, message: str, returncode: int | None = None, stderr: str = ""):
+        super().__init__(message)
+        self.returncode = returncode
+        self.stderr = stderr
+
+
+def _tcpreplay_path() -> str:
+    path = shutil.which("tcpreplay")
+    if path is None:
+        raise TcpreplayNotFoundError(
+            "tcpreplay introuvable dans le PATH -- installer le paquet "
+            "'tcpreplay' (apt install tcpreplay / dnf install tcpreplay)."
+        )
+    return path
+
+
+def _run_tcpreplay(args: list[str]) -> None:
+    proc = subprocess.run(args, capture_output=True, text=True, check=False)
+    if proc.returncode != 0:
+        raise TcpreplayError(
+            f"tcpreplay a echoue (code {proc.returncode}) : {proc.stderr.strip()}",
+            returncode=proc.returncode,
+            stderr=proc.stderr,
+        )
+
+
+def replay_capture(path: str, interface: str, speed: float | str = 1.0, loop: int = 1) -> None:
+    """
+    Rejoue un fichier de capture PCAP/PCAPNG sur une interface reseau via
+    tcpreplay, a vitesse controlee. Ne decode ni ne lit le contenu des
+    paquets -- simple enveloppe autour du binaire tcpreplay, comme
+    merge_captures() l'est pour mergecap/reordercap/editcap.
+
+    ATTENTION -- usage responsable : cette fonction EMET du trafic reseau
+    REEL sur `interface`. Ne jamais l'utiliser sur une interface connectee
+    a un reseau de production sans autorisation explicite : le rejeu peut
+    saturer un lien, declencher des alarmes de securite (IDS/IPS), ou
+    reemettre des paquets usurpant des adresses source qui ne sont pas les
+    votres. Reserver ce mecanisme a un banc de test isole (interface
+    loopback/veth/bridge dedie, environnement de laboratoire), sauf besoin
+    explicite et maitrise d'un rejeu sur un segment reel (test de
+    pare-feu, validation de configuration QoS).
+
+    path : fichier de capture a rejouer (pcap/pcapng).
+    interface : interface reseau de sortie (ex: "eth0") -- transmise a
+    tcpreplay via --intf1 (flag reellement expose par tcpreplay ; le nom
+    plus court "--intf" parfois vu dans la documentation utilisateur est
+    un raccourci informel, pas l'option de la commande elle-meme).
+
+    speed : vitesse de rejeu par rapport a la vitesse d'origine mesuree
+    par les timestamps du fichier (--multiplier de tcpreplay) : 1.0 =
+    vitesse d'origine (valeur par defaut), 0.5 = deux fois plus lent,
+    2.0 = deux fois plus rapide. Doit etre un nombre strictement positif,
+    ou la chaine "topspeed" (insensible a la casse) pour rejouer aussi
+    vite que l'interface/le noyau le permettent SANS respecter les
+    timestamps d'origine (--topspeed de tcpreplay).
+
+    loop : nombre de fois que le fichier est rejoue integralement (1 =
+    une seule passe, valeur par defaut -- --loop de tcpreplay). Doit etre
+    superieur ou egal a 1.
+
+    Leve ValueError si speed n'est ni un nombre strictement positif ni
+    "topspeed", ou si loop < 1 ; FileNotFoundError si `path` n'existe pas ;
+    TcpreplayNotFoundError si tcpreplay n'est pas installe ; TcpreplayError
+    si tcpreplay a demarre mais a echoue (code de retour non nul).
+    """
+    if not os.path.isfile(path):
+        raise FileNotFoundError(f"fichier de capture introuvable : {path}")
+    if loop < 1:
+        raise ValueError(f"loop doit etre >= 1 (recu {loop!r})")
+
+    topspeed = isinstance(speed, str) and speed.strip().lower() == "topspeed"
+    if not topspeed:
+        try:
+            speed = float(speed)
+        except (TypeError, ValueError):
+            raise ValueError(
+                f"speed doit etre un nombre strictement positif ou la chaine 'topspeed' (recu {speed!r})"
+            ) from None
+        if speed <= 0:
+            raise ValueError(f"speed doit etre strictement positif (recu {speed!r})")
+
+    tcpreplay = _tcpreplay_path()
+    args = [tcpreplay, f"--intf1={interface}", f"--loop={loop}"]
+    args.append("--topspeed" if topspeed else f"--multiplier={speed}")
+    args.append(path)
+    _run_tcpreplay(args)
