@@ -27,6 +27,13 @@ Prerequis :
       la bibliotheque standard)
     - --merge n'a besoin que des outils livres avec tshark (mergecap,
       reordercap, et editcap pour --merge-dedup)
+    - --replay necessite le paquet systeme 'tcpreplay' (apt install
+      tcpreplay / dnf install tcpreplay), DISTINCT de tshark -- non
+      installe par install.sh. ATTENTION : --replay EMET du trafic
+      reseau REEL sur l'interface indiquee -- voir l'avertissement
+      d'usage responsable dans pcap_parser.capture.replay_capture et
+      dans l'aide de --replay ci-dessous avant tout usage en dehors
+      d'un banc de test isole.
 
 Exemple d'utilisation (fichiers deja captures) :
     python3 cross_capture_analyzer_cli.py \
@@ -89,6 +96,14 @@ timestamp de paquet, sans lancer d'analyse -- les noms de points de
         --capture LAN=capture_lan.pcapng \
         --capture WAN=capture_wan.pcapng \
         --merge fusion.pcapng --merge-dedup
+
+Exemple d'utilisation (rejeu d'une capture sur une interface reseau, sans
+lancer d'analyse -- voir l'avertissement d'usage responsable ci-dessus et
+dans l'aide de --replay ; a n'utiliser que sur un banc de test isole sauf
+besoin explicite et maitrise d'un rejeu sur un segment reel) :
+    python3 cross_capture_analyzer_cli.py \
+        --capture LAB=capture_a_rejouer.pcapng \
+        --replay eth0 --replay-speed 0.5 --replay-loop 3
 """
 
 import argparse
@@ -110,6 +125,7 @@ from netcross_core import (
     print_client_comparison,
     print_report,
     redact_packets,
+    replay_capture,
     split_capture,
     write_client_diff_csv,
     write_detail_csv,
@@ -298,6 +314,38 @@ def _run_split(capture_specs, split_spec, output_dir):
         ext = os.path.splitext(segments[0])[1]
         print(f'  Pour les analyser comme un seul point : --capture "{label}=$(ls {label_dir}/*{ext} | paste -sd, -)"')
     return status
+
+
+def _run_replay(capture_specs, interface, speed, loop):
+    """--replay : rejoue UNE capture sur une interface reseau via tcpreplay
+    (voir pcap_parser.capture.replay_capture pour l'avertissement d'usage
+    responsable, la semantique de speed/loop et les exceptions levees).
+    Comme --merge/--split, ne lance aucune analyse ensuite. Contrairement
+    a --merge/--split, un seul fichier est accepte : rejouer plusieurs
+    fichiers a la fois n'a pas de sens pour tcpreplay (un seul flux emis,
+    un seul ordre de paquets possible) -- fusionner d'abord avec --merge
+    si plusieurs segments doivent etre rejoues comme un seul flux continu."""
+    paths = []
+    for spec in capture_specs:
+        _label, spec_paths = _parse_capture_spec(spec, "--capture")
+        paths.extend(spec_paths)
+    if len(paths) != 1:
+        print(
+            f"--replay necessite exactement un fichier de capture (recu {len(paths)} via --capture) -- "
+            "fusionnez d'abord plusieurs segments avec --merge si besoin.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    try:
+        replay_capture(paths[0], interface, speed=speed, loop=loop)
+    except (OSError, ValueError, RuntimeError) as e:
+        # OSError : fichier introuvable ; ValueError : speed/loop invalides ;
+        # RuntimeError : parent de TcpreplayNotFoundError/TcpreplayError
+        # (tcpreplay absent du PATH ou en echec) -- meme sortie propre que
+        # --merge/--split plutot qu'une trace Python.
+        print(f"--replay : {e}", file=sys.stderr)
+        sys.exit(1)
+    print(f"{paths[0]} rejoue sur {interface} (speed={speed}, loop={loop}).")
 
 
 def _run_live_captures(live_specs, duration):
@@ -639,6 +687,40 @@ def main():
         "conservees.",
     )
     ap.add_argument(
+        "--replay",
+        metavar="INTERFACE",
+        help="Rejoue le fichier passe a --capture (un seul, exactement) sur "
+        "l'interface reseau INTERFACE via tcpreplay, puis s'arrete SANS "
+        "lancer d'analyse. ATTENTION -- usage responsable : cette option "
+        "EMET du trafic reseau REEL sur INTERFACE ; ne jamais l'utiliser sur "
+        "une interface connectee a un reseau de production sans "
+        "autorisation explicite (saturation de lien, alarmes IDS/IPS, "
+        "paquets a adresse source usurpee). Reserver a un banc de test "
+        "isole sauf besoin explicite et maitrise d'un rejeu sur un segment "
+        "reel. Necessite le paquet systeme tcpreplay (distinct de tshark). "
+        "Incompatible avec --live/--merge/--split et avec les options "
+        "d'analyse/de rapport.",
+    )
+    ap.add_argument(
+        "--replay-speed",
+        default="1.0",
+        metavar="MULTIPLICATEUR|topspeed",
+        help="Avec --replay : vitesse de rejeu par rapport a la vitesse "
+        "d'origine mesuree par les timestamps du fichier (1.0 = vitesse "
+        "d'origine, valeur par defaut ; 0.5 = deux fois plus lent ; 2.0 = "
+        "deux fois plus rapide), ou la chaine 'topspeed' pour rejouer aussi "
+        "vite que l'interface/le noyau le permettent sans respecter les "
+        "timestamps d'origine.",
+    )
+    ap.add_argument(
+        "--replay-loop",
+        type=int,
+        default=1,
+        metavar="N",
+        help="Avec --replay : nombre de fois que le fichier est rejoue "
+        "integralement (defaut: 1, une seule passe). Doit etre >= 1.",
+    )
+    ap.add_argument(
         "--redact",
         action="store_true",
         help="Anonymise les adresses IP (RFC 5737/3849, plages de documentation) "
@@ -706,6 +788,17 @@ def main():
     if args.merge and args.split:
         print("--merge et --split sont exclusifs : fusionner OU decouper, pas les deux.", file=sys.stderr)
         sys.exit(1)
+    if args.replay and (args.merge or args.split):
+        print(
+            "--replay est exclusif avec --merge/--split : rejouer une seule "
+            "operation a la fois (fusionner/decouper d'abord si besoin, dans "
+            "une commande separee, puis rejouer le resultat).",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    if (args.replay_loop != 1 or args.replay_speed != "1.0") and not args.replay:
+        print("--replay-speed/--replay-loop necessitent --replay.", file=sys.stderr)
+        sys.exit(1)
     if args.merge_dedup and not args.merge:
         print("--merge-dedup necessite --merge.", file=sys.stderr)
         sys.exit(1)
@@ -763,6 +856,38 @@ def main():
             )
             sys.exit(1)
         sys.exit(_run_split(args.capture, args.split, args.split_output_dir or _SPLIT_DEFAULT_DIR))
+
+    if args.replay:
+        if not args.capture:
+            print("--replay necessite --capture (fichier a rejouer), pas --live.", file=sys.stderr)
+            sys.exit(1)
+        # --replay n'analyse rien : une option d'analyse/de rapport passee en
+        # meme temps serait ignoree en silence, on la refuse plutot (meme
+        # discipline que --merge/--split ci-dessus).
+        ignored = [
+            flag
+            for flag, given in (
+                ("--pdf-report", args.pdf_report),
+                ("--json-report", args.json_report),
+                ("--detail-csv", args.detail_csv),
+                ("--history-db", args.history_db),
+                ("--client-group", args.client_group),
+                ("--redact", args.redact),
+                ("--triage", args.triage),
+                ("--tls", args.tls),
+                ("--quic", args.quic),
+                ("--parallel", args.parallel),
+            )
+            if given
+        ]
+        if ignored:
+            print(
+                f"--replay rejoue un fichier sans lancer d'analyse : incompatible avec {', '.join(ignored)}.",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        _run_replay(args.capture, args.replay, args.replay_speed, args.replay_loop)
+        return
 
     # Table des noms (section 6.15) : optionnelle, chargee une fois pour
     # toutes les sorties (CSV detail + JSON). None si --names absent.
