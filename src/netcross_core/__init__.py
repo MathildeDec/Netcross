@@ -42,6 +42,7 @@ from netcross_core.parsing import (
     parse_capture,
     parse_captures_parallel,
     parse_live,
+    parse_live_multi,
     parse_rtp,
     parse_sip,
 )
@@ -87,6 +88,7 @@ __all__ = [
     "parse_capture",
     "parse_captures_parallel",
     "parse_live",
+    "parse_live_multi",
     "parse_rtp",
     "parse_sip",
     "print_client_comparison",

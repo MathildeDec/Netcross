@@ -5,7 +5,9 @@ en temps reel entre un baseline enregistre et une capture live.
 
 Ce module implemente la boucle de diff live :
 1. Charge un baseline (Report serialise) au demarrage.
-2. Capture en continu via pcap_parser.capture.iter_live().
+2. Capture en continu via pcap_parser.capture.iter_live() (une interface,
+   LiveDiffEngine.start) ou iter_live_multi() (plusieurs interfaces
+   simultanees, un label par interface, LiveDiffEngine.start_multi -- Job 48).
 3. Periodiquement (toutes les `eval_interval_seconds`), construit un Report
    partiel sur la fenetre glissante et le compare au baseline via
    netcross_core.baseline_diff.diff_reports().
@@ -14,7 +16,7 @@ Ce module implemente la boucle de diff live :
 5. Les AlarmEvent (raised/cleared) sont exposes via callback pour
    notification (email, syslog, etc. -- a brancher par l'appelant).
 
-Couche : netcross_core -- depend de pcap_parser (iter_live), baseline_diff,
+Couche : netcross_core -- depend de pcap_parser (iter_live/iter_live_multi), baseline_diff,
 alarms. Aucune dependance GUI/CLI.
 
 Limitations :
@@ -28,6 +30,7 @@ from __future__ import annotations
 
 import threading
 import time
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass, field
 from typing import Callable
 
@@ -103,8 +106,14 @@ class LiveDiffEngine:
         # ... plus tard ...
         engine.stop()
 
-    L'engine tourne dans un thread dedie. La capture live (iter_live)
-    s'execute dans le meme thread, et le diff est evalue periodiquement.
+    Plusieurs interfaces simultanees (Job 48) : un label par interface, a
+    faire correspondre aux noms de points du baseline.
+
+        engine.start_multi([("LAN", "eth0"), ("WAN", "eth1")])
+
+    L'engine tourne dans un thread dedie. La capture live (iter_live, ou
+    iter_live_multi qui fusionne ses propres threads de lecture) est
+    consommee dans ce thread, et le diff est evalue periodiquement.
     """
 
     def __init__(
@@ -123,16 +132,52 @@ class LiveDiffEngine:
         self._stop_event = threading.Event()
 
     def start(self, interface: str, bpf_filter: str | None = None) -> None:
-        """Demarre la capture live et la boucle de diff."""
+        """Demarre la capture live sur UNE interface et la boucle de diff.
+
+        Le point de capture des paquets porte le nom de l'interface.
+        """
+        self._ensure_idle()
+        self._stop_event.clear()
+        self._launch(self._run, interface, bpf_filter)
+
+    def start_multi(self, interfaces: Sequence[tuple[str, str]], bpf_filter: str | None = None) -> None:
+        """Demarre la capture live SIMULTANEE sur plusieurs interfaces.
+
+        `interfaces` : sequence de (label, interface), ex.
+        [("LAN", "eth0"), ("WAN", "eth1")]. Chaque paquet porte le label de
+        son interface comme point de capture -- pour un diff pertinent, ces
+        labels doivent correspondre aux noms de points du baseline
+        (`baseline_report.points`). `bpf_filter` s'applique a chaque
+        interface.
+
+        Une interface en erreur (tshark absent, interface inconnue,
+        permission...) interrompt toute la capture : le thread s'arrete
+        (`state.running` repasse a False) au lieu de comparer au baseline
+        des donnees auxquelles il manque un point.
+
+        Raises:
+            RuntimeError: si l'engine tourne deja.
+            ValueError: liste vide, label ou interface vide, label en
+                double -- levee ici, avant tout demarrage de thread.
+        """
+        from netcross_core.parsing import parse_live_multi
+
+        self._ensure_idle()
+        self._stop_event.clear()
+        # Cree ici (thread appelant) et non dans le thread de capture : les
+        # arguments invalides remontent immediatement a l'appelant, sans
+        # laisser l'engine a moitie demarre. Rien n'est lance avant la
+        # premiere iteration, faite par _consume dans le thread dedie.
+        packets = parse_live_multi(interfaces, stop_event=self._stop_event, bpf_filter=bpf_filter)
+        self._launch(self._consume, packets)
+
+    def _ensure_idle(self) -> None:
         if self.state.running:
             raise RuntimeError("LiveDiffEngine deja en cours")
+
+    def _launch(self, target: Callable[..., None], *args: object) -> None:
         self.state.running = True
-        self._stop_event.clear()
-        self._thread = threading.Thread(
-            target=self._run,
-            args=(interface, bpf_filter),
-            daemon=True,
-        )
+        self._thread = threading.Thread(target=target, args=args, daemon=True)
         self._thread.start()
 
     def stop(self, timeout: float = 5.0) -> None:
@@ -144,19 +189,26 @@ class LiveDiffEngine:
             self._thread = None
 
     def _run(self, interface: str, bpf_filter: str | None) -> None:
-        """Boucle principale : capture live + evaluation periodique du diff."""
+        """Capture sur une interface (start) : source de paquets pour _consume."""
         # parse_live (netcross_core.parsing) convertit deja les RawPacket de
         # pcap_parser.capture en Pkt etiquetes -- on n'a pas besoin de gerer
         # la conversion RawPacket -> Pkt manuellement.
         from netcross_core.parsing import parse_live
 
-        try:
-            for pkt in parse_live(
+        self._consume(
+            parse_live(
                 label=interface,
                 interface=interface,
                 bpf_filter=bpf_filter,
                 stop_event=self._stop_event,
-            ):
+            )
+        )
+
+    def _consume(self, packets: Iterable[Pkt]) -> None:
+        """Boucle principale : consomme les paquets live + evaluation
+        periodique du diff. Commune a start (une interface) et start_multi."""
+        try:
+            for pkt in packets:
                 if self._stop_event.is_set():
                     break
                 self._add_packet(pkt)
