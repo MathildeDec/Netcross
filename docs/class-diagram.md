@@ -11,7 +11,7 @@
 > Il remplace l'ancienne section 3 de `docs/features-backlog.md`, tenue à la main, qui avait dérivé
 > (voir `docs/sessions/session-36.md`, issue #140).
 
-84 modules · 112 classes · 237 fonctions publiques de module.
+85 modules · 116 classes · 242 fonctions publiques de module.
 
 Conventions : `+` public, `-` privé (préfixe `_`) ; `int?` = `int | None` ; `list~str~` = `list[str]` ;
 `<<module>>` regroupe les fonctions publiques d'un module ; `A --> B : champ` = `A` a un champ annoté
@@ -599,7 +599,7 @@ classDiagram
         +str evidence
         +str point
     }
-    class _FlowState {
+    class netcross_core_exploit_signatures__FlowState["netcross_core.exploit_signatures._FlowState"] {
         <<dataclass, slots>>
         +bool tls_ccs_seen
         +bool smb_mid64_tree_connect
@@ -966,6 +966,10 @@ classDiagram
         +dict~str, int~ syn_no_synack
         +dict~str, int~ syn_reply_missing
         +list~SequenceGap~ sequence_gaps
+        +dict~str, dict~str, int~~ expert_malformed
+        +list~dict~ expert_malformed_flows
+        +dict~str, dict~str, int~~ exploit_suspicion
+        +list~dict~ exploit_suspicion_flows
         +dict~tuple~str, str~, list~float~~ clock_offset_samples
         +dict~tuple~str, str~, tuple~float, float, int~~ clock_offset_estimate
         +dict~str, set~int~~ vlan_seen
@@ -1228,7 +1232,7 @@ classDiagram
     ExpertEvent --> PacketEvidence : packet_evidence
     Diagnosis --> ExpertEvent : events
     ComplianceResult --> ReferenceProfile : reference
-    _Detector --> _FlowState : run
+    _Detector --> netcross_core_exploit_signatures__FlowState : run
     FlowTimeline --> PacketTiming : packet_timings
     FlowTimeline --> ThroughputWindow : throughput_windows
     FlowView --> ExpertEvent : events
@@ -1388,6 +1392,7 @@ classDiagram
 | `netcross_core.security` | detection passive de vulnerabilites (CVE) sur traces reseau (issue #133, sous-tache CVE-4 / issue #138). |
 | `netcross_core.security.cpe_match` | conversion d'une banniere de service ("Apache/2.4.41") en identifiant CPE 2.3 et comparaison de versions avec les ranges NVD (versionStart/EndIncluding/Excluding). |
 | `netcross_core.security.cve_db` | base SQLite locale des CVE, peuplee par scripts/import_nvd.py depuis le flux NVD (voir ce script pour le format JSON attendu, API NVD 2.0). |
+| `netcross_core.security.expert_correlation` | issue #137 (CVE-3) : exploitation des alertes Expert Info de tshark pour DETECTER des tentatives d'exploitation (fuzzing, depassement de tampon, deni de service) a partir de paquets malformes et de… |
 
 ### Diagramme
 
@@ -1461,6 +1466,39 @@ classDiagram
         +get_cve(conn, cve_id) CveEntry?
         +query_by_product(conn, vendor, product) list~CveEntry~
         +count_cves(conn) int
+    }
+
+    %% ===== netcross_core.security.expert_correlation =====
+    class CorrelationThresholds {
+        <<dataclass, frozen>>
+        +int fuzzing_min_malformed
+        +float overflow_window_s
+        +int dos_min_events
+        +float dos_window_s
+    }
+    class AppAnomaly {
+        <<dataclass, frozen>>
+        +str protocol
+        +bool malformed
+    }
+    class CorrelationResult {
+        <<dataclass>>
+        +dict~str, dict~str, int~~ malformed_by_point
+        +list~dict~ malformed_flows
+        +list~dict~ suspicions
+    }
+    class netcross_core_security_expert_correlation__FlowState["netcross_core.security.expert_correlation._FlowState"] {
+        <<dataclass>>
+        +list~tuple~float, int?, str~~ malformed
+        +list~float~ tcp_anomalies
+    }
+    class mod_netcross_core_security_expert_correlation["netcross_core.security.expert_correlation"] {
+        <<module>>
+        +app_anomaly(pk) AppAnomaly?
+        +has_tcp_sequence_anomaly(pk) bool
+        +flow_id(pk) str
+        +correlate_expert_alerts(packets, thresholds) CorrelationResult
+        +apply_expert_correlation(r, all_packets, thresholds) None
     }
 
     %% ===== relations =====
