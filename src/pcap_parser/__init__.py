@@ -13,7 +13,7 @@ Organisation en couches (bas en haut) :
     tunnels     -- detection d'encapsulation + selection de la couche interne
     protocols   -- RTP / DHCP / SIP (lecture des champs deja disseques + repli heuristique)
     packet      -- assemblage du RawPacket normalise
-    capture     -- API publique : parse_capture / parse_captures_parallel / iter_live
+    capture     -- API publique : parse_capture / parse_captures_parallel / iter_live / iter_live_multi
 
 Utilisation typique :
 
@@ -22,9 +22,15 @@ Utilisation typique :
     packets = parse_capture("lan.pcapng")          # lecture d'un fichier
     for pkt in iter_live("eth0"):                    # capture en direct
         ...
+
+    from pcap_parser import iter_live_multi
+
+    # capture simultanee sur plusieurs interfaces : (label, interface)
+    for label, pkt in iter_live_multi([("LAN", "eth0"), ("WAN", "eth1")]):
+        ...
 """
 
-from pcap_parser.capture import iter_live, parse_capture, parse_captures_parallel
+from pcap_parser.capture import iter_live, iter_live_multi, parse_capture, parse_captures_parallel
 from pcap_parser.ek_source import TsharkError, TsharkNotFoundError
 from pcap_parser.packet import RawPacket
 from pcap_parser.protocols import (
@@ -50,6 +56,7 @@ __all__ = [
     "extract_tls_certificate",
     "is_tunnel",
     "iter_live",
+    "iter_live_multi",
     "parse_capture",
     "parse_captures_parallel",
     "select_innermost_layers",
