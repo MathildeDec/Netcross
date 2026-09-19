@@ -18,6 +18,40 @@ que pour un contexte spécifique, pas systématiquement.
   `import-linter`, `mypy` sur les fichiers modifiés) intégralement
   vert ; `pre-commit` non exécutable dans cet environnement (zip livré
   sans `.git` — voir Commandes qualité ci-dessous).
+- **Job 34 (issue #154)** : fusion de captures PCAP — nouvelle fonction
+  `pcap_parser.capture.merge_captures(paths, output_path, dedup=False)`
+  (réexportée par `pcap_parser` et `netcross_core`) et flags
+  `--merge SORTIE`/`--merge-dedup` de `cross_capture_analyzer_cli.py`.
+  Simple enveloppe des outils livrés avec tshark, sans décodage :
+  `mergecap` (intercale par timestamp) puis `reordercap` (garantit
+  l'ordre global même si une entrée n'était pas ordonnée), et `editcap
+  -w 0` seulement si `dedup=True` — fenêtre de temps NULLE, donc seuls
+  les paquets de contenu ET de timestamp identiques sont supprimés : une
+  retransmission (même contenu, autre instant) et une même trame vue par
+  deux horloges (points de capture distincts) sont conservées, ce qui est
+  voulu pour l'analyse multi-points. Sortie `.pcap` si le nom finit par
+  `.pcap`, pcapng sinon ; écriture atomique (intermédiaires dans un
+  répertoire temporaire du dossier de sortie puis `os.replace` — en cas
+  d'échec la sortie préexistante est intacte). `--merge` fusionne tous
+  les chemins des `--capture` (les `NOM=` sont ignorés) puis s'arrête
+  SANS analyser : combiné à une option d'analyse/de rapport (`--pdf-report`,
+  `--triage`, `--live`...) il est refusé plutôt que de l'ignorer en
+  silence. Distinct de la Session 27 (`NOM=chemin1,chemin2`), qui
+  concatène à la lecture sans produire de fichier fusionné.
+  `tests/test_merge_captures.py` : 35 tests (unitaires avec outils
+  simulés + intégration avec les vrais `mergecap`/`reordercap`/`editcap`,
+  sautés s'ils sont absents). `ruff check`/`ruff format --check`/
+  `lint-imports` verts ; `mypy` inchangé sur les fichiers de ce Job.
+  **Échecs sans lien avec ce Job, constatés sur `main`** :
+  `tests/test_live_diff.py::test_evaluate_diff_*` (`monkeypatch.setattr`
+  sur `"netcross_core.correlate.correlate"`, que la ré-exportation de la
+  fonction `correlate` masque) ; `tests/test_class_diagram.py` (3 tests,
+  `docs/class-diagram.md` absent alors que le test de fraîcheur l'exige) ;
+  et `uv run pytest` nu échoue à la collecte de `tests/test_application.py`
+  (`from tests.conftest import ...`) — `uv run python -m pytest` fonctionne.
+  Note : `src/cross_capture_analyzer_cli.py` est passé de `100755` à
+  `100644` lors du push par l'API (contenu identique) —
+  `git update-index --chmod=+x` pour le rétablir.
 - **Session 71** : nettoyage mypy complet (issue #28) — les 49 erreurs
   préexistantes sur 9 fichiers sont TOUTES résolues :
   `PYTHONPATH=src uv run mypy --ignore-missing-imports src/` renvoie
