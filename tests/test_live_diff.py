@@ -2,6 +2,7 @@
 
 Tests du module netcross_core.live_diff : conversion DiffFinding -> AlarmSignal,
 fenetre glissante, evaluation periodique du diff, integration AlarmEngine.
+Integration CaptureRingBuffer (Job 37, issue #157) en bas de fichier.
 """
 
 from netcross_core.alarms import AlarmConfig, AlarmEngine
@@ -13,6 +14,7 @@ from netcross_core.live_diff import (
     finding_to_alarm_signal,
 )
 from netcross_core.models import Pkt, Report
+from pcap_parser.capture import CaptureRingBuffer
 
 
 def _pkt(**kw):
@@ -339,3 +341,42 @@ def test_evaluate_diff_sans_divergence_ne_leve_aucune_alarme(monkeypatch):
     assert findings == []
     assert alarm_engine.active_alarms == []
     assert notified == []
+
+
+# -- Integration CaptureRingBuffer (Job 37, issue #157) -----------------------
+
+
+def test_add_packet_sans_ring_buffer_ne_fait_rien_de_special():
+    """Controle negatif : sans ring_buffer (defaut), _add_packet ne doit
+    ni planter ni creer quoi que ce soit -- comportement inchange."""
+    baseline = Report(points=["LAN"])
+    engine = LiveDiffEngine(baseline_report=baseline)
+    assert engine.ring_buffer is None
+    engine._add_packet(_pkt(ts=1.0, frame_number=1))  # ne doit pas lever
+
+
+def test_add_packet_avance_le_ring_buffer_sur_le_temps_de_capture(tmp_path):
+    """_add_packet doit avancer l'horloge du ring buffer sur pkt.ts (meme
+    convention que la fenetre glissante), sans interrompre le diff live :
+    plusieurs paquets espaces de plus de max_duration_per_file doivent
+    declencher des rotations successives."""
+    baseline = Report(points=["LAN"])
+    ring = CaptureRingBuffer(str(tmp_path), max_duration_per_file=5.0, max_files=2)
+    engine = LiveDiffEngine(baseline_report=baseline, ring_buffer=ring)
+
+    engine._add_packet(_pkt(ts=0.0, frame_number=1))
+    assert len(ring.files) == 1
+    first = ring.current_path
+
+    engine._add_packet(_pkt(ts=1.0, frame_number=2))  # < 5s depuis la 1ere rotation
+    assert ring.current_path == first
+    assert len(ring.files) == 1
+
+    engine._add_packet(_pkt(ts=6.0, frame_number=3))  # >= 5s -- nouvelle rotation
+    assert ring.current_path != first
+    assert len(ring.files) == 2  # max_files=2 pas encore depasse (2 fichiers ouverts au total)
+    assert first in ring.files
+
+    engine._add_packet(_pkt(ts=12.0, frame_number=4))  # encore une rotation -- 3e fichier
+    assert len(ring.files) == 2  # max_files atteint, le plus ancien a ete purge
+    assert first not in ring.files

@@ -112,6 +112,12 @@ class Pkt:
     # Pkt constructor/API.
     http_content_type: str | None = None
     http_content_length: int | None = None
+    # Doublon inter-captures (Job 41/issue #161) : renseigne UNIQUEMENT par
+    # netcross_core.forensic.detect_cross_capture_duplicates() -- un paquet
+    # deja vu a un AUTRE point avec le meme payload_hash a moins de
+    # `threshold_ms` (port miroir qui renvoie le trafic, par exemple).
+    # False par defaut : aucun constructeur existant n'a a le passer.
+    is_duplicate: bool = False
 
 
 @dataclass
@@ -374,29 +380,22 @@ class Report:
     # calcule nativement par tshark (http.time), pas recompose a la main
     # comme dns_duration_ms -- voir _analyse_http
     http_response_time_ms: list[float] = field(default_factory=list)
+    # -- doublons inter-captures (Job 41/issue #161, voir
+    # netcross_core.forensic.detect_cross_capture_duplicates) : nombre de
+    # paquets marques is_duplicate par paire de points NON ORDONNEE (tuple
+    # trie alphabetiquement -- meme paire quel que soit le point qui a vu le
+    # paquet en premier, sinon un port miroir dont l'ordre d'arrivee varie
+    # eclaterait le compte sur (A, B) et (B, A)). Vide si la detection n'a
+    # pas ete demandee.
+    duplicate_count: dict[tuple[str, str], int] = field(default_factory=lambda: defaultdict(int))
+    # True si analyse() a ete appelee avec exclude_duplicates=True : les
+    # doublons ci-dessus sont alors ABSENTS de tous les autres compteurs de
+    # ce Report (debit, flux, pertes...) ; False -> ils y sont comptes.
+    duplicates_excluded: bool = False
     # -- objets applicatifs HTTP (Job 25), metadonnees uniquement
     http_objects: list[dict] = field(default_factory=list)
     # -- transactions applicatives (Job 23, §6.9/§6.10)
     application_transactions: list[dict] = field(default_factory=list)
-    # -- securite / detection passive de vulnerabilites (CVE-5, issue #139,
-    # parent #133). Deux listes de dicts a plat, sur le modele de
-    # http_objects/application_transactions ci-dessus, alimentees par les
-    # modules CVE-1 a CVE-4 (fingerprinting de versions, signatures
-    # d'exploits, alertes Expert Info, correlation CVE) et consommees par
-    # netcross_report.security_report -- le rapport consolide ne detecte
-    # rien lui-meme, il ne fait que regrouper et classer. Vides par defaut :
-    # tant qu'aucun module amont ne les renseigne, le rapport de securite
-    # est vide (jamais de constat invente).
-    #
-    # service_fingerprints : un dict par service detecte, cles `service`
-    # (obligatoire), `version`, `host`, `port`, `point`.
-    service_fingerprints: list[dict] = field(default_factory=list)
-    # security_findings : un dict par constat, cles `severity`
-    # (critique/elevee/moyenne/faible), `category` (exploit/anomalie/cve),
-    # `detail` ; pour une CVE, egalement `cve_id` et `cvss` ; `service`,
-    # `version`, `host`, `port`, `point` quand ils sont connus (ils
-    # servent a rattacher une CVE a un service detecte).
-    security_findings: list[dict] = field(default_factory=list)
     # -- topologie deduite (ordre + chemins multiples) --
     topology_edges: list[tuple[str, str, dict]] = field(default_factory=list)
     topology_ambiguous: list[tuple[str, str, str]] = field(default_factory=list)

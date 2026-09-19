@@ -55,9 +55,8 @@ from pcap_parser.protocols import (
 from pcap_parser.tunnels import detect_encapsulation, is_tunnel, select_innermost_layers
 
 __all__ = [
+    "CaptureRingBuffer",
     "RawPacket",
-    "TcpreplayError",
-    "TcpreplayNotFoundError",
     "TsharkError",
     "TsharkNotFoundError",
     "compute_mos",
@@ -69,10 +68,8 @@ __all__ = [
     "extract_tls_certificate",
     "is_tunnel",
     "iter_live",
-    "merge_captures",
     "parse_capture",
     "parse_captures_parallel",
-    "replay_capture",
     "select_innermost_layers",
     "split_capture",
 ]

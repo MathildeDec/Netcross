@@ -115,6 +115,7 @@ from netcross_core import (
     write_detail_csv,
     write_redaction_map_csv,
 )
+from netcross_core.forensic import DEFAULT_DUPLICATE_THRESHOLD_MS, detect_cross_capture_duplicates
 
 
 def _parse_live_spec(spec):
@@ -444,6 +445,32 @@ def main():
         default=200,
         help="Largeur de la fenetre temporelle (ms) pour le mode --nat-tolerant "
         "(defaut: 200ms, a elargir si la latence WAN est plus grande)",
+    )
+    ap.add_argument(
+        "--detect-duplicates",
+        action="store_true",
+        help="Detecte les paquets dupliques entre points de capture (meme payload "
+        "vu a deux points a moins de --duplicate-threshold-ms, ex: port miroir "
+        "qui renvoie le trafic) et les rapporte par paire de points. Sans "
+        "--exclude-duplicates, les doublons restent comptes dans les statistiques.",
+    )
+    ap.add_argument(
+        "--exclude-duplicates",
+        action="store_true",
+        help="Exclut les doublons inter-captures du comptage (flux, pertes, debits, "
+        "paquets/octets) ; implique --detect-duplicates. Un doublon exclu n'est "
+        "plus compte comme presence de son flux a son point : un flux vu a ce "
+        "point uniquement via ce doublon y apparait comme absent.",
+    )
+    ap.add_argument(
+        "--duplicate-threshold-ms",
+        type=float,
+        default=DEFAULT_DUPLICATE_THRESHOLD_MS,
+        help="Ecart de temps maximal (ms) entre deux observations du meme payload "
+        "a deux points pour les considerer comme un doublon (defaut: "
+        f"{DEFAULT_DUPLICATE_THRESHOLD_MS:g}ms). A regler SOUS la plus petite latence "
+        "attendue entre deux points : au-dela, le trafic normal du segment est "
+        "marque doublon.",
     )
     ap.add_argument(
         "--bucket-ms",
@@ -884,7 +911,24 @@ def main():
             )
 
     points_order = args.order.split(",") if args.order else None
-    flows = correlate(all_packets, args.nat_tolerant, args.nat_window_ms)
+    duplicate_counts = None
+    if args.detect_duplicates or args.exclude_duplicates:
+        if args.duplicate_threshold_ms < 0:
+            print("--duplicate-threshold-ms doit etre >= 0.", file=sys.stderr)
+            sys.exit(1)
+        duplicate_counts = detect_cross_capture_duplicates(all_packets, args.duplicate_threshold_ms)
+        print(
+            f"\nDoublons inter-captures : {sum(duplicate_counts.values())} paquet(s) "
+            f"detecte(s) (seuil {args.duplicate_threshold_ms:g}ms)."
+        )
+    if args.exclude_duplicates:
+        # Depouille la liste UNE fois ici pour que TOUT l'aval (comparaison
+        # client, session objects, signaux d'expertise tshark...) voie la
+        # meme population que correlate()/analyse() -- pas seulement le
+        # rapport principal. exclude_duplicates est quand meme transmis
+        # plus bas : c'est lui qui renseigne Report.duplicates_excluded.
+        all_packets = [pk for pk in all_packets if not pk.is_duplicate]
+    flows = correlate(all_packets, args.nat_tolerant, args.nat_window_ms, args.exclude_duplicates)
     r = analyse(
         flows,
         points_order,
@@ -894,6 +938,8 @@ def main():
         args.rtp_clock_rate,
         args.topn_charts,
         idle_timeout_seconds=args.idle_timeout_seconds,
+        exclude_duplicates=args.exclude_duplicates,
+        duplicate_counts=duplicate_counts,
     )
     print_report(r)
 

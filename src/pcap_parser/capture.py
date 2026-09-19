@@ -31,8 +31,10 @@ import re
 import shutil
 import subprocess
 import sys
-import tempfile
+import time
+from collections import deque
 from collections.abc import Iterator, Sequence
+from pathlib import Path
 
 from pcap_parser.capfile import detect_format, format_extension, has_packets, split_by_size
 from pcap_parser.ek_source import TsharkError, TsharkNotFoundError, iter_ek_records
@@ -160,64 +162,33 @@ def iter_live(interface: str, bpf_filter: str | None = None, stop_event=None) ->
             yield pkt
 
 
-def _wireshark_tool_path(name: str) -> str:
-    """Chemin d'un outil de ligne de commande livre avec tshark (mergecap,
-    reordercap, editcap). Meme paquet systeme que tshark lui-meme : meme
-    exception et meme message d'installation que ek_source._tshark_path."""
-    path = shutil.which(name)
-    if path is None:
-        raise TsharkNotFoundError(
-            f"{name} introuvable dans le PATH -- installer le paquet "
-            "'tshark' (apt install tshark / dnf install wireshark-cli), "
-            "qui fournit aussi mergecap, reordercap et editcap."
-        )
-    return path
-
-
-def _run_wireshark_tool(args: list[str]) -> None:
-    proc = subprocess.run(args, capture_output=True, text=True, check=False)
-    if proc.returncode != 0:
-        raise TsharkError(
-            f"{os.path.basename(args[0])} a echoue (code {proc.returncode}) : {proc.stderr.strip()}",
-            returncode=proc.returncode,
-            stderr=proc.stderr,
-        )
-
-
-def merge_captures(paths: Sequence[str], output_path: str, dedup: bool = False) -> None:
+class CaptureRingBuffer:
     """
-    Fusionne plusieurs fichiers de capture (pcap/pcapng, formats
-    melangeables) en UN seul fichier ordonne par timestamp de paquet.
+    Ring buffer de fichiers de capture (Job 37, issue #157) : en capture
+    continue (Job 33 -- voir netcross_core.live_diff.LiveDiffEngine), le
+    fichier de capture grandirait indefiniment sans mecanisme de
+    rotation. Cette classe gere une serie de fichiers de taille/duree
+    fixe dans un repertoire donne, en supprimant automatiquement le plus
+    ancien des que `max_files` est depasse.
 
-    Ne decode rien : simple enveloppe autour des outils livres avec
-    tshark -- mergecap (fusion), reordercap (garantie d'ordre) et,
-    seulement si dedup=True, editcap (deduplication). Le fichier de
-    sortie est en pcap classique si output_path se termine par ".pcap",
-    en pcapng sinon (format par defaut de mergecap). Il est ecrit de
-    facon atomique : en cas d'echec (outil absent, fichier illisible...),
-    output_path n'est ni cree ni modifie.
+    Volontairement ignorante de tshark : elle ne capture ni n'ecrit
+    aucun paquet elle-meme (RawPacket/Pkt ne portent pas les octets
+    bruts de la trame -- voir pcap_parser.packet), elle decide juste
+    QUAND ouvrir un nouveau fichier (rotate()/maybe_rotate()) et QUELS
+    fichiers conserver sur disque. C'est a l'appelant d'ecrire
+    reellement dans current_path (typiquement un `tshark -w`/`-b`
+    pointe sur ce chemin, en reutilisant extra_args -- voir ek_source.
+    _build_args) -- ou, plus simplement, d'appeler maybe_rotate() en
+    continu depuis une boucle de capture deja existante, comme le fait
+    LiveDiffEngine._add_packet() sur son propre flux `iter_live`, pour
+    avancer l'horloge de rotation sans jamais interrompre le diff live.
 
-    Alignement temporel : mergecap intercale deja les paquets par
-    timestamp, mais suppose que chaque fichier d'entree est LUI-MEME
-    ordonne ; reordercap est donc passe systematiquement ensuite, pour
-    que l'ordre global soit garanti meme si une entree ne l'etait pas
-    (captures ecrites par un tampon non FIFO, horloge qui recule...).
-    L'ordre des fichiers dans `paths` est sans effet sur le resultat.
-
-    dedup=True supprime les paquets de contenu identique ET de meme
-    timestamp (fenetre de temps nulle d'editcap) -- typiquement un meme
-    fichier fourni deux fois, ou deux segments qui se chevauchent sur la
-    meme horloge. Deux copies d'un meme paquet vues a deux points de
-    capture distincts portent des timestamps differents (horloges
-    differentes) et ne sont donc PAS considerees comme des doublons --
-    et une vraie retransmission (meme contenu, autre instant) est
-    toujours conservee : c'est exactement la donnee que l'analyse
-    multi-points cherche.
-
-    Leve ValueError (liste vide, ou sortie identique a une entree),
-    FileNotFoundError (entree absente ou repertoire de sortie inexistant),
-    TsharkNotFoundError (outil absent du PATH) ou TsharkError (l'outil a
-    echoue).
+    - directory : repertoire de destination des fichiers (cree au besoin)
+    - prefix : prefixe du nom de fichier (defaut "capture")
+    - max_files : nombre maximal de fichiers conserves simultanement (defaut 10)
+    - max_duration_per_file : duree maximale en secondes avant rotation
+      automatique (defaut 60.0)
+    - extension : suffixe de fichier (defaut ".pcapng")
     """
     if not paths:
         raise ValueError("au moins un fichier de capture est requis pour la fusion")

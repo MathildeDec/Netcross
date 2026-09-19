@@ -13,9 +13,14 @@ Ce module implemente la boucle de diff live :
    le AlarmEngine (Job 26 / issue #26).
 5. Les AlarmEvent (raised/cleared) sont exposes via callback pour
    notification (email, syslog, etc. -- a brancher par l'appelant).
+6. Optionnellement, un CaptureRingBuffer (Job 37, issue #157) est avance
+   a chaque paquet -- voir _add_packet() -- pour faire tourner la
+   retention disque des fichiers de capture EN MEME TEMPS que le diff
+   live, sans jamais interrompre ce dernier (maybe_rotate() ne fait rien
+   tant que la duree max par fichier n'est pas atteinte).
 
-Couche : netcross_core -- depend de pcap_parser (iter_live), baseline_diff,
-alarms. Aucune dependance GUI/CLI.
+Couche : netcross_core -- depend de pcap_parser (iter_live,
+CaptureRingBuffer), baseline_diff, alarms. Aucune dependance GUI/CLI.
 
 Limitations :
 - Le diff porte sur les metriques du Report (pertes, latence, QoS...), pas
@@ -34,6 +39,7 @@ from typing import Callable
 from netcross_core.alarms import AlarmEngine, AlarmSignal
 from netcross_core.baseline_diff import DiffFinding, diff_reports
 from netcross_core.models import Pkt, Report
+from pcap_parser.capture import CaptureRingBuffer
 
 
 @dataclass(frozen=True)
@@ -113,11 +119,13 @@ class LiveDiffEngine:
         config: LiveDiffConfig | None = None,
         on_alarm: Callable[[object], None] | None = None,
         alarm_engine: AlarmEngine | None = None,
+        ring_buffer: CaptureRingBuffer | None = None,
     ):
         self.baseline = baseline_report
         self.config = config or LiveDiffConfig()
         self.on_alarm = on_alarm
         self.alarm_engine = alarm_engine or AlarmEngine([])
+        self.ring_buffer = ring_buffer
         self.state = LiveDiffState()
         self._thread: threading.Thread | None = None
         self._stop_event = threading.Event()
@@ -178,6 +186,12 @@ class LiveDiffEngine:
         # Limite de memoire
         if len(self.state.packets_in_window) > self.config.max_packets_per_window:
             self.state.packets_in_window = self.state.packets_in_window[-self.config.max_packets_per_window :]
+        # Ring buffer (Job 37) : avance l'horloge de rotation sur le temps de
+        # capture (pk.ts, meme convention que la fenetre glissante ci-dessus),
+        # sans jamais bloquer ni ralentir le diff live -- maybe_rotate() est un
+        # no-op tant que max_duration_per_file n'est pas atteint.
+        if self.ring_buffer is not None:
+            self.ring_buffer.maybe_rotate(pkt.ts)
 
     def _evaluate_diff(self) -> list[DiffFinding]:
         """Construit un Report partiel et le compare au baseline.

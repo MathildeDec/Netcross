@@ -297,6 +297,13 @@ def generate_json_report(
         "health_label": health_label(score),
         "http_objects": list(getattr(r, "http_objects", [])),
     }
+    if getattr(r, "duplicate_count", None):
+        # Job 41/issue #161 : cle absente si la detection n'a rien trouve
+        # (meme convention que voip_calls ci-dessous).
+        doc["duplicates"] = {
+            "excluded": bool(getattr(r, "duplicates_excluded", False)),
+            "by_pair": [{"points": list(pair), "count": count} for pair, count in sorted(r.duplicate_count.items())],
+        }
     if getattr(r, "voip_calls", None):
         doc["voip_calls"] = list(r.voip_calls)
         doc["voip_quality_distribution"] = dict(r.voip_quality_distribution)
