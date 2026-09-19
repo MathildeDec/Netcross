@@ -9,12 +9,15 @@ ERSPAN/CAPWAP) sans avoir a reimplementer les dissecteurs a la main.
 
 Organisation en couches (bas en haut) :
     ek_source   -- E/S : subprocess tshark, flux NDJSON (fichier ou live)
+    capfile     -- cadrage binaire pcap/pcapng (sans dissection), pour split_capture
     ek_fields   -- acces bas niveau aux champs EK (couches empilees, hex/int)
     tunnels     -- detection d'encapsulation + selection de la couche interne
     protocols   -- RTP / DHCP / SIP (lecture des champs deja disseques + repli heuristique)
     packet      -- assemblage du RawPacket normalise
-    capture     -- API publique : parse_capture / parse_captures_parallel /
-                   iter_live / CaptureRingBuffer (rotation de fichiers)
+    capture     -- API publique : parse_capture / parse_captures_parallel / iter_live
+                   (+ merge_captures : fusion de fichiers via mergecap, sans decodage
+                   + replay_capture : rejeu de trafic via tcpreplay, sans decodage
+                   + split_capture : decoupage par duree, nombre de paquets ou taille)
 
 Utilisation typique :
 
@@ -23,9 +26,22 @@ Utilisation typique :
     packets = parse_capture("lan.pcapng")          # lecture d'un fichier
     for pkt in iter_live("eth0"):                    # capture en direct
         ...
+
+    from pcap_parser import split_capture
+
+    segments = split_capture("gros.pcapng", "segments/", by="time", value=60.0)
 """
 
-from pcap_parser.capture import CaptureRingBuffer, iter_live, parse_capture, parse_captures_parallel
+from pcap_parser.capture import (
+    TcpreplayError,
+    TcpreplayNotFoundError,
+    iter_live,
+    merge_captures,
+    parse_capture,
+    parse_captures_parallel,
+    replay_capture,
+    split_capture,
+)
 from pcap_parser.ek_source import TsharkError, TsharkNotFoundError
 from pcap_parser.packet import RawPacket
 from pcap_parser.protocols import (
@@ -55,4 +71,5 @@ __all__ = [
     "parse_capture",
     "parse_captures_parallel",
     "select_innermost_layers",
+    "split_capture",
 ]

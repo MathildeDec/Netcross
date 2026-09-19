@@ -6,22 +6,37 @@ parse_capture(), parse_captures_parallel(), plus une nouveaute,
 iter_live(), pour la capture en direct sur interface -- meme pipeline
 de dissection, juste une source differente (tshark -i au lieu de -r).
 
-CaptureRingBuffer (Job 37, issue #157) complete l'orchestration cote
-retention disque : gere la rotation d'une serie de fichiers de capture
-(nombre max, duree max par fichier, suppression automatique du plus
-ancien) -- independamment de iter_live/parse_capture, voir sa docstring.
+merge_captures() (Job 34) est d'une autre nature : elle ne decode rien,
+elle fusionne plusieurs fichiers de capture en un seul via les outils
+de ligne de commande livres avec tshark (mergecap, reordercap, editcap).
+
+replay_capture() (Job 44) est egalement d'une autre nature : elle ne lit
+ni ne decode rien, elle EMET sur le reseau le contenu d'un fichier de
+capture via tcpreplay (paquet systeme distinct de tshark) -- rejeu de
+trafic controle pour tester un pare-feu, reproduire un probleme reseau
+ou valider une configuration QoS. Voir son docstring pour l'avertissement
+d'usage responsable.
+
+split_capture() (Job 35) fait l'inverse de merge_captures : elle decoupe
+UN fichier en segments (par duree, nombre de paquets ou taille), via
+editcap pour les deux premiers criteres et via pcap_parser.capfile pour
+la taille.
 """
 
 from __future__ import annotations
 
-import contextlib
+import math
 import os
+import re
+import shutil
+import subprocess
 import sys
 import time
 from collections import deque
 from collections.abc import Iterator, Sequence
 from pathlib import Path
 
+from pcap_parser.capfile import detect_format, format_extension, has_packets, split_by_size
 from pcap_parser.ek_source import TsharkError, TsharkNotFoundError, iter_ek_records
 from pcap_parser.packet import RawPacket, build_packet
 
@@ -175,72 +190,254 @@ class CaptureRingBuffer:
       automatique (defaut 60.0)
     - extension : suffixe de fichier (defaut ".pcapng")
     """
+    if not paths:
+        raise ValueError("au moins un fichier de capture est requis pour la fusion")
+    output_real = os.path.realpath(output_path)
+    for path in paths:
+        if not os.path.isfile(path):
+            raise FileNotFoundError(f"fichier de capture introuvable : {path}")
+        if os.path.realpath(path) == output_real:
+            raise ValueError(f"le fichier de sortie ne peut pas etre aussi une entree de la fusion : {path}")
 
-    def __init__(
-        self,
-        directory: str,
-        prefix: str = "capture",
-        max_files: int = 10,
-        max_duration_per_file: float = 60.0,
-        extension: str = ".pcapng",
-    ) -> None:
-        if max_files < 1:
-            raise ValueError("max_files doit etre >= 1")
-        if max_duration_per_file <= 0:
-            raise ValueError("max_duration_per_file doit etre > 0")
-        self.directory = directory
-        self.prefix = prefix
-        self.max_files = max_files
-        self.max_duration_per_file = max_duration_per_file
-        self.extension = extension
-        self._files: deque[str] = deque()
-        self._rotation_started_ts: float | None = None
-        self._sequence = 0
+    output_dir = os.path.dirname(output_real)
+    if not os.path.isdir(output_dir):
+        raise FileNotFoundError(f"repertoire de sortie introuvable : {output_dir}")
 
-    @property
-    def files(self) -> tuple[str, ...]:
-        """Fichiers actuellement suivis, du plus ancien au plus recent."""
-        return tuple(self._files)
+    mergecap = _wireshark_tool_path("mergecap")
+    reordercap = _wireshark_tool_path("reordercap")
+    editcap = _wireshark_tool_path("editcap") if dedup else None
 
-    @property
-    def current_path(self) -> str | None:
-        """Chemin du fichier de capture courant (None avant la premiere rotation)."""
-        return self._files[-1] if self._files else None
+    file_type = "pcap" if output_path.lower().endswith(".pcap") else "pcapng"
+    # Intermediaires dans le repertoire de sortie (meme systeme de fichiers)
+    # pour que le os.replace final soit atomique.
+    with tempfile.TemporaryDirectory(dir=output_dir, prefix=".netcross-merge-") as tmp:
+        merged = os.path.join(tmp, "merged")
+        _run_wireshark_tool([mergecap, "-F", file_type, "-w", merged, *paths])
+        ordered = os.path.join(tmp, "ordered")
+        _run_wireshark_tool([reordercap, merged, ordered])
+        result = ordered
+        if editcap is not None:
+            deduped = os.path.join(tmp, "deduped")
+            _run_wireshark_tool([editcap, "-w", "0", "-F", file_type, ordered, deduped])
+            result = deduped
+        os.replace(result, output_real)
 
-    def rotate(self, now: float | None = None) -> str:
-        """Ouvre immediatement un nouveau fichier de capture et le rend
-        courant, en supprimant le plus ancien si `max_files` est
-        depasse. Renvoie le chemin du nouveau fichier.
 
-        Le fichier est cree vide (touch) -- c'est a l'appelant d'y
-        ecrire reellement les paquets (voir docstring de la classe).
-        """
-        ts = time.time() if now is None else now
-        os.makedirs(self.directory, exist_ok=True)
-        self._sequence += 1
-        path = os.path.join(self.directory, f"{self.prefix}_{self._sequence:06d}{self.extension}")
-        Path(path).touch(exist_ok=True)
-        self._files.append(path)
-        self._rotation_started_ts = ts
-        self._prune()
-        return path
+class TcpreplayNotFoundError(RuntimeError):
+    """tcpreplay n'est pas installe / pas dans le PATH.
 
-    def maybe_rotate(self, now: float | None = None) -> str | None:
-        """Ouvre un nouveau fichier SEULEMENT si `max_duration_per_file`
-        secondes se sont ecoulees depuis la derniere rotation (ou si
-        aucune rotation n'a encore eu lieu). Renvoie le nouveau chemin,
-        ou None si la rotation n'etait pas encore necessaire -- pensee
-        pour etre appelee a chaque paquet/tick d'une boucle de capture
-        deja existante sans jamais la ralentir (voir LiveDiffEngine).
-        """
-        ts = time.time() if now is None else now
-        if self._rotation_started_ts is None or (ts - self._rotation_started_ts) >= self.max_duration_per_file:
-            return self.rotate(ts)
-        return None
+    tcpreplay n'est PAS livre avec le paquet tshark/wireshark (contrairement
+    a mergecap/reordercap/editcap ci-dessus) -- c'est un paquet systeme
+    distinct, d'ou une exception dediee plutot qu'une reutilisation de
+    TsharkNotFoundError."""
 
-    def _prune(self) -> None:
-        """Supprime le(s) plus ancien(s) fichier(s) au-dela de max_files."""
-        while len(self._files) > self.max_files:
-            oldest = self._files.popleft()
-            with contextlib.suppress(FileNotFoundError):
-                os.remove(oldest)
+
+class TcpreplayError(RuntimeError):
+    """tcpreplay a demarre mais a echoue (interface inconnue, permissions
+    insuffisantes, fichier de capture illisible...). Porte le code de
+    retour et stderr pour que l'appelant puisse construire un message
+    utile -- meme forme que TsharkError."""
+
+    def __init__(self, message: str, returncode: int | None = None, stderr: str = ""):
+        super().__init__(message)
+        self.returncode = returncode
+        self.stderr = stderr
+
+
+def _tcpreplay_path() -> str:
+    path = shutil.which("tcpreplay")
+    if path is None:
+        raise TcpreplayNotFoundError(
+            "tcpreplay introuvable dans le PATH -- installer le paquet "
+            "'tcpreplay' (apt install tcpreplay / dnf install tcpreplay)."
+        )
+    return path
+
+
+def _run_tcpreplay(args: list[str]) -> None:
+    proc = subprocess.run(args, capture_output=True, text=True, check=False)
+    if proc.returncode != 0:
+        raise TcpreplayError(
+            f"tcpreplay a echoue (code {proc.returncode}) : {proc.stderr.strip()}",
+            returncode=proc.returncode,
+            stderr=proc.stderr,
+        )
+
+
+def replay_capture(path: str, interface: str, speed: float | str = 1.0, loop: int = 1) -> None:
+    """
+    Rejoue un fichier de capture PCAP/PCAPNG sur une interface reseau via
+    tcpreplay, a vitesse controlee. Ne decode ni ne lit le contenu des
+    paquets -- simple enveloppe autour du binaire tcpreplay, comme
+    merge_captures() l'est pour mergecap/reordercap/editcap.
+
+    ATTENTION -- usage responsable : cette fonction EMET du trafic reseau
+    REEL sur `interface`. Ne jamais l'utiliser sur une interface connectee
+    a un reseau de production sans autorisation explicite : le rejeu peut
+    saturer un lien, declencher des alarmes de securite (IDS/IPS), ou
+    reemettre des paquets usurpant des adresses source qui ne sont pas les
+    votres. Reserver ce mecanisme a un banc de test isole (interface
+    loopback/veth/bridge dedie, environnement de laboratoire), sauf besoin
+    explicite et maitrise d'un rejeu sur un segment reel (test de
+    pare-feu, validation de configuration QoS).
+
+    path : fichier de capture a rejouer (pcap/pcapng).
+    interface : interface reseau de sortie (ex: "eth0") -- transmise a
+    tcpreplay via --intf1 (flag reellement expose par tcpreplay ; le nom
+    plus court "--intf" parfois vu dans la documentation utilisateur est
+    un raccourci informel, pas l'option de la commande elle-meme).
+
+    speed : vitesse de rejeu par rapport a la vitesse d'origine mesuree
+    par les timestamps du fichier (--multiplier de tcpreplay) : 1.0 =
+    vitesse d'origine (valeur par defaut), 0.5 = deux fois plus lent,
+    2.0 = deux fois plus rapide. Doit etre un nombre strictement positif,
+    ou la chaine "topspeed" (insensible a la casse) pour rejouer aussi
+    vite que l'interface/le noyau le permettent SANS respecter les
+    timestamps d'origine (--topspeed de tcpreplay).
+
+    loop : nombre de fois que le fichier est rejoue integralement (1 =
+    une seule passe, valeur par defaut -- --loop de tcpreplay). Doit etre
+    superieur ou egal a 1.
+
+    Leve ValueError si speed n'est ni un nombre strictement positif ni
+    "topspeed", ou si loop < 1 ; FileNotFoundError si `path` n'existe pas ;
+    TcpreplayNotFoundError si tcpreplay n'est pas installe ; TcpreplayError
+    si tcpreplay a demarre mais a echoue (code de retour non nul).
+    """
+    if not os.path.isfile(path):
+        raise FileNotFoundError(f"fichier de capture introuvable : {path}")
+    if loop < 1:
+        raise ValueError(f"loop doit etre >= 1 (recu {loop!r})")
+
+    topspeed = isinstance(speed, str) and speed.strip().lower() == "topspeed"
+    if not topspeed:
+        try:
+            speed = float(speed)
+        except (TypeError, ValueError):
+            raise ValueError(
+                f"speed doit etre un nombre strictement positif ou la chaine 'topspeed' (recu {speed!r})"
+            ) from None
+        if speed <= 0:
+            raise ValueError(f"speed doit etre strictement positif (recu {speed!r})")
+
+    tcpreplay = _tcpreplay_path()
+    args = [tcpreplay, f"--intf1={interface}", f"--loop={loop}"]
+    args.append("--topspeed" if topspeed else f"--multiplier={speed}")
+    args.append(path)
+    _run_tcpreplay(args)
+
+
+# -- split_capture -------------------------------------------------------------
+
+SPLIT_MODES = ("time", "count", "size")
+
+
+def _format_seconds(value: float) -> str:
+    """60.0 -> "60", 0.5 -> "0.5" : evite de passer "60.0" a editcap alors
+    qu'un entier suffit (les versions anciennes d'editcap n'acceptent que
+    des secondes entieres pour -i)."""
+    return str(int(value)) if float(value).is_integer() else repr(float(value))
+
+
+def _check_split_args(by: str, value: float) -> None:
+    if by not in SPLIT_MODES:
+        raise ValueError(f"by doit valoir l'un de {SPLIT_MODES} (recu : {by!r})")
+    if isinstance(value, bool) or not isinstance(value, (int, float)) or not math.isfinite(value) or value <= 0:
+        raise ValueError(f"value doit etre un nombre > 0 (recu : {value!r})")
+    if by != "time" and not float(value).is_integer():
+        raise ValueError(f"by={by!r} exige une valeur entiere (recu : {value!r})")
+
+
+# <stem>_<NNNNN>[_<YYYYMMDDhhmmss>].pcap|pcapng : nommage d'editcap (avec
+# horodatage) et du mode size (sans). NNNNN peut depasser 5 chiffres au-dela
+# de 99999 segments, d'ou \d{5,} et le tri numerique dans _list_segments.
+def _list_segments(output_dir: str, stem: str) -> list[str]:
+    pattern = re.compile(re.escape(stem) + r"_(\d{5,})(?:_\d{14})?\.pcap(?:ng)?")
+    found = []
+    for name in os.listdir(output_dir):
+        m = pattern.fullmatch(name)
+        if m:
+            found.append((int(m.group(1)), os.path.join(output_dir, name)))
+    return [path for _index, path in sorted(found)]
+
+
+def split_capture(path: str, output_dir: str, by: str = "time", value: float = 60.0) -> list[str]:
+    """
+    Decoupe la capture `path` (pcap ou pcapng) en segments plus petits
+    dans `output_dir` (cree si absent) et renvoie la liste des chemins
+    crees, dans l'ordre chronologique -- directement utilisable comme
+    NOM=seg1,seg2,... pour --capture (voir cross_capture_analyzer_cli).
+
+    `by` choisit le critere, `value` sa valeur (son unite depend de `by`) :
+      "time"  -- value secondes par segment (float accepte, ex : 60.0).
+                 Les intervalles partent du PREMIER paquet de la capture.
+                 Wrapper autour de `editcap -i`.
+      "count" -- value paquets par segment (entier, ex : 10000).
+                 Wrapper autour de `editcap -c`.
+      "size"  -- value OCTETS au plus par fichier segment (entier, ex :
+                 100_000_000 ; en-tetes recopies compris). editcap ne sait
+                 pas decouper par taille : realise ici en une passe (voir
+                 pcap_parser.capfile), pcap/pcapng non compresse uniquement.
+                 Un segment contient toujours au moins un paquet, donc un
+                 paquet plus gros que la limite depasse seul sa limite.
+
+    Le format d'entree est conserve (pcap -> pcap, pcapng -> pcapng, pcap a
+    horodatage nanoseconde inclus) ; un format non reconnu (ex : .gz) est
+    ecrit en pcapng par editcap (modes time/count seulement).
+
+    Fichiers produits : `<nom>_<NNNNN>_<YYYYMMDDhhmmss>.<ext>` pour time/count
+    (nommage d'editcap, horodatage = premier paquet du segment), `<nom>_<NNNNN>
+    .<ext>` pour size ; `<nom>` est le nom du fichier sans extension. Le tri par
+    NNNNN est l'ordre chronologique.
+
+    Mode time : un intervalle sans aucun paquet (silence de la capture) ferait
+    produire un fichier VIDE par editcap ; ces fichiers sont supprimes, donc
+    NNNNN peut presenter des trous -- ils correspondent aux silences.
+
+    Leve ValueError (by/value invalides, ou format non pris en charge en mode
+    size), FileNotFoundError (capture absente), FileExistsError si output_dir
+    contient deja des segments de ce fichier (rien n'est ecrase ni melange --
+    supprimer ou changer de repertoire), TsharkNotFoundError (modes
+    time/count sans editcap dans le PATH) ou TsharkError (echec d'editcap,
+    meme convention que merge_captures).
+    """
+    _check_split_args(by, value)
+    if not os.path.isfile(path):
+        raise FileNotFoundError(f"capture introuvable : {path}")
+    editcap = _wireshark_tool_path("editcap") if by != "size" else None
+
+    stem = os.path.splitext(os.path.basename(path))[0]
+    os.makedirs(output_dir, exist_ok=True)
+    if _list_segments(output_dir, stem):
+        raise FileExistsError(
+            f"{output_dir} contient deja des segments de {stem!r} -- les supprimer ou choisir un autre repertoire"
+        )
+
+    if by == "size":
+        return split_by_size(path, os.path.join(output_dir, stem), int(value))
+
+    assert editcap is not None  # garanti par la ligne editcap = ... ci-dessus
+    fmt = detect_format(path)
+    args = [editcap]
+    if fmt is not None:
+        # sans -F, editcap ecrit du pcapng meme pour une entree pcap (et meme
+        # dans un fichier nomme .pcap) -- le format d'origine doit etre redemande.
+        args += ["-F", fmt]
+    args += ["-i", _format_seconds(value)] if by == "time" else ["-c", str(int(value))]
+    args += [path, os.path.join(output_dir, stem + format_extension(fmt))]
+
+    try:
+        _run_wireshark_tool(args)
+    except TsharkError:
+        for segment in _list_segments(output_dir, stem):  # jeu partiel trompeur : on ne le laisse pas
+            os.remove(segment)
+        raise
+    segments = _list_segments(output_dir, stem)
+
+    kept = []
+    for segment in segments:
+        if has_packets(segment):
+            kept.append(segment)
+        else:
+            os.remove(segment)
+    return kept

@@ -330,6 +330,15 @@ Options utiles :
   chronologique. Fonctionne aussi avec `--parallel` (un processus
   `tshark` par segment). Même syntaxe sur `--baseline`/`--current` du
   CLI de comparaison ci-dessous.
+- `--split MODE:VALEUR` : découpe une capture volumineuse en segments plus
+  petits puis s'arrête, sans lancer d'analyse — `time:60` (secondes par
+  segment), `count:10000` (paquets par segment) ou `size:100M` (taille
+  maximale par segment, unités décimales comme `tcpdump -C`). Format
+  d'origine conservé. Segments écrits dans `<--split-output-dir>/NOM/`
+  (défaut `./captures_split`), à rejouer ensuite avec
+  `--capture NOM=seg1,seg2,...`. `time` et `count` nécessitent `editcap`
+  (livré avec `tshark`) ; `size` n'a besoin d'aucun outil externe. Exclusif
+  avec `--merge` (qui fait l'opération inverse).
 - `--bucket-ms` : largeur des fenêtres temporelles pour le débit et la
   corrélation pertes/saturation (défaut 1000ms, réduire pour des
   microbursts).

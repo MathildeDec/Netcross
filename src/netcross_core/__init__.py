@@ -50,7 +50,7 @@ from netcross_core.report_text import print_report, write_detail_csv
 from netcross_core.stats import compute_stats, export_csv, export_json
 from netcross_core.voip import Call, build_calls
 from netcross_core.wireshark_expert import build_wireshark_expert_events
-from pcap_parser.capture import TcpreplayError, TcpreplayNotFoundError, merge_captures, replay_capture
+from pcap_parser.capture import TcpreplayError, TcpreplayNotFoundError, merge_captures, replay_capture, split_capture
 
 __all__ = [
     "DEFAULT_REFERENCES",
@@ -98,6 +98,7 @@ __all__ = [
     "print_report",
     "redact_packets",
     "replay_capture",
+    "split_capture",
     "write_client_diff_csv",
     "write_detail_csv",
     "write_diff_csv",

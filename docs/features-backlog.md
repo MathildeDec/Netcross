@@ -141,6 +141,31 @@ point de vue de l'utilisateur final, sauf usage direct en bibliothèque).
   interface sans trafic (un thread dédié termine le sous-processus
   tshark dès que l'événement est positionné, plutôt que d'attendre le
   prochain paquet pour vérifier un flag — voir `ek_source._terminate_on_event`)
+- ✅ **Nouveau (Job 35, issue #155)** : `split_capture(path, output_dir,
+  by="time"|"count"|"size", value)` — découpe une capture volumineuse en
+  segments (durée, nombre de paquets ou taille maximale), format
+  d'origine conservé (pcap, pcap nanoseconde, pcapng), renvoie la liste
+  des segments dans l'ordre chronologique. `time` (`editcap -i`) et
+  `count` (`editcap -c`) enveloppent `editcap` (livré avec tshark). `size`
+  ne peut PAS s'appuyer sur `editcap` (aucune option de taille ; `tshark
+  -b filesize:` refuse aussi de découper une lecture de fichier) : il est
+  réalisé par `pcap_parser.capfile`, un cadrage binaire en une passe et
+  mémoire constante (enregistrements pcap / blocs pcapng, **aucune
+  dissection**), qui recopie en-tête global ou SHB+IDB+DSB dans chaque
+  segment pour qu'il reste lisible seul. Points de conception : (1)
+  `editcap` écrit du pcapng même pour une entrée pcap sans `-F` — le
+  format détecté est donc toujours redemandé ; (2) `editcap -i` produit un
+  fichier VIDE par intervalle sans paquet (silence de la capture) —
+  supprimés, la numérotation des segments présente alors des trous ; (3)
+  refus d'écraser ou de mélanger avec des segments déjà présents dans le
+  répertoire de sortie (`FileExistsError`) ; (4) en mode `size`, un
+  segment contient toujours au moins un paquet, donc un paquet plus gros
+  que la limite dépasse seul sa limite. Tests : `tests/test_capfile.py`
+  (sans outil externe), `tests/test_split_capture.py` (`editcap` simulé,
+  plus les cas réels — 1000 paquets en 10 fichiers de 100, cohérence
+  temporelle par intervalle de 10 s, silence sans segment vide — sautés si
+  `editcap` est absent). Câblé sur `cross_capture_analyzer_cli.py`
+  (`--split`, voir CLIs)
 - ✅ Décapsulation native : VLAN (802.1Q, y compris empilé/QinQ), MPLS,
   GRE, VXLAN, GTP-U, ERSPAN, CAPWAP (canal data, avec détection du
   chiffrement DTLS)
@@ -1146,6 +1171,20 @@ point de vue de l'utilisateur final, sauf usage direct en bibliothèque).
 
 ### CLIs
 
+- ✅ **Nouveau (Job 35, issue #155)** : `cross_capture_analyzer_cli.py
+  --split MODE:VALEUR [--split-output-dir REP]` (`time:60`, `count:10000`,
+  `size:100M`) — mode utilitaire : découpe chaque fichier de `--capture`
+  dans `REP/<NOM>/` (défaut `./captures_split`) puis s'arrête SANS lancer
+  d'analyse, et indique la commande pour rejouer les segments comme un
+  seul point via la syntaxe `NOM=seg1,seg2,...` ci-dessous. Tailles en
+  unités DÉCIMALES (`100M` = `tcpdump -C 100` ; `MiB` refusé plutôt que lu
+  en décimal). Les options d'analyse/rapport combinées à `--split` sont
+  refusées plutôt qu'ignorées en silence ; un fichier en échec est
+  rapporté et les suivants sont traités (code de sortie 1). Exclusif
+  avec `--merge` (Job 34, l'opération inverse : fusionner plutôt que
+  découper). Les erreurs d'outil (`editcap` absent ou en échec) suivent la
+  convention de `merge_captures` : `TsharkNotFoundError` / `TsharkError`.
+  Absent de `cross_capture_diff_cli.py` (hors périmètre de l'issue)
 - ✅ **Nouveau (Session 27)** : `--capture`/`--baseline`/`--current`
   acceptent désormais `NOM=chemin1[,chemin2,...]` — plusieurs chemins
   séparés par des virgules pour un même point de capture rejouent une
