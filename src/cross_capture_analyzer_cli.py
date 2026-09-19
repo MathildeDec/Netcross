@@ -25,6 +25,8 @@ Prerequis :
       (necessaire uniquement pour --pdf-report)
     - --json-report n'a besoin de rien de plus (json/datetime sont dans
       la bibliotheque standard)
+    - --merge n'a besoin que des outils livres avec tshark (mergecap,
+      reordercap, et editcap pour --merge-dedup)
 
 Exemple d'utilisation (fichiers deja captures) :
     python3 cross_capture_analyzer_cli.py \
@@ -69,6 +71,14 @@ periodique du meme lien) :
         --capture LAN=capture_lan.pcapng \
         --capture WAN=capture_wan.pcapng \
         --history-db suivi_site_a.db --history-label Site-A --history-show 10
+
+Exemple d'utilisation (fusion de captures en UN seul fichier, ordonne par
+timestamp de paquet, sans lancer d'analyse -- les noms de points de
+--capture sont ignores, seuls les chemins comptent) :
+    python3 cross_capture_analyzer_cli.py \
+        --capture LAN=capture_lan.pcapng \
+        --capture WAN=capture_wan.pcapng \
+        --merge fusion.pcapng --merge-dedup
 """
 
 import argparse
@@ -82,6 +92,7 @@ from netcross_core import (
     analyse,
     compare_clients,
     correlate,
+    merge_captures,
     parse_capture,
     parse_captures_parallel,
     parse_live,
@@ -166,6 +177,32 @@ def _parse_capture_spec(spec, flag_name):
         )
         sys.exit(1)
     return label, paths
+
+
+def _run_merge(capture_specs, output_path, dedup):
+    """--merge : fusionne tous les chemins des --capture en un seul fichier
+    (voir pcap_parser.capture.merge_captures pour l'ordre, le format de
+    sortie et la deduplication). Les NOM= des specs ne servent a rien ici
+    -- une capture fusionnee perd la notion de point de capture, c'est
+    pourquoi aucune analyse n'est lancee ensuite (l'appelant retourne)."""
+    paths = []
+    for spec in capture_specs:
+        _label, spec_paths = _parse_capture_spec(spec, "--capture")
+        paths.extend(spec_paths)
+    try:
+        merge_captures(paths, output_path, dedup=dedup)
+    except (OSError, ValueError, RuntimeError) as e:
+        # OSError : entree absente/illisible ; ValueError : entree == sortie ;
+        # RuntimeError : parent de TsharkNotFoundError/TsharkError (outil
+        # absent du PATH ou en echec) -- meme sortie propre que les autres
+        # erreurs d'arguments de cette CLI plutot qu'une trace Python.
+        print(f"--merge : {e}", file=sys.stderr)
+        sys.exit(1)
+    print(
+        f"{len(paths)} fichier(s) fusionne(s) dans {output_path}"
+        + (" (paquets identiques dedupliques)" if dedup else "")
+        + "."
+    )
 
 
 def _run_live_captures(live_specs, duration):
@@ -444,6 +481,24 @@ def main():
         help="Nombre de processus pour --parallel (defaut: nombre de coeurs CPU disponibles)",
     )
     ap.add_argument(
+        "--merge",
+        metavar="SORTIE",
+        help="Fusionne tous les fichiers passes a --capture en UN seul fichier "
+        "SORTIE ordonne par timestamp de paquet (mergecap + reordercap, "
+        "livres avec tshark), puis s'arrete SANS lancer d'analyse : les noms de "
+        "points (NOM=) sont ignores, seuls les chemins comptent. Format de "
+        "sortie pcap si SORTIE se termine par .pcap, pcapng sinon. "
+        "Incompatible avec --live et avec les options d'analyse/de rapport.",
+    )
+    ap.add_argument(
+        "--merge-dedup",
+        action="store_true",
+        help="Avec --merge : supprime les paquets de contenu ET de timestamp "
+        "identiques (editcap). Une retransmission (meme contenu, autre "
+        "instant) et une meme trame vue par deux horloges differentes sont "
+        "conservees.",
+    )
+    ap.add_argument(
         "--redact",
         action="store_true",
         help="Anonymise les adresses IP (RFC 5737/3849, plages de documentation) "
@@ -507,6 +562,40 @@ def main():
             file=sys.stderr,
         )
         sys.exit(1)
+
+    if args.merge_dedup and not args.merge:
+        print("--merge-dedup necessite --merge.", file=sys.stderr)
+        sys.exit(1)
+    if args.merge:
+        if not args.capture:
+            print("--merge necessite --capture (fichiers a fusionner), pas --live.", file=sys.stderr)
+            sys.exit(1)
+        # --merge n'analyse rien : une option d'analyse/de rapport passee en
+        # meme temps serait ignoree en silence, on la refuse plutot.
+        ignored = [
+            flag
+            for flag, given in (
+                ("--pdf-report", args.pdf_report),
+                ("--json-report", args.json_report),
+                ("--detail-csv", args.detail_csv),
+                ("--history-db", args.history_db),
+                ("--client-group", args.client_group),
+                ("--redact", args.redact),
+                ("--triage", args.triage),
+                ("--tls", args.tls),
+                ("--quic", args.quic),
+                ("--parallel", args.parallel),
+            )
+            if given
+        ]
+        if ignored:
+            print(
+                f"--merge fusionne les fichiers sans lancer d'analyse : incompatible avec {', '.join(ignored)}.",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        _run_merge(args.capture, args.merge, args.merge_dedup)
+        return
 
     # Table des noms (section 6.15) : optionnelle, chargee une fois pour
     # toutes les sorties (CSV detail + JSON). None si --names absent.
