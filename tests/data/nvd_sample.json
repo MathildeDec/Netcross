@@ -1,0 +1,122 @@
+{
+  "resultsPerPage": 3,
+  "startIndex": 0,
+  "totalResults": 3,
+  "vulnerabilities": [
+    {
+      "cve": {
+        "id": "CVE-2021-41773",
+        "published": "2021-10-05T00:15:00.000",
+        "descriptions": [
+          {
+            "lang": "en",
+            "value": "A path traversal flaw in the Apache HTTP Server allows an attacker to map URLs to files outside the expected document root."
+          }
+        ],
+        "metrics": {
+          "cvssMetricV31": [
+            {
+              "cvssData": {
+                "version": "3.1",
+                "baseScore": 7.5,
+                "baseSeverity": "HIGH"
+              }
+            }
+          ]
+        },
+        "configurations": [
+          {
+            "nodes": [
+              {
+                "cpeMatch": [
+                  {
+                    "vulnerable": true,
+                    "criteria": "cpe:2.3:a:apache:http_server:*:*:*:*:*:*:*:*",
+                    "versionStartIncluding": "2.4.49",
+                    "versionEndExcluding": "2.4.50"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "cve": {
+        "id": "CVE-2021-42013",
+        "published": "2021-10-07T00:15:00.000",
+        "descriptions": [
+          {
+            "lang": "en",
+            "value": "It was found that the fix for CVE-2021-41773 in Apache HTTP Server 2.4.50 was insufficient, allowing a similar path traversal and remote code execution issue."
+          }
+        ],
+        "metrics": {
+          "cvssMetricV31": [
+            {
+              "cvssData": {
+                "version": "3.1",
+                "baseScore": 9.8,
+                "baseSeverity": "CRITICAL"
+              }
+            }
+          ]
+        },
+        "configurations": [
+          {
+            "nodes": [
+              {
+                "cpeMatch": [
+                  {
+                    "vulnerable": true,
+                    "criteria": "cpe:2.3:a:apache:http_server:*:*:*:*:*:*:*:*",
+                    "versionStartIncluding": "2.4.49",
+                    "versionEndIncluding": "2.4.50"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "cve": {
+        "id": "CVE-2020-15778",
+        "published": "2020-08-14T00:15:00.000",
+        "descriptions": [
+          {
+            "lang": "en",
+            "value": "scp in OpenSSH allows command injection in the scp client via crafted file names or the target host, if the ssh client and the scp target used a backtick in the filename."
+          }
+        ],
+        "metrics": {
+          "cvssMetricV2": [
+            {
+              "baseSeverity": "MEDIUM",
+              "cvssData": {
+                "version": "2.0",
+                "baseScore": 6.8
+              }
+            }
+          ]
+        },
+        "configurations": [
+          {
+            "nodes": [
+              {
+                "cpeMatch": [
+                  {
+                    "vulnerable": true,
+                    "criteria": "cpe:2.3:a:openbsd:openssh:8.3:*:*:*:*:*:*:*"
+                  }
+                ]
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ]
+}
