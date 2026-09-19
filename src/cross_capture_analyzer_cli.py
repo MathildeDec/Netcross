@@ -46,6 +46,16 @@ Exemple d'utilisation (capture en direct sur 2 interfaces, 60s max) :
         --order LAN,WAN \
         --triage
 
+Exemple d'utilisation (decouper une capture volumineuse en segments plus
+petits, par duree, nombre de paquets ou taille -- puis les analyser comme
+un seul point continu ; --split ne lance PAS d'analyse) :
+    python3 cross_capture_analyzer_cli.py \
+        --capture LAN=capture_lan_10Go.pcapng \
+        --split size:100M --split-output-dir segments
+    python3 cross_capture_analyzer_cli.py \
+        --capture "LAN=$(ls segments/LAN/*.pcapng | paste -sd, -)" \
+        --triage
+
 Exemple d'utilisation (comparaison client vs client -- "ce poste
 fonctionne, pas l'autre", meme capture, memes points) :
     python3 cross_capture_analyzer_cli.py \
@@ -83,6 +93,7 @@ timestamp de paquet, sans lancer d'analyse -- les noms de points de
 
 import argparse
 import os
+import re
 import signal
 import sys
 import threading
@@ -99,6 +110,7 @@ from netcross_core import (
     print_client_comparison,
     print_report,
     redact_packets,
+    split_capture,
     write_client_diff_csv,
     write_detail_csv,
     write_redaction_map_csv,
@@ -205,6 +217,88 @@ def _run_merge(capture_specs, output_path, dedup):
     )
 
 
+_SPLIT_DEFAULT_DIR = "captures_split"
+_SIZE_RE = re.compile(r"(\d+(?:[.,]\d+)?)\s*([kmg])?[ob]?", re.IGNORECASE)
+_SIZE_FACTORS = {None: 1, "k": 10**3, "m": 10**6, "g": 10**9}
+
+
+def _parse_size(text):
+    """ "100M" -> 100_000_000. Unites DECIMALES (k=10^3, M=10^6, G=10^9),
+    comme `tcpdump -C` : `--split size:100M` correspond donc a `tcpdump -C
+    100`. Suffixe optionnel o/b apres l'unite (100Mo, 100MB). None si le
+    format n'est pas reconnu -- les unites binaires (MiB, Mio) sont
+    volontairement refusees plutot que lues comme des unites decimales."""
+    m = _SIZE_RE.fullmatch(text.strip())
+    if not m:
+        return None
+    number, unit = m.groups()
+    return int(float(number.replace(",", ".")) * _SIZE_FACTORS[unit.lower() if unit else None])
+
+
+def _parse_split_spec(spec):
+    """MODE:VALEUR -> (mode, valeur) pour pcap_parser.split_capture.
+    time:60 (secondes, decimales admises) | count:10000 (paquets) |
+    size:100M (octets, voir _parse_size)."""
+    mode, sep, raw = spec.partition(":")
+    mode = mode.strip().lower()
+    raw = raw.strip()
+    err = f"Format invalide pour --split: {spec} (attendu time:SECONDES, count:PAQUETS ou size:TAILLE, ex: size:100M)"
+    if not sep or mode not in ("time", "count", "size") or not raw:
+        print(err, file=sys.stderr)
+        sys.exit(1)
+    try:
+        if mode == "time":
+            value = float(raw.replace(",", "."))
+        elif mode == "count":
+            value = int(raw)
+        else:
+            value = _parse_size(raw)
+    except ValueError:
+        value = None
+    if value is None or value <= 0:
+        hint = " (unites decimales k/M/G, ex: 100M ; MiB/Mio non supportes)" if mode == "size" else ""
+        print(f"{err} -- la valeur doit etre un nombre > 0{hint}", file=sys.stderr)
+        sys.exit(1)
+    return mode, value
+
+
+def _run_split(capture_specs, split_spec, output_dir):
+    """Decoupe chaque fichier des --capture dans <output_dir>/<LABEL>/ et
+    renvoie le code de sortie (0 si tout a reussi, 1 sinon). Un fichier en
+    echec est rapporte explicitement puis les suivants sont traites quand
+    meme (meme choix que --parallel : rien ne passe sous silence, mais un
+    fichier illisible n'empeche pas de decouper les autres)."""
+    mode, value = _parse_split_spec(split_spec)
+    status = 0
+    for spec in capture_specs:
+        label, paths = _parse_capture_spec(spec, "--capture")
+        # le label sert de nom de sous-repertoire : on neutralise les
+        # separateurs de chemin et les points de tete (jamais de "..")
+        label_dir = os.path.join(output_dir, re.sub(r"[^\w.-]+", "_", label).lstrip(".") or "capture")
+        segments = []
+        # OSError : capture absente / sortie deja occupee ; ValueError : mode ou format
+        # invalide ; RuntimeError : parent de TsharkNotFoundError/TsharkError (editcap
+        # absent ou en echec) -- meme convention que --merge.
+        try:
+            for path in paths:
+                segments.extend(split_capture(path, label_dir, mode, value))
+        except (ValueError, OSError, RuntimeError) as e:
+            print(f"[{label}] ECHEC du decoupage : {e}", file=sys.stderr)
+            status = 1
+            continue
+        if not segments:
+            print(f"[{label}] aucun paquet a decouper dans {', '.join(paths)} -- aucun segment cree.")
+            continue
+        print(f"[{label}] {len(segments)} segment(s) dans {label_dir} :")
+        for seg in segments[:3]:
+            print(f"  {seg}")
+        if len(segments) > 3:
+            print(f"  ... ({len(segments) - 3} autre(s))")
+        ext = os.path.splitext(segments[0])[1]
+        print(f'  Pour les analyser comme un seul point : --capture "{label}=$(ls {label_dir}/*{ext} | paste -sd, -)"')
+    return status
+
+
 def _run_live_captures(live_specs, duration):
     """Capture en direct sur un ou plusieurs points simultanement (un thread
     par point, comme l'interface graphique -- voir netcross_gtk4.app
@@ -308,6 +402,25 @@ def main():
         type=int,
         default=None,
         help="Duree maximale en secondes pour --live (defaut: illimitee, s'arrete uniquement sur Ctrl+C)",
+    )
+    ap.add_argument(
+        "--split",
+        metavar="MODE:VALEUR",
+        help="Decoupe chaque fichier de --capture en segments plus petits puis "
+        "s'arrete SANS lancer d'analyse : time:60 (secondes par segment), "
+        "count:10000 (paquets par segment) ou size:100M (taille maximale par "
+        "segment, unites decimales comme tcpdump -C). Format d'origine conserve. "
+        "time/count s'appuient sur editcap (livre avec tshark) ; size ne "
+        "necessite aucun outil externe. Segments ecrits dans "
+        "<--split-output-dir>/<NOM>/, a rejouer ensuite via --capture "
+        "NOM=seg1,seg2,... Incompatible avec --live et avec toute option "
+        "d'analyse ou de rapport (refusees plutot qu'ignorees en silence).",
+    )
+    ap.add_argument(
+        "--split-output-dir",
+        metavar="REPERTOIRE",
+        help=f"Avec --split : repertoire de sortie (defaut: ./{_SPLIT_DEFAULT_DIR}, "
+        "cree si absent). Refuse d'ecraser ou de melanger des segments deja presents.",
     )
     ap.add_argument("--order", help="Ordre physique des points sur le chemin reseau, ex: LAN,WAN,DC")
     ap.add_argument("--detail-csv", help="Chemin de sortie pour le detail par flux (CSV)")
@@ -563,6 +676,9 @@ def main():
         )
         sys.exit(1)
 
+    if args.merge and args.split:
+        print("--merge et --split sont exclusifs : fusionner OU decouper, pas les deux.", file=sys.stderr)
+        sys.exit(1)
     if args.merge_dedup and not args.merge:
         print("--merge-dedup necessite --merge.", file=sys.stderr)
         sys.exit(1)
@@ -596,6 +712,30 @@ def main():
             sys.exit(1)
         _run_merge(args.capture, args.merge, args.merge_dedup)
         return
+
+    if args.split_output_dir and not args.split:
+        print("--split-output-dir necessite --split.", file=sys.stderr)
+        sys.exit(1)
+    if args.split:
+        if args.live:
+            print("--split decoupe des fichiers (--capture) : incompatible avec --live.", file=sys.stderr)
+            sys.exit(1)
+        # --split est un mode utilitaire qui s'arrete apres le decoupage : toute
+        # autre option (analyse, rapport...) serait silencieusement ignoree, on
+        # la refuse plutot que de laisser croire qu'elle a agi.
+        ignored = sorted(
+            "--" + dest.replace("_", "-")
+            for dest, value in vars(args).items()
+            if dest not in ("capture", "split", "split_output_dir") and value != ap.get_default(dest)
+        )
+        if ignored:
+            print(
+                f"--split ne lance aucune analyse : option(s) incompatible(s) {', '.join(ignored)}. "
+                "Decouper d'abord, puis analyser les segments dans une seconde commande.",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        sys.exit(_run_split(args.capture, args.split, args.split_output_dir or _SPLIT_DEFAULT_DIR))
 
     # Table des noms (section 6.15) : optionnelle, chargee une fois pour
     # toutes les sorties (CSV detail + JSON). None si --names absent.
