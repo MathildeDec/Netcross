@@ -216,6 +216,31 @@ class SequenceGap:
     evidence: str
 
 
+@dataclass(slots=True)
+class ChecksumError:
+    """Paquet dont le checksum IP/TCP/UDP est invalide (Job 43/issue
+    #163, categorie "Integrite et qualite de capture").
+
+    Produit par `netcross_core.forensic.validate_checksums()` a partir
+    des champs de checksum bruts deja portes par `Pkt` (voir
+    `pcap_parser.packet.RawPacket` pour le detail de l'extraction) --
+    ce dataclass ne recalcule aucun checksum, il reflete le verdict deja
+    rendu par tshark (`-o ip.check_checksum:TRUE` et equivalents TCP/UDP,
+    actives par defaut, voir `pcap_parser.ek_source.DEFAULT_PREFS`).
+
+    Un checksum a `0x0000` (offload materiel -- la carte reseau calcule
+    le checksum a l'emission, tshark capture donc un paquet ou le champ
+    n'a jamais ete rempli) n'est JAMAIS remonte comme ChecksumError,
+    meme si tshark le rend "Bad" (0x0000 ne correspond presque jamais a
+    la valeur recalculee) : voir `validate_checksums` pour la
+    distinction, second critere explicite de l'issue."""
+
+    point: str
+    frame_number: int | None
+    protocol: str  # "IP" | "TCP" | "UDP"
+    checksum: str  # valeur brute recue sur le fil, ex: "0x1111"
+
+
 @dataclass
 class Report:
     points: list[str] = field(default_factory=list)
@@ -557,6 +582,9 @@ class Report:
     #   a relire, l'information est deja portee par chaque Pkt.
     capture_comments: list[str] = field(default_factory=list)
     packet_comments: list[str] = field(default_factory=list)
+    # -- Integrite/qualite de capture (Job 43/issue #163) -- voir
+    # netcross_core.forensic.validate_checksums().
+    checksum_errors: list[ChecksumError] = field(default_factory=list)
 
 
 @dataclass(slots=True)
