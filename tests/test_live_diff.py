@@ -5,6 +5,8 @@ fenetre glissante, evaluation periodique du diff, integration AlarmEngine.
 Integration CaptureRingBuffer (Job 37, issue #157) en bas de fichier.
 """
 
+from importlib import import_module
+
 from netcross_core.alarms import AlarmConfig, AlarmEngine
 from netcross_core.baseline_diff import DiffFinding
 from netcross_core.live_diff import (
@@ -15,6 +17,20 @@ from netcross_core.live_diff import (
 )
 from netcross_core.models import Pkt, Report
 from pcap_parser.capture import CaptureRingBuffer
+
+
+def _stub_analyse_et_correlate(monkeypatch):
+    """Remplace correlate()/analyse() par des stubs pour isoler le cablage de
+    _evaluate_diff(). Les cibles sont les VRAIS modules (via import_module),
+    pas des chemins pointilles "netcross_core.correlate.correlate" : le
+    package netcross_core re-exporte les fonctions correlate/analyse, qui
+    eclipsent les sous-modules du meme nom et font echouer monkeypatch."""
+    monkeypatch.setattr(import_module("netcross_core.correlate"), "correlate", lambda pkts: {})
+    monkeypatch.setattr(
+        import_module("netcross_core.analysis"),
+        "analyse",
+        lambda flows, points_order=None, all_packets=None: Report(points=["LAN"]),
+    )
 
 
 def _pkt(**kw):
@@ -279,11 +295,7 @@ def test_evaluate_diff_produces_findings_and_raises_alarm(monkeypatch):
         "netcross_core.live_diff.diff_reports",
         lambda base, current: [fake_finding],
     )
-    monkeypatch.setattr("netcross_core.correlate.correlate", lambda pkts: {})
-    monkeypatch.setattr(
-        "netcross_core.analysis.analyse",
-        lambda flows, points_order=None, all_packets=None: Report(points=["LAN"]),
-    )
+    _stub_analyse_et_correlate(monkeypatch)
 
     # min_persistence_seconds=0.0 : une seule evaluation positive suffit
     # a lever l'alarme -- suffisant pour verifier le cablage bout en
@@ -318,11 +330,7 @@ def test_evaluate_diff_sans_divergence_ne_leve_aucune_alarme(monkeypatch):
     baseline = Report(points=["LAN"])
 
     monkeypatch.setattr("netcross_core.live_diff.diff_reports", lambda base, current: [])
-    monkeypatch.setattr("netcross_core.correlate.correlate", lambda pkts: {})
-    monkeypatch.setattr(
-        "netcross_core.analysis.analyse",
-        lambda flows, points_order=None, all_packets=None: Report(points=["LAN"]),
-    )
+    _stub_analyse_et_correlate(monkeypatch)
 
     alarm_engine = AlarmEngine(
         [AlarmConfig(rule_id="loss_per_segment", segment="LAN -> WAN", min_persistence_seconds=0.0)]
