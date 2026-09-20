@@ -1281,6 +1281,72 @@ session » n'a plus lieu d'être : `python3 scripts/generate_class_diagram.py --
 
 Classé par effort estimé (croissant), pour prioriser.
 
+### 🔒 Suite PR #212 — Restes du rapport de sécurité (issues #216, #217, #218)
+
+La PR #212 (merged) a clôturé l'issue #139 (CVE-5) : le rapport de sécurité
+consolidé (`--security-report` / `--cve-db`) est câblé, testé sur de vrais PCAPs
+tshark, et validé sans faux positif sur trafic légitime. Trois restes identifiés :
+
+| Issue | Description | Difficulté |
+|-------|-------------|------------|
+| #216 | Documenter `--security-report` / `--cve-db` dans `CLAUDE.md` (README déjà fait par PR #214) | 1/5 |
+| #217 | `close_db()` sans `try/finally` dans `cross_capture_analyzer_cli.py` | 1/5 |
+| #218 | Rendu HTML/PDF du rapport de sécurité (sortie texte uniquement actuellement) | 3/5 |
+
+### 🔒 Chantier CVE — détection passive de vulnérabilités (issue parente #133)
+
+Le chantier CVE est en grande partie livré. Quatre des cinq sous-tâches sont
+clos :
+
+| Issue | Titre | Statut | Difficulté |
+|-------|-------|--------|------------|
+| #135 | CVE-1 — Extraction des bannières de versions (fingerprinting passif) | **Ouverte** — fondation pour #143 | 3/5 |
+| #136 | CVE-2 — Détection de signatures d'exploits connus | Clos | — |
+| #137 | CVE-3 — Exploitation des alertes Expert Info | Clos | — |
+| #138 | CVE-4 — Base de données CVE locale et corrélation versions | Clos | — |
+| #139 | CVE-5 — Rapport de vulnérabilités et tableau de bord sécurité | Clos (PR #212) | — |
+
+Seule #135 (CVE-1) reste ouverte. Elle est la fondation pour #143 (JA4/HASSH).
+Voir le tableau récapitulatif dans `docs/issues-summary.md` pour le plan
+parallélisé complet.
+
+### 🔒 Chantier flux cachés + scénarios (issue parente #141)
+
+Détail dans `docs/issues-summary.md` (Track C → D → E). Issues ouvertes :
+
+| Issue | Titre | Priorité | Difficulté |
+|-------|-------|----------|------------|
+| #142 | FLOW-1 — DPI léger (protocole sur port non standard) | P3 | 3/5 |
+| #143 | FLOW-2 — Fingerprinting TLS (JA4) et SSH (HASSH) | P3 | 4/5 |
+| #144 | FLOW-3 — Détection de tunneling DNS | P3 | 3/5 |
+| #145 | FLOW-4 — Analyse statistique des flux (SPLT, entropie) | P3 | 4/5 |
+| #146 | FLOW-5 — Module IA/ML optionnel | P4 | 5/5 |
+| #147 | SCENARIO-1 — Beaconing C2 | P3 | 4/5 |
+| #148 | SCENARIO-2 — Exfiltration de données | P3 | 3/5 |
+| #149 | SCENARIO-3 — Mouvements latéraux | P3 | 4/5 |
+| #150 | SCENARIO-4 — File carving | P4 | 4/5 |
+| #151 | SCENARIO-5 — Cartographie passive des actifs | P3 | 3/5 |
+| #152 | SCENARIO-6 — DGA et fast flux | P3 | 4/5 |
+| #153 | SCENARIO-7 — Audit certificats TLS | P3 | 2/5 |
+
+### 🔧 Gestion PCAP, sources de capture et qualité (Track A, B, F)
+
+| Issue | Titre | Priorité | Difficulté |
+|-------|-------|----------|------------|
+| #155 | Job 35 — Découpage PCAP (split) | P1 | 2/5 |
+| #156 | Job 36 — Export sous-ensemble PCAP | P1 | 2/5 |
+| #158 | Job 38 — Métadonnées de capture (capinfos) | P1 | 1/5 |
+| #161 | Job 41 — Doublons inter-captures | P1 | 3/5 |
+| #163 | Job 43 — Validation des checksums | P2 | 2/5 |
+| #164 | Job 44 — tcpreplay (rejeu) | P2 | 3/5 |
+| #165 | Job 45 — Ajustement de timestamps | P1 | 2/5 |
+| #166 | Job 46 — Capture distante (rpcap/sshdump) | P2 | 4/5 |
+| #167 | Job 47 — Filtres BPF (sauvegarde/rechargement) | P2 | 2/5 |
+| #168 | Job 48 — Multi-interfaces | P2 | 3/5 |
+| #169 | Job 49 — Conversion de formats | P2 | 2/5 |
+| #170 | Qualité app (CI/CD, Docker, coverage, SIEM...) | P3 | — |
+| #209 | Job 50 — API REST + OpenAPI | P3 | 3/5 |
+
 ### 📋 Planifié — API REST FastAPI et spécification OpenAPI générée en CI (Job 50, issue #209)
 
 - **Constat de départ** : Netcross s'utilise uniquement via la CLI
