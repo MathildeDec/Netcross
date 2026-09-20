@@ -1,0 +1,41 @@
+name: CI
+
+"on":
+  push:
+    branches: [main, dev]
+  pull_request:
+    branches: [main, dev]
+
+jobs:
+  quality:
+    name: Qualité (lint, format, import-linter, tests)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout du dépôt
+        uses: actions/checkout@v7
+
+      - name: Installation de uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        with:
+          enable-cache: true
+
+      - name: Installation de Python
+        run: uv python install
+
+      - name: Installation des dépendances (extra dev)
+        run: uv sync --extra dev
+
+      - name: Lint (ruff check)
+        run: uv run ruff check .
+
+      - name: Formatage (ruff format --check)
+        run: uv run ruff format --check .
+
+      - name: Architecture en couches (import-linter)
+        run: uv run lint-imports
+        env:
+          PYTHONPATH: src
+
+      - name: Tests (pytest)
+        run: uv run pytest
