@@ -11,7 +11,7 @@
 > Il remplace l'ancienne section 3 de `docs/features-backlog.md`, tenue à la main, qui avait dérivé
 > (voir `docs/sessions/session-36.md`, issue #140).
 
-88 modules · 118 classes · 256 fonctions publiques de module.
+89 modules · 121 classes · 260 fonctions publiques de module.
 
 Conventions : `+` public, `-` privé (préfixe `_`) ; `int?` = `int | None` ; `list~str~` = `list[str]` ;
 `<<module>>` regroupe les fonctions publiques d'un module ; `A --> B : champ` = `A` a un champ annoté
@@ -1444,6 +1444,7 @@ classDiagram
 | `netcross_core.security` | detection passive de vulnerabilites (CVE) sur traces reseau (issue #133, sous-tache CVE-4 / issue #138). |
 | `netcross_core.security.cpe_match` | conversion d'une banniere de service ("Apache/2.4.41") en identifiant CPE 2.3 et comparaison de versions avec les ranges NVD (versionStart/EndIncluding/Excluding). |
 | `netcross_core.security.cve_db` | base SQLite locale des CVE, peuplee par scripts/import_nvd.py depuis le flux NVD (voir ce script pour le format JSON attendu, API NVD 2.0). |
+| `netcross_core.security.dns_tunnel` | issue #144 (FLOW-3, parent #141) : detection de tunneling DNS (exfiltration, C2, VPN over DNS). |
 | `netcross_core.security.expert_correlation` | issue #137 (CVE-3) : exploitation des alertes Expert Info de tshark pour DETECTER des tentatives d'exploitation (fuzzing, depassement de tampon, deni de service) a partir de paquets malformes et de… |
 | `netcross_core.security.findings` | alimentation de `Report.service_fingerprints` et `Report.security_findings` a partir des modules de detection CVE-1 a CVE-4 (issue #139, CVE-5, parent #133). |
 
@@ -1521,6 +1522,41 @@ classDiagram
         +count_cves(conn) int
     }
 
+    %% ===== netcross_core.security.dns_tunnel =====
+    class DnsTunnelThresholds {
+        <<dataclass, frozen>>
+        +int max_label_len
+        +int max_name_len
+        +int long_name_min_queries
+        +float entropy_min_bits
+        +int entropy_min_unique
+        +int entropy_min_subdomain_len
+        +int large_response_bytes
+        +int large_response_min_count
+        +float dominance_ratio
+        +int dominance_min_queries
+        +int regular_min_queries
+        +float regular_max_cv
+        +float volume_ratio
+        +int volume_min_packets
+    }
+    class DnsTunnelResult {
+        <<dataclass>>
+        +list~dict~ suspicions
+        +list~dict~ domain_entropy
+    }
+    class _DomainState {
+        <<dataclass>>
+        +list~tuple~float, int?, str~~ queries
+        +list~int?~ large_responses
+    }
+    class mod_netcross_core_security_dns_tunnel["netcross_core.security.dns_tunnel"] {
+        <<module>>
+        +shannon_entropy(text) float
+        +split_domain(name) tuple~str, str~
+        +detect_dns_tunneling(packets, thresholds) DnsTunnelResult
+    }
+
     %% ===== netcross_core.security.expert_correlation =====
     class CorrelationThresholds {
         <<dataclass, frozen>>
@@ -1560,6 +1596,7 @@ classDiagram
         +scan_capture_exploits(label, path, signatures) list~Detection~
         +exploit_findings(detections) list~dict~str, Any~~
         +anomaly_findings(suspicions) list~dict~str, Any~~
+        +dns_tunnel_findings(suspicions) list~dict~str, Any~~
         +cve_findings(fingerprints, conn) list~dict~str, Any~~
         +apply_security_findings(report, all_packets, detections, cve_conn) None
     }
