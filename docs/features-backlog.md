@@ -1281,6 +1281,33 @@ session » n'a plus lieu d'être : `python3 scripts/generate_class_diagram.py --
 
 Classé par effort estimé (croissant), pour prioriser.
 
+### 📋 Planifié — API REST FastAPI et spécification OpenAPI générée en CI (Job 50, issue #209)
+
+- **Constat de départ** : Netcross s'utilise uniquement via la CLI
+  (`cross_capture_analyzer_cli.py`) et l'interface GTK4. L'intégration
+  externe s'arrête à `--json-report` (fichier écrit sur disque, jamais
+  exposé en service) et à l'historique SQLite (`--history-db`).
+- **Objectif** : exposer les analyses (chargement de captures,
+  `analyse()`, rapport de sécurité) via un service REST documenté par
+  une spécification OpenAPI tenue à jour automatiquement dans la CI —
+  l'approche code-first (FastAPI déduit la spécification des annotations
+  de types, elle ne peut pas diverger du code) plutôt que spec-first
+  (OpenAPI Generator produit alors le serveur).
+- **Contraintes d'architecture** (définies avec l'issue) :
+  - nouvelle couche CONSOMMATRICE `netcross_api` au-dessus de
+    `netcross_report` dans le contrat import-linter (`netcross_gtk4` →
+    `netcross_api` → `netcross_report` → `netcross_core` → `pcap_parser`) :
+    jamais de refactor du cœur, l'API appelle `parse_captures_parallel`/
+    `correlate`/`analyse`/`apply_security_findings` tels quels ;
+  - schémas de réponse pydantic DÉCOUPLÉS des modèles du cœur (mapping
+    depuis `netcross_report.session_objects`) — le cœur reste sans
+    dépendance web ;
+  - `fastapi`/`uvicorn` en dépendance optionnelle (`[project.optional-
+    dependencies] api`) — jamais obligatoire pour CLI/GUI ;
+  - analyses asynchrones (`202 Accepted` + statut, le décodage tshark
+    prend de secondes à minutes, jamais bloquant dans une requête).
+- **Détail complet, tâches et référence CI** : issue #209.
+
 ### ✅ Nouvelle fonctionnalité ajoutée dans cette passe (fusion de captures PCAP — Job 34, issue #154)
 
 - **Constat de départ** : Netcross analysait des captures multi-points
