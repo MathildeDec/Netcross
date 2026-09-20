@@ -18,6 +18,7 @@ import sys
 from dataclasses import dataclass
 
 from pcap_parser.ek_fields import (
+    all_occurrences,
     as_bool,
     as_bytes_from_hex_dump,
     expert_flag_details,
@@ -262,6 +263,16 @@ class RawPacket:
     # donc de detecter un trou de sequence (netcross_core.forensic.
     # detect_sequence_gaps, Job 42/issue #162).
     tcp_len: int | None = None
+
+
+# Cles de couches EK dont le "_ws_expert" est collecte en plus des couches
+# L3/L4 (issue #137) : applicatives (http/dns/tls/smb/smb2) et la couche de
+# premier niveau "_ws_malformed" que tshark ajoute a un paquet dont un
+# dissecteur a leve une exception.
+_APP_EXPERT_LAYER_KEYS: tuple[str, ...] = ("http", "dns", "tls", "smb", "smb2", "_ws_malformed")
+# Severites natives tshark (libelles de ek_fields._SEVERITY_LABELS) sans
+# valeur de detection, ecartees de la collecte applicative.
+_INFORMATIVE_SEVERITIES: tuple[str, ...] = ("Chat", "Comment")
 
 
 def build_packet(ts_seconds: float, layers: dict) -> RawPacket | None:
@@ -616,10 +627,37 @@ def build_packet(ts_seconds: float, layers: dict) -> RawPacket | None:
     # expert_flag_details) plutot que le tri nu de expert_flag_names, qui
     # leverait sur une comparaison None/str.
     _expert_layers = (ip4, ip6, arp, stp, tcp, udp, icmp, icmpv6)
-    expert_flags = tuple(sorted({name for candidate in _expert_layers for name in expert_flag_names(candidate)}))
+    # Couches APPLICATIVES (issue #137, exploitation des alertes Expert Info
+    # pour la detection d'attaques) : http/dns/tls/smb/smb2 portent leur
+    # PROPRE sous-cle "_ws_expert" (nom de condition prefixe par la cle de
+    # couche, ex: "dns_dns_extraneous"), et un paquet malforme (dissecteur
+    # en exception : DNS tronque, enregistrement TLS invalide...) expose en
+    # plus une couche EK de premier niveau "_ws_malformed" dont le
+    # "_ws_expert" porte la condition "_ws_malformed__ws_malformed_expert"
+    # -- structure verifiee empiriquement avec tshark 4.2.2 (pcap scapy
+    # synthetique, voir tests/test_expert_correlation.py). Les couches http/dns/tls
+    # peuvent etre empilees (plusieurs messages par paquet) : on parcourt
+    # toutes les occurrences. Les occurrences de severite native Chat/
+    # Comment (ex: "http_http_chat", emise sur CHAQUE message HTTP) sont
+    # ecartees : purement informatives, elles noieraient les vrais signaux
+    # (et feraient s'allumer comm_map sur tout le trafic HTTP).
+    _app_expert_layers = [occ for key in _APP_EXPERT_LAYER_KEYS for occ in all_occurrences(layers, key)]
+    _app_expert_details = [
+        detail
+        for candidate in _app_expert_layers
+        for detail in expert_flag_details(candidate)
+        if detail[1] not in _INFORMATIVE_SEVERITIES
+    ]
+    expert_flags = tuple(
+        sorted(
+            {name for candidate in _expert_layers for name in expert_flag_names(candidate)}
+            | {detail[0] for detail in _app_expert_details}
+        )
+    )
     expert_details = tuple(
         sorted(
-            {detail for candidate in _expert_layers for detail in expert_flag_details(candidate)},
+            {detail for candidate in _expert_layers for detail in expert_flag_details(candidate)}
+            | set(_app_expert_details),
             key=lambda d: (d[0], d[1] or "", d[2] or "", d[3] or ""),
         )
     )

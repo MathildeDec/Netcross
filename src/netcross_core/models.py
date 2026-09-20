@@ -395,6 +395,23 @@ class Report:
     # capture alors que des octets posterieurs l'ont ete, sans retransmission
     # ulterieure -- alimente par netcross_core.forensic.detect_sequence_gaps.
     sequence_gaps: list[SequenceGap] = field(default_factory=list)
+    # -- exploitation des alertes Expert Info pour la detection d'attaques
+    # (issue #137, voir netcross_core.security.expert_correlation) --
+    # expert_malformed : paquets malformes (dissecteur tshark en exception ou
+    # condition du groupe natif Malformed), PAR POINT puis PAR PROTOCOLE
+    # ("HTTP", "DNS", "TLS", "SMB", "OTHER"). expert_malformed_flows : meme information PAR
+    # FLUX (liste de dicts triee, un par flux bidirectionnel portant au moins
+    # un paquet malforme, avec numeros de trame en preuve).
+    expert_malformed: dict[str, dict[str, int]] = field(default_factory=lambda: defaultdict(lambda: defaultdict(int)))
+    expert_malformed_flows: list[dict] = field(default_factory=list)
+    # exploit_suspicion : nombre de suspicions levees (un flux, ou un couple
+    # source -> destination pour "dos"), PAR POINT puis PAR CLASSIFICATION
+    # ("fuzzing", "overflow", "dos").
+    # exploit_suspicion_flows : le detail (flux, classification, compteur,
+    # preuve) de chaque suspicion levee. Une suspicion est un INDICE a
+    # confirmer, jamais un diagnostic definitif -- voir la docstring du module.
+    exploit_suspicion: dict[str, dict[str, int]] = field(default_factory=lambda: defaultdict(lambda: defaultdict(int)))
+    exploit_suspicion_flows: list[dict] = field(default_factory=list)
     # -- decalage d'horloge (via handshakes TCP, hypothese de chemin symetrique) --
     clock_offset_samples: dict[tuple[str, str], list[float]] = field(default_factory=lambda: defaultdict(list))
     clock_offset_estimate: dict[tuple[str, str], tuple[float, float, int]] = field(default_factory=dict)

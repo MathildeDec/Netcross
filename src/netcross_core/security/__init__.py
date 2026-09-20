@@ -5,6 +5,9 @@ traces reseau (issue #133, sous-tache CVE-4 / issue #138).
 Ce sous-package regroupe :
 - cve_db.py    : base SQLite locale des CVE (import NVD, requetes par
                  produit/vendor), aucune dependance reseau au runtime.
+- expert_correlation.py : correlation des alertes Expert Info (_ws.expert,
+                 applicatives) en signaux d'attaque -- fuzzing, overflow,
+                 deni de service (issue #137, sous-tache CVE-3).
 - cpe_match.py : conversion d'une banniere de service ("Apache/2.4.41")
                  en identifiant CPE 2.3 et comparaison de versions
                  (gestion des ranges NVD : versionStart/EndIncluding/
