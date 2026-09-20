@@ -11,7 +11,7 @@
 > Il remplace l'ancienne section 3 de `docs/features-backlog.md`, tenue à la main, qui avait dérivé
 > (voir `docs/sessions/session-36.md`, issue #140).
 
-88 modules · 117 classes · 255 fonctions publiques de module.
+88 modules · 118 classes · 256 fonctions publiques de module.
 
 Conventions : `+` public, `-` privé (préfixe `_`) ; `int?` = `int | None` ; `list~str~` = `list[str]` ;
 `<<module>>` regroupe les fonctions publiques d'un module ; `A --> B : champ` = `A` a un champ annoté
@@ -750,6 +750,7 @@ classDiagram
         +write_annotations(capture_path, annotations) None
         +annotations_by_tag(annotations) dict~str, list~PacketAnnotation~~
         +detect_sequence_gaps(packets) list~SequenceGap~
+        +validate_checksums(packets) list~ChecksumError~
     }
 
     %% ===== netcross_core.forensic_search =====
@@ -930,6 +931,13 @@ classDiagram
         +str cause
         +str evidence
     }
+    class ChecksumError {
+        <<dataclass, slots>>
+        +str point
+        +int? frame_number
+        +str protocol
+        +str checksum
+    }
     class Report {
         <<dataclass>>
         +list~str~ points
@@ -1061,6 +1069,7 @@ classDiagram
         +bool topology_used_for_order
         +list~str~ capture_comments
         +list~str~ packet_comments
+        +list~ChecksumError~ checksum_errors
     }
     class PacketAnnotation {
         <<dataclass, slots>>
@@ -1283,6 +1292,7 @@ classDiagram
     FlowView --> Transaction : transactions
     LiveDiffState --> Pkt : packets_in_window
     Pkt --> Banner : service_banners
+    Report --> ChecksumError : checksum_errors
     Report --> SequenceGap : sequence_gaps
 ```
 
