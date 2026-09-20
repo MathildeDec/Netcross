@@ -11,7 +11,7 @@
 > Il remplace l'ancienne section 3 de `docs/features-backlog.md`, tenue à la main, qui avait dérivé
 > (voir `docs/sessions/session-36.md`, issue #140).
 
-84 modules · 111 classes · 235 fonctions publiques de module.
+84 modules · 112 classes · 237 fonctions publiques de module.
 
 Conventions : `+` public, `-` privé (préfixe `_`) ; `int?` = `int | None` ; `list~str~` = `list[str]` ;
 `<<module>>` regroupe les fonctions publiques d'un module ; `A --> B : champ` = `A` a un champ annoté
@@ -707,6 +707,15 @@ classDiagram
         +flow_to_events(flow) list~ExpertEvent~
         +flow_to_packets(flow) list~Pkt~
     }
+    class _OpenGap {
+        <<dataclass, slots>>
+        +int start
+        +int length
+        +float prev_ts
+        +int? reveal_frame
+        +float reveal_ts
+        +float epoch_end_ts
+    }
     class mod_netcross_core_forensic["netcross_core.forensic"] {
         <<module>>
         +detect_cross_capture_duplicates(packets, threshold_ms) dict~tuple~str, str~, int~
@@ -714,6 +723,7 @@ classDiagram
         +read_annotations(capture_path) list~PacketAnnotation~
         +write_annotations(capture_path, annotations) None
         +annotations_by_tag(annotations) dict~str, list~PacketAnnotation~~
+        +detect_sequence_gaps(packets) list~SequenceGap~
     }
 
     %% ===== netcross_core.forensic_search =====
@@ -1095,6 +1105,7 @@ classDiagram
     class mod_netcross_core_report_text["netcross_core.report_text"] {
         <<module>>
         +print_report(r)
+        +print_sequence_gaps(r)
         +print_annotations(annotations)
         +write_detail_csv(path, flows, points, names)
     }

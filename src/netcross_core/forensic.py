@@ -38,11 +38,21 @@ from __future__ import annotations
 
 import json
 import os
+from bisect import bisect_left
 from collections import defaultdict
+from collections.abc import Iterable
+from dataclasses import dataclass
 
 from netcross_core.correlate import flow_key
 from netcross_core.expert_model import ExpertEvent, Flow, PacketEvidence
-from netcross_core.models import PacketAnnotation, Pkt
+from netcross_core.models import (
+    SEQ_GAP_CAPTURE_DROP,
+    SEQ_GAP_INDETERMINATE,
+    SEQ_GAP_NETWORK_LOSS,
+    PacketAnnotation,
+    Pkt,
+    SequenceGap,
+)
 
 # -- Detection de doublons inter-captures (Job 41/issue #161) ---------------
 
@@ -387,3 +397,240 @@ def annotations_by_tag(annotations: list[PacketAnnotation]) -> dict[str, list[Pa
     for ann in annotations:
         grouped[ann.tag].append(ann)
     return dict(grouped)
+
+
+# -- Trous de sequence TCP (Job 42/issue #162) --------------------------------
+#
+# Un trou de sequence est un intervalle d'octets TCP jamais vu a un point de
+# capture alors que des octets POSTERIEURS l'ont ete, sans qu'aucun segment
+# (retransmission, paquet arrive hors-ordre) ne le comble plus tard dans la
+# capture. Le point de capture seul ne dit pas POURQUOI ces octets manquent ;
+# l'ACK cumulatif du recepteur, vu au meme point, departage :
+#
+# - trou de CAPTURE : le recepteur a acquitte ces octets (ACK >= fin du trou)
+#   sans qu'aucune retransmission ait ete necessaire -> ils ont traverse le
+#   reseau, c'est la capture qui les a rates (tampon noyau/carte sature, port
+#   SPAN sature, visibilite partielle...) ;
+# - perte RESEAU : le recepteur continue d'acquitter mais reste bloque a/dans
+#   le trou (ACK dupliques) et aucune retransmission n'est visible -> ces
+#   octets ne lui sont pas parvenus (perte non recuperee avant la fin de la
+#   capture) ;
+# - INDETERMINE : pas de retour exploitable du recepteur a ce point apres le
+#   trou (sens retour non capture, fin de capture...) -> on ne tranche pas.
+
+_SEQ_MODULO = 1 << 32
+_SEQ_HALF = 1 << 31
+
+# Plus grand trou plausible : la fenetre TCP est bornee a 2**30 octets (RFC
+# 7323, Window Scale <= 14). Un ecart superieur entre deux segments successifs
+# n'est pas une perte au sein d'une fenetre (capture reprise en cours de route,
+# autre connexion sur le meme 5-uplet...) : on resynchronise au lieu de
+# signaler un trou geant.
+_MAX_PLAUSIBLE_GAP_BYTES = 1 << 30
+
+# (point, src, sport, dst, dport) : un sens d'une connexion TCP a un point.
+_StreamKey = tuple[str, str, int, str, int]
+
+
+def _seq_delta(a: int, b: int) -> int:
+    """a - b en arithmetique modulo 2**32, ramene dans [-2**31, 2**31[ : positif
+    si a est "apres" b sur le cercle des numeros de sequence (gere le retour a
+    zero du compteur de 32 bits)."""
+    return ((a - b + _SEQ_HALF) % _SEQ_MODULO) - _SEQ_HALF
+
+
+def _has_flag(pk: Pkt, letter: str) -> bool:
+    """Drapeau TCP leve ? `Pkt.flags` est la chaine positionnelle de tshark
+    (tcp.flags.str) : une lettre (S, F, A, R...) par drapeau actif."""
+    return pk.flags is not None and letter in pk.flags
+
+
+@dataclass(slots=True)
+class _OpenGap:
+    """Trou en cours de suivi dans _track_stream : octets [start, start+length)."""
+
+    start: int
+    length: int
+    prev_ts: float  # horodatage du segment qui precede le trou
+    reveal_frame: int | None  # trame du premier segment recu apres le trou...
+    reveal_ts: float  # ... et son horodatage
+    epoch_end_ts: float = float("inf")  # fin de la connexion suivie (nouveau SYN), sinon +inf
+
+
+def _fill_gaps(gaps: list[_OpenGap], start: int, span: int) -> list[_OpenGap]:
+    """Retire des trous ouverts les octets [start, start+span) qu'un segment
+    (retransmission, paquet hors-ordre) vient de couvrir : un trou peut
+    disparaitre, rester intact, retrecir ou se scinder en deux."""
+    remaining: list[_OpenGap] = []
+    for gap in gaps:
+        offset = _seq_delta(start, gap.start)
+        lo = max(offset, 0)
+        hi = min(offset + span, gap.length)
+        if lo >= hi:
+            remaining.append(gap)
+            continue
+        if lo > 0:
+            remaining.append(_OpenGap(gap.start, lo, gap.prev_ts, gap.reveal_frame, gap.reveal_ts))
+        if hi < gap.length:
+            tail_start = (gap.start + hi) % _SEQ_MODULO
+            remaining.append(_OpenGap(tail_start, gap.length - hi, gap.prev_ts, gap.reveal_frame, gap.reveal_ts))
+    return remaining
+
+
+def _track_stream(ordered: list[Pkt]) -> list[_OpenGap]:
+    """Suit UN sens d'une connexion TCP a UN point de capture (paquets deja
+    tries par ordre de capture) et renvoie les trous jamais combles.
+
+    `next_seq` est le premier numero de sequence pas encore couvert :
+    - segment a next_seq : le flux avance normalement ;
+    - segment au-dela : les octets [next_seq, seq) manquent -> trou ouvert ;
+    - segment en-deca (retransmission, hors-ordre, recouvrement) : il comble
+      tout ou partie des trous ouverts.
+    Un segment sans octet de donnees ni SYN/FIN (ACK pur, RST, keep-alive
+    vide...) ne consomme aucun numero de sequence : il est ignore, son seq ne
+    prouve aucun trou. Un nouveau SYN (nouvelle connexion sur le meme 5-uplet)
+    ou un ecart implausible clot la connexion suivie et repart de zero ; un SYN
+    retransmis (meme numero de sequence initial) ne remet rien a zero."""
+    finished: list[_OpenGap] = []
+    open_gaps: list[_OpenGap] = []
+    next_seq: int | None = None
+    isn: int | None = None
+    last_ts = 0.0
+
+    def close_epoch(ts: float) -> None:
+        for gap in open_gaps:
+            gap.epoch_end_ts = ts
+        finished.extend(open_gaps)
+        open_gaps.clear()
+
+    for pk in ordered:
+        if pk.tcp_len is None or pk.seq is None:
+            # longueur inconnue : la borne suivante n'est plus calculable, on
+            # repart de zero plutot que de fabriquer un faux trou
+            finished.extend(open_gaps)
+            open_gaps.clear()
+            next_seq = None
+            continue
+        syn = _has_flag(pk, "S")
+        span = pk.tcp_len + (1 if syn else 0) + (1 if _has_flag(pk, "F") else 0)
+        if span == 0:
+            continue
+        seq = pk.seq
+        end = (seq + span) % _SEQ_MODULO
+        if syn and seq != isn:
+            close_epoch(pk.ts)
+            isn = seq
+            next_seq, last_ts = end, pk.ts
+            continue
+        if next_seq is None:
+            next_seq, last_ts = end, pk.ts
+            continue
+        delta = _seq_delta(seq, next_seq)
+        if delta > 0:
+            if delta > _MAX_PLAUSIBLE_GAP_BYTES:
+                close_epoch(pk.ts)
+            else:
+                open_gaps.append(_OpenGap(next_seq, delta, last_ts, pk.frame_number, pk.ts))
+            next_seq, last_ts = end, pk.ts
+        elif delta == 0:
+            next_seq, last_ts = end, pk.ts
+        else:
+            if open_gaps:
+                open_gaps[:] = _fill_gaps(open_gaps, seq, span)
+            if _seq_delta(end, next_seq) > 0:
+                next_seq, last_ts = end, pk.ts
+    finished.extend(open_gaps)
+    return finished
+
+
+def _classify_gap(gap: _OpenGap, ack_ts: list[float], ack_nums: list[int]) -> tuple[str, str]:
+    """Cause d'un trou (SEQ_GAP_*) et sa justification, d'apres les ACK du
+    recepteur vus au meme point (`ack_ts` trie, `ack_nums` parallele). Seuls
+    comptent les ACK posterieurs au segment qui precede le trou et anterieurs a
+    la fin de la connexion suivie (un ACK d'une connexion ulterieure sur le
+    meme 5-uplet n'a aucun sens ici)."""
+    end = (gap.start + gap.length) % _SEQ_MODULO
+    first = bisect_left(ack_ts, gap.prev_ts)
+    last = bisect_left(ack_ts, gap.epoch_end_ts)
+    for i in range(first, last):
+        if _seq_delta(ack_nums[i], end) >= 0:
+            return (
+                SEQ_GAP_CAPTURE_DROP,
+                f"ACK {ack_nums[i]} >= fin du trou ({end}) : octets acquittes par le recepteur "
+                "sans retransmission, mais absents de la capture",
+            )
+    after = bisect_left(ack_ts, gap.reveal_ts)
+    if after < last:
+        stuck = max(ack_nums[after:last], key=lambda a: _seq_delta(a, gap.start))
+        if _seq_delta(stuck, gap.start) >= 0:
+            return (
+                SEQ_GAP_NETWORK_LOSS,
+                f"ACK bloque a {stuck} (< fin du trou {end}) : octets non acquittes, "
+                "aucune retransmission dans la capture",
+            )
+        return (
+            SEQ_GAP_INDETERMINATE,
+            f"ACK du recepteur en retard sur le trou ({stuck} < debut du trou {gap.start}) : impossible de conclure",
+        )
+    return (SEQ_GAP_INDETERMINATE, "aucun ACK du recepteur observe a ce point apres le trou : impossible de conclure")
+
+
+def detect_sequence_gaps(packets: Iterable[Pkt]) -> list[SequenceGap]:
+    """Trous de sequence TCP des connexions presentes dans `packets`.
+
+    `packets` : les paquets d'un ou plusieurs flux (typiquement `all_packets`
+    d'analyse()). Ils sont regroupes par point de capture et par SENS de
+    connexion (5-uplet oriente) -- les "flows" de correlate() ne conviennent pas
+    comme unite de suivi : leur cle contient le numero de sequence (key_id), un
+    "flow" est donc un unique segment vu a plusieurs points, pas une connexion.
+
+    Ne sont rapportes que les octets jamais combles avant la fin de la capture :
+    un paquet hors-ordre ou une retransmission qui remplit le trou l'annule.
+    Chaque trou est ensuite classe (capture / reseau / indetermine) grace aux
+    ACK inverses du meme point, voir l'en-tete de section. TCP uniquement : UDP
+    n'a pas de numerotation de transport (la perte RTP par numero de sequence
+    est deja traitee par l'analyse RTP).
+
+    Liste triee par (point, horodatage du segment qui revele le trou)."""
+    streams: dict[_StreamKey, list[Pkt]] = defaultdict(list)
+    for pk in packets:
+        if pk.proto == "TCP" and pk.seq is not None and pk.sport is not None and pk.dport is not None:
+            streams[(pk.point, pk.src, pk.sport, pk.dst, pk.dport)].append(pk)
+
+    found: list[tuple[_StreamKey, _OpenGap]] = []
+    for key, pkts in streams.items():
+        pkts.sort(key=lambda pk: pk.ts)  # tri stable : l'ordre du fichier departage les ex aequo
+        found.extend((key, gap) for gap in _track_stream(pkts))
+    if not found:
+        return []
+
+    acks_by_stream: dict[_StreamKey, tuple[list[float], list[int]]] = {}
+    gaps: list[SequenceGap] = []
+    for key, gap in found:
+        point, src, sport, dst, dport = key
+        reverse = (point, dst, dport, src, sport)
+        if reverse not in acks_by_stream:
+            acks = sorted(
+                ((pk.ts, pk.ack) for pk in streams.get(reverse, ()) if pk.ack is not None and _has_flag(pk, "A")),
+                key=lambda entry: entry[0],
+            )
+            acks_by_stream[reverse] = ([ts for ts, _ in acks], [ack for _, ack in acks])
+        cause, evidence = _classify_gap(gap, *acks_by_stream[reverse])
+        gaps.append(
+            SequenceGap(
+                point=point,
+                src=src,
+                sport=sport,
+                dst=dst,
+                dport=dport,
+                start_seq=gap.start,
+                end_seq=(gap.start + gap.length) % _SEQ_MODULO,
+                missing_bytes=gap.length,
+                ts=gap.reveal_ts,
+                frame_number=gap.reveal_frame,
+                cause=cause,
+                evidence=evidence,
+            )
+        )
+    gaps.sort(key=lambda g: (g.point, g.ts, g.start_seq))
+    return gaps
