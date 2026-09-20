@@ -8,6 +8,37 @@ from __future__ import annotations
 from collections import defaultdict
 from dataclasses import dataclass, field
 
+ROLE_SERVER = "server"
+ROLE_CLIENT = "client"
+
+
+@dataclass(frozen=True, slots=True)
+class Banner:
+    """Un logiciel identifie par sa banniere dans la charge utile d'un
+    paquet (CVE-1, issue #135) -- voir netcross_core.application.banners.
+
+    `protocol` : http, ssh, dns, smb, smtp, ftp, imap ou pop3.
+    `service`  : nom du logiciel tel que le service l'annonce ("Apache",
+                 "OpenSSH", "vsftpd", "BIND", "Samba"...).
+    `version`  : version annoncee, None si le service n'en donne pas.
+    `raw`      : texte source (en-tete, salutation) pour l'analyste.
+    `role`     : ROLE_SERVER (le logiciel tourne sur l'emetteur du paquet,
+                 cas normal) ou ROLE_CLIENT (User-Agent HTTP, banniere SSH
+                 cliente : logiciel client de l'emetteur).
+    """
+
+    protocol: str
+    service: str
+    version: str | None
+    raw: str
+    role: str = ROLE_SERVER
+
+    @property
+    def banner(self) -> str:
+        """Forme "produit/version" (ou "produit" seul), lisible par
+        `netcross_core.security.cpe_match.parse_banner`."""
+        return f"{self.service}/{self.version}" if self.version else self.service
+
 
 @dataclass(slots=True)
 class Pkt:
@@ -118,6 +149,11 @@ class Pkt:
     # `threshold_ms` (port miroir qui renvoie le trafic, par exemple).
     # False par defaut : aucun constructeur existant n'a a le passer.
     is_duplicate: bool = False
+    # Logiciels identifies par banniere (CVE-1, issue #135) -- calcule par
+    # netcross_core.parsing depuis RawPacket.payload (les octets ne sont
+    # plus disponibles ensuite) ; sert a construire
+    # Report.service_fingerprints (application.banners.build_service_fingerprints).
+    service_banners: tuple[Banner, ...] = ()
     # tcp.len : longueur de la charge utile TCP du segment (voir
     # RawPacket.tcp_len pour la justification complete), None hors TCP ou quand
     # l'information n'existe pas (paquets synthetiques de l'adaptateur NetFlow...).
@@ -440,6 +476,23 @@ class Report:
     http_objects: list[dict] = field(default_factory=list)
     # -- transactions applicatives (Job 23, §6.9/§6.10)
     application_transactions: list[dict] = field(default_factory=list)
+    # -- securite / detection passive de vulnerabilites (issue #133).
+    # Deux listes de dicts a plat, sur le modele de http_objects/
+    # application_transactions ci-dessus, consommees par
+    # netcross_report.security_report -- le rapport consolide ne detecte
+    # rien lui-meme, il ne fait que regrouper et classer. Vides par defaut.
+    #
+    # service_fingerprints (CVE-1, issue #135) : un dict par logiciel
+    # detecte, cles `service` (obligatoire), `version`, `host`, `port`,
+    # `point`, plus `protocol`, `role` et `banner` -- voir
+    # netcross_core.application.banners.build_service_fingerprints.
+    service_fingerprints: list[dict] = field(default_factory=list)
+    # security_findings (CVE-2 a CVE-4) : un dict par constat, cles
+    # `severity` (critique/elevee/moyenne/faible), `category`
+    # (exploit/anomalie/cve), `detail` ; pour une CVE, egalement `cve_id`
+    # et `cvss` ; `service`, `version`, `host`, `port`, `point` quand ils
+    # sont connus (ils servent a rattacher une CVE a un service detecte).
+    security_findings: list[dict] = field(default_factory=list)
     # -- topologie deduite (ordre + chemins multiples) --
     topology_edges: list[tuple[str, str, dict]] = field(default_factory=list)
     topology_ambiguous: list[tuple[str, str, str]] = field(default_factory=list)
