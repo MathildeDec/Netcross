@@ -25,6 +25,7 @@ pcap_parser.tunnels.select_innermost_layers.)
 import sys
 
 import pcap_parser
+from netcross_core.application.banners import extract_banners
 from netcross_core.models import Pkt
 from pcap_parser.ek_source import TsharkError, TsharkNotFoundError
 from pcap_parser.packet import RawPacket
@@ -118,6 +119,7 @@ def _to_pkt(label: str, raw: RawPacket) -> Pkt:
         tcp_len=raw.tcp_len,
         expert_flags=raw.expert_flags,
         expert_details=raw.expert_details,
+        service_banners=extract_banners(raw.proto, raw.sport, raw.dport, raw.payload),
     )
 
 
