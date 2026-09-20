@@ -792,13 +792,15 @@ netcross/
 ├── requirements-dev.txt     dependances de developpement, repli sans uv (pytest, ruff, import-linter, pre-commit)
 ├── pyproject.toml           dependances (uv, Session 55) + config ruff (lint/format) + import-linter (couches)
 ├── uv.lock                  verrou de dependances uv (Session 55)
-├── .pre-commit-config.yaml  hooks pre-commit (ruff, ruff-format, import-linter)
+├── .pre-commit-config.yaml  hooks pre-commit (ruff, ruff-format, import-linter, class-diagram)
 ├── .github/workflows/ci.yml pipeline CI GitHub Actions (lint, format, import-linter, pytest ; issue #176)
 ├── pytest.ini               configuration pytest (pythonpath = src)
 ├── docs/
-│   ├── features-backlog.md  fonctionnalites, diagramme de classes, dette, comparaison OmniPeek
+│   ├── class-diagram.md     diagramme de classes (GENERE depuis src/, ne pas editer a la main ; issue #140)
+│   ├── features-backlog.md  fonctionnalites, dette, comparaison OmniPeek
 │   └── sessions/             historique detaille session par session (session-01.md ... session-41.md)
 ├── scripts/
+│   ├── generate_class_diagram.py  genere docs/class-diagram.md depuis src/ (hook pre-commit ; issue #140)
 │   └── import_nvd.py        import periodique du flux NVD dans la base CVE locale (issue #138)
 ├── tests/                   suite de tests automatisés (pytest)
 ├── src/
