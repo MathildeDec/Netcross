@@ -6,10 +6,17 @@ objet Report sans dependre de ce module.
 
 import csv
 import statistics
-from collections import Counter
+from collections import Counter, defaultdict
 
 from netcross_core.forensic import annotations_by_tag
-from netcross_core.models import PacketAnnotation, Report
+from netcross_core.models import (
+    SEQ_GAP_CAPTURE_DROP,
+    SEQ_GAP_INDETERMINATE,
+    SEQ_GAP_NETWORK_LOSS,
+    PacketAnnotation,
+    Report,
+    SequenceGap,
+)
 
 
 def print_report(r: Report):
@@ -513,6 +520,12 @@ def print_report(r: Report):
     if not any_retrans:
         print("  aucune detectee")
 
+    print("\n-- Integrite de capture : trous de sequence TCP --")
+    if r.sequence_gaps:
+        print_sequence_gaps(r)
+    else:
+        print("  aucun trou de sequence TCP detecte")
+
     print(f"\n-- Flux RTP detectes voix/visio (cadence supposee {r.rtp_clock_rate}Hz) --")
     if r.rtp_streams:
         shown = r.rtp_streams[:50]
@@ -732,6 +745,47 @@ def print_report(r: Report):
             print(f"  ... {len(r.http_objects) - 50} objets supplementaires non affiches")
     else:
         print("  aucun objet HTTP reponse exploitable")
+
+
+# Nombre maximal de trous detailles par point dans le rapport texte (les
+# compteurs, eux, portent toujours sur la totalite).
+_MAX_SEQ_GAP_EXAMPLES = 5
+
+_SEQ_GAP_LABELS = {
+    SEQ_GAP_CAPTURE_DROP: "trou de capture",
+    SEQ_GAP_NETWORK_LOSS: "perte reseau",
+    SEQ_GAP_INDETERMINATE: "cause indeterminee",
+}
+
+
+def print_sequence_gaps(r: Report):
+    """Detail de la section "Integrite de capture" : trous de sequence TCP par
+    point, avec leur cause (capture / reseau / indeterminee)."""
+    print(
+        "  (octets jamais vus a ce point alors que des octets posterieurs l'ont ete, sans retransmission ulterieure ;"
+    )
+    print('   "de capture" = acquittes par le recepteur mais non captures, "perte reseau" = non acquittes)')
+    by_point: dict[str, list[SequenceGap]] = defaultdict(list)
+    for gap in r.sequence_gaps:
+        by_point[gap.point].append(gap)
+    for p in [*r.points, *sorted(set(by_point) - set(r.points))]:
+        gaps = by_point.get(p)
+        if not gaps:
+            continue
+        causes = Counter(g.cause for g in gaps)
+        print(
+            f"  {p:15s} : {len(gaps)} trou(s), {sum(g.missing_bytes for g in gaps)} octet(s) manquant(s) "
+            f"({causes[SEQ_GAP_CAPTURE_DROP]} de capture, {causes[SEQ_GAP_NETWORK_LOSS]} perte(s) reseau, "
+            f"{causes[SEQ_GAP_INDETERMINATE]} indetermine(s))"
+        )
+        for g in gaps[:_MAX_SEQ_GAP_EXAMPLES]:
+            frame = f", trame {g.frame_number}" if g.frame_number is not None else ""
+            print(
+                f"      ex: {g.src}:{g.sport} -> {g.dst}:{g.dport} seq {g.start_seq}..{g.end_seq} "
+                f"({g.missing_bytes} octets{frame}) -- {_SEQ_GAP_LABELS.get(g.cause, g.cause)} : {g.evidence}"
+            )
+        if len(gaps) > _MAX_SEQ_GAP_EXAMPLES:
+            print(f"      ... et {len(gaps) - _MAX_SEQ_GAP_EXAMPLES} autre(s) trou(s)")
 
 
 def print_annotations(annotations: list[PacketAnnotation]):
