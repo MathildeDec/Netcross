@@ -11,7 +11,7 @@
 > Il remplace l'ancienne section 3 de `docs/features-backlog.md`, tenue à la main, qui avait dérivé
 > (voir `docs/sessions/session-36.md`, issue #140).
 
-87 modules · 117 classes · 250 fonctions publiques de module.
+88 modules · 117 classes · 255 fonctions publiques de module.
 
 Conventions : `+` public, `-` privé (préfixe `_`) ; `int?` = `int | None` ; `list~str~` = `list[str]` ;
 `<<module>>` regroupe les fonctions publiques d'un module ; `A --> B : champ` = `A` a un champ annoté
@@ -30,12 +30,12 @@ flowchart TD
     netcross_report["netcross_report"]
     netcross_core["netcross_core"]
     pcap_parser["pcap_parser"]
-    CLI -->|"12 imports"| netcross_report
-    CLI -->|"9 imports"| netcross_core
+    CLI -->|"13 imports"| netcross_report
+    CLI -->|"11 imports"| netcross_core
     netcross_gtk4 -->|"10 imports"| netcross_report
     netcross_gtk4 -->|"17 imports"| netcross_core
     netcross_report -->|"11 imports"| netcross_core
-    netcross_core -->|"12 imports"| pcap_parser
+    netcross_core -->|"13 imports"| pcap_parser
 ```
 
 ## `pcap_parser`
@@ -1435,6 +1435,7 @@ classDiagram
 | `netcross_core.security.cpe_match` | conversion d'une banniere de service ("Apache/2.4.41") en identifiant CPE 2.3 et comparaison de versions avec les ranges NVD (versionStart/EndIncluding/Excluding). |
 | `netcross_core.security.cve_db` | base SQLite locale des CVE, peuplee par scripts/import_nvd.py depuis le flux NVD (voir ce script pour le format JSON attendu, API NVD 2.0). |
 | `netcross_core.security.expert_correlation` | issue #137 (CVE-3) : exploitation des alertes Expert Info de tshark pour DETECTER des tentatives d'exploitation (fuzzing, depassement de tampon, deni de service) a partir de paquets malformes et de… |
+| `netcross_core.security.findings` | alimentation de `Report.service_fingerprints` et `Report.security_findings` a partir des modules de detection CVE-1 a CVE-4 (issue #139, CVE-5, parent #133). |
 
 ### Diagramme
 
@@ -1541,6 +1542,16 @@ classDiagram
         +flow_id(pk) str
         +correlate_expert_alerts(packets, thresholds) CorrelationResult
         +apply_expert_correlation(r, all_packets, thresholds) None
+    }
+
+    %% ===== netcross_core.security.findings =====
+    class mod_netcross_core_security_findings["netcross_core.security.findings"] {
+        <<module>>
+        +scan_capture_exploits(label, path, signatures) list~Detection~
+        +exploit_findings(detections) list~dict~str, Any~~
+        +anomaly_findings(suspicions) list~dict~str, Any~~
+        +cve_findings(fingerprints, conn) list~dict~str, Any~~
+        +apply_security_findings(report, all_packets, detections, cve_conn) None
     }
 
     %% ===== relations =====

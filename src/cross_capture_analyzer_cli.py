@@ -133,6 +133,9 @@ from netcross_core import (
     write_redaction_map_csv,
 )
 from netcross_core.forensic import DEFAULT_DUPLICATE_THRESHOLD_MS, detect_cross_capture_duplicates
+from netcross_core.security import close_db, connect_cve_db
+from netcross_core.security import findings as security_findings
+from netcross_report.security_report import build_security_report, print_security_report
 
 
 def _parse_live_spec(spec):
@@ -587,6 +590,22 @@ def main():
         "Relit les memes fichiers passes a --capture.",
     )
     ap.add_argument(
+        "--security-report",
+        action="store_true",
+        help="Rapport de securite consolide en plus de l'analyse principale "
+        "(services/vulnerabilites, tentatives d'exploitation, anomalies "
+        "Expert Info, CVE confirmees -- voir docs/security-report.md). Relit "
+        "les memes fichiers passes a --capture pour chercher les signatures "
+        "d'exploits dans la charge utile brute (comme --tls). Incompatible "
+        "avec --live/--redact et les modes utilitaires --merge/--split/--replay.",
+    )
+    ap.add_argument(
+        "--cve-db",
+        help="Avec --security-report : base CVE SQLite locale (construite par "
+        "scripts/import_nvd.py) pour la correlation version -> CVE. Doit "
+        "designer un fichier existant (aucune base vide n'est creee).",
+    )
+    ap.add_argument(
         "--pdf-report",
         help="Chemin de sortie pour un rapport PDF (triage, synthese, graphiques, "
         "detail par module). Necessite reportlab, matplotlib et networkx.",
@@ -786,6 +805,40 @@ def main():
         )
         sys.exit(1)
 
+    # --security-report (issue #139) : les signatures d'exploits cherchent la
+    # charge utile BRUTE, relue depuis les fichiers --capture (meme discipline
+    # que --tls) -- jamais depuis un sniffing live, jamais depuis des paquets
+    # anonymises par --redact.
+    if args.cve_db and not args.security_report:
+        print("--cve-db necessite --security-report.", file=sys.stderr)
+        sys.exit(1)
+    if args.security_report:
+        if args.live:
+            print(
+                "--security-report n'est pas disponible avec --live : les "
+                "signatures d'exploits cherchent la charge utile brute, relue "
+                "depuis les fichiers --capture (comme --tls).",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        if args.redact:
+            print(
+                "--security-report n'est pas disponible avec --redact : les "
+                "signatures d'exploits cherchent la charge utile brute, jamais "
+                "des paquets anonymises.",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        if args.cve_db and not os.path.isfile(args.cve_db):
+            # refuser plutot que laisser connect_cve_db creer une base vide,
+            # qui correlerait... rien (voir scripts/import_nvd.py).
+            print(
+                f"base CVE introuvable : {args.cve_db} (aucune base vide n'est "
+                "creee -- construire la base avec scripts/import_nvd.py).",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+
     if args.merge and args.split:
         print("--merge et --split sont exclusifs : fusionner OU decouper, pas les deux.", file=sys.stderr)
         sys.exit(1)
@@ -821,6 +874,8 @@ def main():
                 ("--triage", args.triage),
                 ("--tls", args.tls),
                 ("--quic", args.quic),
+                ("--security-report", args.security_report),
+                ("--cve-db", args.cve_db),
                 ("--parallel", args.parallel),
             )
             if given
@@ -877,6 +932,8 @@ def main():
                 ("--triage", args.triage),
                 ("--tls", args.tls),
                 ("--quic", args.quic),
+                ("--security-report", args.security_report),
+                ("--cve-db", args.cve_db),
                 ("--parallel", args.parallel),
             )
             if given
@@ -1026,6 +1083,17 @@ def main():
             print(f"[{label}] {len(pkts)} paquets IP/TCP/UDP/ICMP charges depuis {path}")
             all_packets.extend(pkts)
 
+    # CVE-2 (issue #136, pour --security-report) : les signatures d'exploits
+    # cherchent la charge utile BRUTE, que Pkt ne garde pas -- relecture de
+    # chaque fichier passe a --capture, independante du mode de chargement
+    # ci-dessus (sequentiel ou --parallel, comme --tls).
+    security_detections = []
+    if args.security_report:
+        for label, path in captures:
+            detections = security_findings.scan_capture_exploits(label, path)
+            print(f"[{label}] {len(detections)} signature(s) d'exploit detectee(s) dans {path}")
+            security_detections.extend(detections)
+
     if args.redact:
         redactor = redact_packets(all_packets)
         print(f"\n{len(redactor)} adresse(s) anonymisee(s) (IP/MAC) avant analyse.")
@@ -1075,6 +1143,25 @@ def main():
     if captures:
         r.capture_comments = read_capture_comments(captures)
     print_report(r)
+
+    # --security-report (issue #139) : consolidation des quatre detecteurs
+    # (CVE-1 a CVE-4) sur le rapport deja rempli par analyse(), puis rendu
+    # dedie -- voir docs/security-report.md. cve_conn reste None sans --cve-db :
+    # les services sont listes sans correlation CVE, et l'absence de base est
+    # signalee pour ne pas laisser croire a une absence de vulnerabilite.
+    if args.security_report:
+        cve_conn = connect_cve_db(args.cve_db) if args.cve_db else None
+        if cve_conn is None:
+            print("Aucune base CVE fournie (--cve-db) : services listes sans correlation CVE.")
+        security_findings.apply_security_findings(
+            r,
+            all_packets,
+            detections=security_detections,
+            cve_conn=cve_conn,
+        )
+        print_security_report(build_security_report(r))
+        if cve_conn is not None:
+            close_db(cve_conn)
 
     if client_group:
         comparison = compare_clients(
