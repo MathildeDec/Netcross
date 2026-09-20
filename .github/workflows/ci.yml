@@ -5,6 +5,7 @@ name: CI
     branches: [main, dev]
   pull_request:
     branches: [main, dev]
+  workflow_dispatch:
 
 jobs:
   quality:
