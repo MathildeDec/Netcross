@@ -10,7 +10,10 @@ dans tmp_path -- la classe ignore volontairement le contenu des
 fichiers, voir sa docstring.
 """
 
+import io
 import os
+import threading
+import time
 
 import pytest
 
@@ -219,3 +222,297 @@ def test_ring_buffer_maybe_rotate_ouvre_le_premier_fichier_si_jamais_tourne(tmp_
     result = ring.maybe_rotate(now=0.0)
     assert result is not None
     assert ring.current_path == result
+
+
+# -- iter_live_multi : capture simultanee sur plusieurs interfaces (Job 48) ---
+# Deux niveaux de test : (1) iter_ek_records remplace par des sources
+# synthetiques (jamais tshark lui-meme, comme partout ici) pour verifier
+# fusion, arret et erreurs ; (2) subprocess.Popen remplace pour verifier la
+# vraie ligne de commande tshark construite pour CHAQUE interface.
+
+_WAIT = 5.0  # garde-fou : un test qui bloquerait doit echouer, pas pendre
+
+
+def _fake_sources(monkeypatch, behaviors):
+    """Remplace iter_ek_records par un aiguilleur : `behaviors` associe
+    chaque interface a une fonction (stop_event) -> iterateur de records.
+    Renvoie la liste des appels recus (interface, bpf_filter, stop_event)."""
+    calls = []
+
+    def fake(*, interface, bpf_filter=None, stop_event=None, **_kwargs):
+        calls.append({"interface": interface, "bpf_filter": bpf_filter, "stop_event": stop_event})
+        return behaviors[interface](stop_event)
+
+    monkeypatch.setattr(capture_mod, "iter_ek_records", fake)
+    return calls
+
+
+def _emit(*records):
+    """Source qui rend ces records puis se termine (tshark qui finit)."""
+
+    def behavior(_stop_event):
+        yield from records
+
+    return behavior
+
+
+def _emit_then_wait_for_stop(exited, name, *records):
+    """Source live : rend ses records puis reste silencieuse jusqu'a
+    stop_event (comme tshark sur une interface sans trafic, que seul
+    stop_event fait terminer). Note `name` dans `exited` en sortant."""
+
+    def behavior(stop_event):
+        try:
+            yield from records
+            assert stop_event.wait(_WAIT), f"[{name}] arret jamais propage a cette source"
+        finally:
+            exited.append(name)
+
+    return behavior
+
+
+def test_iter_live_multi_etiquette_chaque_paquet_par_son_interface(monkeypatch):
+    _fake_sources(
+        monkeypatch,
+        {
+            "eth0": _emit(_record(ts=1.0), _record(ts=2.0)),
+            "eth1": _emit(_record(ts=3.0)),
+        },
+    )
+    result = list(capture_mod.iter_live_multi([("LAN", "eth0"), ("WAN", "eth1")]))
+
+    by_label = {}
+    for label, pkt in result:
+        by_label.setdefault(label, []).append(pkt.ts)
+    # ordre relatif conserve au sein d'une interface ; aucun paquet perdu ni melange
+    assert by_label == {"LAN": [1.0, 2.0], "WAN": [3.0]}
+
+
+def test_iter_live_multi_ignore_les_paquets_non_decodables(monkeypatch):
+    # couche ni IP, ni ARP, ni STP -> build_packet renvoie None (cf. test_parse_capture_...)
+    _fake_sources(monkeypatch, {"eth0": _emit(EkRecord(ts=1.0, layers={"lldp": {}}), _record(ts=2.0))})
+    result = list(capture_mod.iter_live_multi([("LAN", "eth0")]))
+    assert [(label, pkt.ts) for label, pkt in result] == [("LAN", 2.0)]
+
+
+def test_iter_live_multi_transmet_interface_filtre_et_un_meme_arret_a_toutes_les_sources(monkeypatch):
+    calls = _fake_sources(monkeypatch, {"eth0": _emit(), "eth1": _emit()})
+    list(capture_mod.iter_live_multi([("LAN", "eth0"), ("WAN", "eth1")], bpf_filter="tcp"))
+
+    assert sorted((c["interface"], c["bpf_filter"]) for c in calls) == [("eth0", "tcp"), ("eth1", "tcp")]
+    # meme evenement d'arret partage par tous les tshark (et non None : meme sans
+    # stop_event cote appelant, la fermeture du generateur doit pouvoir les arreter)
+    stop_events = {id(c["stop_event"]) for c in calls}
+    assert len(stop_events) == 1
+    assert all(c["stop_event"] is not None for c in calls)
+
+
+def test_iter_live_multi_construit_les_arguments_tshark_de_chaque_interface(monkeypatch):
+    launched = []
+
+    class FakePopen:
+        def __init__(self, args, **_kwargs):
+            launched.append(list(args))
+            self.stdout = io.StringIO("")  # tshark qui ne produit rien puis se termine
+            self.stderr = io.StringIO("")
+            self.returncode = 0
+
+        def poll(self):
+            return self.returncode
+
+        def terminate(self):
+            pass
+
+        def wait(self, timeout=None):
+            return self.returncode
+
+        def kill(self):
+            pass
+
+    monkeypatch.setattr("shutil.which", lambda name: "/usr/bin/tshark")
+    monkeypatch.setattr("subprocess.Popen", FakePopen)
+
+    result = list(capture_mod.iter_live_multi([("LAN", "eth0"), ("WAN", "eth1")], bpf_filter="tcp port 443"))
+
+    assert result == []
+    assert len(launched) == 2  # un processus tshark par interface
+    by_interface = {args[args.index("-i") + 1]: args for args in launched}
+    assert set(by_interface) == {"eth0", "eth1"}
+    for args in by_interface.values():
+        assert args[0] == "/usr/bin/tshark"
+        assert "-r" not in args  # mode live, pas fichier
+        assert "-l" in args  # flush ligne par ligne (indispensable au live)
+        assert args[args.index("-f") + 1] == "tcp port 443"
+        assert args[-2:] == ["-T", "ek"]
+
+
+def test_iter_live_multi_fusionne_en_temps_reel_dans_l_ordre_d_arrivee(monkeypatch):
+    # A et B se relaient : le paquet suivant n'est produit qu'apres que le
+    # test a recu le precedent. Une implementation qui viderait une interface
+    # apres l'autre (ou attendrait la fin des sources) ne passerait pas.
+    go_b1, go_a2, go_b2 = threading.Event(), threading.Event(), threading.Event()
+
+    def source_a(_stop_event):
+        yield _record(ts=1.0)
+        assert go_a2.wait(_WAIT)
+        yield _record(ts=3.0)
+
+    def source_b(_stop_event):
+        assert go_b1.wait(_WAIT)
+        yield _record(ts=2.0)
+        assert go_b2.wait(_WAIT)
+        yield _record(ts=4.0)
+
+    _fake_sources(monkeypatch, {"a": source_a, "b": source_b})
+    gen = capture_mod.iter_live_multi([("A", "a"), ("B", "b")])
+
+    seen = [next(gen)]  # A1 arrive alors que B n'a encore rien produit
+    go_b1.set()
+    seen.append(next(gen))
+    go_a2.set()
+    seen.append(next(gen))
+    go_b2.set()
+    seen.append(next(gen))
+
+    assert [(label, pkt.ts) for label, pkt in seen] == [("A", 1.0), ("B", 2.0), ("A", 3.0), ("B", 4.0)]
+    assert list(gen) == []
+
+
+def test_iter_live_multi_stop_event_arrete_toutes_les_interfaces_en_meme_temps(monkeypatch):
+    exited = []
+    ready = threading.Semaphore(0)
+
+    def make_source(name):
+        def source(stop_event):
+            try:
+                yield _record(ts=1.0)
+                ready.release()
+                # interface devenue silencieuse : seul l'arret la fait terminer
+                assert stop_event.wait(_WAIT), f"[{name}] arret jamais propage"
+            finally:
+                exited.append(name)
+
+        return source
+
+    _fake_sources(monkeypatch, {f"eth{i}": make_source(f"eth{i}") for i in range(3)})
+    sources = [("A", "eth0"), ("B", "eth1"), ("C", "eth2")]
+    stop_event = threading.Event()
+    result = []
+    consumer = threading.Thread(target=lambda: result.extend(capture_mod.iter_live_multi(sources, stop_event)))
+    consumer.start()
+    for _ in sources:
+        assert ready.acquire(timeout=_WAIT)  # les 3 interfaces tournent, chacune deja silencieuse
+
+    t0 = time.monotonic()
+    stop_event.set()  # UN seul evenement, depuis un autre thread que le consommateur
+    consumer.join(timeout=_WAIT)
+
+    assert not consumer.is_alive()
+    assert time.monotonic() - t0 < 2.0
+    assert sorted(exited) == ["eth0", "eth1", "eth2"]  # aucune interface laissee en route
+    assert sorted(label for label, _pkt in result) == ["A", "B", "C"]  # paquets deja decodes rendus
+
+
+def test_iter_live_multi_stop_event_deja_positionne_termine_sans_bloquer(monkeypatch):
+    exited = []
+    _fake_sources(monkeypatch, {"eth0": _emit_then_wait_for_stop(exited, "eth0")})
+    stop_event = threading.Event()
+    stop_event.set()
+
+    assert list(capture_mod.iter_live_multi([("LAN", "eth0")], stop_event)) == []
+    assert exited == ["eth0"]
+
+
+def test_iter_live_multi_fermer_le_generateur_arrete_toutes_les_sources(monkeypatch):
+    exited = []
+    _fake_sources(
+        monkeypatch,
+        {
+            "eth0": _emit_then_wait_for_stop(exited, "eth0", _record(ts=1.0)),
+            "eth1": _emit_then_wait_for_stop(exited, "eth1", _record(ts=2.0)),
+        },
+    )
+    stop_event = threading.Event()
+    gen = capture_mod.iter_live_multi([("LAN", "eth0"), ("WAN", "eth1")], stop_event)
+    next(gen)
+    gen.close()  # l'appelant abandonne : break, exception ou close() explicite
+
+    assert sorted(exited) == ["eth0", "eth1"]  # close() rend la main une fois tout arrete
+    # fermer le generateur ne doit jamais positionner l'evenement de l'appelant :
+    # il peut etre partage avec d'autres threads (GUI : un stop_event pour tous les points)
+    assert not stop_event.is_set()
+
+
+def test_iter_live_multi_fermeture_avec_file_pleine_ne_bloque_pas(monkeypatch):
+    # file de 2 paquets et sources qui produisent sans arret : les producteurs
+    # sont bloques sur put() quand l'appelant s'en va -- l'arret doit les debloquer.
+    monkeypatch.setattr(capture_mod, "_LIVE_MULTI_QUEUE_MAXSIZE", 2)
+    exited = []
+
+    def endless(stop_event):
+        try:
+            while not stop_event.is_set():
+                yield _record()
+        finally:
+            exited.append("eth0")
+
+    _fake_sources(monkeypatch, {"eth0": endless})
+    gen = capture_mod.iter_live_multi([("LAN", "eth0")])
+    next(gen)
+    t0 = time.monotonic()
+    gen.close()
+
+    assert time.monotonic() - t0 < 3.0
+    assert exited == ["eth0"]
+
+
+def test_iter_live_multi_contre_pression_ne_perd_aucun_paquet(monkeypatch):
+    monkeypatch.setattr(capture_mod, "_LIVE_MULTI_QUEUE_MAXSIZE", 2)
+    _fake_sources(
+        monkeypatch,
+        {
+            "eth0": _emit(*[_record(ts=float(i)) for i in range(50)]),
+            "eth1": _emit(*[_record(ts=float(i)) for i in range(50)]),
+        },
+    )
+    result = list(capture_mod.iter_live_multi([("LAN", "eth0"), ("WAN", "eth1")]))
+    assert sorted(label for label, _pkt in result).count("LAN") == 50
+    assert sorted(label for label, _pkt in result).count("WAN") == 50
+
+
+def test_iter_live_multi_erreur_sur_une_interface_arrete_les_autres_et_prefixe_le_label(monkeypatch):
+    exited = []
+
+    def failing(_stop_event):
+        raise TsharkError("interface inconnue", returncode=1, stderr="no such device")
+        yield  # pragma: no cover -- fait du corps un generateur
+
+    _fake_sources(
+        monkeypatch,
+        {"eth0": _emit_then_wait_for_stop(exited, "eth0", _record(ts=1.0)), "eth1": failing},
+    )
+    with pytest.raises(TsharkError, match=r"^\[WAN\] interface inconnue") as exc_info:
+        list(capture_mod.iter_live_multi([("LAN", "eth0"), ("WAN", "eth1")]))
+
+    assert exc_info.value.returncode == 1
+    assert exc_info.value.stderr == "no such device"
+    assert exited == ["eth0"]  # l'interface saine a ete arretee, pas laissee capturer dans le vide
+
+
+def test_iter_live_multi_releve_tshark_absent_tel_quel(monkeypatch):
+    monkeypatch.setattr("shutil.which", lambda name: None)
+    with pytest.raises(TsharkNotFoundError):
+        list(capture_mod.iter_live_multi([("LAN", "eth0"), ("WAN", "eth1")]))
+
+
+def test_iter_live_multi_valide_ses_arguments_des_l_appel():
+    # levee a l'appel meme, sans iterer : un appelant qui lance la capture
+    # dans un thread (LiveDiffEngine.start_multi) doit l'apprendre tout de suite
+    with pytest.raises(ValueError, match="au moins une interface"):
+        capture_mod.iter_live_multi([])
+    with pytest.raises(ValueError, match="en double"):
+        capture_mod.iter_live_multi([("LAN", "eth0"), ("LAN", "eth1")])
+    with pytest.raises(ValueError, match="obligatoires"):
+        capture_mod.iter_live_multi([("LAN", "")])
+    with pytest.raises(ValueError, match="obligatoires"):
+        capture_mod.iter_live_multi([("", "eth0")])

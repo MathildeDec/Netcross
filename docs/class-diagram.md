@@ -11,7 +11,7 @@
 > Il remplace l'ancienne section 3 de `docs/features-backlog.md`, tenue à la main, qui avait dérivé
 > (voir `docs/sessions/session-36.md`, issue #140).
 
-83 modules · 109 classes · 230 fonctions publiques de module.
+84 modules · 111 classes · 235 fonctions publiques de module.
 
 Conventions : `+` public, `-` privé (préfixe `_`) ; `int?` = `int | None` ; `list~str~` = `list[str]` ;
 `<<module>>` regroupe les fonctions publiques d'un module ; `A --> B : champ` = `A` a un champ annoté
@@ -86,6 +86,15 @@ classDiagram
     class TcpreplayError {
         <<RuntimeError>>
     }
+    class _SourceDone {
+        <<dataclass, frozen>>
+        +str label
+    }
+    class _SourceFailed {
+        <<dataclass, frozen>>
+        +str label
+        +Exception error
+    }
     class mod_pcap_parser_capture["pcap_parser.capture"] {
         <<module>>
         +parse_capture(path, raise_on_error) list~RawPacket~
@@ -94,6 +103,7 @@ classDiagram
         +merge_captures(paths, output_path, dedup) None
         +replay_capture(path, interface, speed, loop) None
         +split_capture(path, output_dir, by, value) list~str~
+        +iter_live_multi(interfaces, stop_event, bpf_filter) Iterator~tuple~str, RawPacket~~
     }
 
     %% ===== pcap_parser.ek_fields =====
@@ -764,6 +774,7 @@ classDiagram
     }
     class LiveDiffEngine {
         +start(interface, bpf_filter) None
+        +start_multi(interfaces, bpf_filter) None
         +stop(timeout) None
     }
     class mod_netcross_core_live_diff["netcross_core.live_diff"] {
@@ -1039,6 +1050,7 @@ classDiagram
         +parse_capture(label, path, raise_on_error) list~Pkt~
         +parse_captures_parallel(captures, max_workers) tuple~list~Pkt~, list~dict~~
         +parse_live(label, interface, bpf_filter, stop_event)
+        +parse_live_multi(interfaces, stop_event, bpf_filter)
         +parse_rtp(payload)
         +parse_sip(payload)
         +detect_encapsulation(layers)
@@ -1979,6 +1991,7 @@ classDiagram
 | `netcross_gtk4.annotations_view` | logique de presentation pour l'etiquetage/signets sur paquets (Job 40 / issue #160, section "Metadonnees et annotation"). |
 | `netcross_gtk4.app` | interface GTK4 pour netcross_core / netcross_report. |
 | `netcross_gtk4.dashboard_context` | contexte d'analyse partage pour le dashboard analytique interactif (issue #18, section 6.17). |
+| `netcross_gtk4.live_capture_points` | points de capture en direct de la GUI (Job 48, issue #168) : une ligne du panneau de capture live peut porter PLUSIEURS interfaces d'une meme machine ("eth0, eth1"), chacune devenant son propre point… |
 | `netcross_gtk4.stats_view` | logique de presentation pour la vue d'exploration statistique (Job 27 / issue #22, section 6.8). |
 
 ### Diagramme
@@ -2070,6 +2083,14 @@ classDiagram
         +select_bucket(selection, bucket) DashboardSelection
         +select_event(selection, event_id, events) DashboardSelection
         +build_dashboard_snapshot(report, flows, findings, tls_findings, quic_findings, wireshark_expert_events, selection) DashboardSnapshot
+    }
+
+    %% ===== netcross_gtk4.live_capture_points =====
+    class mod_netcross_gtk4_live_capture_points["netcross_gtk4.live_capture_points"] {
+        <<module>>
+        +split_interfaces(text) list~str~
+        +expand_live_points(rows) list~tuple~str, str, str?~~
+        +duplicate_labels(points) list~str~
     }
 
     %% ===== netcross_gtk4.stats_view =====

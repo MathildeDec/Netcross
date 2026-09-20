@@ -16,7 +16,8 @@ fait que deux choses :
 
 API publique inchangee : parse_capture(label, path, raise_on_error),
 parse_captures_parallel(captures, max_workers), parse_live, parse_rtp,
-parse_sip, compute_mos, detect_encapsulation. (Le DHCP est lu
+parse_sip, compute_mos, detect_encapsulation ; seul ajout : parse_live_multi
+(capture simultanee sur plusieurs interfaces). (Le DHCP est lu
 directement depuis les paquets bruts par analysis.py, il n'y a pas de
 parse_dhcp() ici ; le choix de la couche la plus interne vit dans
 pcap_parser.tunnels.select_innermost_layers.)
@@ -37,6 +38,7 @@ __all__ = [
     "parse_capture",
     "parse_captures_parallel",
     "parse_live",
+    "parse_live_multi",
     "parse_rtp",
     "parse_sip",
 ]
@@ -221,6 +223,25 @@ def parse_live(label, interface, bpf_filter=None, stop_event=None):
     sans trafic sur l'interface)."""
     for raw in pcap_parser.iter_live(interface, bpf_filter=bpf_filter, stop_event=stop_event):
         yield _to_pkt(label, raw)
+
+
+def parse_live_multi(interfaces, stop_event=None, *, bpf_filter=None):
+    """Capture en direct SIMULTANEE sur plusieurs interfaces : yield un Pkt
+    au fil de l'eau, etiquete du label de son interface d'origine (le
+    label devient le point de capture du Pkt, comme parse_live).
+
+    `interfaces` : sequence de (label, interface), ex.
+    [("LAN", "eth0"), ("WAN", "eth1")] -- un label distinct par interface.
+    Fusion en temps reel dans l'ordre d'arrivee, arret simultane via
+    `stop_event`, echec de toute la capture si une interface echoue : voir
+    pcap_parser.iter_live_multi pour le detail de ces garanties.
+
+    Renvoie un iterateur (et non un generateur) : la validation des
+    arguments (liste vide, label en double...) leve ValueError des
+    l'appel, pas au premier paquet -- utile a un appelant qui lance la
+    capture dans un thread (LiveDiffEngine.start_multi)."""
+    packets = pcap_parser.iter_live_multi(interfaces, stop_event=stop_event, bpf_filter=bpf_filter)
+    return (_to_pkt(label, raw) for label, raw in packets)
 
 
 # -- re-exports pour compat avec l'ancienne API (baseline_diff.py et

@@ -6,6 +6,9 @@ Integration CaptureRingBuffer (Job 37, issue #157) en bas de fichier.
 """
 
 from importlib import import_module
+import time
+
+import pytest
 
 from netcross_core.alarms import AlarmConfig, AlarmEngine
 from netcross_core.baseline_diff import DiffFinding
@@ -17,6 +20,7 @@ from netcross_core.live_diff import (
 )
 from netcross_core.models import Pkt, Report
 from pcap_parser.capture import CaptureRingBuffer
+from pcap_parser.ek_source import TsharkError
 
 
 def _stub_analyse_et_correlate(monkeypatch):
@@ -388,3 +392,128 @@ def test_add_packet_avance_le_ring_buffer_sur_le_temps_de_capture(tmp_path):
     engine._add_packet(_pkt(ts=12.0, frame_number=4))  # encore une rotation -- 3e fichier
     assert len(ring.files) == 2  # max_files atteint, le plus ancien a ete purge
     assert first not in ring.files
+
+
+# -- start / start_multi : sources de capture live (Job 48, issue #168) --------
+# parse_live / parse_live_multi sont remplaces par de faux generateurs qui
+# rendent quelques paquets puis "capturent" jusqu'a stop_event -- jamais de
+# tshark reel. On verifie le cablage de l'engine (arguments, thread, arret),
+# pas la capture elle-meme (voir tests/test_capture.py).
+
+
+def _wait_until(predicate, timeout=5.0):
+    deadline = time.monotonic() + timeout
+    while time.monotonic() < deadline:
+        if predicate():
+            return True
+        time.sleep(0.01)
+    return predicate()
+
+
+def _live_source(packets, stop_event, then_raise=None):
+    """Faux flux live : rend `packets`, puis leve `then_raise` (interface en
+    erreur) ou attend stop_event (capture qui continue jusqu'a l'arret)."""
+    yield from packets
+    if then_raise is not None:
+        raise then_raise
+    stop_event.wait(5.0)
+
+
+def test_start_multi_consomme_les_paquets_etiquetes_et_s_arrete_sur_stop(monkeypatch):
+    seen = {}
+
+    def fake_parse_live_multi(interfaces, stop_event=None, *, bpf_filter=None):
+        seen.update(interfaces=list(interfaces), stop_event=stop_event, bpf_filter=bpf_filter)
+        return _live_source([_pkt(point="LAN", ts=1.0), _pkt(point="WAN", ts=1.5)], stop_event)
+
+    monkeypatch.setattr("netcross_core.parsing.parse_live_multi", fake_parse_live_multi)
+    engine = LiveDiffEngine(baseline_report=Report(points=["LAN", "WAN"]))
+
+    engine.start_multi([("LAN", "eth0"), ("WAN", "eth1")], bpf_filter="tcp")
+    try:
+        assert _wait_until(lambda: len(engine.state.packets_in_window) == 2)
+        assert engine.state.running is True
+    finally:
+        engine.stop()
+
+    assert [p.point for p in engine.state.packets_in_window] == ["LAN", "WAN"]
+    assert engine.state.running is False
+    assert seen["interfaces"] == [("LAN", "eth0"), ("WAN", "eth1")]
+    assert seen["bpf_filter"] == "tcp"
+    # l'arret de l'engine est bien celui que la capture multi-interfaces surveille
+    assert seen["stop_event"] is engine._stop_event
+
+
+def test_start_multi_valide_ses_arguments_avant_de_demarrer():
+    engine = LiveDiffEngine(baseline_report=Report(points=["LAN"]))
+
+    with pytest.raises(ValueError, match="au moins une interface"):
+        engine.start_multi([])
+    with pytest.raises(ValueError, match="en double"):
+        engine.start_multi([("LAN", "eth0"), ("LAN", "eth1")])
+
+    # echec propre : aucun thread lance, l'engine reste utilisable
+    assert engine.state.running is False
+    assert engine._thread is None
+
+
+def test_start_multi_refuse_un_second_demarrage(monkeypatch):
+    monkeypatch.setattr(
+        "netcross_core.parsing.parse_live_multi",
+        lambda interfaces, stop_event=None, *, bpf_filter=None: _live_source([], stop_event),
+    )
+    engine = LiveDiffEngine(baseline_report=Report(points=["LAN"]))
+    engine.start_multi([("LAN", "eth0")])
+    try:
+        with pytest.raises(RuntimeError, match="deja en cours"):
+            engine.start_multi([("LAN", "eth0")])
+        with pytest.raises(RuntimeError, match="deja en cours"):
+            engine.start("eth0")
+    finally:
+        engine.stop()
+
+
+@pytest.mark.filterwarnings("ignore::pytest.PytestUnhandledThreadExceptionWarning")
+def test_start_multi_interface_en_erreur_arrete_l_engine(monkeypatch):
+    # l'erreur remonte (elle est levee dans le thread de capture, donc affichee
+    # par le hook des threads) et l'engine ne reste pas "running" a comparer
+    # au baseline des donnees auxquelles il manque un point
+    monkeypatch.setattr(
+        "netcross_core.parsing.parse_live_multi",
+        lambda interfaces, stop_event=None, *, bpf_filter=None: _live_source(
+            [_pkt(point="LAN", ts=1.0)],
+            stop_event,
+            then_raise=TsharkError("interface inconnue", returncode=1, stderr=""),
+        ),
+    )
+    engine = LiveDiffEngine(baseline_report=Report(points=["LAN", "WAN"]))
+    engine.start_multi([("LAN", "eth0"), ("WAN", "eth1")])
+    try:
+        assert _wait_until(lambda: engine.state.running is False)
+    finally:
+        engine.stop()
+    assert engine.state.running is False
+
+
+def test_start_une_interface_utilise_l_interface_comme_label(monkeypatch):
+    # non-regression du refactor start/_run/_consume : le mode une interface
+    # continue de passer par parse_live, avec label == interface
+    seen = {}
+
+    def fake_parse_live(label, interface, bpf_filter=None, stop_event=None):
+        seen.update(label=label, interface=interface, bpf_filter=bpf_filter, stop_event=stop_event)
+        return _live_source([_pkt(point=label, ts=1.0)], stop_event)
+
+    monkeypatch.setattr("netcross_core.parsing.parse_live", fake_parse_live)
+    engine = LiveDiffEngine(baseline_report=Report(points=["eth0"]))
+
+    engine.start("eth0", bpf_filter="udp")
+    try:
+        assert _wait_until(lambda: len(engine.state.packets_in_window) == 1)
+    finally:
+        engine.stop()
+
+    assert (seen["label"], seen["interface"], seen["bpf_filter"]) == ("eth0", "eth0", "udp")
+    assert seen["stop_event"] is engine._stop_event
+    assert engine.state.packets_in_window[0].point == "eth0"
+    assert engine.state.running is False
