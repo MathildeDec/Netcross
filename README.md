@@ -883,7 +883,14 @@ avant un déploiement en production.
   quatre détecteurs (bannières de version CVE-1, signatures d'exploits
   CVE-2, corrélation des alertes Expert Info CVE-3, corrélation version →
   CVE CVE-4) sont consolidés par `--security-report` (voir « Options
-  utiles » ci-dessus et `docs/security-report.md`). Limites assumées : la
+  utiles » ci-dessus et `docs/security-report.md`). Les bannières de
+  version (CVE-1, `netcross_core.application.banners`) sont extraites
+  passivement pour HTTP/SSH/DNS/SMB/SMTP/FTP/IMAP/POP3, peuplent
+  `Pkt.service_banners` à l'analyse, sont consolidées en
+  `Report.service_fingerprints`, puis corrélées aux CVE via
+  `netcross_core.security.findings.apply_security_findings()`. Le
+  fingerprinting TLS (versions via Server Hello/certificats) n'est en
+  revanche pas encore couvert par ce module. Limites assumées : la
   corrélation exige le nom **et** la version exacts d'un produit présent
   dans la base locale (`scripts/import_nvd.py`) — une bannière masquée ou
   falsifiée (`ServerTokens Prod`) n'est pas détectée, et l'absence de
