@@ -19,6 +19,7 @@ from netcross_core.application import (
 )
 from netcross_core.content import extract_http_objects
 from netcross_core.correlate import TOPN_DIMENSIONS, compute_throughput, compute_topn_series
+from netcross_core.forensic import detect_sequence_gaps
 from netcross_core.models import Pkt, Report
 from netcross_core.parsing import compute_mos
 
@@ -274,6 +275,10 @@ def analyse(
     _analyse_tls_handshake(r, all_packets)
     _analyse_retransmission_types(r, all_packets)
     _analyse_tcp_expert_signals(r, all_packets)
+    # Trous de sequence TCP (Job 42/issue #162) : suivi par connexion et par
+    # point sur les paquets bruts -- pas sur `flows`, dont la cle porte le
+    # numero de sequence (un "flow" y est un segment, pas une connexion).
+    r.sequence_gaps = detect_sequence_gaps(all_packets)
     _analyse_saturation(r)
     _analyse_bufferbloat(r)
     _analyse_handshake(r, flows, points, points_order, nat_tolerant)
