@@ -366,6 +366,24 @@ Options utiles :
   passant lui aussi par tshark, voir `netcross_core/tls_diagnostics.py`
   et `quic_diagnostics.py`). Combinés à `--pdf-report`, ces diagnostics
   sont aussi integres au rapport PDF (section dediee + triage global).
+- `--security-report` / `--cve-db CHEMIN` : rapport de sécurité consolidé
+  (détection passive de vulnérabilités, issue #139) — services détectés
+  (versions lues dans les bannières) classés par criticité, tentatives
+  d'exploitation (signatures Log4Shell, Shellshock, Heartbleed,
+  EternalBlue… cherchées dans la charge utile brute des fichiers
+  `--capture`, comme `--tls`), anomalies Expert Info corrélées
+  (fuzzing/overflow/dos), CVE confirmées par corrélation version + CVE-ID +
+  score CVSS, tableau de bord et score de risque global 0-100 (sévérités
+  critique/élevée/moyenne/faible). `--cve-db` désigne la base SQLite
+  produite par `scripts/import_nvd.py` (fichier existant exigé) ; sans elle,
+  les services sont listés sans corrélation CVE et la CLI le signale
+  (« aucune vulnérabilité connue » ne veut alors pas dire « non
+  vulnérable »). Aucune CVE n'est rattachée à un service sans
+  correspondance exacte de nom **et** de version, et une signature d'exploit
+  est une *tentative* observée, jamais une compromission confirmée. Refusé
+  avec `--live`, `--redact` (relecture des fichiers bruts, comme
+  `--tls`) et les modes utilitaires `--merge`/`--split`/`--replay`. Détail,
+  choix de sévérité et limites : `docs/security-report.md`.
 - `--live LABEL:INTERFACE[:FILTRE_BPF]` : capture en direct sur une
   interface reseau plutot que sur des fichiers deja captures (repetable
   pour plusieurs points simultanes). S'arrete sur Ctrl+C ou
@@ -861,18 +879,20 @@ avant un déploiement en production.
 
 ## Limites connues
 
-- **Détection passive de vulnérabilités (CVE, `netcross_core.security`)** :
-  la base CVE locale et la corrélation par version (`correlate_banner()`/
-  `correlate_versions()`, issue #138 / CVE-4) sont fonctionnelles et
-  testées hors-ligne (`tests/test_cve_correlation.py`, base SQLite peuplée
-  via `scripts/import_nvd.py`), mais **pas encore câblées sur le pipeline
-  d'analyse** (`Report`/`Pkt`) : elles dépendent explicitement de CVE-1
-  (issue #135, extraction de bannières de version par fingerprinting
-  passif), non mergée à ce jour. `correlate_versions()` accepte donc en
-  entrée un itérable de chaînes `"produit/version"` construites par
-  l'appelant plutôt que des bannières extraites automatiquement d'une
-  capture — aucun changement de signature prévu une fois #135 disponible,
-  seulement un nouvel appelant.
+- **Détection passive de vulnérabilités (CVE, `--security-report`)** : les
+  quatre détecteurs (bannières de version CVE-1, signatures d'exploits
+  CVE-2, corrélation des alertes Expert Info CVE-3, corrélation version →
+  CVE CVE-4) sont consolidés par `--security-report` (voir « Options
+  utiles » ci-dessus et `docs/security-report.md`). Limites assumées : la
+  corrélation exige le nom **et** la version exacts d'un produit présent
+  dans la base locale (`scripts/import_nvd.py`) — une bannière masquée ou
+  falsifiée (`ServerTokens Prod`) n'est pas détectée, et l'absence de
+  service détecté n'est pas une information ; les signatures d'exploits ne
+  voient ni un flux chiffré (TLS sans clés) ni une charge répartie sur
+  plusieurs segments TCP (pas de réassemblage) ; une signature est une
+  *tentative* observée, jamais une compromission confirmée ; rendu texte
+  uniquement (pas de section dans `--pdf-report`/`--json-report`, pas
+  d'équivalent dans l'interface graphique).
 - **Captures segmentées (`NOM=chemin1,chemin2,...`)** : les segments sont
   lus dans l'ordre où ils sont listés et simplement concaténés, sans tri
   par timestamp — les lister dans l'ordre chronologique (ordre naturel
