@@ -43,6 +43,17 @@ def print_report(r: Report):
                 "--exclude-duplicates les en retire."
             )
 
+    if r.capture_comments or r.packet_comments:
+        # Job 39/issue #159 -- section absente si la capture ne porte aucun
+        # commentaire pcapng (cas le plus frequent) : la sortie historique
+        # reste inchangee. Deux sous-parties, deux origines distinctes (voir
+        # Report.capture_comments/packet_comments dans models.py).
+        print("\n-- Commentaires pcapng --")
+        for c in r.capture_comments:
+            print(f"  [section] {c}")
+        for c in r.packet_comments:
+            print(f"  [paquet] {c}")
+
     print("\n-- Topologie deduite (delta TTL + recouvrement de flux entre points) --")
     if r.topology_edges:
         for u, d, info in r.topology_edges:

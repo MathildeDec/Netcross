@@ -124,6 +124,7 @@ from netcross_core import (
     parse_live,
     print_client_comparison,
     print_report,
+    read_capture_comments,
     redact_packets,
     replay_capture,
     split_capture,
@@ -1066,6 +1067,13 @@ def main():
         exclude_duplicates=args.exclude_duplicates,
         duplicate_counts=duplicate_counts,
     )
+    # Commentaires de SECTION pcapng (Job 39/issue #159) -- lus ici, au
+    # dernier moment avant le rendu : metadonnee de fichier, pas de paquet,
+    # donc remplie par l'appelant (voir Report.capture_comments) et pas par
+    # analyse(). Ne leve jamais et ne produit rien sur un pcap classique ou
+    # un pcapng sans commentaire de section.
+    if captures:
+        r.capture_comments = read_capture_comments(captures)
     print_report(r)
 
     if client_group:

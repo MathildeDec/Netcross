@@ -11,7 +11,7 @@
 > Il remplace l'ancienne section 3 de `docs/features-backlog.md`, tenue à la main, qui avait dérivé
 > (voir `docs/sessions/session-36.md`, issue #140).
 
-86 modules · 117 classes · 247 fonctions publiques de module.
+87 modules · 117 classes · 249 fonctions publiques de module.
 
 Conventions : `+` public, `-` privé (préfixe `_`) ; `int?` = `int | None` ; `list~str~` = `list[str]` ;
 `<<module>>` regroupe les fonctions publiques d'un module ; `A --> B : champ` = `A` a un champ annoté
@@ -35,7 +35,7 @@ flowchart TD
     netcross_gtk4 -->|"10 imports"| netcross_report
     netcross_gtk4 -->|"17 imports"| netcross_core
     netcross_report -->|"11 imports"| netcross_core
-    netcross_core -->|"11 imports"| pcap_parser
+    netcross_core -->|"12 imports"| pcap_parser
 ```
 
 ## `pcap_parser`
@@ -44,6 +44,7 @@ flowchart TD
 |---|---|
 | `pcap_parser` | decodage de captures reseau via tshark -T ek (moteur Wireshark en ligne de commande). |
 | `pcap_parser.capfile` | couche 1 bis : cadrage binaire minimal des fichiers pcap / pcapng. |
+| `pcap_parser.capinfos_source` | lecture du commentaire de SECTION pcapng (Section Header Block, "capture comment") d'un fichier de capture, via `capinfos -k`. |
 | `pcap_parser.capture` | couche 6 (orchestration) : point d'entree public du package. |
 | `pcap_parser.ek_fields` | couche 2 : acces bas niveau aux champs d'un paquet EK. |
 | `pcap_parser.ek_source` | couche 1 : execution de tshark -T ek et lecture du flux NDJSON qui en resulte, fichier pcap ou interface live. |
@@ -71,6 +72,12 @@ classDiagram
         +format_extension(fmt) str
         +has_packets(path) bool
         +split_by_size(path, out_prefix, max_bytes) list~str~
+    }
+
+    %% ===== pcap_parser.capinfos_source =====
+    class mod_pcap_parser_capinfos_source["pcap_parser.capinfos_source"] {
+        <<module>>
+        +read_capture_comment(path) str?
     }
 
     %% ===== pcap_parser.capture =====
@@ -218,6 +225,7 @@ classDiagram
         +str? http_content_type
         +int? http_content_length
         +int? tcp_len
+        +str? comment
     }
     class mod_pcap_parser_packet["pcap_parser.packet"] {
         <<module>>
@@ -890,6 +898,7 @@ classDiagram
         +str? http_content_type
         +int? http_content_length
         +bool is_duplicate
+        +str? comment
         +tuple~Banner, ...~ service_banners
         +int? tcp_len
     }
@@ -1037,6 +1046,8 @@ classDiagram
         +list~str~ topology_merge_points
         +list~str~ topology_order_conflicts
         +bool topology_used_for_order
+        +list~str~ capture_comments
+        +list~str~ packet_comments
     }
     class PacketAnnotation {
         <<dataclass, slots>>
@@ -1080,6 +1091,7 @@ classDiagram
         <<module>>
         +parse_capture(label, path, raise_on_error) list~Pkt~
         +parse_captures_parallel(captures, max_workers) tuple~list~Pkt~, list~dict~~
+        +read_capture_comments(captures) list~str~
         +parse_live(label, interface, bpf_filter, stop_event)
         +parse_live_multi(interfaces, stop_event, bpf_filter)
         +parse_rtp(payload)
