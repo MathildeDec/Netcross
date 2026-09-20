@@ -31,6 +31,9 @@ pcap_parser.iter_live, jusqu'ici orpheline, aucune CLI ne l'exposait) :
     - arret manuel (bouton) ou automatique (duree max optionnelle)
     - TLS/QUIC indisponibles dans ce mode : ces diagnostics relisent les
       fichiers passes a --capture, et une capture live n'en produit pas
+    - filtres BPF (Job 47) : menu deroulant par point de capture (catalogue
+      predefini + filtres sauvegardes dans ~/.netcross/bpf_filters.json) et
+      bouton d'enregistrement du filtre courant
 """
 
 import contextlib
@@ -63,6 +66,8 @@ from netcross_core import (  # noqa: E402
     write_detail_csv,
 )
 from netcross_core.baseline_diff import diff_reports, print_diff_report, write_diff_csv  # noqa: E402
+from netcross_core.bpf_filters import PREDEFINED_BPF_FILTERS, available_bpf_filters, upsert_bpf_filter  # noqa: E402
+from netcross_core.models import BPFFilter  # noqa: E402
 from netcross_gtk4.dashboard_context import (  # noqa: E402
     DashboardSelection,
     build_dashboard_snapshot,
@@ -229,15 +234,33 @@ class CaptureRow(Gtk.Box):
         return self.label_entry.get_text().strip()
 
 
+_FILTER_PICKER_TITLE = "Filtres..."
+_FILTER_PICKER_HINT = "Charger un filtre BPF predefini ou sauvegarde"
+
+
 class LiveCaptureRow(Gtk.Box):
     """Une ligne = un point de capture EN DIRECT (nom + interface + filtre
     BPF optionnel), reordonnable -- pendant de CaptureRow pour la source
     live plutot que fichier. Pas de chemin : rien a choisir via un
     selecteur de fichiers, les champs sont editables directement. Le champ
     interface accepte plusieurs interfaces separees par des virgules : la
-    ligne represente alors une machine, chaque interface un point."""
+    ligne represente alors une machine, chaque interface un point.
 
-    def __init__(self, default_label, interface="", bpf_filter="", on_change=None):
+    Filtres BPF (Job 47) : ``filters`` est la liste de BPFFilter proposee par
+    le menu deroulant (catalogue predefini + filtres sauvegardes) et
+    ``on_save_filter(BPFFilter)`` persiste un nouveau filtre (la ligne affiche
+    dans son popover l'erreur ValueError/OSError eventuelle). Les deux sont fournis
+    par LiveCaptureListPanel ; sans eux la ligne se comporte comme avant."""
+
+    def __init__(
+        self,
+        default_label,
+        interface="",
+        bpf_filter="",
+        on_change=None,
+        filters=None,
+        on_save_filter=None,
+    ):
         super().__init__(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
         self.set_margin_top(4)
         self.set_margin_bottom(4)
@@ -272,7 +295,22 @@ class LiveCaptureRow(Gtk.Box):
         self.filter_entry.set_text(bpf_filter)
         self.filter_entry.set_placeholder_text("filtre BPF optionnel, ex: tcp port 443")
         self.filter_entry.set_hexpand(True)
+        self.filter_entry.connect("changed", self._on_filter_text_changed)
         self.append(self.filter_entry)
+
+        # -- filtres BPF predefinis/sauvegardes (Job 47) --
+        self._filters = []
+        self._on_save_filter = on_save_filter
+        self._syncing_dropdown = False  # vrai pendant qu'on modifie le menu nous-memes
+        self.filter_dropdown = Gtk.DropDown.new_from_strings([_FILTER_PICKER_TITLE])
+        self.filter_dropdown.connect("notify::selected", self._on_filter_picked)
+        self.append(self.filter_dropdown)
+        self.set_filters(filters or [])
+
+        self.save_filter_btn = Gtk.MenuButton(icon_name="document-save-symbolic")
+        self.save_filter_btn.set_tooltip_text("Enregistrer le filtre BPF courant sous un nom")
+        self.save_filter_btn.set_popover(self._build_save_popover())
+        self.append(self.save_filter_btn)
 
         up_btn = Gtk.Button(icon_name="go-up-symbolic")
         up_btn.set_tooltip_text("Monter (ordre = chemin physique reseau)")
@@ -288,6 +326,106 @@ class LiveCaptureRow(Gtk.Box):
         remove_btn.set_tooltip_text("Retirer ce point de capture")
         remove_btn.connect("clicked", self._on_remove)
         self.append(remove_btn)
+
+    def set_filters(self, filters):
+        """Remplace les filtres proposes par le menu deroulant ; la selection
+        revient sur le titre (le texte du champ filtre n'est pas modifie)."""
+        self._filters = list(filters)
+        self._syncing_dropdown = True
+        try:
+            names = [_FILTER_PICKER_TITLE] + [flt.name for flt in self._filters]
+            self.filter_dropdown.set_model(Gtk.StringList.new(names))
+        finally:
+            self._syncing_dropdown = False
+        self._select_filter_index(0)
+
+    def _select_filter_index(self, index):
+        """Positionne le menu (0 = titre, i = i-eme filtre) SANS recharger le
+        champ filtre, et aligne l'infobulle sur la description du filtre."""
+        self._syncing_dropdown = True
+        try:
+            self.filter_dropdown.set_selected(index)
+        finally:
+            self._syncing_dropdown = False
+        if 0 < index <= len(self._filters):
+            flt = self._filters[index - 1]
+            self.filter_dropdown.set_tooltip_text(flt.description or flt.name)
+        else:
+            self.filter_dropdown.set_tooltip_text(_FILTER_PICKER_HINT)
+
+    def _on_filter_picked(self, dropdown, _pspec):
+        if self._syncing_dropdown:
+            return
+        index = dropdown.get_selected()
+        if not 0 < index <= len(self._filters):
+            return
+        self._select_filter_index(index)
+        self.filter_entry.set_text(self._filters[index - 1].expression)
+
+    def _on_filter_text_changed(self, entry):
+        """Le champ a ete edite a la main : le menu ne doit plus annoncer un
+        filtre dont le texte n'est plus celui du champ."""
+        index = self.filter_dropdown.get_selected()
+        if 0 < index <= len(self._filters) and entry.get_text().strip() != self._filters[index - 1].expression:
+            self._select_filter_index(0)
+
+    def _build_save_popover(self):
+        box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+        box.set_margin_top(8)
+        box.set_margin_bottom(8)
+        box.set_margin_start(8)
+        box.set_margin_end(8)
+
+        self._save_name_entry = Gtk.Entry()
+        self._save_name_entry.set_placeholder_text("Nom du filtre (ex: web interne)")
+        self._save_name_entry.set_width_chars(30)
+        self._save_name_entry.connect("activate", self._on_save_filter_clicked)
+        box.append(self._save_name_entry)
+
+        self._save_desc_entry = Gtk.Entry()
+        self._save_desc_entry.set_placeholder_text("Description (optionnelle)")
+        self._save_desc_entry.connect("activate", self._on_save_filter_clicked)
+        box.append(self._save_desc_entry)
+
+        self._save_status = Gtk.Label(label="", halign=Gtk.Align.START, wrap=True, max_width_chars=40)
+        self._save_status.add_css_class("error")
+        box.append(self._save_status)
+
+        save_btn = Gtk.Button(label="Enregistrer le filtre")
+        save_btn.connect("clicked", self._on_save_filter_clicked)
+        box.append(save_btn)
+
+        self._save_popover = Gtk.Popover()
+        self._save_popover.set_child(box)
+        return self._save_popover
+
+    def _on_save_filter_clicked(self, _widget):
+        expression = self.filter_entry.get_text().strip()
+        name = self._save_name_entry.get_text().strip()
+        if not expression:
+            self._save_status.set_text("Le champ filtre BPF est vide : rien a enregistrer.")
+            return
+        if not name:
+            self._save_status.set_text("Donnez un nom au filtre.")
+            return
+        if self._on_save_filter is None:
+            self._save_status.set_text("Sauvegarde des filtres indisponible.")
+            return
+        try:
+            self._on_save_filter(BPFFilter(name, expression, self._save_desc_entry.get_text().strip()))
+        except (OSError, ValueError) as exc:
+            self._save_status.set_text(str(exc))
+            return
+        self._save_status.set_text("")
+        self._save_name_entry.set_text("")
+        self._save_desc_entry.set_text("")
+        self._save_popover.popdown()
+        # Le panneau a rafraichi les menus (selection sur le titre) : on
+        # repositionne CETTE ligne sur le filtre qu'elle vient d'enregistrer.
+        for i, flt in enumerate(self._filters, start=1):
+            if flt.name.casefold() == name.casefold():
+                self._select_filter_index(i)
+                break
 
     def _on_up(self, _btn):
         row = self.get_parent()
@@ -410,11 +548,19 @@ class LiveCaptureListPanel(Gtk.Box):
     (en-tete + liste reordonnable dans un cadre defilant), mais "Ajouter"
     insere directement une ligne vide (pas de selecteur de fichiers --
     rien a choisir sur le disque, l'utilisateur remplit interface/filtre
-    a la main)."""
+    a la main).
 
-    def __init__(self, heading, on_change=None):
+    ``filters_path`` : fichier des filtres BPF sauvegardes (defaut :
+    ~/.netcross/bpf_filters.json). Le panneau charge le catalogue + les
+    filtres sauvegardes une fois, les distribue aux lignes, et centralise
+    l'enregistrement d'un nouveau filtre (menus de TOUTES les lignes mis a
+    jour)."""
+
+    def __init__(self, heading, on_change=None, filters_path=None):
         super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=6)
         self._on_change = on_change
+        self._filters_path = filters_path
+        self._filters = self._initial_filters()
 
         header = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
         header.append(
@@ -442,11 +588,36 @@ class LiveCaptureListPanel(Gtk.Box):
     def add_row(self, default_label=None, interface="", bpf_filter=""):
         if default_label is None:
             default_label = f"POINT{len(self.rows()) + 1}"
-        row = LiveCaptureRow(default_label, interface, bpf_filter, on_change=self._on_change)
+        row = LiveCaptureRow(
+            default_label,
+            interface,
+            bpf_filter,
+            on_change=self._on_change,
+            filters=self._filters,
+            on_save_filter=self._save_filter,
+        )
         self.listbox.append(row)
         if self._on_change:
             self._on_change()
         return row
+
+    def _initial_filters(self):
+        try:
+            return available_bpf_filters(self._filters_path)
+        except (OSError, ValueError) as exc:
+            # Fichier sidecar illisible : le catalogue predefini reste
+            # utilisable et le fichier n'est PAS touche (upsert_bpf_filter
+            # refuse d'ecraser un fichier qu'il ne sait pas relire).
+            print(f"netcross: filtres BPF sauvegardes ignores ({exc})", file=sys.stderr)
+            return list(PREDEFINED_BPF_FILTERS)
+
+    def _save_filter(self, flt):
+        """Persiste ``flt`` puis rafraichit le menu de chaque ligne. Les
+        erreurs (nom reserve au catalogue, fichier illisible, E/S) remontent
+        a la ligne appelante, qui les affiche dans son popover."""
+        self._filters = upsert_bpf_filter(flt, self._filters_path)
+        for row in self.rows():
+            row.set_filters(self._filters)
 
     def rows(self):
         rows = []
