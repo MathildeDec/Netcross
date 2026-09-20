@@ -165,6 +165,19 @@ class Pkt:
     # RawPacket.tcp_len pour la justification complete), None hors TCP ou quand
     # l'information n'existe pas (paquets synthetiques de l'adaptateur NetFlow...).
     tcp_len: int | None = None
+    # -- Checksums IP/TCP/UDP (Job 43/issue #163) : valeurs brutes (chaine
+    # hex) et verdicts tri-etats (True=invalide, False=valide, None=non
+    # determine) reportes tels quels depuis RawPacket. Pas encore consommes
+    # par l'analyse (le rapport/forensic amont reste a ecrire, voir #163) :
+    # Pkt ne perd volontairement AUCUN champ de RawPacket (hors payload, par
+    # design -- invariant verifie par test_parsing_adapter) pour que la
+    # validation de checksums dispose deja de la donnee.
+    ip_checksum: str | None = None
+    ip_checksum_bad: bool | None = None
+    tcp_checksum: str | None = None
+    tcp_checksum_bad: bool | None = None
+    udp_checksum: str | None = None
+    udp_checksum_bad: bool | None = None
 
 
 # Cause d'un trou de sequence TCP (SequenceGap.cause) -- criteres de
