@@ -371,6 +371,25 @@ Options utiles :
   `--capture`/`--parallel`/`--tls`/`--quic` (mêmes limitations que le
   mode live de la GUI). Necessite les memes droits que tshark en direct
   (root, ou capacites `CAP_NET_RAW`/`CAP_NET_ADMIN` sur `dumpcap`).
+- `--replay INTERFACE` : rejoue le fichier passé à `--capture` (un seul,
+  exactement) sur `INTERFACE` via [`tcpreplay`](https://tcpreplay.appneta.com/)
+  (paquet système distinct de `tshark`, à installer séparément —
+  `apt install tcpreplay` / `dnf install tcpreplay`), puis s'arrête SANS
+  lancer d'analyse. **⚠️ Usage responsable : cette option émet du trafic
+  réseau RÉEL sur `INTERFACE`.** Ne jamais l'utiliser sur une interface
+  connectée à un réseau de production sans autorisation explicite — le
+  rejeu peut saturer un lien, déclencher des alarmes IDS/IPS, ou réémettre
+  des paquets à adresse source usurpée. À réserver à un banc de test isolé
+  (interface loopback/veth/bridge dédié, labo), sauf besoin explicite et
+  maîtrisé d'un rejeu sur un segment réel (test de pare-feu, validation
+  QoS). `--replay-speed` règle la vitesse par rapport à la vitesse
+  d'origine du fichier (`1.0` = vitesse d'origine, `0.5` = deux fois plus
+  lent, `2.0` = deux fois plus rapide, ou `topspeed` pour rejouer aussi
+  vite que l'interface/le noyau le permettent sans respecter les
+  timestamps d'origine). `--replay-loop N` rejoue le fichier `N` fois
+  (défaut 1). Incompatible avec `--live`/`--merge`/`--split` et avec les
+  options d'analyse/de rapport (comme `--merge`, plusieurs fichiers
+  segmentés doivent d'abord être fusionnés en un seul).
 - `--json-report chemin.json` : export JSON structuré (points, constats,
   triage, diagnostics TLS/QUIC si `--tls`/`--quic` sont fournis) pour
   l'intégration externe (dashboard, ticketing, script d'analyse). Aucune
