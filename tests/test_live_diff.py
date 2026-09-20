@@ -5,8 +5,8 @@ fenetre glissante, evaluation periodique du diff, integration AlarmEngine.
 Integration CaptureRingBuffer (Job 37, issue #157) en bas de fichier.
 """
 
-from importlib import import_module
 import time
+from importlib import import_module
 
 import pytest
 

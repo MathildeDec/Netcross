@@ -1,5 +1,7 @@
 # netcross
 
+[![CI](https://github.com/MathildeDec/Netcross/actions/workflows/ci.yml/badge.svg)](https://github.com/MathildeDec/Netcross/actions/workflows/ci.yml)
+
 **Analyse croisée de captures Wireshark multi-points pour le dépannage réseau.**
 
 Corrèle plusieurs captures `.pcap`/`.pcapng` prises simultanément en différents
@@ -772,6 +774,12 @@ uv run pre-commit run --all-files
   `netcross_core`, `pcap_parser` ; `netcross_core` de `pcap_parser` — jamais
   l'inverse, et `pcap_parser` ne dépend d'aucun autre package du projet.
 
+Ces mêmes vérifications (`ruff check`, `ruff format --check`, `lint-imports`)
+ainsi que la suite `pytest` (voir [Tests](#tests) ci-dessus) tournent
+désormais aussi automatiquement dans un pipeline
+[GitHub Actions](.github/workflows/ci.yml) sur chaque `push` et chaque pull
+request vers `main`/`dev` (badge en tête de ce document).
+
 ---
 
 ## Architecture du dépôt
@@ -785,6 +793,7 @@ netcross/
 ├── pyproject.toml           dependances (uv, Session 55) + config ruff (lint/format) + import-linter (couches)
 ├── uv.lock                  verrou de dependances uv (Session 55)
 ├── .pre-commit-config.yaml  hooks pre-commit (ruff, ruff-format, import-linter)
+├── .github/workflows/ci.yml pipeline CI GitHub Actions (lint, format, import-linter, pytest ; issue #176)
 ├── pytest.ini               configuration pytest (pythonpath = src)
 ├── docs/
 │   ├── features-backlog.md  fonctionnalites, diagramme de classes, dette, comparaison OmniPeek
