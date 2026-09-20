@@ -40,6 +40,7 @@ Utilisation typique :
 """
 
 from pcap_parser.capture import (
+    CaptureRingBuffer,
     TcpreplayError,
     TcpreplayNotFoundError,
     iter_live,
