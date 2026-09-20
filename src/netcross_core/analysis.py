@@ -32,7 +32,22 @@ def analyse(
     rtp_clock_rate=8000,
     topn=5,
     idle_timeout_seconds=None,
+    exclude_duplicates=False,
+    duplicate_counts=None,
 ):
+    # Job 41/issue #161 : exclude_duplicates (defaut False -> comportement
+    # historique inchange) retire de `flows` ET de `all_packets` les paquets
+    # marques Pkt.is_duplicate (voir netcross_core.forensic.
+    # detect_cross_capture_duplicates, a appeler avant). Refait ici meme si
+    # l'appelant a deja utilise correlate(exclude_duplicates=True) : analyse()
+    # ne doit pas dependre de la facon dont `flows` a ete construit, et la
+    # passe est quasi gratuite quand il n'y a plus rien a retirer.
+    # duplicate_counts : resultat de detect_cross_capture_duplicates(),
+    # reporte tel quel dans Report.duplicate_count (analyse() ne detecte
+    # rien elle-meme -- pas de double detection si l'appelant l'a deja faite).
+    if exclude_duplicates:
+        all_packets = [pk for pk in all_packets if not pk.is_duplicate]
+        flows = _without_duplicates(flows)
     points = points_order or sorted({pt for f in flows.values() for pt in f})
 
     topo_edges, topo_ambiguous, topo_isolated, topo_branch, topo_merge = _infer_topology(flows, points)
@@ -55,6 +70,9 @@ def analyse(
         bucket_seconds=bucket_seconds,
         rtp_clock_rate=rtp_clock_rate,
     )
+    r.duplicates_excluded = exclude_duplicates
+    for pair, count in (duplicate_counts or {}).items():
+        r.duplicate_count[pair] = count
     r.throughput = compute_throughput(all_packets, bucket_seconds)
     r.topn_timeseries = {dim: compute_topn_series(all_packets, bucket_seconds, dim, topn) for dim in TOPN_DIMENSIONS}
     r.topology_edges = topo_edges
@@ -272,6 +290,22 @@ def analyse(
     _analyse_http(r, all_packets, points, points_order)
 
     return r
+
+
+def _without_duplicates(flows):
+    """Copie de `flows` (cle -> {point: [Pkt, ...]}, voir correlate()) sans
+    les paquets marques is_duplicate ; les points, puis les flux, devenus
+    vides sont retires (un point sans paquet n'a pas « vu » le flux)."""
+    kept_flows = {}
+    for key, per_point in flows.items():
+        kept_points = {}
+        for point, pkts in per_point.items():
+            live = [pk for pk in pkts if not pk.is_duplicate]
+            if live:
+                kept_points[point] = live
+        if kept_points:
+            kept_flows[key] = kept_points
+    return kept_flows
 
 
 # Seuil de _analyse_pmtud() -- taille minimale (octets, longueur de trame
