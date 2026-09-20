@@ -324,7 +324,7 @@ def _tcp_layers(**tcp_fields):
             "tcp_tcp_seq_raw": "2000",
             "tcp_tcp_ack_raw": "1",
             "tcp_tcp_window_size_value": "8192",
-            "tcp_tcp_flags_str": "\\u00b7\\u00b7\\u00b7\\u00b7\\u00b7\\u00b7\\u00b7AP\\u00b7\\u00b7\\u00b7",
+            "tcp_tcp_flags_str": "\u00b7\u00b7\u00b7\u00b7\u00b7\u00b7\u00b7AP\u00b7\u00b7\u00b7",
             **tcp_fields,
         },
     }
