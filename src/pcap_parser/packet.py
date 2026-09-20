@@ -263,6 +263,12 @@ class RawPacket:
     # donc de detecter un trou de sequence (netcross_core.forensic.
     # detect_sequence_gaps, Job 42/issue #162).
     tcp_len: int | None = None
+    # Commentaire de paquet pcapng (Enhanced Packet Block, option
+    # opt_comment -- Job 39, issue #159). None sur un pcap classique (le
+    # format ne porte aucune notion de commentaire) ou sur un paquet
+    # pcapng qui n'en a simplement pas -- voir build_packet() pour
+    # l'emplacement exact (INATTENDU) de ce champ dans les couches EK.
+    comment: str | None = None
 
 
 # Cles de couches EK dont le "_ws_expert" est collecte en plus des couches
@@ -284,6 +290,24 @@ def build_packet(ts_seconds: float, layers: dict) -> RawPacket | None:
     frame = layers.get("frame") or {}
     length = hex_or_dec_to_int(g(frame, "frame_frame_len")) or 0
     frame_number = hex_or_dec_to_int(g(frame, "frame_frame_number"))
+    # Commentaire de paquet pcapng (Job 39, issue #159). Verifie
+    # empiriquement (tshark 4.2.2, pcapng synthetique commente via
+    # editcap -a) : PAS niche sous la couche "frame" comme le reste des
+    # champs frame.* ci-dessus (frame_frame_len/frame_frame_number)
+    # malgre le nom du champ Wireshark lui-meme (frame.comment) --
+    # `tshark -T ek` le place dans une pseudo-couche TOP-LEVEL dediee et
+    # separee, "pkt_comment" (absente des `layers` d'un paquet sans
+    # commentaire -- pcap classique ou pcapng non commente sur CE
+    # paquet), elle-meme contenant un seul champ "frame_frame_comment"
+    # (meme convention de doublement de prefixe que "tcp_tcp_srcport"
+    # pour "tcp.srcport" ailleurs dans ce module, voir ek_fields.py).
+    # Coexiste avec un signal d'expertise natif tshark (severite/groupe
+    # "Comment", _SEVERITY_LABELS/_GROUP_LABELS de ek_fields.py) sous ce
+    # meme "pkt_comment" -- non exploite ici : "pkt_comment" reste
+    # volontairement absent de _expert_layers plus bas, ce champ dedie
+    # est la seule voie d'acces au texte du commentaire, pas de doublon
+    # via expert_flags/expert_details.
+    comment = g(layer(layers, "pkt_comment"), "frame_frame_comment")
 
     encap_tags = detect_encapsulation(layers)
     innermost = select_innermost_layers(layers)
@@ -738,6 +762,7 @@ def build_packet(ts_seconds: float, layers: dict) -> RawPacket | None:
         http_response_time_ms=http_response_time_ms,
         http_content_type=http_content_type,
         http_content_length=http_content_length,
+        comment=comment,
         expert_flags=expert_flags,
         expert_details=expert_details,
         tcp_len=tcp_len,

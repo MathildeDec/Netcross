@@ -16,8 +16,13 @@ fait que deux choses :
 
 API publique inchangee : parse_capture(label, path, raise_on_error),
 parse_captures_parallel(captures, max_workers), parse_live, parse_rtp,
-parse_sip, compute_mos, detect_encapsulation ; seul ajout : parse_live_multi
-(capture simultanee sur plusieurs interfaces). (Le DHCP est lu
+parse_sip, compute_mos, detect_encapsulation ; seuls ajouts : parse_live_multi
+(capture simultanee sur plusieurs interfaces) puis read_capture_comments
+(Job 39, issue #159) -- seule fonction de ce module qui ne convertit PAS de
+RawPacket : elle lit le commentaire de section pcapng (metadonnee du
+FICHIER, pas d'un paquet) de chaque capture et y attache le label, meme
+raison d'etre que le point 1 ci-dessus mais appliquee a pcap_parser.
+capinfos_source plutot qu'a RawPacket/Pkt. (Le DHCP est lu
 directement depuis les paquets bruts par analysis.py, il n'y a pas de
 parse_dhcp() ici ; le choix de la couche la plus interne vit dans
 pcap_parser.tunnels.select_innermost_layers.)
@@ -28,6 +33,7 @@ import sys
 import pcap_parser
 from netcross_core.application.banners import extract_banners
 from netcross_core.models import Pkt
+from pcap_parser.capinfos_source import read_capture_comment
 from pcap_parser.ek_source import TsharkError, TsharkNotFoundError
 from pcap_parser.packet import RawPacket
 from pcap_parser.protocols import compute_mos
@@ -41,6 +47,7 @@ __all__ = [
     "parse_live_multi",
     "parse_rtp",
     "parse_sip",
+    "read_capture_comments",
 ]
 
 
@@ -119,6 +126,7 @@ def _to_pkt(label: str, raw: RawPacket) -> Pkt:
         http_content_type=raw.http_content_type,
         http_content_length=raw.http_content_length,
         tcp_len=raw.tcp_len,
+        comment=raw.comment,
         expert_flags=raw.expert_flags,
         expert_details=raw.expert_details,
         service_banners=extract_banners(raw.proto, raw.sport, raw.dport, raw.payload),
@@ -208,6 +216,29 @@ def parse_captures_parallel(captures, max_workers=None) -> tuple[list[Pkt], list
     per_file_stats.sort(key=lambda s: order[(s["label"], s["path"])])
 
     return all_packets, per_file_stats
+
+
+def read_capture_comments(captures) -> list[str]:
+    """Lit le commentaire de section pcapng (Section Header Block) de
+    chaque fichier de `captures` (memes paires (label, path) que
+    parse_captures_parallel ci-dessus) et y attache le label -- meme
+    raison d'etre que _to_pkt() pour les paquets (pcap_parser.
+    capinfos_source.read_capture_comment ne connait, volontairement,
+    aucune notion de label/point de capture, voir sa docstring).
+
+    Contrairement a parse_capture, une capture SANS commentaire de
+    section (cas le plus frequent : pcap classique, ou pcapng qui n'en
+    porte simplement pas) ne produit aucune entree plutot qu'une entree
+    vide -- capinfos absent/en echec sur un fichier donne : meme
+    traitement silencieux (voir read_capture_comment), un commentaire
+    reste une annotation facultative, jamais une raison d'interrompre
+    l'analyse ni d'exiger --raise-on-error comme parse_capture."""
+    comments = []
+    for label, path in captures:
+        comment = read_capture_comment(path)
+        if comment:
+            comments.append(f"{label} : {comment}")
+    return comments
 
 
 def parse_live(label, interface, bpf_filter=None, stop_event=None):

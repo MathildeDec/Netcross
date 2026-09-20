@@ -13,7 +13,10 @@ Organisation en couches (bas en haut) :
     ek_fields   -- acces bas niveau aux champs EK (couches empilees, hex/int)
     tunnels     -- detection d'encapsulation + selection de la couche interne
     protocols   -- RTP / DHCP / SIP (lecture des champs deja disseques + repli heuristique)
-    packet      -- assemblage du RawPacket normalise
+    packet      -- assemblage du RawPacket normalise (dont RawPacket.comment,
+                   commentaire de PAQUET pcapng -- Job 39)
+    capinfos_source -- E/S separee : subprocess capinfos, commentaire de SECTION
+                   pcapng (metadonnee de fichier, pas de paquet -- Job 39)
     capture     -- API publique : parse_capture / parse_captures_parallel / iter_live
                    (+ merge_captures : fusion de fichiers via mergecap, sans decodage
                    + replay_capture : rejeu de trafic via tcpreplay, sans decodage
@@ -39,6 +42,7 @@ Utilisation typique :
         ...
 """
 
+from pcap_parser.capinfos_source import read_capture_comment
 from pcap_parser.capture import (
     CaptureRingBuffer,
     TcpreplayError,
@@ -83,6 +87,7 @@ __all__ = [
     "merge_captures",
     "parse_capture",
     "parse_captures_parallel",
+    "read_capture_comment",
     "replay_capture",
     "select_innermost_layers",
     "split_capture",

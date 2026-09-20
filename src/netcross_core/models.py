@@ -149,6 +149,13 @@ class Pkt:
     # `threshold_ms` (port miroir qui renvoie le trafic, par exemple).
     # False par defaut : aucun constructeur existant n'a a le passer.
     is_duplicate: bool = False
+    # Commentaire de paquet pcapng (Enhanced Packet Block, option
+    # opt_comment -- Job 39, issue #159). Reporte a l'identique depuis
+    # pcap_parser.packet.RawPacket.comment (voir sa docstring pour
+    # l'emplacement -- inattendu -- de ce champ dans les couches EK) ;
+    # None sur un pcap classique ou sur un paquet pcapng sans
+    # commentaire (cas le plus frequent).
+    comment: str | None = None
     # Logiciels identifies par banniere (CVE-1, issue #135) -- calcule par
     # netcross_core.parsing depuis RawPacket.payload (les octets ne sont
     # plus disponibles ensuite) ; sert a construire
@@ -520,6 +527,23 @@ class Report:
     topology_merge_points: list[str] = field(default_factory=list)
     topology_order_conflicts: list[str] = field(default_factory=list)
     topology_used_for_order: bool = False
+    # -- commentaires pcapng (Job 39, issue #159) -- annotations operateur
+    # facultatives portees par le format pcapng, absentes par construction
+    # du pcap classique. Deux champs distincts, deux origines distinctes :
+    # capture_comments : commentaire de SECTION (Section Header Block, un
+    #   par fichier source qui en porte un, prefixe "label : texte") --
+    #   metadonnee du FICHIER, pas d'un paquet, donc PAS remplie par
+    #   analyse() ci-dessous (qui ne recoit jamais les chemins de fichiers,
+    #   seulement des Pkt deja construits) -- remplie par l'appelant (CLI,
+    #   voir cross_capture_analyzer_cli.py) via netcross_core.parsing.
+    #   read_capture_comments(captures), AVANT print_report().
+    # packet_comments : commentaire de PAQUET (Enhanced Packet Block,
+    #   Pkt.comment, prefixe "point — trame N : texte") -- celui-la EST
+    #   rempli par analyse() a partir de all_packets, deja pre-formate
+    #   pour l'affichage : contrairement a capture_comments, aucun fichier
+    #   a relire, l'information est deja portee par chaque Pkt.
+    capture_comments: list[str] = field(default_factory=list)
+    packet_comments: list[str] = field(default_factory=list)
 
 
 @dataclass(slots=True)

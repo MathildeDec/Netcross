@@ -75,6 +75,14 @@ def analyse(
     r.duplicates_excluded = exclude_duplicates
     for pair, count in (duplicate_counts or {}).items():
         r.duplicate_count[pair] = count
+    # Commentaires de paquets pcapng (Job 39/issue #159) -- pre-formates
+    # "point — trame N : texte" pour le rapport (Report.packet_comments,
+    # voir models.py). Remplis APRES le filtrage exclude_duplicates
+    # ci-dessus, pour la meme coherence que le reste du rapport : un paquet
+    # exclu de tous les compteurs n'apparait pas non plus ici.
+    r.packet_comments = [
+        f"{pkt.point} — trame {pkt.frame_number} : {pkt.comment}" for pkt in all_packets if pkt.comment
+    ]
     r.throughput = compute_throughput(all_packets, bucket_seconds)
     r.topn_timeseries = {dim: compute_topn_series(all_packets, bucket_seconds, dim, topn) for dim in TOPN_DIMENSIONS}
     r.topology_edges = topo_edges
