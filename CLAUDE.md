@@ -1268,13 +1268,22 @@ pip documenté, non régénéré automatiquement).
 
 ```bash
 uv sync --extra dev             # une fois par clone/mise a jour des dependances -- cree/actualise .venv
-uv run pytest                   # 1138/1138 attendu, pythonpath=src via pytest.ini
+uv run pytest                   # 2205/2205 attendu, pythonpath=src via pytest.ini
 uv run ruff check .
 uv run ruff format --check .
 PYTHONPATH=src uv run lint-imports     # contrat de couches netcross_gtk4 -> netcross_report -> netcross_core -> pcap_parser
-pre-commit run --all-files      # necessite un depot git local (absent du zip livre) ; a defaut, ruff check/ruff format/lint-imports ci-dessus couvrent les memes 3 hooks configures dans .pre-commit-config.yaml
+python3 scripts/generate_class_diagram.py           # (re)genere docs/class-diagram.md depuis src/ (hook pre-commit `class-diagram`) ; `--check` = verifie sans ecrire
+pre-commit run --all-files      # necessite un depot git local (absent du zip livre) ; a defaut, ruff check/ruff format/lint-imports/generate_class_diagram.py ci-dessus couvrent les memes 4 hooks configures dans .pre-commit-config.yaml
 uv run mypy --ignore-missing-imports <fichiers modifiés>   # ad hoc, pas encore dans pre-commit (mypy pas dans l'extra dev -- installer ponctuellement avec `uv pip install mypy`) ; decompte corrige a la Session 50 (premier passage sur l'integralite de src/) : 49 erreurs preexistantes hors perimetre sur 9 fichiers -- analysis.py 10, tls_diagnostics.py 18, triage.py 9, quic_diagnostics.py 4, packet.py 2, history.py 2, netcross_report/__init__.py 2, ek_source.py 1, parsing.py 1 (inchange depuis la Session 50, reconfirme Sessions 55 a 67 ; tls_diagnostics.py et quic_diagnostics.py absents du decompte precedent de 27/7 fichiers suivi depuis la Session 38 -- jamais modifies par une session donc jamais inclus dans un `mypy <fichiers modifies>` ad hoc). ATTENTION, precision relevee Session 63 : cette commande se lance bien SANS `PYTHONPATH=src` (contrairement a `lint-imports` ci-dessus) -- c'est la convention suivie depuis toujours mais jamais explicitee, et elle seule reproduit le chiffre de 27 erreurs/7 fichiers suivi depuis la Session 58 ; avec `PYTHONPATH=src`, mypy resout les imports autrement, ne remonte pas dans le sous-graphe et renvoie `Success` sur les memes fichiers. Les deux invocations s'accordent sur le point qui compte (0 erreur imputable aux fichiers modifies). Pour la baseline complete, utiliser `PYTHONPATH=src uv run mypy --ignore-missing-imports src/` (49 erreurs/9 fichiers)
 ```
+
+**Diagramme de classes (issue #140)** : `docs/class-diagram.md` est un fichier GENERE depuis `src/`
+par `scripts/generate_class_diagram.py` (analyse `ast`, stdlib seule) -- ne jamais l'editer a la
+main, il n'y a plus de section « diagramme de classes » a relire dans `docs/features-backlog.md`
+(la section 3 n'est plus qu'un renvoi). Le hook pre-commit `class-diagram` le regenere des qu'un
+`src/**/*.py` change (le commit echoue alors une fois : `git add docs/class-diagram.md` et
+recommiter) ; `tests/test_class_diagram.py::test_docs_class_diagram_est_a_jour` echoue si le fichier
+versionne est en retard sur le code.
 
 **Outils disponibles en session** : le connecteur MCP Context7 est
 accessible dans cet environnement (`mcp__Context7__resolve-library-id`
