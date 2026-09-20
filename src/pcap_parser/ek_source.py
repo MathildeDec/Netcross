@@ -75,7 +75,24 @@ class TsharkError(RuntimeError):
 # annonces via SDP (SIP/H.323...) -- exactement le meme angle mort que
 # l'ancienne detection heuristique par octets dans parsing.py, donc on
 # la garde active pour au moins egaler le comportement precedent.
-DEFAULT_PREFS: Sequence[str] = ("rtp.heuristic_rtp:TRUE",)
+#
+# ip.check_checksum/tcp.check_checksum/udp.check_checksum (Job 43/issue
+# #163) : DESACTIVEES par defaut cote tshark (cout de recalcul, bruit
+# historique avec l'offload materiel) -- sans elles, le champ EK
+# "*.checksum.status" reste TOUJOURS a "2" (Unverified), quelle que soit
+# la validite reelle du checksum (verifie empiriquement, pcap scapy
+# synthetique avec checksum TCP/IP volontairement invalide, tshark
+# 4.2.2 : statut "2" dans les deux cas sans cette preference). Activees
+# ici pour que netcross_core.forensic.validate_checksums() ait une
+# donnee exploitable -- voir pcap_parser.packet pour l'extraction du
+# statut et netcross_core.forensic pour la distinction offload (0x0000)
+# vs invalide.
+DEFAULT_PREFS: Sequence[str] = (
+    "rtp.heuristic_rtp:TRUE",
+    "ip.check_checksum:TRUE",
+    "tcp.check_checksum:TRUE",
+    "udp.check_checksum:TRUE",
+)
 
 
 def _tshark_path() -> str:

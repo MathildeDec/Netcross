@@ -21,6 +21,7 @@ from pcap_parser.ek_fields import (
     all_occurrences,
     as_bool,
     as_bytes_from_hex_dump,
+    checksum_is_bad,
     expert_flag_details,
     expert_flag_names,
     g,
@@ -253,15 +254,6 @@ class RawPacket:
     expert_details: tuple[tuple[str, str | None, str | None, str | None], ...]
     http_content_type: str | None = None
     http_content_length: int | None = None
-    # tcp.len (tshark : "TCP Segment Len") -- longueur de la charge utile TCP
-    # du segment, en octets (0 sur un ACK pur/SYN/FIN sans donnees), None hors
-    # TCP. Distinct de `length` (longueur de TRAME, en-tetes inclus) et de
-    # len(payload) (octets effectivement CAPTURES : tronque par un snaplen
-    # court alors que tcp.len reste la vraie longueur du segment, lue dans
-    # l'en-tete IP) -- seule la valeur du fil permet de calculer le numero de
-    # sequence attendu du segment suivant (seq + tcp.len, +1 pour SYN/FIN) et
-    # donc de detecter un trou de sequence (netcross_core.forensic.
-    # detect_sequence_gaps, Job 42/issue #162).
     tcp_len: int | None = None
     # Commentaire de paquet pcapng (Enhanced Packet Block, option
     # opt_comment -- Job 39, issue #159). None sur un pcap classique (le
@@ -269,6 +261,20 @@ class RawPacket:
     # pcapng qui n'en a simplement pas -- voir build_packet() pour
     # l'emplacement exact (INATTENDU) de ce champ dans les couches EK.
     comment: str | None = None
+    # -- Checksum IP/TCP/UDP (Job 43/issue #163, "Integrite et qualite de
+    # capture") -- valeur brute (chaine hex, ex: "0x66cd") + verdict
+    # tri-etat (True=invalide, False=valide, None=non determine -- voir
+    # pcap_parser.ek_fields.checksum_is_bad). ip_checksum reste None cote
+    # IPv6 (pas de checksum d'en-tete). Necessite ip.check_checksum/
+    # tcp.check_checksum/udp.check_checksum actives (voir
+    # pcap_parser.ek_source.DEFAULT_PREFS) pour que *_bad soit exploitable
+    # -- sinon toujours None (statut "Unverified" cote tshark).
+    ip_checksum: str | None = None
+    ip_checksum_bad: bool | None = None
+    tcp_checksum: str | None = None
+    tcp_checksum_bad: bool | None = None
+    udp_checksum: str | None = None
+    udp_checksum_bad: bool | None = None
 
 
 # Cles de couches EK dont le "_ws_expert" est collecte en plus des couches
@@ -328,6 +334,11 @@ def build_packet(ts_seconds: float, layers: dict) -> RawPacket | None:
     arp_is_gratuitous = False
     stp_bpdu_type = stp_root_id = None
     stp_flags_tc = False
+    # Checksum IP/TCP/UDP (Job 43/issue #163) -- ip_checksum reste None
+    # sur IPv6 (pas de checksum d'en-tete, RFC 8200 -- seul le
+    # pseudo-en-tete TCP/UDP en depend, deja couvert par tcp_checksum/
+    # udp_checksum ci-dessous, calcules quelle que soit la version IP).
+    ip_checksum = ip_checksum_bad = None
     if ip4 is not None:
         src, dst = _intern(g(ip4, "ip_ip_src")), _intern(g(ip4, "ip_ip_dst"))
         ttl = hex_or_dec_to_int(g(ip4, "ip_ip_ttl"))
@@ -342,6 +353,16 @@ def build_packet(ts_seconds: float, layers: dict) -> RawPacket | None:
         # claude.md Session 9).
         is_fragment = as_bool(g(ip4, "ip_ip_flags_mf")) or (hex_or_dec_to_int(g(ip4, "ip_ip_frag_offset")) or 0) != 0
         df = as_bool(g(ip4, "ip_ip_flags_df"))
+        # ip.checksum : valeur brute recue sur le fil (chaine hex, ex:
+        # "0x66cd"), jamais convertie en entier -- conservee telle quelle
+        # pour la validation/affichage amont (cote netcross_core, voir
+        # l'issue #163), comparer des entiers n'apporterait rien ici.
+        # ip.checksum.status
+        # n'existe QUE si ip.check_checksum:TRUE (voir ek_source.
+        # DEFAULT_PREFS) -- absent sinon, donc checksum_is_bad(None) ->
+        # None, jamais suppose invalide.
+        ip_checksum = g(ip4, "ip_ip_checksum")
+        ip_checksum_bad = checksum_is_bad(g(ip4, "ip_ip_checksum_status"))
     elif ip6 is not None:
         src, dst = _intern(g(ip6, "ipv6_ipv6_src")), _intern(g(ip6, "ipv6_ipv6_dst"))
         ttl = hex_or_dec_to_int(g(ip6, "ipv6_ipv6_hlim"))
@@ -476,6 +497,10 @@ def build_packet(ts_seconds: float, layers: dict) -> RawPacket | None:
     payload = b""
     expert_flags: tuple[str, ...] = ()
     expert_details: tuple[tuple[str, str | None, str | None, str | None], ...] = ()
+    # Checksum TCP/UDP (Job 43/issue #163) -- voir ip_checksum ci-dessus
+    # pour la convention (valeur brute en chaine hex + statut tri-etat).
+    tcp_checksum = tcp_checksum_bad = None
+    udp_checksum = udp_checksum_bad = None
 
     if tcp is not None:
         proto = "TCP"
@@ -533,11 +558,15 @@ def build_packet(ts_seconds: float, layers: dict) -> RawPacket | None:
         wscale_shift = hex_or_dec_to_int(g(tcp, "tcp_tcp_options_wscale_shift"))
         sack_permitted = g(tcp, "tcp_options_sack_perm") is not None
         payload = as_bytes_from_hex_dump(g(tcp, "tcp_tcp_payload"))
+        tcp_checksum = g(tcp, "tcp_tcp_checksum")
+        tcp_checksum_bad = checksum_is_bad(g(tcp, "tcp_tcp_checksum_status"))
     elif udp is not None:
         proto = "UDP"
         sport = hex_or_dec_to_int(g(udp, "udp_udp_srcport"))
         dport = hex_or_dec_to_int(g(udp, "udp_udp_dstport"))
         payload = as_bytes_from_hex_dump(g(udp, "udp_udp_payload"))
+        udp_checksum = g(udp, "udp_udp_checksum")
+        udp_checksum_bad = checksum_is_bad(g(udp, "udp_udp_checksum_status"))
 
         rtp = extract_rtp(layers, payload)
         if rtp:
@@ -766,4 +795,10 @@ def build_packet(ts_seconds: float, layers: dict) -> RawPacket | None:
         expert_flags=expert_flags,
         expert_details=expert_details,
         tcp_len=tcp_len,
+        ip_checksum=ip_checksum,
+        ip_checksum_bad=ip_checksum_bad,
+        tcp_checksum=tcp_checksum,
+        tcp_checksum_bad=tcp_checksum_bad,
+        udp_checksum=udp_checksum,
+        udp_checksum_bad=udp_checksum_bad,
     )

@@ -69,6 +69,30 @@ def hex_or_dec_to_int(value: Any) -> int | None:
     return as_int(value, 10)
 
 
+def checksum_is_bad(status_value: Any) -> bool | None:
+    """Interprete un champ de statut de checksum tshark (ip.checksum.
+    status/tcp.checksum.status/udp.checksum.status), rendu en EK comme
+    un CODE ENTIER en chaine decimale -- verifie empiriquement (tshark
+    4.2.2, `-o ip.check_checksum:TRUE -o tcp.check_checksum:TRUE -o
+    udp.check_checksum:TRUE`, pcap scapy synthetique avec checksum
+    volontairement invalide) : "0" = Bad, "1" = Good, "2" = Unverified
+    (validation desactivee -- c'est la valeur systematique SANS ces
+    trois preferences, voir pcap_parser.ek_source.DEFAULT_PREFS).
+
+    Trois etats possibles en sortie, jamais deux (contrairement a
+    as_bool ci-dessus, pour un champ tshark reellement binaire) :
+    True si invalide (0), False si valide (1), None si non verifie (2)
+    OU si le champ est absent (couche sans checksum -- IPv6 n'a pas de
+    checksum d'en-tete, par exemple) -- jamais suppose invalide/valide
+    par defaut, un statut inconnu n'est ni l'un ni l'autre."""
+    code = hex_or_dec_to_int(status_value)
+    if code == 0:
+        return True
+    if code == 1:
+        return False
+    return None
+
+
 def as_float(value: Any) -> float | None:
     """Symetrique a as_int/hex_or_dec_to_int, pour les champs tshark non
     entiers (ex: http.time -- ecart requete->reponse calcule nativement

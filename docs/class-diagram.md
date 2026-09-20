@@ -11,7 +11,7 @@
 > Il remplace l'ancienne section 3 de `docs/features-backlog.md`, tenue à la main, qui avait dérivé
 > (voir `docs/sessions/session-36.md`, issue #140).
 
-87 modules · 117 classes · 249 fonctions publiques de module.
+87 modules · 117 classes · 250 fonctions publiques de module.
 
 Conventions : `+` public, `-` privé (préfixe `_`) ; `int?` = `int | None` ; `list~str~` = `list[str]` ;
 `<<module>>` regroupe les fonctions publiques d'un module ; `A --> B : champ` = `A` a un champ annoté
@@ -122,6 +122,7 @@ classDiagram
         +g(d, name, default) Any
         +as_int(value, base) int?
         +hex_or_dec_to_int(value) int?
+        +checksum_is_bad(status_value) bool?
         +as_float(value) float?
         +as_bool(value) bool
         +has_expert_flag(layer, name) bool
@@ -226,6 +227,12 @@ classDiagram
         +int? http_content_length
         +int? tcp_len
         +str? comment
+        +str? ip_checksum
+        +bool? ip_checksum_bad
+        +str? tcp_checksum
+        +bool? tcp_checksum_bad
+        +str? udp_checksum
+        +bool? udp_checksum_bad
     }
     class mod_pcap_parser_packet["pcap_parser.packet"] {
         <<module>>
@@ -901,6 +908,12 @@ classDiagram
         +str? comment
         +tuple~Banner, ...~ service_banners
         +int? tcp_len
+        +str? ip_checksum
+        +bool? ip_checksum_bad
+        +str? tcp_checksum
+        +bool? tcp_checksum_bad
+        +str? udp_checksum
+        +bool? udp_checksum_bad
     }
     class SequenceGap {
         <<dataclass, slots>>
