@@ -62,11 +62,14 @@ from netcross_core import (  # noqa: E402
     parse_captures_parallel,
     parse_live,
     print_report,
+    read_capture_comments,
+    read_capture_infos,
     redact_packets,
     write_detail_csv,
 )
 from netcross_core.baseline_diff import diff_reports, print_diff_report, write_diff_csv  # noqa: E402
 from netcross_core.bpf_filters import PREDEFINED_BPF_FILTERS, available_bpf_filters, upsert_bpf_filter  # noqa: E402
+from netcross_core.forensic import DEFAULT_DUPLICATE_THRESHOLD_MS, detect_cross_capture_duplicates  # noqa: E402
 from netcross_core.models import BPFFilter  # noqa: E402
 from netcross_gtk4.dashboard_context import (  # noqa: E402
     DashboardSelection,
@@ -78,6 +81,7 @@ from netcross_gtk4.dashboard_context import (  # noqa: E402
     select_point,
     select_protocol,
 )
+from netcross_gtk4.duplicate_view import format_duplicate_indicator  # noqa: E402
 from netcross_gtk4.live_capture_points import duplicate_labels, expand_live_points  # noqa: E402
 from netcross_gtk4.stats_view import (  # noqa: E402
     build_events_by_segment,
@@ -790,8 +794,32 @@ class MainWindow(Gtk.ApplicationWindow):
         self.rtp_spin.set_value(8000)
         options.attach(self.rtp_spin, 3, 0, 1, 1)
 
-        self.nat_check = Gtk.CheckButton(label="Correlation tolerante au NAT")
+        self.nat_check = Gtk.CheckButton(label="Correlation tolérante au NAT")
         options.attach(self.nat_check, 0, 1, 2, 1)
+
+        self.detect_duplicates_check = Gtk.CheckButton(label="Détecter les doublons inter-captures")
+        self.detect_duplicates_check.set_tooltip_text(
+            "Marque comme doublons les mêmes payloads vus à des points différents dans la fenêtre temporelle choisie."
+        )
+        self.detect_duplicates_check.connect("toggled", self._on_duplicate_detection_toggled)
+        options.attach(self.detect_duplicates_check, 0, 2, 2, 1)
+
+        options.attach(Gtk.Label(label="Seuil doublons (ms):", halign=Gtk.Align.START), 2, 2, 1, 1)
+        self.duplicate_threshold_spin = Gtk.SpinButton.new_with_range(0, 1000, 0.1)
+        self.duplicate_threshold_spin.set_value(DEFAULT_DUPLICATE_THRESHOLD_MS)
+        self.duplicate_threshold_spin.set_digits(1)
+        self.duplicate_threshold_spin.set_tooltip_text(
+            "Deux observations d'un même payload sont considérées comme doublons si leur écart est "
+            "strictement inférieur à ce seuil."
+        )
+        options.attach(self.duplicate_threshold_spin, 3, 2, 1, 1)
+
+        self.exclude_duplicates_check = Gtk.CheckButton(label="Exclure les doublons des statistiques")
+        self.exclude_duplicates_check.set_tooltip_text(
+            "Active automatiquement la détection et retire les paquets marqués des compteurs et de la corrélation."
+        )
+        self.exclude_duplicates_check.connect("toggled", self._on_duplicate_exclusion_toggled)
+        options.attach(self.exclude_duplicates_check, 0, 3, 2, 1)
 
         self.parallel_check = Gtk.CheckButton(label="Lecture parallele des captures")
         self.parallel_check.set_tooltip_text(
@@ -809,7 +837,7 @@ class MainWindow(Gtk.ApplicationWindow):
             "accedent aux adresses reelles, voir netcross_core.redact)."
         )
         self.redact_check.connect("toggled", self._on_redact_toggled)
-        options.attach(self.redact_check, 0, 3, 4, 1)
+        options.attach(self.redact_check, 0, 5, 4, 1)
 
         self.auto_topology_check = Gtk.CheckButton(
             label="Deduire la topologie automatiquement (ignore l'ordre de la liste)"
@@ -819,7 +847,7 @@ class MainWindow(Gtk.ApplicationWindow):
             "Jaccard, gere les branchements/convergences. Sinon, l'ordre "
             "visuel des lignes ci-dessus est utilise comme chemin physique."
         )
-        options.attach(self.auto_topology_check, 0, 2, 4, 1)
+        options.attach(self.auto_topology_check, 0, 4, 4, 1)
 
         # -- options specifiques a l'analyse simple (masquees en mode diff) --
         self.single_options_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
@@ -905,6 +933,17 @@ class MainWindow(Gtk.ApplicationWindow):
         self._update_run_sensitivity()
         self._update_run_button_label()
 
+    def _on_duplicate_detection_toggled(self, _btn):
+        active = self.detect_duplicates_check.get_active()
+        self.duplicate_threshold_spin.set_sensitive(active and not self.diff_check.get_active())
+        self.exclude_duplicates_check.set_sensitive(active and not self.diff_check.get_active())
+        if not active:
+            self.exclude_duplicates_check.set_active(False)
+
+    def _on_duplicate_exclusion_toggled(self, _btn):
+        if self.exclude_duplicates_check.get_active() and not self.detect_duplicates_check.get_active():
+            self.detect_duplicates_check.set_active(True)
+
     def _on_live_toggled(self, _btn):
         if self.live_check.get_active() and self.diff_check.get_active():
             self.diff_check.set_active(False)  # declenche _on_diff_toggled -> resynchronise tout
@@ -945,6 +984,13 @@ class MainWindow(Gtk.ApplicationWindow):
             self.tls_check.set_active(False)
             self.quic_check.set_active(False)
         self.parallel_check.set_sensitive(not live_mode)
+        duplicate_controls = not diff_mode
+        self.detect_duplicates_check.set_sensitive(duplicate_controls)
+        self.duplicate_threshold_spin.set_sensitive(duplicate_controls and self.detect_duplicates_check.get_active())
+        self.exclude_duplicates_check.set_sensitive(duplicate_controls and self.detect_duplicates_check.get_active())
+        if diff_mode:
+            self.detect_duplicates_check.set_active(False)
+            self.exclude_duplicates_check.set_active(False)
 
     def _update_run_button_label(self):
         if self._live_capturing:
@@ -1037,6 +1083,15 @@ class MainWindow(Gtk.ApplicationWindow):
 
         result_frame = Gtk.Frame()
         result_scroller = _visible_scroller()
+        self.duplicate_indicator = Gtk.Label(
+            label="Doublons inter-captures : non analysés.",
+            halign=Gtk.Align.START,
+            wrap=True,
+        )
+        self.duplicate_indicator.set_selectable(True)
+        self.duplicate_indicator.set_margin_bottom(4)
+        page.append(self.duplicate_indicator)
+
         self.result_view = Gtk.TextView()
         self.result_view.set_editable(False)
         self.result_view.set_monospace(True)
@@ -1261,6 +1316,9 @@ class MainWindow(Gtk.ApplicationWindow):
             tls = self.tls_check.get_active()
             quic = self.quic_check.get_active()
             topn = int(self.topn_spin.get_value())
+            detect_duplicates = self.detect_duplicates_check.get_active()
+            exclude_duplicates = self.exclude_duplicates_check.get_active()
+            duplicate_threshold_ms = self.duplicate_threshold_spin.get_value()
             threading.Thread(
                 target=self._run_analysis_thread,
                 args=(
@@ -1276,6 +1334,9 @@ class MainWindow(Gtk.ApplicationWindow):
                     quic,
                     redact,
                     topn,
+                    detect_duplicates,
+                    exclude_duplicates,
+                    duplicate_threshold_ms,
                 ),
                 daemon=True,
             ).start()
@@ -1319,6 +1380,11 @@ class MainWindow(Gtk.ApplicationWindow):
         self._live_triage = self.triage_check.get_active()
         self._live_triage_topn = int(self.triage_topn_spin.get_value())
         self._live_points_order = None if auto_topology else [label for label, _, _ in rows_data]
+        self._live_detect_duplicates = (
+            self.detect_duplicates_check.get_active() or self.exclude_duplicates_check.get_active()
+        )
+        self._live_exclude_duplicates = self.exclude_duplicates_check.get_active()
+        self._live_duplicate_threshold_ms = self.duplicate_threshold_spin.get_value()
 
         self._live_capturing = True
         self._live_stop_event = threading.Event()
@@ -1410,8 +1476,17 @@ class MainWindow(Gtk.ApplicationWindow):
             f"Capture terminee -- {len(all_packets)} paquet(s) au total. Analyse...",
         )
         try:
+            duplicate_counts = None
+            if self._live_detect_duplicates:
+                GLib.idle_add(
+                    self._log,
+                    f"Détection des doublons inter-captures (seuil {self._live_duplicate_threshold_ms:.1f} ms)...",
+                )
+                duplicate_counts = detect_cross_capture_duplicates(all_packets, self._live_duplicate_threshold_ms)
+                GLib.idle_add(self._log, f"  -> {sum(duplicate_counts.values())} paquet(s) dupliqué(s) détecté(s)")
+
             GLib.idle_add(self._log, "Correlation des flux entre points de capture...")
-            flows = correlate(all_packets, self._live_nat_tolerant, 200)
+            flows = correlate(all_packets, self._live_nat_tolerant, 200, self._live_exclude_duplicates)
             GLib.idle_add(self._log, f"  -> {len(flows)} flux identifies")
 
             GLib.idle_add(
@@ -1425,6 +1500,8 @@ class MainWindow(Gtk.ApplicationWindow):
                 self._live_bucket_ms / 1000.0,
                 self._live_nat_tolerant,
                 self._live_rtp_rate,
+                exclude_duplicates=self._live_exclude_duplicates,
+                duplicate_counts=duplicate_counts,
             )
 
             GLib.idle_add(self._log, "Mise en forme du rapport...")
@@ -1521,11 +1598,24 @@ class MainWindow(Gtk.ApplicationWindow):
         quic,
         redact,
         topn,
+        detect_duplicates,
+        exclude_duplicates,
+        duplicate_threshold_ms,
     ):
         try:
             points_order = None if auto_topology else [label for label, _ in captures]
 
             all_packets = self._load_packets(captures, parallel)
+
+            duplicate_counts = None
+            if detect_duplicates:
+                GLib.idle_add(
+                    self._log,
+                    f"Détection des doublons inter-captures (seuil {duplicate_threshold_ms:.1f} ms)...",
+                )
+                duplicate_counts = detect_cross_capture_duplicates(all_packets, duplicate_threshold_ms)
+                duplicate_total = sum(duplicate_counts.values())
+                GLib.idle_add(self._log, f"  -> {duplicate_total} paquet(s) dupliqué(s) détecté(s)")
 
             if redact:
                 GLib.idle_add(self._log, "Anonymisation des adresses IP/MAC (--redact)...")
@@ -1533,7 +1623,7 @@ class MainWindow(Gtk.ApplicationWindow):
                 GLib.idle_add(self._log, f"  -> {len(redactor)} adresse(s) anonymisee(s)")
 
             GLib.idle_add(self._log, "Correlation des flux entre points de capture...")
-            flows = correlate(all_packets, nat_tolerant, 200)
+            flows = correlate(all_packets, nat_tolerant, 200, exclude_duplicates)
             GLib.idle_add(self._log, f"  -> {len(flows)} flux identifies")
 
             GLib.idle_add(
@@ -1548,6 +1638,8 @@ class MainWindow(Gtk.ApplicationWindow):
                 nat_tolerant,
                 rtp_rate,
                 topn,
+                exclude_duplicates=exclude_duplicates,
+                duplicate_counts=duplicate_counts,
             )
 
             # Signaux d'expertise BRUTS tshark : calcules ici, tant que les
@@ -1558,6 +1650,13 @@ class MainWindow(Gtk.ApplicationWindow):
             GLib.idle_add(self._log, "Expertise tshark (signaux bruts)...")
             wireshark_expert_events = build_wireshark_expert_events(all_packets)
             GLib.idle_add(self._log, f"  -> {len(wireshark_expert_events)} signal(aux) d'expertise")
+
+            # Job 38/issue #158 + Job 39/issue #159 -- metadonnees de
+            # fichier (capture_comments, capture_infos) : lues ici, au
+            # dernier moment avant le rendu, meme discipline que la CLI.
+            if captures:
+                report.capture_comments = read_capture_comments(captures)
+                report.capture_infos = read_capture_infos(captures)
 
             GLib.idle_add(self._log, "Mise en forme du rapport...")
             buf = io.StringIO()
@@ -1809,6 +1908,7 @@ class MainWindow(Gtk.ApplicationWindow):
         self.last_mode = mode
         self.last_report = report
         self.last_flows = flows
+        self.duplicate_indicator.set_text(format_duplicate_indicator(report))
         self.last_findings = findings
         self.last_tls_findings = tls_findings
         self.last_quic_findings = quic_findings
@@ -1859,6 +1959,7 @@ class MainWindow(Gtk.ApplicationWindow):
         self.last_mode = "diff"
         self.last_report = None
         self.last_flows = None
+        self.duplicate_indicator.set_text("Doublons inter-captures : non disponible en mode comparaison.")
         self.last_findings = None
         self.last_tls_findings = None
         self.last_quic_findings = None

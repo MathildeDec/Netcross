@@ -16,7 +16,9 @@ detecteurs dans le format de constat documente sur `Report` :
 - CVE-4 (#138) `security.correlate_banner` -> constats `cve`, un par CVE
   applicable a la version EXACTE d'un service detecte ;
 - FLOW-3 (#144) `dns_tunnel.detect_dns_tunneling` -> constats `anomalie`
-  (tunneling DNS : suspicion par domaine, ou volume DNS anormal).
+  (tunneling DNS : suspicion par domaine, ou volume DNS anormal) ;
+- SCENARIO-1 (#147) `beaconing.detect_beaconing` -> constats `anomalie`
+  (beaconing C2 : communications periodiques vers une destination externe).
 
 Trois principes, pour respecter le critere d'acceptation « aucun faux
 positif sur trafic normal » :
@@ -48,7 +50,13 @@ from netcross_core.exploit_signatures import Detection, Signature, detect_exploi
 from netcross_core.fingerprint.report import build_fingerprint_records
 from netcross_core.models import Pkt, Report
 from netcross_core.security import correlate_banner
+from netcross_core.security.beaconing import detect_beaconing
 from netcross_core.security.dns_tunnel import detect_dns_tunneling
+from netcross_core.security.protocol_mismatch import (
+    count_protocol_mismatches,
+    detect_protocol_mismatches,
+    protocol_mismatch_findings,
+)
 
 # Severite d'une signature d'exploit (vocabulaire de exploit_signatures :
 # anomalie / a_surveiller / info) -> severite du rapport de securite. Une
@@ -195,6 +203,46 @@ def dns_tunnel_findings(suspicions: Iterable[dict]) -> list[dict[str, Any]]:
     return findings
 
 
+# -- SCENARIO-1 : beaconing C2 ---------------------------------------------
+
+_BEACON_SIGNAL_LABELS = {
+    "periodic": "intervalles reguliers",
+    "small_payload": "petites requetes",
+    "stable_size": "volume constant",
+    "asymmetric_ratio": "plus d'octets recus qu'envoyes",
+    "off_hours": "activite hors heures de bureau",
+}
+
+
+def beaconing_findings(suspicions: Iterable[dict]) -> list[dict[str, Any]]:
+    """Un constat `anomalie` par suspicion de `beaconing.detect_beaconing`.
+    La severite est celle calculee par `security.beaconing` (moyenne, elevee
+    si un signal faible corrobore) : une periodicite reste un INDICE a
+    confirmer (un heartbeat legitime est aussi regulier), jamais une
+    compromission averee."""
+    findings = []
+    for s in suspicions:
+        signals = ", ".join(_BEACON_SIGNAL_LABELS.get(sig, sig) for sig in s.get("signals") or [])
+        detail = (
+            f"suspicion de beaconing C2 de {s.get('src', '?')} vers {s.get('dst', '?')}:{s.get('dport', '?')}"
+            f"/{s.get('proto', '?')} : {signals} "
+            f"-- {s.get('checkins', 0)} check-in(s), intervalle moyen {s.get('mean_interval', 0.0)} s "
+            f"(ecart-type {s.get('interval_stddev', 0.0)} s), score de confiance {s.get('score', 0.0)}"
+        )
+        frames = ", ".join(str(f) for f in s.get("frames") or [])
+        if frames:
+            detail += f" -- trames {frames}"
+        findings.append(
+            {
+                "severity": s.get("severity") or "faible",
+                "category": "anomalie",
+                "detail": detail,
+                "point": s.get("point") or None,
+            }
+        )
+    return findings
+
+
 # -- CVE-4 : correlation version -> CVE -------------------------------------
 
 
@@ -252,8 +300,8 @@ def apply_security_findings(
     connexion a la base CVE locale (CVE-4) ; None = pas de correlation CVE
     (les services restent listes, sans criticite). Les suspicions Expert
     Info (CVE-3) sont lues sur `report.exploit_suspicion_flows`, deja
-    calcule par `analyse()` ; le tunneling DNS (FLOW-3) est calcule ici
-    depuis `all_packets`.
+    calcule par `analyse()` ; le tunneling DNS (FLOW-3) et le beaconing C2
+    (SCENARIO-1) sont calcules ici depuis `all_packets`.
 
     `service_fingerprints` contient aussi les empreintes JA4/HASSH
     (issue #143, FLOW-2) -- integration demandee avec CVE-1 (#135) : ce
@@ -262,10 +310,18 @@ def apply_security_findings(
     `netcross_core.fingerprint.report.build_fingerprint_records`."""
     all_packets = list(all_packets)
     report.service_fingerprints = build_service_fingerprints(all_packets) + build_fingerprint_records(all_packets)
+    # FLOW-1 (#142) : mismatches de protocole/port (SSH sur 443, DNS sur
+    # 443, tunneling ICMP...) -- detectes depuis les champs deja decodes de Pkt
+    protocol_mismatch_details = detect_protocol_mismatches(all_packets)
+    report.protocol_mismatches = count_protocol_mismatches(all_packets)
+    report.protocol_mismatch_details = protocol_mismatch_details
+
     findings = (
         exploit_findings(detections)
         + anomaly_findings(report.exploit_suspicion_flows)
         + dns_tunnel_findings(detect_dns_tunneling(all_packets).suspicions)
+        + beaconing_findings(detect_beaconing(all_packets).suspicions)
+        + protocol_mismatch_findings(protocol_mismatch_details)
     )
     if cve_conn is not None:
         findings += cve_findings(report.service_fingerprints, cve_conn)

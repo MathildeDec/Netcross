@@ -572,6 +572,13 @@ class Report:
     # `version`, `host`, `port`, `point` quand ils sont connus (ils
     # servent a rattacher une CVE a un service detecte).
     security_findings: list[dict] = field(default_factory=list)
+    # -- mismatches de protocole/flux (FLOW-1, issue #142) : un protocole
+    # applicatif detecte sur un port non standard (SSH sur 443, HTTP sur 22,
+    # DNS sur 443, tunneling ICMP). `protocol_mismatches` : compteur par
+    # protocole detecte puis par description ; `protocol_mismatch_details` :
+    # liste des occurrences individuelles (frame, ports, proto).
+    protocol_mismatches: dict[str, dict[str, int]] = field(default_factory=lambda: defaultdict(dict))
+    protocol_mismatch_details: list[dict] = field(default_factory=list)
     # -- topologie deduite (ordre + chemins multiples) --
     topology_edges: list[tuple[str, str, dict]] = field(default_factory=list)
     topology_ambiguous: list[tuple[str, str, str]] = field(default_factory=list)
@@ -597,6 +604,14 @@ class Report:
     #   a relire, l'information est deja portee par chaque Pkt.
     capture_comments: list[str] = field(default_factory=list)
     packet_comments: list[str] = field(default_factory=list)
+    # -- Metadonnees de capture (Job 38/issue #158) -- qualite de la
+    # capture elle-meme (format, snaplen, paquets perdus...), pas le
+    # contenu du trafic. Meme discipline que capture_comments : metadonnee
+    # de FICHIER, pas de paquet, donc remplie par l'appelant (CLI) via
+    # netcross_core.parsing.read_capture_infos(captures), AVANT
+    # print_report(). Vide si capinfos est absent ou si la capture ne
+    # porte aucune metadonnee (cas le plus frequent).
+    capture_infos: list[dict] = field(default_factory=list)
     # -- Integrite/qualite de capture (Job 43/issue #163) -- voir
     # netcross_core.forensic.validate_checksums().
     checksum_errors: list[ChecksumError] = field(default_factory=list)

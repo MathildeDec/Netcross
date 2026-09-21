@@ -13,6 +13,12 @@ maximale" de capture.split_capture ne peut donc pas etre un simple
 wrapper autour d'un outil Wireshark : il est realise ici, en une seule
 passe en flux (memoire constante, quelle que soit la taille du fichier).
 
+Second usage (Job 38/issue #158) : read_structure() lit la version du format,
+la liste des interfaces et, en pcapng, les compteurs des Interface
+Statistics Blocks (paquets recus/perdus). capinfos 4.2.2 n'expose PAS ces
+compteurs (il n'indique que "Number of stat entries"), verifie
+empiriquement sur un pcapng portant un ISB avec isb_ifdrop non nul.
+
 Formats pris en charge : pcap (µs et ns, les deux endianness) et pcapng
 (les deux endianness, plusieurs sections). Un fichier compresse (.gz)
 n'est PAS reconnu -- detect_format() renvoie None.
@@ -24,6 +30,7 @@ import contextlib
 import os
 import struct
 from collections.abc import Iterator
+from dataclasses import dataclass, replace
 from typing import BinaryIO
 
 FORMAT_PCAP = "pcap"
@@ -49,6 +56,7 @@ _PCAP_RECORD_HEADER_LEN = 16
 
 # Blocs pcapng (RFC draft-ietf-opsawg-pcapng).
 _BLOCK_IDB = 0x00000001  # Interface Description
+_BLOCK_ISB = 0x00000005  # Interface Statistics
 _BLOCK_PB = 0x00000002  # Packet (obsolete)
 _BLOCK_SPB = 0x00000003  # Simple Packet
 _BLOCK_EPB = 0x00000006  # Enhanced Packet
@@ -63,6 +71,15 @@ _BOM_BE = b"\x1a\x2b\x3c\x4d"
 _MAX_UNIT_LEN = 256 * 1024 * 1024
 
 _READ_BUFFER = 1024 * 1024
+
+# Codes d'options pcapng lus par read_structure(). Les codes 2 et 3 n'ont
+# pas le meme sens dans un IDB (nom/description) et dans un ISB (debut/fin
+# de la mesure) : la lecture est donc toujours faite bloc par bloc.
+_OPT_ENDOFOPT = 0
+_OPT_IF_NAME = 2  # IDB : nom de l'interface
+_OPT_ISB_IFRECV = 4  # ISB : paquets recus par l'interface
+_OPT_ISB_IFDROP = 5  # ISB : paquets perdus par l'interface (manque de ressources)
+_OPT_ISB_OSDROP = 7  # ISB : paquets perdus par l'OS
 
 
 def detect_format(path: str) -> str | None:
@@ -154,6 +171,120 @@ def has_packets(path: str) -> bool:
             return False
         endian = _PCAP_MAGICS[header[:4]][0]
         return next(_iter_pcap_records(f, endian), None) is not None
+
+
+@dataclass(frozen=True)
+class InterfaceRecord:
+    """Une interface de capture : l'unique interface implicite d'un pcap
+    classique, ou un Interface Description Block pcapng (index = rang
+    d'apparition dans le fichier, toutes sections confondues).
+
+    snaplen == 0 signifie "pas de limite". received/dropped_by_interface/
+    dropped_by_os valent None tant qu'aucun ISB ne les a renseignes -- ce
+    qui n'est PAS la meme chose que 0 (voir CaptureInfo.has_drops)."""
+
+    index: int
+    linktype: int
+    snaplen: int
+    name: str | None = None
+    received: int | None = None
+    dropped_by_interface: int | None = None
+    dropped_by_os: int | None = None
+
+
+@dataclass(frozen=True)
+class CaptureStructure:
+    """Ce que le cadrage binaire seul permet de dire d'un fichier de
+    capture : format, version ("2.4" pour un pcap, "1.0" pour un pcapng)
+    et interfaces. Aucune donnee de paquet."""
+
+    fmt: str
+    version: str
+    interfaces: tuple[InterfaceRecord, ...]
+
+
+def _iter_options(data: bytes, endian: str) -> Iterator[tuple[int, bytes]]:
+    """Yield (code, valeur) pour chaque option pcapng de `data` (la zone
+    d'options d'un bloc, sans l'octet de longueur finale). S'arrete a
+    opt_endofopt ou sur une option tronquee -- on garde ce qui precede."""
+    pos = 0
+    while pos + 4 <= len(data):
+        code, length = struct.unpack_from(endian + "HH", data, pos)
+        if code == _OPT_ENDOFOPT:
+            return
+        pos += 4
+        value = data[pos : pos + length]
+        if len(value) < length:
+            return
+        yield code, value
+        pos += (length + 3) & ~3  # valeur alignee sur 32 bits
+
+
+def _read_pcapng_structure(f: BinaryIO) -> CaptureStructure | None:
+    interfaces: list[InterfaceRecord] = []
+    version: str | None = None
+    endian = "<"
+    section_base = 0  # les interface_id des ISB repartent de 0 a chaque section
+    try:
+        for block_type, raw in _iter_pcapng_blocks(f):
+            if block_type == _BLOCK_SHB:
+                endian = "<" if raw[8:12] == _BOM_LE else ">"
+                major, minor = struct.unpack_from(endian + "HH", raw, 12)
+                version = version or f"{major}.{minor}"
+                section_base = len(interfaces)
+            elif block_type == _BLOCK_IDB:
+                linktype, _reserved, snaplen = struct.unpack_from(endian + "HHI", raw, 8)
+                name = None
+                for code, value in _iter_options(raw[16:-4], endian):
+                    if code == _OPT_IF_NAME:
+                        name = value.decode("utf-8", "replace") or None
+                interfaces.append(InterfaceRecord(len(interfaces), linktype, snaplen, name))
+            elif block_type == _BLOCK_ISB:
+                slot = section_base + struct.unpack_from(endian + "I", raw, 8)[0]
+                if slot >= len(interfaces):
+                    continue  # ISB d'une interface inconnue : fichier incoherent, ignore
+                fields: dict[str, int] = {}
+                for code, value in _iter_options(raw[20:-4], endian):
+                    if len(value) != 8:
+                        continue
+                    counter = struct.unpack(endian + "Q", value)[0]
+                    if code == _OPT_ISB_IFRECV:
+                        fields["received"] = counter
+                    elif code == _OPT_ISB_IFDROP:
+                        fields["dropped_by_interface"] = counter
+                    elif code == _OPT_ISB_OSDROP:
+                        fields["dropped_by_os"] = counter
+                # Compteurs cumulatifs : le DERNIER ISB d'une interface donne les
+                # totaux ; un ISB qui omet une option ne remet pas l'ancienne a None.
+                interfaces[slot] = replace(interfaces[slot], **fields)
+    except (ValueError, struct.error):
+        pass  # bloc corrompu : on garde les interfaces lues jusque-la (comme une troncature)
+    if version is None:
+        return None
+    return CaptureStructure(FORMAT_PCAPNG, version, tuple(interfaces))
+
+
+def read_structure(path: str) -> CaptureStructure | None:
+    """Format, version et interfaces de `path` d'apres le seul cadrage
+    binaire, ou None si le format n'est pas reconnu (fichier compresse,
+    autre format, vide, tronque avant son premier en-tete). Leve OSError
+    si le fichier est illisible.
+
+    Un pcap classique ne porte aucune statistique : ses compteurs restent
+    None. Un pcapng en porte si l'outil de capture a ecrit des Interface
+    Statistics Blocks (dumpcap/tshark le font, tcpdump et editcap non)."""
+    fmt = detect_format(path)
+    if fmt is None:
+        return None
+    with open(path, "rb", buffering=_READ_BUFFER) as f:
+        if fmt == FORMAT_PCAPNG:
+            return _read_pcapng_structure(f)
+        header = _read_exact_or_none(f, _PCAP_HEADER_LEN)
+        if header is None:
+            return None
+        endian = _PCAP_MAGICS[header[:4]][0]
+        major, minor, _thiszone, _sigfigs, snaplen, linktype = struct.unpack_from(endian + "HHiIII", header, 4)
+        return CaptureStructure(fmt, f"{major}.{minor}", (InterfaceRecord(0, linktype, snaplen),))
 
 
 class _SegmentSink:
@@ -297,3 +428,84 @@ def _split_pcapng(f: BinaryIO, sink: _SegmentSink) -> None:
             sink.write_if_open(raw)
         else:
             sink.write(raw, is_packet=block_type in _PACKET_BLOCKS)
+
+
+# -- first_timestamp --------------------------------------------------------
+
+
+def first_timestamp(path: str) -> float:
+    """Timestamp epoch du premier paquet de `path` (pcap, nsecpcap ou
+    pcapng), lu directement du cadrage binaire sans tshark. Leve
+    FileNotFoundError si le fichier est absent, ValueError si le format
+    n'est pas reconnu ou si la capture ne contient aucun paquet."""
+    if not os.path.isfile(path):
+        raise FileNotFoundError(f"capture introuvable : {path}")
+    fmt = detect_format(path)
+    if fmt is None:
+        raise ValueError(f"format non reconnu : {path}")
+    with open(path, "rb") as f:
+        if fmt == FORMAT_PCAPNG:
+            return _first_timestamp_pcapng(f)
+        # pcap ou nsecpcap : lire l'en-tete global pour l'endianness
+        header = f.read(_PCAP_HEADER_LEN)
+        if len(header) < _PCAP_HEADER_LEN:
+            raise ValueError("fichier pcap tronque (en-tete global incomplet)")
+        endian, fmt_name = _PCAP_MAGICS[header[:4]]
+        nsec = fmt_name == FORMAT_NSECPCAP
+        return _first_timestamp_pcap(f, endian, nsec)
+
+
+def _first_timestamp_pcap(f: BinaryIO, endian: str, nsec: bool) -> float:
+    """Lit le timestamp du premier paquet d'un pcap classique. f est
+    positionne juste apres l'en-tete global (24 octets). Renvoie un
+    timestamp epoch en secondes (float)."""
+    header = f.read(_PCAP_RECORD_HEADER_LEN)
+    if len(header) < _PCAP_RECORD_HEADER_LEN:
+        raise ValueError("pcap sans paquet (en-tete global seul)")
+    ts_sec, ts_frac = struct.unpack_from(endian + "II", header, 0)
+    divisor = 1e9 if nsec else 1e6
+    return ts_sec + ts_frac / divisor
+
+
+def _iter_options(data: bytes, endian: str):
+    """Iterere sur les options TLV (type 2, length 2, value padded a 4
+    octets) d'un bloc pcapng. Renvoie (code, value) pour chaque option."""
+    offset = 0
+    while offset + 4 <= len(data):
+        code, length = struct.unpack_from(endian + "HH", data, offset)
+        if code == 0:  # opt_endofopt
+            break
+        offset += 4
+        if offset + length > len(data):
+            break
+        value = data[offset : offset + length]
+        yield code, value
+        # padding a 4 octets
+        padded = (length + 3) & ~3
+        offset += padded
+
+
+def _first_timestamp_pcapng(f: BinaryIO) -> float:
+    """Lit le timestamp du premier paquet (Enhanced Packet Block) d'un
+    pcapng. f est au debut du fichier. Renvoie un timestamp epoch en
+    secondes (float). Leve ValueError si aucun paquet n'est trouve."""
+    endian = "<"
+    tsresol_shift = 6  # microsecondes par defaut (2^6 = 64)
+    for block_type, raw in _iter_pcapng_blocks(f):
+        if block_type == _BLOCK_SHB:
+            bom = raw[8:12]
+            endian = "<" if bom == _BOM_LE else ">"
+        elif block_type == _BLOCK_IDB:
+            # if_tsresol (option 9) : log2 du diviseur. Defaut : 6 (us).
+            for code, value in _iter_options(raw[16:-4], endian):
+                if code == 9 and len(value) >= 1:
+                    tsresol_shift = value[0]
+        elif block_type == _BLOCK_EPB:
+            # EPB : ts_high (4) + ts_low (4) apres interface_id (4)
+            if len(raw) < 20:
+                continue
+            ts_high, ts_low = struct.unpack_from(endian + "II", raw, 12)
+            ts_64 = (ts_high << 32) | ts_low
+            divisor = 2**tsresol_shift
+            return ts_64 / divisor
+    raise ValueError("pcapng sans paquet (aucun Enhanced Packet Block)")
