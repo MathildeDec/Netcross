@@ -53,6 +53,7 @@ from netcross_core.stats import compute_stats, export_csv, export_json
 from netcross_core.voip import Call, build_calls
 from netcross_core.wireshark_expert import build_wireshark_expert_events
 from pcap_parser.capture import TcpreplayError, TcpreplayNotFoundError, merge_captures, replay_capture, split_capture
+from pcap_parser.convert import convert_capture
 
 __all__ = [
     "DEFAULT_REFERENCES",
@@ -79,6 +80,7 @@ __all__ = [
     "compute_stats",
     "compute_throughput",
     "compute_topn_series",
+    "convert_capture",
     "correlate",
     "detect_encapsulation",
     "diff_reports",

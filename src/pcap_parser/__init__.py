@@ -22,6 +22,8 @@ Organisation en couches (bas en haut) :
                    + replay_capture : rejeu de trafic via tcpreplay, sans decodage
                    + split_capture : decoupage par duree, nombre de paquets ou taille
                    + iter_live_multi : capture simultanee sur plusieurs interfaces)
+    convert     -- convert_capture : conversion entre pcap / pcapng / ERF (mergecap)
+                   et export structure CSV / JSON (decodage tshark -T ek)
 
 Utilisation typique :
 
@@ -34,6 +36,11 @@ Utilisation typique :
     from pcap_parser import split_capture
 
     segments = split_capture("gros.pcapng", "segments/", by="time", value=60.0)
+
+    from pcap_parser import convert_capture
+
+    convert_capture("lan.pcap", "lan.pcapng", format="pcapng")   # pcap/pcapng/erf
+    convert_capture("lan.pcapng", "lan.csv", format="csv")       # un paquet par ligne
 
     from pcap_parser import iter_live_multi
 
@@ -55,6 +62,7 @@ from pcap_parser.capture import (
     replay_capture,
     split_capture,
 )
+from pcap_parser.convert import convert_capture
 from pcap_parser.ek_source import TsharkError, TsharkNotFoundError
 from pcap_parser.packet import RawPacket
 from pcap_parser.protocols import (
@@ -75,6 +83,7 @@ __all__ = [
     "TsharkError",
     "TsharkNotFoundError",
     "compute_mos",
+    "convert_capture",
     "detect_encapsulation",
     "extract_dhcp",
     "extract_dns",
