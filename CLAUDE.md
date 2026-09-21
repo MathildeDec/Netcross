@@ -1301,6 +1301,16 @@ moteur d'exécution, par exemple, ne consomme que le code interne du
 projet lui-même — `expert_rules.py`/`synthesis.py`/`models.py` —, pas
 de documentation externe).
 
+## Workflow d'intégration (dev → main)
+
+Depuis le 21/09/2026, `main` est protégée : toute fusion vers `main` passe
+obligatoirement par une PR depuis `dev` (workflow
+`.github/workflows/guard-main.yml` = required status check « Garde : PR vers
+main doit venir de dev » + protection de branche). Le flux est :
+feature → PR vers `dev` (CI Qualité) → fusion dans `dev` → PR `dev` → `main`
+(CI Qualité + Garde) → fusion. Les PR directes feature → `main` sont rejetées
+par le garde-fou.
+
 ## Consigne récurrente
 
 « Continue les features à faire de la comparaison avec OmniPeek. Fais
