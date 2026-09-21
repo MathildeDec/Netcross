@@ -118,6 +118,7 @@ from netcross_core import (
     analyse,
     compare_clients,
     correlate,
+    export_filtered,
     merge_captures,
     parse_capture,
     parse_captures_parallel,
@@ -137,6 +138,7 @@ from netcross_core.forensic import DEFAULT_DUPLICATE_THRESHOLD_MS, detect_cross_
 from netcross_core.security import close_db, connect_cve_db
 from netcross_core.security import findings as security_findings
 from netcross_report.security_report import build_security_report, print_security_report
+from pcap_parser.ek_source import TsharkError, TsharkNotFoundError
 
 
 def _parse_live_spec(spec):
@@ -237,6 +239,47 @@ def _run_merge(capture_specs, output_path, dedup):
         + (" (paquets identiques dedupliques)" if dedup else "")
         + "."
     )
+
+
+def _run_export(capture_specs, output_path, bpf_filter, time_start, time_end, endpoints):
+    """--export-pcap : exporte un sous-ensemble filtre de la premiere
+    capture vers un nouveau fichier. Comme --merge/--split, ne lance aucune
+    analyse ensuite."""
+    if not capture_specs:
+        print("--export-pcap necessite --capture (fichier source).", file=sys.stderr)
+        sys.exit(1)
+    # Un seul fichier source : pour exporter plusieurs captures, les fusionner
+    # d'abord avec --merge.
+    if len(capture_specs) > 1:
+        print(
+            f"--export-pcap exporte UN fichier a la fois (recu {len(capture_specs)} spec(s) --capture) -- "
+            "fusionnez d'abord avec --merge si besoin.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    label, paths = _parse_capture_spec(capture_specs[0], "--capture")
+    if len(paths) > 1:
+        print(
+            f"--export-pcap exporte UN fichier a la fois (recu {len(paths)} segments dans {label}) -- "
+            "fusionnez d'abord avec --merge si besoin.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    path = paths[0]
+    try:
+        export_filtered(
+            path,
+            output_path,
+            bpf_filter=bpf_filter,
+            time_start=time_start,
+            time_end=time_end,
+            endpoints=endpoints,
+        )
+    except (TsharkNotFoundError, TsharkError, FileNotFoundError, ValueError) as e:
+        print(f"--export-pcap : {e}", file=sys.stderr)
+        sys.exit(1)
+    print(f"{output_path} cree ({label}).")
+    return 0
 
 
 _SPLIT_DEFAULT_DIR = "captures_split"
@@ -475,6 +518,40 @@ def main():
         metavar="REPERTOIRE",
         help=f"Avec --split : repertoire de sortie (defaut: ./{_SPLIT_DEFAULT_DIR}, "
         "cree si absent). Refuse d'ecraser ou de melanger des segments deja presents.",
+    )
+    ap.add_argument(
+        "--export-pcap",
+        metavar="PATH",
+        help="Exporte un sous-ensemble de la premiere capture de --capture "
+        "vers un nouveau fichier PCAP/pcapng, filtre par --export-bpf, "
+        "--export-time-start/end et/ou --export-endpoints. Comme --merge/--split, "
+        "ne lance aucune analyse. Un seul fichier source a la fois.",
+    )
+    ap.add_argument(
+        "--export-bpf",
+        metavar="FILTRE",
+        help='Avec --export-pcap : filtre BPF (capture filter) a appliquer, ex: "tcp port 80" ou "host 192.168.1.1".',
+    )
+    ap.add_argument(
+        "--export-time-start",
+        type=float,
+        default=None,
+        metavar="SECONDES",
+        help="Avec --export-pcap : debut de la plage temporelle a exporter (secondes relatives au premier paquet).",
+    )
+    ap.add_argument(
+        "--export-time-end",
+        type=float,
+        default=None,
+        metavar="SECONDES",
+        help="Avec --export-pcap : fin de la plage temporelle a exporter (secondes relatives au premier paquet).",
+    )
+    ap.add_argument(
+        "--export-endpoints",
+        metavar="IP1,IP2,...",
+        help="Avec --export-pcap : liste d'adresses IP a inclure (src OU dst), "
+        "separees par des virgules. Un paquet est conserve si l'une de ses "
+        "adresses IP correspond.",
     )
     ap.add_argument("--order", help="Ordre physique des points sur le chemin reseau, ex: LAN,WAN,DC")
     ap.add_argument("--detail-csv", help="Chemin de sortie pour le detail par flux (CSV)")
@@ -840,6 +917,24 @@ def main():
             )
             sys.exit(1)
 
+    # --export-pcap est exclusif avec --merge/--split/--replay
+    if args.export_pcap and (args.merge or args.split or args.replay):
+        print(
+            "--export-pcap est exclusif avec --merge/--split/--replay : une seule operation a la fois.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    if (
+        args.export_bpf
+        or args.export_time_start is not None
+        or args.export_time_end is not None
+        or args.export_endpoints
+    ) and not args.export_pcap:
+        print(
+            "--export-bpf/--export-time-start/--export-time-end/--export-endpoints necessitent --export-pcap.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
     if args.merge and args.split:
         print("--merge et --split sont exclusifs : fusionner OU decouper, pas les deux.", file=sys.stderr)
         sys.exit(1)
@@ -913,6 +1008,47 @@ def main():
             )
             sys.exit(1)
         sys.exit(_run_split(args.capture, args.split, args.split_output_dir or _SPLIT_DEFAULT_DIR))
+
+    if args.export_pcap:
+        if not args.capture:
+            print("--export-pcap necessite --capture (fichier source), pas --live.", file=sys.stderr)
+            sys.exit(1)
+        # --export-pcap est un mode utilitaire comme --merge/--split : toute
+        # option d'analyse serait silencieusement ignoree, on la refuse.
+        ignored = sorted(
+            "--" + dest.replace("_", "-")
+            for dest, value in vars(args).items()
+            if dest
+            not in (
+                "capture",
+                "export_pcap",
+                "export_bpf",
+                "export_time_start",
+                "export_time_end",
+                "export_endpoints",
+            )
+            and value != ap.get_default(dest)
+        )
+        if ignored:
+            print(
+                f"--export-pcap ne lance aucune analyse : option(s) incompatible(s) {', '.join(ignored)}. "
+                "Exporter d'abord, puis analyser le resultat dans une seconde commande.",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        endpoints = None
+        if args.export_endpoints:
+            endpoints = [ip.strip() for ip in args.export_endpoints.split(",") if ip.strip()]
+        sys.exit(
+            _run_export(
+                args.capture,
+                args.export_pcap,
+                args.export_bpf,
+                args.export_time_start,
+                args.export_time_end,
+                endpoints,
+            )
+        )
 
     if args.replay:
         if not args.capture:
