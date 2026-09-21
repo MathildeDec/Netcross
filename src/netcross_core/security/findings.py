@@ -43,6 +43,7 @@ from typing import Any
 import pcap_parser
 from netcross_core.application.banners import build_service_fingerprints
 from netcross_core.exploit_signatures import Detection, Signature, detect_exploits
+from netcross_core.fingerprint.report import build_fingerprint_records
 from netcross_core.models import Pkt, Report
 from netcross_core.security import correlate_banner
 
@@ -203,8 +204,15 @@ def apply_security_findings(
     connexion a la base CVE locale (CVE-4) ; None = pas de correlation CVE
     (les services restent listes, sans criticite). Les suspicions Expert
     Info (CVE-3) sont lues sur `report.exploit_suspicion_flows`, deja
-    calcule par `analyse()`."""
-    report.service_fingerprints = build_service_fingerprints(all_packets)
+    calcule par `analyse()`.
+
+    `service_fingerprints` contient aussi les empreintes JA4/HASSH
+    (issue #143, FLOW-2) -- integration demandee avec CVE-1 (#135) : ce
+    sont des entrees de plus dans la MEME liste (cle `service` valant
+    "TLS/JA4" ou "SSH/HASSH" plutot qu'un nom de logiciel), voir
+    `netcross_core.fingerprint.report.build_fingerprint_records`."""
+    all_packets = list(all_packets)
+    report.service_fingerprints = build_service_fingerprints(all_packets) + build_fingerprint_records(all_packets)
     findings = exploit_findings(detections) + anomaly_findings(report.exploit_suspicion_flows)
     if cve_conn is not None:
         findings += cve_findings(report.service_fingerprints, cve_conn)
