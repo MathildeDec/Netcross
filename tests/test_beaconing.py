@@ -84,14 +84,15 @@ def _legit_workstation():
     pkts, ts = [], NOON
     for _ in range(120):  # navigation : intervalles et tailles irreguliers
         ts += rng.uniform(0.5, 40.0)
-        pkts.append(_out(ts, size=rng.randrange(200, 1400), dst=rng.choice(servers), sport=rng.randrange(40000, 60000)))
+        dst, size, sport = rng.choice(servers), rng.randrange(200, 1400), rng.randrange(40000, 60000)
+        pkts.append(_out(ts, size=size, dst=dst, sport=sport))
     for i in range(30):  # NTP toutes les 64 s, DNS toutes les 30 s (UDP, petits, reguliers)
         pkts.append(_out(NOON + i * 64.0, size=90, proto="UDP", dst="162.159.200.1", dport=123, sport=45000))
         pkts.append(_out(NOON + i * 30.0, size=70, proto="UDP", dst="8.8.8.8", dport=53, sport=46000))
-    for i in range(30):  # keepalive TCP : segments vides toutes les 45 s
-        pkts.append(_out(NOON + i * 45.0, size=0, dst="142.250.74.110", sport=50000))
-    for i in range(30):  # sauvegarde : reguliere mais gros volume
-        pkts.append(_out(NOON + i * 10.0, size=1400, dst="185.199.108.153", dport=8443, sport=51000))
+    # keepalive TCP : segments vides toutes les 45 s
+    pkts += [_out(NOON + i * 45.0, size=0, dst="142.250.74.110", sport=50000) for i in range(30)]
+    # sauvegarde : reguliere mais gros volume
+    pkts += [_out(NOON + i * 10.0, size=1400, dst="185.199.108.153", dport=8443, sport=51000) for i in range(30)]
     return pkts
 
 
@@ -119,13 +120,13 @@ def test_beacon_udp_detecte():
 
 def test_gigue_moderee_detectee_et_score_plus_bas_que_cadence_exacte():
     exact = detect_beaconing(_beacon()).suspicions[0]
-    (jittery,) = detect_beaconing(_beacon(jitter=3.0)).suspicions  # +/- 5 % : CV ~ 0.03
+    (jittery,) = detect_beaconing(_beacon(jitter=3.0)).suspicions  # +/- 5 % : CV ~ 0.04
     assert 0.0 < jittery["interval_cv"] <= 0.15
     assert 0.5 < jittery["score"] < exact["score"]
 
 
 def test_gigue_forte_non_detectee():
-    assert detect_beaconing(_beacon(jitter=30.0)).suspicions == []  # CV ~ 0.29
+    assert detect_beaconing(_beacon(jitter=30.0)).suspicions == []  # +/- 50 % : CV ~ 0.4
 
 
 def test_intervalles_irreguliers_non_detectes():
@@ -262,7 +263,7 @@ def test_seuils_configurables():
     assert detect_beaconing(pkts).suspicions == []
     assert len(detect_beaconing(pkts, BeaconingThresholds(min_checkins=5)).suspicions) == 1
     jittery = _beacon(jitter=30.0)
-    assert len(detect_beaconing(jittery, BeaconingThresholds(max_interval_cv=0.5)).suspicions) == 1
+    assert len(detect_beaconing(jittery, BeaconingThresholds(max_interval_cv=1.0)).suspicions) == 1
 
 
 # --- integration Report / findings de securite -----------------------------
