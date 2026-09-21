@@ -32,6 +32,7 @@ import sys
 
 import pcap_parser
 from netcross_core.application.banners import extract_banners
+from netcross_core.fingerprint.report import compute_pkt_fingerprints
 from netcross_core.models import Pkt
 from pcap_parser.capinfos_source import read_capture_comment
 from pcap_parser.ek_source import TsharkError, TsharkNotFoundError
@@ -52,6 +53,7 @@ __all__ = [
 
 
 def _to_pkt(label: str, raw: RawPacket) -> Pkt:
+    fingerprints = compute_pkt_fingerprints(raw.proto, raw.sport, raw.dport, raw.payload)
     return Pkt(
         point=label,
         ts=raw.ts,
@@ -136,6 +138,7 @@ def _to_pkt(label: str, raw: RawPacket) -> Pkt:
         expert_flags=raw.expert_flags,
         expert_details=raw.expert_details,
         service_banners=extract_banners(raw.proto, raw.sport, raw.dport, raw.payload),
+        **fingerprints,
     )
 
 

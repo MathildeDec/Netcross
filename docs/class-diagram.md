@@ -11,7 +11,7 @@
 > Il remplace l'ancienne section 3 de `docs/features-backlog.md`, tenue à la main, qui avait dérivé
 > (voir `docs/sessions/session-36.md`, issue #140).
 
-89 modules · 121 classes · 260 fonctions publiques de module.
+95 modules · 121 classes · 273 fonctions publiques de module.
 
 Conventions : `+` public, `-` privé (préfixe `_`) ; `int?` = `int | None` ; `list~str~` = `list[str]` ;
 `<<module>>` regroupe les fonctions publiques d'un module ; `A --> B : champ` = `A` a un champ annoté
@@ -33,7 +33,7 @@ flowchart TD
     CLI -->|"13 imports"| netcross_report
     CLI -->|"11 imports"| netcross_core
     netcross_gtk4 -->|"10 imports"| netcross_report
-    netcross_gtk4 -->|"17 imports"| netcross_core
+    netcross_gtk4 -->|"18 imports"| netcross_core
     netcross_report -->|"11 imports"| netcross_core
     netcross_core -->|"13 imports"| pcap_parser
 ```
@@ -915,6 +915,11 @@ classDiagram
         +bool? tcp_checksum_bad
         +str? udp_checksum
         +bool? udp_checksum_bad
+        +str? tls_ja4
+        +str? tls_ja4_readable
+        +str? ssh_hassh
+        +str? ssh_hassh_role
+        +str? ssh_hassh_readable
     }
     class SequenceGap {
         <<dataclass, slots>>
@@ -1373,6 +1378,55 @@ classDiagram
 
     %% ===== relations =====
     ApplicationTransaction --> TransactionClassification : classification
+```
+
+## `netcross_core.fingerprint`
+
+| Module | Rôle |
+|---|---|
+| `netcross_core.fingerprint` | empreintes JA4 (TLS) et HASSH (SSH), issue #143 (FLOW-2, parent #141). |
+| `netcross_core.fingerprint.known` | base de correspondances empreinte -> nom d'outil (issue #143, critere d'acceptation "base de fingerprints connus chargeable"). |
+| `netcross_core.fingerprint.report` | consolidation des empreintes JA4/ HASSH vues par paquet en entrees pretes pour `Report.service_fingerprints` (issue #143, integration demandee avec CVE-1 #135). |
+| `netcross_core.fingerprint.ssh_hassh` | empreinte HASSH d'une negociation SSH (issue #143, FLOW-2). |
+| `netcross_core.fingerprint.tls_ja4` | empreinte JA4 d'un ClientHello TLS (issue #143, FLOW-2). |
+
+### Diagramme
+
+```mermaid
+classDiagram
+    direction LR
+
+    %% ===== netcross_core.fingerprint.known =====
+    class mod_netcross_core_fingerprint_known["netcross_core.fingerprint.known"] {
+        <<module>>
+        +load_known_fingerprints(path) dict~str, dict~str, str~~
+        +identify_tool(fingerprint_type, fingerprint, known) str?
+    }
+
+    %% ===== netcross_core.fingerprint.report =====
+    class mod_netcross_core_fingerprint_report["netcross_core.fingerprint.report"] {
+        <<module>>
+        +build_fingerprint_records(packets, known) list~dict~
+        +compute_pkt_fingerprints(proto, sport, dport, payload) dict
+    }
+
+    %% ===== netcross_core.fingerprint.ssh_hassh =====
+    class mod_netcross_core_fingerprint_ssh_hassh["netcross_core.fingerprint.ssh_hassh"] {
+        <<module>>
+        +parse_kexinit(payload) dict?
+        +compute_hassh(kexinit, role) str
+        +readable_kexinit(kexinit, role) str
+        +identify(payload, sport, dport) tuple~str, str, str~?
+    }
+
+    %% ===== netcross_core.fingerprint.tls_ja4 =====
+    class mod_netcross_core_fingerprint_tls_ja4["netcross_core.fingerprint.tls_ja4"] {
+        <<module>>
+        +parse_client_hello(payload) dict?
+        +compute_ja4(client_hello, transport) str
+        +readable_client_hello(client_hello) str
+        +identify(payload) tuple~str, str~?
+    }
 ```
 
 ## `netcross_core.netflow`
@@ -2140,6 +2194,7 @@ classDiagram
 | `netcross_gtk4.annotations_view` | logique de presentation pour l'etiquetage/signets sur paquets (Job 40 / issue #160, section "Metadonnees et annotation"). |
 | `netcross_gtk4.app` | interface GTK4 pour netcross_core / netcross_report. |
 | `netcross_gtk4.dashboard_context` | contexte d'analyse partage pour le dashboard analytique interactif (issue #18, section 6.17). |
+| `netcross_gtk4.duplicate_view` | Presentation helpers for cross-capture duplicate detection (Job 41). |
 | `netcross_gtk4.live_capture_points` | points de capture en direct de la GUI (Job 48, issue #168) : une ligne du panneau de capture live peut porter PLUSIEURS interfaces d'une meme machine ("eth0, eth1"), chacune devenant son propre point… |
 | `netcross_gtk4.stats_view` | logique de presentation pour la vue d'exploration statistique (Job 27 / issue #22, section 6.8). |
 
@@ -2233,6 +2288,12 @@ classDiagram
         +select_bucket(selection, bucket) DashboardSelection
         +select_event(selection, event_id, events) DashboardSelection
         +build_dashboard_snapshot(report, flows, findings, tls_findings, quic_findings, wireshark_expert_events, selection) DashboardSnapshot
+    }
+
+    %% ===== netcross_gtk4.duplicate_view =====
+    class mod_netcross_gtk4_duplicate_view["netcross_gtk4.duplicate_view"] {
+        <<module>>
+        +format_duplicate_indicator(report) str
     }
 
     %% ===== netcross_gtk4.live_capture_points =====

@@ -178,6 +178,21 @@ class Pkt:
     tcp_checksum_bad: bool | None = None
     udp_checksum: str | None = None
     udp_checksum_bad: bool | None = None
+    # -- empreintes JA4/HASSH (FLOW-2, issue #143, parent #141) : calculees
+    # par netcross_core.fingerprint.report.compute_pkt_fingerprints depuis
+    # RawPacket.payload (les octets ne sont plus disponibles ensuite --
+    # meme contrainte que service_banners ci-dessus). None quand ce
+    # paquet ne porte ni ClientHello TLS ni SSH_MSG_KEXINIT decodable.
+    # `tls_ja4_readable`/`ssh_hassh_readable` : forme lisible pour
+    # l'analyste (ciphers/extensions ou algorithmes en clair), le hash
+    # opaque seul ne l'est pas. `ssh_hassh_role` : ROLE_CLIENT ou
+    # ROLE_SERVER selon quel cote a emis ce SSH_MSG_KEXINIT (HASSH et
+    # HASSHServer different -- voir netcross_core.fingerprint.ssh_hassh).
+    tls_ja4: str | None = None
+    tls_ja4_readable: str | None = None
+    ssh_hassh: str | None = None
+    ssh_hassh_role: str | None = None
+    ssh_hassh_readable: str | None = None
 
 
 # Cause d'un trou de sequence TCP (SequenceGap.cause) -- criteres de
