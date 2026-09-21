@@ -27,6 +27,8 @@ Prerequis :
       la bibliotheque standard)
     - --merge n'a besoin que des outils livres avec tshark (mergecap,
       reordercap, et editcap pour --merge-dedup)
+    - --convert n'a besoin que de tshark (mergecap pour pcap/pcapng/erf,
+      tshark lui-meme pour csv/json)
     - --replay necessite le paquet systeme 'tcpreplay' (apt install
       tcpreplay / dnf install tcpreplay), DISTINCT de tshark -- non
       installe par install.sh. ATTENTION : --replay EMET du trafic
@@ -97,6 +99,17 @@ timestamp de paquet, sans lancer d'analyse -- les noms de points de
         --capture WAN=capture_wan.pcapng \
         --merge fusion.pcapng --merge-dedup
 
+Exemple d'utilisation (conversion d'UNE capture vers un autre format, sans
+lancer d'analyse -- pcap, pcapng, erf, csv ou json ; le format se deduit de
+l'extension de SORTIE si --convert-format est absent, voir
+docs/capture-formats.md) :
+    python3 cross_capture_analyzer_cli.py \
+        --capture LAN=capture_lan.pcap \
+        --convert capture_lan.pcapng
+    python3 cross_capture_analyzer_cli.py \
+        --capture LAN=capture_lan.pcapng \
+        --convert paquets.txt --convert-format csv
+
 Exemple d'utilisation (rejeu d'une capture sur une interface reseau, sans
 lancer d'analyse -- voir l'avertissement d'usage responsable ci-dessus et
 dans l'aide de --replay ; a n'utiliser que sur un banc de test isole sauf
@@ -117,6 +130,7 @@ import time
 from netcross_core import (
     analyse,
     compare_clients,
+    convert_capture,
     correlate,
     merge_captures,
     parse_capture,
@@ -136,6 +150,7 @@ from netcross_core.forensic import DEFAULT_DUPLICATE_THRESHOLD_MS, detect_cross_
 from netcross_core.security import close_db, connect_cve_db
 from netcross_core.security import findings as security_findings
 from netcross_report.security_report import build_security_report, print_security_report
+from pcap_parser.convert import CONVERT_FORMATS
 
 
 def _parse_live_spec(spec):
@@ -318,6 +333,44 @@ def _run_split(capture_specs, split_spec, output_dir):
         ext = os.path.splitext(segments[0])[1]
         print(f'  Pour les analyser comme un seul point : --capture "{label}=$(ls {label_dir}/*{ext} | paste -sd, -)"')
     return status
+
+
+_CONVERT_EXTENSIONS = {".pcap": "pcap", ".pcapng": "pcapng", ".erf": "erf", ".csv": "csv", ".json": "json"}
+
+
+def _infer_convert_format(output_path):
+    """Format de sortie deduit de l'extension de SORTIE (pcap, pcapng, erf,
+    csv, json), pcapng sinon -- meme defaut que --merge."""
+    return _CONVERT_EXTENSIONS.get(os.path.splitext(output_path)[1].lower(), "pcapng")
+
+
+def _run_convert(capture_specs, output_path, fmt):
+    """--convert : convertit UNE capture vers `fmt` (voir
+    pcap_parser.convert.convert_capture pour les formats, la table de
+    compatibilite et les exceptions levees). Comme --merge/--split/--replay,
+    ne lance aucune analyse ensuite. Un seul fichier est accepte : la
+    conversion est fichier a fichier -- fusionner d'abord avec --merge si
+    plusieurs segments doivent produire une seule sortie."""
+    paths = []
+    for spec in capture_specs:
+        _label, spec_paths = _parse_capture_spec(spec, "--capture")
+        paths.extend(spec_paths)
+    if len(paths) != 1:
+        print(
+            f"--convert necessite exactement un fichier de capture (recu {len(paths)} via --capture) -- "
+            "fusionnez d'abord plusieurs segments avec --merge si besoin.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    try:
+        convert_capture(paths[0], output_path, format=fmt)
+    except (OSError, ValueError, RuntimeError) as e:
+        # OSError : entree absente/illisible ; ValueError : entree == sortie ;
+        # RuntimeError : parent de TsharkNotFoundError/TsharkError (outil
+        # absent du PATH ou en echec) -- meme sortie propre que --merge.
+        print(f"--convert : {e}", file=sys.stderr)
+        sys.exit(1)
+    print(f"{paths[0]} converti en {fmt} dans {output_path}.")
 
 
 def _run_replay(capture_specs, interface, speed, loop):
@@ -597,7 +650,7 @@ def main():
         "Expert Info, CVE confirmees -- voir docs/security-report.md). Relit "
         "les memes fichiers passes a --capture pour chercher les signatures "
         "d'exploits dans la charge utile brute (comme --tls). Incompatible "
-        "avec --live/--redact et les modes utilitaires --merge/--split/--replay.",
+        "avec --live/--redact et les modes utilitaires --merge/--split/--replay/--convert.",
     )
     ap.add_argument(
         "--cve-db",
@@ -707,6 +760,26 @@ def main():
         "conservees.",
     )
     ap.add_argument(
+        "--convert",
+        metavar="SORTIE",
+        help="Convertit le fichier passe a --capture (un seul, exactement) vers "
+        "le fichier SORTIE puis s'arrete SANS lancer d'analyse. Formats : "
+        "pcap, pcapng, erf (re-encodage par mergecap, livre avec tshark) ou "
+        "csv, json (export structure, un enregistrement par paquet, via "
+        "tshark) -- voir docs/capture-formats.md. Le format se deduit de "
+        "l'extension de SORTIE (.pcap/.pcapng/.erf/.csv/.json, pcapng "
+        "sinon) sauf si --convert-format le fixe. Ecriture atomique : une "
+        "SORTIE preexistante reste intacte en cas d'echec. Incompatible avec "
+        "--live/--merge/--split/--replay et avec les options d'analyse/de "
+        "rapport.",
+    )
+    ap.add_argument(
+        "--convert-format",
+        choices=CONVERT_FORMATS,
+        help="Avec --convert : format de sortie (defaut : deduit de "
+        "l'extension de SORTIE, pcapng si elle est inconnue).",
+    )
+    ap.add_argument(
         "--replay",
         metavar="INTERFACE",
         help="Rejoue le fichier passe a --capture (un seul, exactement) sur "
@@ -718,8 +791,8 @@ def main():
         "paquets a adresse source usurpee). Reserver a un banc de test "
         "isole sauf besoin explicite et maitrise d'un rejeu sur un segment "
         "reel. Necessite le paquet systeme tcpreplay (distinct de tshark). "
-        "Incompatible avec --live/--merge/--split et avec les options "
-        "d'analyse/de rapport.",
+        "Incompatible avec --live/--merge/--split/--convert et avec les "
+        "options d'analyse/de rapport.",
     )
     ap.add_argument(
         "--replay-speed",
@@ -839,6 +912,16 @@ def main():
             )
             sys.exit(1)
 
+    if args.convert_format and not args.convert:
+        print("--convert-format necessite --convert.", file=sys.stderr)
+        sys.exit(1)
+    if args.convert and (args.merge or args.split or args.replay):
+        print(
+            "--convert est exclusif avec --merge/--split/--replay : une seule "
+            "operation utilitaire a la fois (enchainer dans des commandes separees).",
+            file=sys.stderr,
+        )
+        sys.exit(1)
     if args.merge and args.split:
         print("--merge et --split sont exclusifs : fusionner OU decouper, pas les deux.", file=sys.stderr)
         sys.exit(1)
@@ -887,6 +970,40 @@ def main():
             )
             sys.exit(1)
         _run_merge(args.capture, args.merge, args.merge_dedup)
+        return
+
+    if args.convert:
+        if not args.capture:
+            print("--convert necessite --capture (fichier a convertir), pas --live.", file=sys.stderr)
+            sys.exit(1)
+        # --convert n'analyse rien : une option d'analyse/de rapport passee en
+        # meme temps serait ignoree en silence, on la refuse plutot (meme
+        # discipline que --merge/--split/--replay).
+        ignored = [
+            flag
+            for flag, given in (
+                ("--pdf-report", args.pdf_report),
+                ("--json-report", args.json_report),
+                ("--detail-csv", args.detail_csv),
+                ("--history-db", args.history_db),
+                ("--client-group", args.client_group),
+                ("--redact", args.redact),
+                ("--triage", args.triage),
+                ("--tls", args.tls),
+                ("--quic", args.quic),
+                ("--security-report", args.security_report),
+                ("--cve-db", args.cve_db),
+                ("--parallel", args.parallel),
+            )
+            if given
+        ]
+        if ignored:
+            print(
+                f"--convert convertit un fichier sans lancer d'analyse : incompatible avec {', '.join(ignored)}.",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        _run_convert(args.capture, args.convert, args.convert_format or _infer_convert_format(args.convert))
         return
 
     if args.split_output_dir and not args.split:
