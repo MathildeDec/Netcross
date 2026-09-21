@@ -252,7 +252,8 @@ def apply_security_findings(
     connexion a la base CVE locale (CVE-4) ; None = pas de correlation CVE
     (les services restent listes, sans criticite). Les suspicions Expert
     Info (CVE-3) sont lues sur `report.exploit_suspicion_flows`, deja
-    calcule par `analyse()`.
+    calcule par `analyse()` ; le tunneling DNS (FLOW-3) est calcule ici
+    depuis `all_packets`.
 
     `service_fingerprints` contient aussi les empreintes JA4/HASSH
     (issue #143, FLOW-2) -- integration demandee avec CVE-1 (#135) : ce
@@ -261,7 +262,11 @@ def apply_security_findings(
     `netcross_core.fingerprint.report.build_fingerprint_records`."""
     all_packets = list(all_packets)
     report.service_fingerprints = build_service_fingerprints(all_packets) + build_fingerprint_records(all_packets)
-    findings = exploit_findings(detections) + anomaly_findings(report.exploit_suspicion_flows)
+    findings = (
+        exploit_findings(detections)
+        + anomaly_findings(report.exploit_suspicion_flows)
+        + dns_tunnel_findings(detect_dns_tunneling(all_packets).suspicions)
+    )
     if cve_conn is not None:
         findings += cve_findings(report.service_fingerprints, cve_conn)
     report.security_findings = findings
