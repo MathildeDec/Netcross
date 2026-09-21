@@ -11,7 +11,7 @@
 > Il remplace l'ancienne section 3 de `docs/features-backlog.md`, tenue à la main, qui avait dérivé
 > (voir `docs/sessions/session-36.md`, issue #140).
 
-96 modules · 123 classes · 275 fonctions publiques de module.
+96 modules · 126 classes · 278 fonctions publiques de module.
 
 Conventions : `+` public, `-` privé (préfixe `_`) ; `int?` = `int | None` ; `list~str~` = `list[str]` ;
 `<<module>>` regroupe les fonctions publiques d'un module ; `A --> B : champ` = `A` a un champ annoté
@@ -59,6 +59,22 @@ classDiagram
     direction LR
 
     %% ===== pcap_parser.capfile =====
+    class InterfaceRecord {
+        <<dataclass, frozen>>
+        +int index
+        +int linktype
+        +int snaplen
+        +str? name
+        +int? received
+        +int? dropped_by_interface
+        +int? dropped_by_os
+    }
+    class CaptureStructure {
+        <<dataclass, frozen>>
+        +str fmt
+        +str version
+        +tuple~InterfaceRecord, ...~ interfaces
+    }
     class _SegmentSink {
         +is_open() bool
         +write(raw, is_packet) None
@@ -71,13 +87,38 @@ classDiagram
         +detect_format(path) str?
         +format_extension(fmt) str
         +has_packets(path) bool
+        +read_structure(path) CaptureStructure?
         +split_by_size(path, out_prefix, max_bytes) list~str~
     }
 
     %% ===== pcap_parser.capinfos_source =====
+    class CaptureInfo {
+        <<dataclass, frozen>>
+        +str path
+        +str? file_type
+        +str? version
+        +str? encapsulation
+        +str? timestamp_precision
+        +int? snaplen
+        +int? packet_count
+        +int? byte_count
+        +int? file_size
+        +float? duration_seconds
+        +float? start_time
+        +float? end_time
+        +bool? strict_time_order
+        +str? hardware
+        +str? operating_system
+        +str? application
+        +tuple~InterfaceRecord, ...~ interfaces
+        +dropped_by_interface() int?
+        +dropped_by_os() int?
+        +has_drops() bool?
+    }
     class mod_pcap_parser_capinfos_source["pcap_parser.capinfos_source"] {
         <<module>>
         +read_capture_comment(path) str?
+        +read_capture_info(path) CaptureInfo?
     }
 
     %% ===== pcap_parser.capture =====
@@ -259,6 +300,10 @@ classDiagram
         +detect_encapsulation(layers) tuple~str, ...~
         +select_innermost_layers(layers) dict
     }
+
+    %% ===== relations =====
+    CaptureStructure --> InterfaceRecord : interfaces
+    CaptureInfo --> InterfaceRecord : interfaces
 ```
 
 ## `netcross_core`
@@ -1074,6 +1119,7 @@ classDiagram
         +bool topology_used_for_order
         +list~str~ capture_comments
         +list~str~ packet_comments
+        +list~dict~ capture_infos
         +list~ChecksumError~ checksum_errors
     }
     class PacketAnnotation {
@@ -1119,6 +1165,7 @@ classDiagram
         +parse_capture(label, path, raise_on_error) list~Pkt~
         +parse_captures_parallel(captures, max_workers) tuple~list~Pkt~, list~dict~~
         +read_capture_comments(captures) list~str~
+        +read_capture_infos(captures) list~dict~
         +parse_live(label, interface, bpf_filter, stop_event)
         +parse_live_multi(interfaces, stop_event, bpf_filter)
         +parse_rtp(payload)
