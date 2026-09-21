@@ -2,6 +2,7 @@
 
 > Généré le 2026-09-20. Contexte : PR #212 (merged) a validé le rapport de sécurité (CVE-5, #139) sur de vrais PCAPs tshark — trafic légitime sans faux positif.
 >
+> Mise à jour : Job 48 (#168, Track B — multi-interfaces) est livré sur `main` (iter_live_multi, LiveDiffEngine.start_multi, GUI LiveCaptureListPanel — commits a36eb1c..2d83552) et retiré de la liste des travaux restants ci-dessous.
 > Mise à jour : #155 (Job 35 — Découpage PCAP) retiré — déjà livré sur `dev` (7 commits, `split_capture` + CLI `--split` + 86 tests), jamais clôturé par une PR référençant l'issue.
 
 ## Vue d'ensemble
@@ -9,14 +10,14 @@
 | Priorité | Nombre | Description |
 |----------|--------|-------------|
 | **P1 — Différenciation** | 4 | Fonctionnalités différenciantes, démarrage immédiat |
-| **P2 — Exploitation** | 6 | Améliorations d'exploitation, indépendantes |
+| **P2 — Exploitation** | 5 | Améliorations d'exploitation, indépendantes |
 | **P3 — Applicatif** | 13 | Expertise applicative, fondations sécurité + scénarios |
 | **P4 — Admin/validation** | 2 | Validation, admin, IA/ML |
-| **Total** | **25** (+ 2 issues parentes #133, #141) | |
+| **Total** | **24** (+ 2 issues parentes #133, #141) | |
 
 ## Pistes parallèles
 
-Les 25 issues sont réparties en 7 pistes pouvant être travaillées en parallèle :
+Les 24 issues sont réparties en 7 pistes pouvant être travaillées en parallèle :
 
 ### Track A — Gestion PCAP (P1, démarrage immédiat, indépendant)
 
@@ -37,7 +38,6 @@ Toutes indépendantes — peuvent être traitées en parallèle. Fichiers : `pca
 | 7 | #167 | Job 47 — Filtres BPF (sauvegarde/rechargement) | 2/5 | Aucune |
 | 8 | #169 | Job 49 — Conversion de formats | 2/5 | Aucune |
 | 9 | #164 | Job 44 — tcpreplay (rejeu) | 3/5 | Aucune |
-| 10 | #168 | Job 48 — Multi-interfaces | 3/5 | Aucune |
 | 11 | #166 | Job 46 — Capture distante (rpcap/sshdump) | 4/5 | Aucune |
 
 Toutes indépendantes — peuvent être traitées en parallèle.
@@ -100,8 +100,7 @@ Track A (indépendant)        Track B (indépendant)
                        #167 ──┤
   #156 ──┤── peuvent            #169 ──┤── peuvent
   #165 ──┤   tous               #164 ──┤   tous
-  #161 ──┘   parallèles         #168 ──┤   parallèles
-                               #166 ──┘
+  #161 ──┘   parallèles         #166 ──┘   parallèles
 
 Track C (fondations)          Track F (indépendant)
   #135 ─────────────┐           #209 (API REST)
