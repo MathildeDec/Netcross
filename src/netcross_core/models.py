@@ -597,6 +597,14 @@ class Report:
     #   a relire, l'information est deja portee par chaque Pkt.
     capture_comments: list[str] = field(default_factory=list)
     packet_comments: list[str] = field(default_factory=list)
+    # -- Metadonnees de capture (Job 38/issue #158) -- qualite de la
+    # capture elle-meme (format, snaplen, paquets perdus...), pas le
+    # contenu du trafic. Meme discipline que capture_comments : metadonnee
+    # de FICHIER, pas de paquet, donc remplie par l'appelant (CLI) via
+    # netcross_core.parsing.read_capture_infos(captures), AVANT
+    # print_report(). Vide si capinfos est absent ou si la capture ne
+    # porte aucune metadonnee (cas le plus frequent).
+    capture_infos: list[dict] = field(default_factory=list)
     # -- Integrite/qualite de capture (Job 43/issue #163) -- voir
     # netcross_core.forensic.validate_checksums().
     checksum_errors: list[ChecksumError] = field(default_factory=list)
