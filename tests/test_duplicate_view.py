@@ -3,8 +3,8 @@
 The formatter is deliberately pure Python, so these tests do not require GTK.
 """
 
-from netcross_gtk4.duplicate_view import format_duplicate_indicator
 from netcross_core.models import Report
+from netcross_gtk4.duplicate_view import format_duplicate_indicator
 
 
 def test_duplicate_indicator_empty():

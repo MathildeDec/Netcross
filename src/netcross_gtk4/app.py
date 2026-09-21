@@ -66,10 +66,9 @@ from netcross_core import (  # noqa: E402
     write_detail_csv,
 )
 from netcross_core.baseline_diff import diff_reports, print_diff_report, write_diff_csv  # noqa: E402
-from netcross_core.forensic import DEFAULT_DUPLICATE_THRESHOLD_MS, detect_cross_capture_duplicates  # noqa: E402
 from netcross_core.bpf_filters import PREDEFINED_BPF_FILTERS, available_bpf_filters, upsert_bpf_filter  # noqa: E402
+from netcross_core.forensic import DEFAULT_DUPLICATE_THRESHOLD_MS, detect_cross_capture_duplicates  # noqa: E402
 from netcross_core.models import BPFFilter  # noqa: E402
-from netcross_gtk4.duplicate_view import format_duplicate_indicator  # noqa: E402
 from netcross_gtk4.dashboard_context import (  # noqa: E402
     DashboardSelection,
     build_dashboard_snapshot,
@@ -80,6 +79,7 @@ from netcross_gtk4.dashboard_context import (  # noqa: E402
     select_point,
     select_protocol,
 )
+from netcross_gtk4.duplicate_view import format_duplicate_indicator  # noqa: E402
 from netcross_gtk4.live_capture_points import duplicate_labels, expand_live_points  # noqa: E402
 from netcross_gtk4.stats_view import (  # noqa: E402
     build_events_by_segment,
