@@ -1153,15 +1153,21 @@ def main():
         cve_conn = connect_cve_db(args.cve_db) if args.cve_db else None
         if cve_conn is None:
             print("Aucune base CVE fournie (--cve-db) : services listes sans correlation CVE.")
-        security_findings.apply_security_findings(
-            r,
-            all_packets,
-            detections=security_detections,
-            cve_conn=cve_conn,
-        )
-        print_security_report(build_security_report(r))
-        if cve_conn is not None:
-            close_db(cve_conn)
+        try:
+            security_findings.apply_security_findings(
+                r,
+                all_packets,
+                detections=security_detections,
+                cve_conn=cve_conn,
+            )
+            print_security_report(build_security_report(r))
+        finally:
+            # issue #217 : close_db() encapsule dans finally pour garantir la
+            # fermeture de la base SQLite meme si apply_security_findings()/
+            # build_security_report() leve -- sans quoi la connexion reste
+            # ouverte jusqu'a la fin (non geree) du processus.
+            if cve_conn is not None:
+                close_db(cve_conn)
 
     if client_group:
         comparison = compare_clients(
