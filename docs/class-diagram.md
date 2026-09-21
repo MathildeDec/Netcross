@@ -11,7 +11,7 @@
 > Il remplace l'ancienne section 3 de `docs/features-backlog.md`, tenue à la main, qui avait dérivé
 > (voir `docs/sessions/session-36.md`, issue #140).
 
-95 modules · 121 classes · 273 fonctions publiques de module.
+96 modules · 123 classes · 275 fonctions publiques de module.
 
 Conventions : `+` public, `-` privé (préfixe `_`) ; `int?` = `int | None` ; `list~str~` = `list[str]` ;
 `<<module>>` regroupe les fonctions publiques d'un module ; `A --> B : champ` = `A` a un champ annoté
@@ -1496,6 +1496,7 @@ classDiagram
 | Module | Rôle |
 |---|---|
 | `netcross_core.security` | detection passive de vulnerabilites (CVE) sur traces reseau (issue #133, sous-tache CVE-4 / issue #138). |
+| `netcross_core.security.beaconing` | issue #147 (SCENARIO-1, parent #141) : detection de beaconing C2 (communications periodiques d'un hote interne vers une destination externe : check-in regulier, petites requetes). |
 | `netcross_core.security.cpe_match` | conversion d'une banniere de service ("Apache/2.4.41") en identifiant CPE 2.3 et comparaison de versions avec les ranges NVD (versionStart/EndIncluding/Excluding). |
 | `netcross_core.security.cve_db` | base SQLite locale des CVE, peuplee par scripts/import_nvd.py depuis le flux NVD (voir ce script pour le format JSON attendu, API NVD 2.0). |
 | `netcross_core.security.dns_tunnel` | issue #144 (FLOW-3, parent #141) : detection de tunneling DNS (exfiltration, C2, VPN over DNS). |
@@ -1522,6 +1523,31 @@ classDiagram
         <<module>>
         +correlate_banner(conn, banner) list~CveMatch~
         +correlate_versions(conn, banners) dict~str, list~CveMatch~~
+    }
+
+    %% ===== netcross_core.security.beaconing =====
+    class BeaconingThresholds {
+        <<dataclass, frozen>>
+        +int min_checkins
+        +float max_interval_cv
+        +float min_interval_seconds
+        +float burst_gap_seconds
+        +int min_payload_bytes
+        +int small_payload_bytes
+        +float max_size_cv
+        +float asymmetry_ratio
+        +tuple~int, int~ office_hours_utc
+        +float off_hours_ratio
+        +bool external_only
+        +frozenset~int~ ignored_ports
+    }
+    class BeaconingResult {
+        <<dataclass>>
+        +list~dict~ suspicions
+    }
+    class mod_netcross_core_security_beaconing["netcross_core.security.beaconing"] {
+        <<module>>
+        +detect_beaconing(packets, thresholds) BeaconingResult
     }
 
     %% ===== netcross_core.security.cpe_match =====
@@ -1651,6 +1677,7 @@ classDiagram
         +exploit_findings(detections) list~dict~str, Any~~
         +anomaly_findings(suspicions) list~dict~str, Any~~
         +dns_tunnel_findings(suspicions) list~dict~str, Any~~
+        +beaconing_findings(suspicions) list~dict~str, Any~~
         +cve_findings(fingerprints, conn) list~dict~str, Any~~
         +apply_security_findings(report, all_packets, detections, cve_conn) None
     }
