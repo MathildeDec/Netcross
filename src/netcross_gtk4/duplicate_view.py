@@ -21,10 +21,7 @@ def format_duplicate_indicator(report: Any) -> str:
     if total == 0:
         return "Doublons inter-captures : aucun détecté."
 
-    details = ", ".join(
-        f"{a} ↔ {b} : {count}"
-        for (a, b), count in sorted(counts.items())
-    )
+    details = ", ".join(f"{a} ↔ {b} : {count}" for (a, b), count in sorted(counts.items()))
     suffix = (
         " — exclus des statistiques et de la corrélation"
         if getattr(report, "duplicates_excluded", False)

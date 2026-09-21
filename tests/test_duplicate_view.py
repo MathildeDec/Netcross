@@ -17,8 +17,7 @@ def test_duplicate_indicator_lists_pairs_and_inclusion():
     report.duplicate_count[("A", "B")] = 10
     report.duplicate_count[("A", "C")] = 2
     assert format_duplicate_indicator(report) == (
-        "Doublons inter-captures : 12 paquet(s) (A ↔ B : 10, A ↔ C : 2)"
-        " — inclus dans les statistiques"
+        "Doublons inter-captures : 12 paquet(s) (A ↔ B : 10, A ↔ C : 2) — inclus dans les statistiques"
     )
 
 
@@ -26,6 +25,4 @@ def test_duplicate_indicator_marks_exclusion():
     report = Report()
     report.duplicate_count[("A", "B")] = 10
     report.duplicates_excluded = True
-    assert format_duplicate_indicator(report).endswith(
-        " — exclus des statistiques et de la corrélation"
-    )
+    assert format_duplicate_indicator(report).endswith(" — exclus des statistiques et de la corrélation")

@@ -11,7 +11,7 @@
 > Il remplace l'ancienne section 3 de `docs/features-backlog.md`, tenue à la main, qui avait dérivé
 > (voir `docs/sessions/session-36.md`, issue #140).
 
-89 modules · 121 classes · 260 fonctions publiques de module.
+90 modules · 121 classes · 261 fonctions publiques de module.
 
 Conventions : `+` public, `-` privé (préfixe `_`) ; `int?` = `int | None` ; `list~str~` = `list[str]` ;
 `<<module>>` regroupe les fonctions publiques d'un module ; `A --> B : champ` = `A` a un champ annoté
@@ -33,7 +33,7 @@ flowchart TD
     CLI -->|"13 imports"| netcross_report
     CLI -->|"11 imports"| netcross_core
     netcross_gtk4 -->|"10 imports"| netcross_report
-    netcross_gtk4 -->|"17 imports"| netcross_core
+    netcross_gtk4 -->|"18 imports"| netcross_core
     netcross_report -->|"11 imports"| netcross_core
     netcross_core -->|"13 imports"| pcap_parser
 ```
@@ -2140,6 +2140,7 @@ classDiagram
 | `netcross_gtk4.annotations_view` | logique de presentation pour l'etiquetage/signets sur paquets (Job 40 / issue #160, section "Metadonnees et annotation"). |
 | `netcross_gtk4.app` | interface GTK4 pour netcross_core / netcross_report. |
 | `netcross_gtk4.dashboard_context` | contexte d'analyse partage pour le dashboard analytique interactif (issue #18, section 6.17). |
+| `netcross_gtk4.duplicate_view` | Presentation helpers for cross-capture duplicate detection (Job 41). |
 | `netcross_gtk4.live_capture_points` | points de capture en direct de la GUI (Job 48, issue #168) : une ligne du panneau de capture live peut porter PLUSIEURS interfaces d'une meme machine ("eth0, eth1"), chacune devenant son propre point… |
 | `netcross_gtk4.stats_view` | logique de presentation pour la vue d'exploration statistique (Job 27 / issue #22, section 6.8). |
 
@@ -2233,6 +2234,12 @@ classDiagram
         +select_bucket(selection, bucket) DashboardSelection
         +select_event(selection, event_id, events) DashboardSelection
         +build_dashboard_snapshot(report, flows, findings, tls_findings, quic_findings, wireshark_expert_events, selection) DashboardSnapshot
+    }
+
+    %% ===== netcross_gtk4.duplicate_view =====
+    class mod_netcross_gtk4_duplicate_view["netcross_gtk4.duplicate_view"] {
+        <<module>>
+        +format_duplicate_indicator(report) str
     }
 
     %% ===== netcross_gtk4.live_capture_points =====
