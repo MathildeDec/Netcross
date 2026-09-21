@@ -11,7 +11,7 @@
 > Il remplace l'ancienne section 3 de `docs/features-backlog.md`, tenue à la main, qui avait dérivé
 > (voir `docs/sessions/session-36.md`, issue #140).
 
-96 modules · 126 classes · 281 fonctions publiques de module.
+97 modules · 126 classes · 285 fonctions publiques de module.
 
 Conventions : `+` public, `-` privé (préfixe `_`) ; `int?` = `int | None` ; `list~str~` = `list[str]` ;
 `<<module>>` regroupe les fonctions publiques d'un module ; `A --> B : champ` = `A` a un champ annoté
@@ -1114,6 +1114,8 @@ classDiagram
         +list~dict~ application_transactions
         +list~dict~ service_fingerprints
         +list~dict~ security_findings
+        +dict~str, dict~str, int~~ protocol_mismatches
+        +list~dict~ protocol_mismatch_details
         +list~tuple~str, str, dict~~ topology_edges
         +list~tuple~str, str, str~~ topology_ambiguous
         +list~str~ topology_isolated
@@ -1553,6 +1555,7 @@ classDiagram
 | `netcross_core.security.dns_tunnel` | issue #144 (FLOW-3, parent #141) : detection de tunneling DNS (exfiltration, C2, VPN over DNS). |
 | `netcross_core.security.expert_correlation` | issue #137 (CVE-3) : exploitation des alertes Expert Info de tshark pour DETECTER des tentatives d'exploitation (fuzzing, depassement de tampon, deni de service) a partir de paquets malformes et de… |
 | `netcross_core.security.findings` | alimentation de `Report.service_fingerprints` et `Report.security_findings` a partir des modules de detection CVE-1 a CVE-4 (issue #139, CVE-5, parent #133). |
+| `netcross_core.security.protocol_mismatch` | issue #142 (FLOW-1, parent #141) : detection des flux cachés où un protocole utilise un port non standard (SSH sur 443, DNS sur 443, HTTP sur 22, etc.). |
 
 ### Diagramme
 
@@ -1731,6 +1734,15 @@ classDiagram
         +beaconing_findings(suspicions) list~dict~str, Any~~
         +cve_findings(fingerprints, conn) list~dict~str, Any~~
         +apply_security_findings(report, all_packets, detections, cve_conn) None
+    }
+
+    %% ===== netcross_core.security.protocol_mismatch =====
+    class mod_netcross_core_security_protocol_mismatch["netcross_core.security.protocol_mismatch"] {
+        <<module>>
+        +detect_protocol_mismatch(pkt) tuple~str, str~?
+        +detect_protocol_mismatches(packets) list~dict~str, Any~~
+        +count_protocol_mismatches(packets) dict~str, dict~str, int~~
+        +protocol_mismatch_findings(mismatches) list~dict~str, Any~~
     }
 
     %% ===== relations =====

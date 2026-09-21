@@ -572,6 +572,13 @@ class Report:
     # `version`, `host`, `port`, `point` quand ils sont connus (ils
     # servent a rattacher une CVE a un service detecte).
     security_findings: list[dict] = field(default_factory=list)
+    # -- mismatches de protocole/flux (FLOW-1, issue #142) : un protocole
+    # applicatif detecte sur un port non standard (SSH sur 443, HTTP sur 22,
+    # DNS sur 443, tunneling ICMP). `protocol_mismatches` : compteur par
+    # protocole detecte puis par description ; `protocol_mismatch_details` :
+    # liste des occurrences individuelles (frame, ports, proto).
+    protocol_mismatches: dict[str, dict[str, int]] = field(default_factory=lambda: defaultdict(dict))
+    protocol_mismatch_details: list[dict] = field(default_factory=list)
     # -- topologie deduite (ordre + chemins multiples) --
     topology_edges: list[tuple[str, str, dict]] = field(default_factory=list)
     topology_ambiguous: list[tuple[str, str, str]] = field(default_factory=list)
