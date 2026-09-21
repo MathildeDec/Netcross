@@ -1,4 +1,3 @@
-
 # Tableau récapitulatif des issues ouvertes — Netcross
 
 > Généré le 2026-09-20. Contexte : PR #212 (merged) a validé le rapport de sécurité (CVE-5, #139) sur de vrais PCAPs tshark — trafic légitime sans faux positif.
