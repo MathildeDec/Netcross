@@ -807,7 +807,8 @@ class MainWindow(Gtk.ApplicationWindow):
         self.duplicate_threshold_spin.set_value(DEFAULT_DUPLICATE_THRESHOLD_MS)
         self.duplicate_threshold_spin.set_digits(1)
         self.duplicate_threshold_spin.set_tooltip_text(
-            "Deux observations d'un même payload sont considérées comme doublons si leur écart est strictement inférieur à ce seuil."
+            "Deux observations d'un même payload sont considérées comme doublons si leur écart est "
+            "strictement inférieur à ce seuil."
         )
         options.attach(self.duplicate_threshold_spin, 3, 2, 1, 1)
 
@@ -1377,7 +1378,9 @@ class MainWindow(Gtk.ApplicationWindow):
         self._live_triage = self.triage_check.get_active()
         self._live_triage_topn = int(self.triage_topn_spin.get_value())
         self._live_points_order = None if auto_topology else [label for label, _, _ in rows_data]
-        self._live_detect_duplicates = self.detect_duplicates_check.get_active() or self.exclude_duplicates_check.get_active()
+        self._live_detect_duplicates = (
+            self.detect_duplicates_check.get_active() or self.exclude_duplicates_check.get_active()
+        )
         self._live_exclude_duplicates = self.exclude_duplicates_check.get_active()
         self._live_duplicate_threshold_ms = self.duplicate_threshold_spin.get_value()
 
