@@ -167,15 +167,11 @@ def _checkins(events: list[tuple[float, int | None, int]], gap: float) -> list[t
 
 def _off_hours_share(starts: list[float], office_hours: tuple[int, int]) -> float:
     start_hour, end_hour = office_hours
-    off = sum(
-        1 for ts in starts if not start_hour <= int(ts % _SECONDS_PER_DAY // _SECONDS_PER_HOUR) < end_hour
-    )
+    off = sum(1 for ts in starts if not start_hour <= int(ts % _SECONDS_PER_DAY // _SECONDS_PER_HOUR) < end_hour)
     return off / len(starts)
 
 
-def detect_beaconing(
-    packets: Iterable[Pkt], thresholds: BeaconingThresholds = DEFAULT_THRESHOLDS
-) -> BeaconingResult:
+def detect_beaconing(packets: Iterable[Pkt], thresholds: BeaconingThresholds = DEFAULT_THRESHOLDS) -> BeaconingResult:
     """Applique les signaux de la docstring du module a `packets`."""
     t = thresholds
     # Cle de flux : (point, proto, client, serveur, port serveur).
