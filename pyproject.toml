@@ -26,6 +26,7 @@ dependencies = [
 # jamais installe en production (voir requirements-dev.txt).
 dev = [
     "pytest>=8.0",
+    "pytest-cov>=5.0",
     "ruff==0.16.4",
     "import-linter>=2.13",
     "pre-commit>=4.0",
@@ -72,4 +73,20 @@ layers = [
     "netcross_report",
     "netcross_core",
     "pcap_parser",
+]
+
+[tool.coverage.run]
+# Mesure la couverture du code source uniquement (pas des tests eux-memes).
+# branch=true : suit aussi la couverture des branches (if/else), pas
+# seulement des lignes -- plus fidele qu'un comptage de lignes seul.
+source = ["src"]
+branch = true
+
+[tool.coverage.report]
+precision = 1
+exclude_lines = [
+    "pragma: no cover",
+    "if TYPE_CHECKING:",
+    "if __name__ == .__main__.:",
+    "raise NotImplementedError",
 ]
