@@ -18,6 +18,7 @@ capture simulee par monkeypatch. Axes couverts :
 
 from __future__ import annotations
 
+import sqlite3
 import sys
 from dataclasses import dataclass
 from pathlib import Path
@@ -420,3 +421,40 @@ def test_cli_security_report_trafic_normal_rapport_vide(monkeypatch, capsys):
     assert "aucun constat" in out
     assert "aucune tentative d'exploitation detectee" in out
     assert "aucune CVE confirmee" in out
+
+
+def test_cli_security_report_ferme_la_base_cve_meme_si_lanalyse_echoue(monkeypatch, capsys, tmp_path):
+    """issue #217 -- close_db() doit s'executer meme si apply_security_findings()
+    leve, pour ne pas laisser la connexion SQLite ouverte."""
+    db = tmp_path / "cve.db"
+    import_from_file(NVD_FIXTURE, db)
+    pkts = [make_pkt(point="A", sport=40000, dport=80, ts=0.0, flags="S", seq=1)]
+    monkeypatch.setattr(cli, "parse_capture", lambda label, path: pkts)
+    monkeypatch.setattr(findings_mod, "scan_capture_exploits", lambda label, path, signatures=None: [])
+
+    closed_conns = []
+    real_close_db = cli.close_db
+
+    def spy_close_db(conn):
+        closed_conns.append(conn)
+        real_close_db(conn)
+
+    monkeypatch.setattr(cli, "close_db", spy_close_db)
+
+    def _boom(*args, **kwargs):
+        raise RuntimeError("panne simulee dans apply_security_findings")
+
+    monkeypatch.setattr(findings_mod, "apply_security_findings", _boom)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["cross_capture_analyzer_cli.py", "--capture", "A=a.pcap", "--security-report", "--cve-db", str(db)],
+    )
+
+    with pytest.raises(RuntimeError, match="panne simulee"):
+        cli.main()
+
+    assert len(closed_conns) == 1
+    # la connexion sqlite est bien fermee (execute() leve sur une connexion fermee)
+    with pytest.raises(sqlite3.ProgrammingError):
+        closed_conns[0].execute("SELECT 1")
