@@ -38,5 +38,21 @@ jobs:
         env:
           PYTHONPATH: src
 
-      - name: Tests (pytest)
-        run: uv run pytest
+      - name: Tests (pytest + couverture)
+        # --cov sans chemin : source lue depuis [tool.coverage.run] (source =
+        # ["src"]) dans pyproject.toml. term-missing dans les logs CI,
+        # coverage.xml publie comme artifact (issue #224). Pas de seuil
+        # bloquant (--cov-fail-under) tant que la base de reference n'est
+        # pas calibree -- a decider dans une issue de suivi.
+        run: uv run pytest --cov --cov-report=term-missing --cov-report=xml
+
+      - name: Publication du rapport de couverture (artifact)
+        # coverage.xml (format Cobertura) produit par l'etape pytest --cov ;
+        # conserve 14 jours, temps de telechargement court.
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: coverage.xml
+          retention-days: 14
+          if-no-files-found: warn

@@ -11,3 +11,11 @@ __pycache__/
 .ruff_cache/
 .mypy_cache/
 .import_linter_cache/
+
+# Couverture pytest-cov (issue #224) -- fichiers produits par
+# `uv run pytest --cov ...`, jamais des livrables : .coverage (donnees
+# brutes), coverage.xml (export CI, publie comme artifact), htmlcov/
+# (rapport HTML navigable).
+.coverage
+coverage.xml
+htmlcov/

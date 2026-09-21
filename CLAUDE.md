@@ -1269,6 +1269,7 @@ pip documenté, non régénéré automatiquement).
 ```bash
 uv sync --extra dev             # une fois par clone/mise a jour des dependances -- cree/actualise .venv
 uv run pytest                   # 2205/2205 attendu, pythonpath=src via pytest.ini
+uv run pytest --cov --cov-report=term-missing   # couverture (issue #224) : source=[tool.coverage.run] dans pyproject.toml ; ajouter --cov-report=xml:coverage.xml pour le format CI ; --cov-report=html pour un rapport navigable dans htmlcov/ ; pas de seuil bloquant tant que la base de reference n'est pas calibree
 uv run ruff check .
 uv run ruff format --check .
 PYTHONPATH=src uv run lint-imports     # contrat de couches netcross_gtk4 -> netcross_report -> netcross_core -> pcap_parser
