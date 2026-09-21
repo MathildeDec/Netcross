@@ -579,6 +579,12 @@ class Report:
     # liste des occurrences individuelles (frame, ports, proto).
     protocol_mismatches: dict[str, dict[str, int]] = field(default_factory=lambda: defaultdict(dict))
     protocol_mismatch_details: list[dict] = field(default_factory=list)
+    # -- mouvements lateraux (SCENARIO-3, issue #149) : un dict par evenement
+    # detecte, cles `point`, `source`, `type` (port_scan | host_scan |
+    # brute_force | unusual_protocol | new_connection), `details`, `score`,
+    # `targets`. Rempli par `security.findings.apply_security_findings` via
+    # `security.lateral_movement.detect_lateral_movement`.
+    lateral_movement_events: list[dict] = field(default_factory=list)
     # -- topologie deduite (ordre + chemins multiples) --
     topology_edges: list[tuple[str, str, dict]] = field(default_factory=list)
     topology_ambiguous: list[tuple[str, str, str]] = field(default_factory=list)
