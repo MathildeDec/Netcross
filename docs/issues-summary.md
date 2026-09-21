@@ -2,118 +2,117 @@
 
 > Généré le 2026-09-20. Contexte : PR #212 (merged) a validé le rapport de sécurité (CVE-5, #139) sur de vrais PCAPs tshark — trafic légitime sans faux positif.
 >
-> Mise à jour : Job 48 (#168, Track B — multi-interfaces) est livré sur `main` (iter_live_multi, LiveDiffEngine.start_multi, GUI LiveCaptureListPanel — commits a36eb1c..2d83552) et retiré de la liste des travaux restants ci-dessous.
-> Mise à jour : #155 (Job 35 — Découpage PCAP) retiré — déjà livré sur `dev` (7 commits, `split_capture` + CLI `--split` + 86 tests), jamais clôturé par une PR référençant l'issue.
+> Mise à jour 2026-09-21 : Audit du codebase — 13 issues sur 24 déjà implémentées et fermées. Le tableau ci-dessous reflète l'état réel après fermeture.
+>
+> Issues fermées après audit code : #135 (bannières), #142 (DPI), #143 (JA4/HASSH), #144 (DNS tunnel), #147 (beaconing C2), #158 (capinfos), #156 (export PCAP), #165 (timestamps), #161 (doublons), #163 (checksums), #167 (BPF), #164 (tcpreplay), #217 (close_db try/finally).
 
 ## Vue d'ensemble
 
-| Priorité | Nombre | Description |
-|----------|--------|-------------|
-| **P1 — Différenciation** | 4 | Fonctionnalités différenciantes, démarrage immédiat |
-| **P2 — Exploitation** | 5 | Améliorations d'exploitation, indépendantes |
-| **P3 — Applicatif** | 13 | Expertise applicative, fondations sécurité + scénarios |
-| **P4 — Admin/validation** | 2 | Validation, admin, IA/ML |
-| **Total** | **24** (+ 2 issues parentes #133, #141) | |
+| Priorité | Ouvertes | Description |
+|----------|----------|-------------|
+| **P1 — Différenciation** | 0 | Toutes livrées (Track A complet) |
+| **P2 — Exploitation** | 2 | Conversion de formats, capture distante |
+| **P3 — Applicatif** | 9 | Fondations sécurité + scénarios + intégration |
+| **P4 — Admin/validation** | 1 | Module IA/ML |
+| **Total** | **12** (+ 2 restes PR #212) | |
 
 ## Pistes parallèles
 
-Les 24 issues sont réparties en 7 pistes pouvant être travaillées en parallèle :
+Les 12 issues ouvertes sont réparties en 7 pistes pouvant être travaillées en parallèle :
 
-### Track A — Gestion PCAP (P1, démarrage immédiat, indépendant)
+### Track A — Gestion PCAP (P1, complet ✅)
 
-| Ordre | Issue | Titre | Difficulté | Dépendances |
-|-------|-------|-------|------------|-------------|
-| 1 | #158 | Job 38 — capinfos (métadonnées de capture) | 1/5 | Aucune |
-| 2 | #156 | Job 36 — Export sous-ensemble PCAP | 2/5 | Aucune |
-| 3 | #165 | Job 45 — Ajustement de timestamps | 2/5 | Aucune |
-| 4 | #161 | Job 41 — Doublons inter-captures | ✅ Livré | payload_hash (existant) |
+| Ordre | Issue | Titre | Difficulté | Statut |
+|-------|-------|-------|------------|--------|
+| 1 | #158 | Job 38 — capinfos (métadonnées de capture) | 1/5 | ✅ Livré |
+| 2 | #156 | Job 36 — Export sous-ensemble PCAP | 2/5 | ✅ Livré |
+| 3 | #165 | Job 45 — Ajustement de timestamps | 2/5 | ✅ Livré |
+| 4 | #161 | Job 41 — Doublons inter-captures | ✅ | ✅ Livré |
 
-Toutes indépendantes — peuvent être traitées en parallèle. Fichiers : `pcap_parser/capture.py` (#158, #156, #165), `netcross_core/forensic.py` (#161).
+### Track B — Sources de capture (P2, 2 restantes)
 
-### Track B — Sources de capture (P2, indépendant)
+| Ordre | Issue | Titre | Difficulté | Statut |
+|-------|-------|-------|------------|--------|
+| 6 | #163 | Job 43 — Validation des checksums | 2/5 | ✅ Livré |
+| 7 | #167 | Job 47 — Filtres BPF (sauvegarde/rechargement) | 2/5 | ✅ Livré |
+| 8 | #169 | Job 49 — Conversion de formats | 2/5 | À coder |
+| 9 | #164 | Job 44 — tcpreplay (rejeu) | 3/5 | ✅ Livré |
+| 11 | #166 | Job 46 — Capture distante (rpcap/sshdump) | 4/5 | À coder |
 
-| Ordre | Issue | Titre | Difficulté | Dépendances |
-|-------|-------|-------|------------|-------------|
-| 6 | #163 | Job 43 — Validation des checksums | 2/5 | Aucune |
-| 7 | #167 | Job 47 — Filtres BPF (sauvegarde/rechargement) | 2/5 | Aucune |
-| 8 | #169 | Job 49 — Conversion de formats | 2/5 | Aucune |
-| 9 | #164 | Job 44 — tcpreplay (rejeu) | 3/5 | Aucune |
-| 11 | #166 | Job 46 — Capture distante (rpcap/sshdump) | 4/5 | Aucune |
+#169 et #166 sont indépendantes — peuvent être traitées en parallèle.
 
-Toutes indépendantes — peuvent être traitées en parallèle.
+### Track C — Fondations sécurité (P3, 2 restantes)
 
-### Track C — Fondations sécurité (P3, fondation pour Tracks D + E)
+| Ordre | Issue | Titre | Difficulté | Statut |
+|-------|-------|-------|------------|--------|
+| 12 | #135 | CVE-1 — Extraction bannières (fingerprinting passif) | 3/5 | ✅ Livré |
+| 13 | #142 | FLOW-1 — DPI léger (protocole sur port non standard) | 3/5 | ✅ Livré |
+| 14 | #153 | SCENARIO-7 — Audit certificats TLS | 2/5 | À coder |
+| 15 | #151 | SCENARIO-5 — Cartographie passive des actifs | 3/5 | À coder |
 
-| Ordre | Issue | Titre | Difficulté | Dépendances |
-|-------|-------|-------|------------|-------------|
-| 12 | #135 | CVE-1 — Extraction bannières (fingerprinting passif) | 3/5 | Aucune — **fondation pour #143** |
-| 13 | #142 | FLOW-1 — DPI léger (protocole sur port non standard) | 3/5 | Aucune — **fondation pour #144, #145** |
-| 14 | #153 | SCENARIO-7 — Audit certificats TLS | 2/5 | Aucune (champs tls_* existants) |
-| 15 | #151 | SCENARIO-5 — Cartographie passive des actifs | 3/5 | Aucune (topology_edges existant) |
+#153 et #151 sont des quick wins indépendants. Les fondations critiques (#135, #142) sont posées.
 
-#135 et #142 sont les fondations critiques. #153 et #151 sont des quick wins indépendants.
+### Track D — Détection de flux (P3, 1 restante)
 
-### Track D — Détection de flux (P3, dépend de Track C)
+| Ordre | Issue | Titre | Difficulté | Statut |
+|-------|-------|-------|------------|--------|
+| 16 | #144 | FLOW-3 — Tunneling DNS | 3/5 | ✅ Livré |
+| 17 | #145 | FLOW-4 — Stats de flux (SPLT, entropie, timing) | 4/5 | À coder |
+| 18 | #143 | FLOW-2 — Fingerprinting JA4/HASSH | 4/5 | ✅ Livré |
 
-| Ordre | Issue | Titre | Difficulté | Dépendances |
-|-------|-------|-------|------------|-------------|
-| 16 | #144 | FLOW-3 — Tunneling DNS | 3/5 | #142 (DPI). Partage entropie avec #145, #152 |
-| 17 | #145 | FLOW-4 — Stats de flux (SPLT, entropie, timing) | 4/5 | #142. Alimente #146, #147 |
-| 18 | #143 | FLOW-2 — Fingerprinting JA4/HASSH | 4/5 | #135 (bannières) + #142 (DPI) |
+#145 alimente #146 (IA/ML) et #147 (beaconing, déjà livré).
 
-#144 et #145 peuvent être parallélisées après #142. #143 nécessite #135 ET #142.
+### Track E — Scénarios de menace (P3, 4 restantes)
 
-### Track E — Scénarios de menace (P3, dépend de Tracks C + D)
+| Ordre | Issue | Titre | Difficulté | Statut |
+|-------|-------|-------|------------|--------|
+| 19 | #148 | SCENARIO-2 — Exfiltration de données | 3/5 | À coder |
+| 20 | #149 | SCENARIO-3 — Mouvements latéraux | 4/5 | À coder |
+| 21 | #147 | SCENARIO-1 — Beaconing C2 | 4/5 | ✅ Livré |
+| 22 | #152 | SCENARIO-6 — DGA et fast flux | 4/5 | À coder |
+| 23 | #150 | SCENARIO-4 — File carving | 4/5 | À coder |
 
-| Ordre | Issue | Titre | Difficulté | Dépendances |
-|-------|-------|-------|------------|-------------|
-| 19 | #148 | SCENARIO-2 — Exfiltration de données | 3/5 | #142. Corrélations #144, #147 |
-| 20 | #149 | SCENARIO-3 — Mouvements latéraux | 4/5 | Aucune (flags TCP existants) |
-| 21 | #147 | SCENARIO-1 — Beaconing C2 | 4/5 | #145 (flow stats). Corrélations #143, #144 |
-| 22 | #152 | SCENARIO-6 — DGA et fast flux | 4/5 | #144 (entropie DNS) |
-| 23 | #150 | SCENARIO-4 — File carving | 4/5 | Aucune (tshark fait la dissection) |
+#149 et #150 sont indépendants et peuvent démarrer en parallèle. #152 dépend de #144 (✅ livré). #148 dépend de #142 (✅ livré).
 
-#149 et #150 sont indépendants et peuvent démarrer en parallèle de Track C/D. #147 dépend de #145. #152 dépend de #144.
+### Track F — Intégration (P3, 2 restantes)
 
-### Track F — Intégration (P3, indépendant)
-
-| Ordre | Issue | Titre | Difficulté | Dépendances |
-|-------|-------|-------|------------|-------------|
-| 24 | #209 | Job 50 — API REST + OpenAPI (FastAPI) | 3/5 | Aucune (extra optionnel) |
-| 25 | #170 | Qualité app (CI/CD, Docker, coverage, logging, SIEM...) | — | Transversale |
+| Ordre | Issue | Titre | Difficulté | Statut |
+|-------|-------|-------|------------|--------|
+| 24 | #209 | Job 50 — API REST + OpenAPI (FastAPI) | 3/5 | À coder |
+| 25 | #170 | Qualité app (CI/CD, Docker, coverage, logging, SIEM...) | — | Partiel |
 
 #209 indépendant (FastAPI en dépendance optionnelle). #170 est transversale — à découper en sous-issues.
 
-### Track G — IA/ML (P4, dépend de Tracks C + D + E)
+### Track G — IA/ML (P4, 1 restante)
 
-| Ordre | Issue | Titre | Difficulté | Dépendances |
-|-------|-------|-------|------------|-------------|
-| 26 | #146 | FLOW-5 — Module IA/ML optionnel | 5/5 | #145 (features ML), #142 (DPI), #147-#149 (données) |
+| Ordre | Issue | Titre | Difficulté | Statut |
+|-------|-------|-------|------------|--------|
+| 26 | #146 | FLOW-5 — Module IA/ML optionnel | 5/5 | À coder |
 
-À démarrer en dernier — toutes les fondations doivent être en place.
+À démarrer en dernier — toutes les fondations doivent être en place. Dépend de #145 (flow stats), #142 (DPI ✅), #147-149 (données).
 
 ## Graphe de dépendances
 
 ```
-Track A (indépendant)        Track B (indépendant)
-  #158 ──┐                     #163 ──┐
-                       #167 ──┤
-  #156 ──┤── peuvent            #169 ──┤── peuvent
-  #165 ──┤   tous               #164 ──┤   tous
-  #161 ──┘   parallèles         #166 ──┘   parallèles
+Track A (complet ✅)          Track B (2 restants)
+  #158 ──┐ ✅                  #163 ──┐ ✅
+  #156 ──┤ ✅                  #167 ──┤ ✅
+  #165 ──┤ ✅                  #169 ──┤── à coder
+  #161 ──┘ ✅                  #164 ──┤ ✅
+                               #166 ──┘── à coder
 
-Track C (fondations)          Track F (indépendant)
-  #135 ─────────────┐           #209 (API REST)
-  #142 ─────────────┤           #170 (qualité, transversal)
-  #153 ── (indép.)   │
-  #151 ── (indép.)   │
+Track C (2 restants)          Track F (2 restants)
+  #135 ─────────────┐ ✅       #209 (API REST)
+  #142 ─────────────┤ ✅       #170 (qualité, transversal)
+  #153 ── (à coder)  │
+  #151 ── (à coder)  │
                     │
-Track D (détection flux)       Track E (scénarios menace)
-  #142 ──► #144 ──┐             #142 ──► #148 (exfiltration)
-         └► #145 ──┤             #149 (indépendant)
-  #135 ──► #143   │             #145 ──► #147 (beaconing C2)
-  #142 ──► #143   │             #144 ──► #152 (DGA)
-                  │             #150 (indépendant)
+Track D (1 restant)           Track E (4 restants)
+  #142 ──► #144 ──┐ ✅         #142 ──► #148 (exfiltration)
+         └► #145 ──┤── à coder #149 (indépendant)
+  #135 ──► #143   │ ✅         #144 ──► #152 (DGA)
+  #142 ──► #143   │ ✅         #150 (indépendant)
+                  │             #147 ──► ✅
                   └───────────────► #146 (IA/ML, en dernier)
 ```
 
@@ -121,11 +120,11 @@ Track D (détection flux)       Track E (scénarios menace)
 
 La PR #212 a validé le rapport de sécurité sur de vrais PCAPs tshark. Trois restes identifiés et trackés :
 
-| Issue | Titre | Priorité | Difficulté | Piste |
-|-------|-------|----------|------------|-------|
-| #216 | Suite PR #212 : documenter --security-report dans CLAUDE.md | P3 | 1/5 | F |
-| #217 | Suite PR #212 : close_db() sans try/finally dans la CLI | P3 | 1/5 | F |
-| #218 | Suite PR #212 : rendu HTML/PDF du rapport de sécurité | P3 | 3/5 | F |
+| Issue | Titre | Priorité | Difficulté | Statut |
+|-------|-------|----------|------------|--------|
+| #216 | Suite PR #212 : documenter --security-report dans CLAUDE.md | P3 | 1/5 | À coder |
+| #217 | Suite PR #212 : close_db() sans try/finally dans la CLI | P3 | 1/5 | ✅ Livré |
+| #218 | Suite PR #212 : rendu HTML/PDF du rapport de sécurité | P3 | 3/5 | À coder |
 
 README.md déjà documenté par PR #214.
 
