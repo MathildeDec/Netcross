@@ -52,6 +52,11 @@ from netcross_core.models import Pkt, Report
 from netcross_core.security import correlate_banner
 from netcross_core.security.beaconing import detect_beaconing
 from netcross_core.security.dns_tunnel import detect_dns_tunneling
+from netcross_core.security.protocol_mismatch import (
+    count_protocol_mismatches,
+    detect_protocol_mismatches,
+    protocol_mismatch_findings,
+)
 
 # Severite d'une signature d'exploit (vocabulaire de exploit_signatures :
 # anomalie / a_surveiller / info) -> severite du rapport de securite. Une
@@ -305,11 +310,18 @@ def apply_security_findings(
     `netcross_core.fingerprint.report.build_fingerprint_records`."""
     all_packets = list(all_packets)
     report.service_fingerprints = build_service_fingerprints(all_packets) + build_fingerprint_records(all_packets)
+    # FLOW-1 (#142) : mismatches de protocole/port (SSH sur 443, DNS sur
+    # 443, tunneling ICMP...) -- detectes depuis les champs deja decodes de Pkt
+    protocol_mismatch_details = detect_protocol_mismatches(all_packets)
+    report.protocol_mismatches = count_protocol_mismatches(all_packets)
+    report.protocol_mismatch_details = protocol_mismatch_details
+
     findings = (
         exploit_findings(detections)
         + anomaly_findings(report.exploit_suspicion_flows)
         + dns_tunnel_findings(detect_dns_tunneling(all_packets).suspicions)
         + beaconing_findings(detect_beaconing(all_packets).suspicions)
+        + protocol_mismatch_findings(protocol_mismatch_details)
     )
     if cve_conn is not None:
         findings += cve_findings(report.service_fingerprints, cve_conn)
