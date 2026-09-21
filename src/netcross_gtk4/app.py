@@ -834,7 +834,7 @@ class MainWindow(Gtk.ApplicationWindow):
             "accedent aux adresses reelles, voir netcross_core.redact)."
         )
         self.redact_check.connect("toggled", self._on_redact_toggled)
-        options.attach(self.redact_check, 0, 3, 4, 1)
+        options.attach(self.redact_check, 0, 5, 4, 1)
 
         self.auto_topology_check = Gtk.CheckButton(
             label="Deduire la topologie automatiquement (ignore l'ordre de la liste)"
@@ -844,7 +844,7 @@ class MainWindow(Gtk.ApplicationWindow):
             "Jaccard, gere les branchements/convergences. Sinon, l'ordre "
             "visuel des lignes ci-dessus est utilise comme chemin physique."
         )
-        options.attach(self.auto_topology_check, 0, 2, 4, 1)
+        options.attach(self.auto_topology_check, 0, 4, 4, 1)
 
         # -- options specifiques a l'analyse simple (masquees en mode diff) --
         self.single_options_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
