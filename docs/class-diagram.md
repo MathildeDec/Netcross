@@ -11,7 +11,7 @@
 > Il remplace l'ancienne section 3 de `docs/features-backlog.md`, tenue à la main, qui avait dérivé
 > (voir `docs/sessions/session-36.md`, issue #140).
 
-96 modules · 123 classes · 275 fonctions publiques de module.
+96 modules · 123 classes · 276 fonctions publiques de module.
 
 Conventions : `+` public, `-` privé (préfixe `_`) ; `int?` = `int | None` ; `list~str~` = `list[str]` ;
 `<<module>>` regroupe les fonctions publiques d'un module ; `A --> B : champ` = `A` a un champ annoté
@@ -32,6 +32,7 @@ flowchart TD
     pcap_parser["pcap_parser"]
     CLI -->|"13 imports"| netcross_report
     CLI -->|"11 imports"| netcross_core
+    CLI -->|"1 import"| pcap_parser
     netcross_gtk4 -->|"10 imports"| netcross_report
     netcross_gtk4 -->|"18 imports"| netcross_core
     netcross_report -->|"11 imports"| netcross_core
@@ -111,6 +112,7 @@ classDiagram
         +replay_capture(path, interface, speed, loop) None
         +split_capture(path, output_dir, by, value) list~str~
         +iter_live_multi(interfaces, stop_event, bpf_filter) Iterator~tuple~str, RawPacket~~
+        +export_filtered(path_in, path_out, bpf_filter, time_start, time_end, endpoints) None
     }
 
     %% ===== pcap_parser.ek_fields =====
