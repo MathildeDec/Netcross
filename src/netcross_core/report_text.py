@@ -54,6 +54,58 @@ def print_report(r: Report):
         for c in r.packet_comments:
             print(f"  [paquet] {c}")
 
+    if r.capture_infos:
+        # Job 38/issue #158 -- metadonnees de capture (format, snaplen,
+        # paquets perdus...). Section absente si capinfos est absent ou si
+        # aucune metadonnee n'a pu etre lue : la sortie historique reste
+        # inchangee.
+        print("\n-- Metadonnees de capture --")
+        for info in r.capture_infos:
+            label = info["label"]
+            ftype = info.get("file_type") or "?"
+            version = info.get("version") or "?"
+            pkts = info.get("packet_count")
+            print(f"  {label} : {ftype} v{version}" + (f", {pkts} paquets" if pkts is not None else ""))
+            snaplen = info.get("snaplen")
+            if snaplen is not None:
+                print(f"      snaplen : {snaplen}")
+            dur = info.get("duration_seconds")
+            if dur is not None:
+                print(f"      duree : {dur:.3f}s")
+            hw = info.get("hardware")
+            if hw:
+                print(f"      materiel : {hw}")
+            os_name = info.get("operating_system")
+            if os_name:
+                print(f"      OS : {os_name}")
+            app = info.get("application")
+            if app:
+                print(f"      application : {app}")
+            dropped_if = info.get("dropped_by_interface")
+            dropped_os = info.get("dropped_by_os")
+            if dropped_if is not None or dropped_os is not None:
+                parts = []
+                if dropped_if is not None:
+                    parts.append(f"interface : {dropped_if}")
+                if dropped_os is not None:
+                    parts.append(f"OS : {dropped_os}")
+                print(f"      paquets perdus ({', '.join(parts)})")
+            for iface in info.get("interfaces", []):
+                iface_name = iface.get("name") or f"iface{iface.get('index', '?')}"
+                iface_parts = [f"linktype {iface.get('linktype', '?')}"]
+                if iface.get("snaplen") is not None:
+                    iface_parts.append(f"snaplen {iface['snaplen']}")
+                recv = iface.get("received")
+                if recv is not None:
+                    iface_parts.append(f"recus {recv}")
+                drop_if = iface.get("dropped_by_interface")
+                drop_os = iface.get("dropped_by_os")
+                if drop_if is not None:
+                    iface_parts.append(f"perdus(iface) {drop_if}")
+                if drop_os is not None:
+                    iface_parts.append(f"perdus(os) {drop_os}")
+                print(f"      [{iface_name}] {', '.join(iface_parts)}")
+
     print("\n-- Topologie deduite (delta TTL + recouvrement de flux entre points) --")
     if r.topology_edges:
         for u, d, info in r.topology_edges:

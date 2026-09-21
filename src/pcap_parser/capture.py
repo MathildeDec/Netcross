@@ -44,7 +44,7 @@ from collections.abc import Iterator, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
-from pcap_parser.capfile import detect_format, format_extension, has_packets, split_by_size
+from pcap_parser.capfile import detect_format, first_timestamp, format_extension, has_packets, split_by_size
 from pcap_parser.ek_source import TsharkError, TsharkNotFoundError, iter_ek_records
 from pcap_parser.packet import RawPacket, build_packet
 
@@ -785,3 +785,134 @@ def iter_live_multi(
     """
     sources = _validate_live_sources(interfaces)
     return _iter_live_multi(sources, stop_event, bpf_filter)
+
+
+# -- export_filtered -----------------------------------------------------------
+
+
+def _build_display_filter(
+    time_start: float | None = None,
+    time_end: float | None = None,
+    endpoints: list[str] | None = None,
+) -> str | None:
+    """Construit un filtre d'affichage tshark (-Y) pour les criteres
+    temporels et d'endpoints. Renvoie None si aucun critere n'est fourni.
+
+    time_start/time_end : secondes relatives au premier paquet de la
+    capture (frame.time_relative).
+    endpoints : liste d'adresses IP a inclure (ip.addr == X).
+    """
+    parts: list[str] = []
+    if time_start is not None:
+        parts.append(f"frame.time_relative >= {float(time_start):.6f}")
+    if time_end is not None:
+        parts.append(f"frame.time_relative <= {float(time_end):.6f}")
+    if endpoints:
+        # ip.addr couvre src ET dst (ip.src==X || ip.dst==X en un seul champ)
+        endpoint_filters = " || ".join(f"ip.addr == {ip}" for ip in endpoints)
+        parts.append(f"({endpoint_filters})")
+    return " && ".join(parts) if parts else None
+
+
+def export_filtered(
+    path_in: str,
+    path_out: str,
+    bpf_filter: str | None = None,
+    time_start: float | None = None,
+    time_end: float | None = None,
+    endpoints: list[str] | None = None,
+) -> None:
+    """
+    Exporte un sous-ensemble de la capture `path_in` vers `path_out`,
+    filtre par criteres combinables : BPF (capture filter), plage
+    temporelle (secondes relatives au premier paquet) et/ou endpoints
+    (adresses IP a inclure).
+
+    Le format de sortie (pcap ou pcapng) est deduit de l'extension de
+    `path_out` (`.pcap` -> pcap classique, sinon pcapng). Aucun outil
+    externe autre que tshark (deja requis par le reste du projet) :
+    utilise `tshark -r in -w out -f "bpf" -Y "display_filter"`.
+
+    BPF et filtre d'affichage sont combines : un paquet doit passer les
+    DEUX pour etre ecrit. Si aucun critere n'est fourni, la capture
+    entiere est recopiee (utile pour convertir de format).
+
+    Leve FileNotFoundError (capture absente), TsharkNotFoundError (tshark
+    absent du PATH), TsharkError (echec de tshark), ou ValueError
+    (endpoints vides, time_start > time_end).
+    """
+    if not os.path.isfile(path_in):
+        raise FileNotFoundError(f"capture introuvable : {path_in}")
+    if endpoints is not None and len(endpoints) == 0:
+        raise ValueError("endpoints ne peut pas etre une liste vide (utilisez None pour ignorer ce critere)")
+    if time_start is not None and time_end is not None and float(time_start) > float(time_end):
+        raise ValueError(f"time_start ({time_start}) > time_end ({time_end})")
+
+    from pcap_parser.ek_source import _tshark_path
+
+    tshark = _tshark_path()
+    args: list[str] = [tshark, "-r", path_in, "-w", path_out]
+    if bpf_filter:
+        args += ["-f", bpf_filter]
+    display_filter = _build_display_filter(time_start, time_end, endpoints)
+    if display_filter:
+        args += ["-Y", display_filter]
+
+    proc = subprocess.run(args, capture_output=True, text=True, check=False)
+    if proc.returncode != 0:
+        raise TsharkError(
+            f"tshark a echoue lors de l'export filtre (code {proc.returncode}) : {proc.stderr.strip()}",
+            returncode=proc.returncode,
+            stderr=proc.stderr,
+        )
+
+
+# -- adjust_timestamps --------------------------------------------------------
+
+
+def adjust_timestamps(
+    path_in: str,
+    path_out: str,
+    offset_seconds: float = 0.0,
+    normalize: bool = False,
+    align_to: str | None = None,
+) -> None:
+    """
+    Ajuste les timestamps d'une capture et ecrit le resultat dans
+    `path_out`. Trois modes mutuellement exclusifs :
+
+    - offset_seconds : decale tous les timestamps d'un montant fixe
+      (positif ou negatif). Utilise ``editcap -t``.
+    - normalize=True : aligne le premier paquet sur t=0.0 (calcule
+      l'offset = -first_timestamp(path_in) puis l'applique).
+    - align_to=PATH : aligne le premier paquet de path_in sur le
+      premier paquet de PATH (offset = first_timestamp(align_to) -
+      first_timestamp(path_in)).
+
+    Si normalize et align_to sont tous deux fournis, normalize est
+    ignore (align_to est prioritaire). Si aucun mode n'est fourni
+    (offset_seconds=0, normalize=False, align_to=None), la capture est
+    recopiee sans modification (utile pour convertir de format).
+
+    Leve FileNotFoundError, ValueError (aucun paquet, format non reconnu,
+    offset absurde), TsharkNotFoundError (editcap absent), TsharkError
+    (echec d'editcap).
+    """
+    if not os.path.isfile(path_in):
+        raise FileNotFoundError(f"capture introuvable : {path_in}")
+
+    # Calculer l'offset reel a appliquer
+    if align_to is not None:
+        ref_ts = first_timestamp(align_to)
+        src_ts = first_timestamp(path_in)
+        actual_offset = ref_ts - src_ts
+    elif normalize:
+        src_ts = first_timestamp(path_in)
+        actual_offset = -src_ts
+    else:
+        actual_offset = offset_seconds
+
+    # editcap -t SECONDS : decale tous les timestamps
+    editcap = _wireshark_tool_path("editcap")
+    args = [editcap, "-t", repr(float(actual_offset)), path_in, path_out]
+    _run_wireshark_tool(args)

@@ -11,7 +11,7 @@
 > Il remplace l'ancienne section 3 de `docs/features-backlog.md`, tenue à la main, qui avait dérivé
 > (voir `docs/sessions/session-36.md`, issue #140).
 
-94 modules · 121 classes · 272 fonctions publiques de module.
+97 modules · 126 classes · 285 fonctions publiques de module.
 
 Conventions : `+` public, `-` privé (préfixe `_`) ; `int?` = `int | None` ; `list~str~` = `list[str]` ;
 `<<module>>` regroupe les fonctions publiques d'un module ; `A --> B : champ` = `A` a un champ annoté
@@ -32,10 +32,11 @@ flowchart TD
     pcap_parser["pcap_parser"]
     CLI -->|"13 imports"| netcross_report
     CLI -->|"11 imports"| netcross_core
+    CLI -->|"1 import"| pcap_parser
     netcross_gtk4 -->|"10 imports"| netcross_report
-    netcross_gtk4 -->|"17 imports"| netcross_core
+    netcross_gtk4 -->|"18 imports"| netcross_core
     netcross_report -->|"11 imports"| netcross_core
-    netcross_core -->|"13 imports"| pcap_parser
+    netcross_core -->|"14 imports"| pcap_parser
 ```
 
 ## `pcap_parser`
@@ -59,6 +60,22 @@ classDiagram
     direction LR
 
     %% ===== pcap_parser.capfile =====
+    class InterfaceRecord {
+        <<dataclass, frozen>>
+        +int index
+        +int linktype
+        +int snaplen
+        +str? name
+        +int? received
+        +int? dropped_by_interface
+        +int? dropped_by_os
+    }
+    class CaptureStructure {
+        <<dataclass, frozen>>
+        +str fmt
+        +str version
+        +tuple~InterfaceRecord, ...~ interfaces
+    }
     class _SegmentSink {
         +is_open() bool
         +write(raw, is_packet) None
@@ -71,13 +88,39 @@ classDiagram
         +detect_format(path) str?
         +format_extension(fmt) str
         +has_packets(path) bool
+        +read_structure(path) CaptureStructure?
         +split_by_size(path, out_prefix, max_bytes) list~str~
+        +first_timestamp(path) float
     }
 
     %% ===== pcap_parser.capinfos_source =====
+    class CaptureInfo {
+        <<dataclass, frozen>>
+        +str path
+        +str? file_type
+        +str? version
+        +str? encapsulation
+        +str? timestamp_precision
+        +int? snaplen
+        +int? packet_count
+        +int? byte_count
+        +int? file_size
+        +float? duration_seconds
+        +float? start_time
+        +float? end_time
+        +bool? strict_time_order
+        +str? hardware
+        +str? operating_system
+        +str? application
+        +tuple~InterfaceRecord, ...~ interfaces
+        +dropped_by_interface() int?
+        +dropped_by_os() int?
+        +has_drops() bool?
+    }
     class mod_pcap_parser_capinfos_source["pcap_parser.capinfos_source"] {
         <<module>>
         +read_capture_comment(path) str?
+        +read_capture_info(path) CaptureInfo?
     }
 
     %% ===== pcap_parser.capture =====
@@ -111,6 +154,8 @@ classDiagram
         +replay_capture(path, interface, speed, loop) None
         +split_capture(path, output_dir, by, value) list~str~
         +iter_live_multi(interfaces, stop_event, bpf_filter) Iterator~tuple~str, RawPacket~~
+        +export_filtered(path_in, path_out, bpf_filter, time_start, time_end, endpoints) None
+        +adjust_timestamps(path_in, path_out, offset_seconds, normalize, align_to) None
     }
 
     %% ===== pcap_parser.ek_fields =====
@@ -259,6 +304,10 @@ classDiagram
         +detect_encapsulation(layers) tuple~str, ...~
         +select_innermost_layers(layers) dict
     }
+
+    %% ===== relations =====
+    CaptureStructure --> InterfaceRecord : interfaces
+    CaptureInfo --> InterfaceRecord : interfaces
 ```
 
 ## `netcross_core`
@@ -1065,6 +1114,8 @@ classDiagram
         +list~dict~ application_transactions
         +list~dict~ service_fingerprints
         +list~dict~ security_findings
+        +dict~str, dict~str, int~~ protocol_mismatches
+        +list~dict~ protocol_mismatch_details
         +list~tuple~str, str, dict~~ topology_edges
         +list~tuple~str, str, str~~ topology_ambiguous
         +list~str~ topology_isolated
@@ -1074,6 +1125,7 @@ classDiagram
         +bool topology_used_for_order
         +list~str~ capture_comments
         +list~str~ packet_comments
+        +list~dict~ capture_infos
         +list~ChecksumError~ checksum_errors
     }
     class PacketAnnotation {
@@ -1119,6 +1171,7 @@ classDiagram
         +parse_capture(label, path, raise_on_error) list~Pkt~
         +parse_captures_parallel(captures, max_workers) tuple~list~Pkt~, list~dict~~
         +read_capture_comments(captures) list~str~
+        +read_capture_infos(captures) list~dict~
         +parse_live(label, interface, bpf_filter, stop_event)
         +parse_live_multi(interfaces, stop_event, bpf_filter)
         +parse_rtp(payload)
@@ -1496,11 +1549,13 @@ classDiagram
 | Module | Rôle |
 |---|---|
 | `netcross_core.security` | detection passive de vulnerabilites (CVE) sur traces reseau (issue #133, sous-tache CVE-4 / issue #138). |
+| `netcross_core.security.beaconing` | issue #147 (SCENARIO-1, parent #141) : detection de beaconing C2 (communications periodiques d'un hote interne vers une destination externe : check-in regulier, petites requetes). |
 | `netcross_core.security.cpe_match` | conversion d'une banniere de service ("Apache/2.4.41") en identifiant CPE 2.3 et comparaison de versions avec les ranges NVD (versionStart/EndIncluding/Excluding). |
 | `netcross_core.security.cve_db` | base SQLite locale des CVE, peuplee par scripts/import_nvd.py depuis le flux NVD (voir ce script pour le format JSON attendu, API NVD 2.0). |
 | `netcross_core.security.dns_tunnel` | issue #144 (FLOW-3, parent #141) : detection de tunneling DNS (exfiltration, C2, VPN over DNS). |
 | `netcross_core.security.expert_correlation` | issue #137 (CVE-3) : exploitation des alertes Expert Info de tshark pour DETECTER des tentatives d'exploitation (fuzzing, depassement de tampon, deni de service) a partir de paquets malformes et de… |
 | `netcross_core.security.findings` | alimentation de `Report.service_fingerprints` et `Report.security_findings` a partir des modules de detection CVE-1 a CVE-4 (issue #139, CVE-5, parent #133). |
+| `netcross_core.security.protocol_mismatch` | issue #142 (FLOW-1, parent #141) : detection des flux cachés où un protocole utilise un port non standard (SSH sur 443, DNS sur 443, HTTP sur 22, etc.). |
 
 ### Diagramme
 
@@ -1522,6 +1577,31 @@ classDiagram
         <<module>>
         +correlate_banner(conn, banner) list~CveMatch~
         +correlate_versions(conn, banners) dict~str, list~CveMatch~~
+    }
+
+    %% ===== netcross_core.security.beaconing =====
+    class BeaconingThresholds {
+        <<dataclass, frozen>>
+        +int min_checkins
+        +float max_interval_cv
+        +float min_interval_seconds
+        +float burst_gap_seconds
+        +int min_payload_bytes
+        +int small_payload_bytes
+        +float max_size_cv
+        +float asymmetry_ratio
+        +tuple~int, int~ office_hours_utc
+        +float off_hours_ratio
+        +bool external_only
+        +frozenset~int~ ignored_ports
+    }
+    class BeaconingResult {
+        <<dataclass>>
+        +list~dict~ suspicions
+    }
+    class mod_netcross_core_security_beaconing["netcross_core.security.beaconing"] {
+        <<module>>
+        +detect_beaconing(packets, thresholds) BeaconingResult
     }
 
     %% ===== netcross_core.security.cpe_match =====
@@ -1651,8 +1731,18 @@ classDiagram
         +exploit_findings(detections) list~dict~str, Any~~
         +anomaly_findings(suspicions) list~dict~str, Any~~
         +dns_tunnel_findings(suspicions) list~dict~str, Any~~
+        +beaconing_findings(suspicions) list~dict~str, Any~~
         +cve_findings(fingerprints, conn) list~dict~str, Any~~
         +apply_security_findings(report, all_packets, detections, cve_conn) None
+    }
+
+    %% ===== netcross_core.security.protocol_mismatch =====
+    class mod_netcross_core_security_protocol_mismatch["netcross_core.security.protocol_mismatch"] {
+        <<module>>
+        +detect_protocol_mismatch(pkt) tuple~str, str~?
+        +detect_protocol_mismatches(packets) list~dict~str, Any~~
+        +count_protocol_mismatches(packets) dict~str, dict~str, int~~
+        +protocol_mismatch_findings(mismatches) list~dict~str, Any~~
     }
 
     %% ===== relations =====
@@ -2194,6 +2284,7 @@ classDiagram
 | `netcross_gtk4.annotations_view` | logique de presentation pour l'etiquetage/signets sur paquets (Job 40 / issue #160, section "Metadonnees et annotation"). |
 | `netcross_gtk4.app` | interface GTK4 pour netcross_core / netcross_report. |
 | `netcross_gtk4.dashboard_context` | contexte d'analyse partage pour le dashboard analytique interactif (issue #18, section 6.17). |
+| `netcross_gtk4.duplicate_view` | Presentation helpers for cross-capture duplicate detection (Job 41). |
 | `netcross_gtk4.live_capture_points` | points de capture en direct de la GUI (Job 48, issue #168) : une ligne du panneau de capture live peut porter PLUSIEURS interfaces d'une meme machine ("eth0, eth1"), chacune devenant son propre point… |
 | `netcross_gtk4.stats_view` | logique de presentation pour la vue d'exploration statistique (Job 27 / issue #22, section 6.8). |
 
@@ -2287,6 +2378,12 @@ classDiagram
         +select_bucket(selection, bucket) DashboardSelection
         +select_event(selection, event_id, events) DashboardSelection
         +build_dashboard_snapshot(report, flows, findings, tls_findings, quic_findings, wireshark_expert_events, selection) DashboardSnapshot
+    }
+
+    %% ===== netcross_gtk4.duplicate_view =====
+    class mod_netcross_gtk4_duplicate_view["netcross_gtk4.duplicate_view"] {
+        <<module>>
+        +format_duplicate_indicator(report) str
     }
 
     %% ===== netcross_gtk4.live_capture_points =====

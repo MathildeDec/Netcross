@@ -3,32 +3,32 @@
 > Généré le 2026-09-20. Contexte : PR #212 (merged) a validé le rapport de sécurité (CVE-5, #139) sur de vrais PCAPs tshark — trafic légitime sans faux positif.
 >
 > Mise à jour : Job 48 (#168, Track B — multi-interfaces) est livré sur `main` (iter_live_multi, LiveDiffEngine.start_multi, GUI LiveCaptureListPanel — commits a36eb1c..2d83552) et retiré de la liste des travaux restants ci-dessous.
+> Mise à jour : #155 (Job 35 — Découpage PCAP) retiré — déjà livré sur `dev` (7 commits, `split_capture` + CLI `--split` + 86 tests), jamais clôturé par une PR référençant l'issue.
 
 ## Vue d'ensemble
 
 | Priorité | Nombre | Description |
 |----------|--------|-------------|
-| **P1 — Différenciation** | 5 | Fonctionnalités différenciantes, démarrage immédiat |
+| **P1 — Différenciation** | 4 | Fonctionnalités différenciantes, démarrage immédiat |
 | **P2 — Exploitation** | 5 | Améliorations d'exploitation, indépendantes |
 | **P3 — Applicatif** | 13 | Expertise applicative, fondations sécurité + scénarios |
 | **P4 — Admin/validation** | 2 | Validation, admin, IA/ML |
-| **Total** | **25** (+ 2 issues parentes #133, #141) | |
+| **Total** | **24** (+ 2 issues parentes #133, #141) | |
 
 ## Pistes parallèles
 
-Les 25 issues sont réparties en 7 pistes pouvant être travaillées en parallèle :
+Les 24 issues sont réparties en 7 pistes pouvant être travaillées en parallèle :
 
 ### Track A — Gestion PCAP (P1, démarrage immédiat, indépendant)
 
 | Ordre | Issue | Titre | Difficulté | Dépendances |
 |-------|-------|-------|------------|-------------|
 | 1 | #158 | Job 38 — capinfos (métadonnées de capture) | 1/5 | Aucune |
-| 2 | #155 | Job 35 — Découpage PCAP (split) | 2/5 | Aucune |
-| 3 | #156 | Job 36 — Export sous-ensemble PCAP | 2/5 | Aucune |
-| 4 | #165 | Job 45 — Ajustement de timestamps | 2/5 | Aucune |
-| 5 | #161 | Job 41 — Doublons inter-captures | 3/5 | payload_hash (existant) |
+| 2 | #156 | Job 36 — Export sous-ensemble PCAP | 2/5 | Aucune |
+| 3 | #165 | Job 45 — Ajustement de timestamps | 2/5 | Aucune |
+| 4 | #161 | Job 41 — Doublons inter-captures | ✅ Livré | payload_hash (existant) |
 
-Toutes indépendantes — peuvent être traitées en parallèle. Fichiers : `pcap_parser/capture.py` (#158, #155, #156, #165), `netcross_core/forensic.py` (#161).
+Toutes indépendantes — peuvent être traitées en parallèle. Fichiers : `pcap_parser/capture.py` (#158, #156, #165), `netcross_core/forensic.py` (#161).
 
 ### Track B — Sources de capture (P2, indépendant)
 
@@ -97,7 +97,7 @@ Toutes indépendantes — peuvent être traitées en parallèle.
 ```
 Track A (indépendant)        Track B (indépendant)
   #158 ──┐                     #163 ──┐
-  #155 ──┤                     #167 ──┤
+                       #167 ──┤
   #156 ──┤── peuvent            #169 ──┤── peuvent
   #165 ──┤   tous               #164 ──┤   tous
   #161 ──┘   parallèles         #166 ──┘   parallèles
