@@ -126,6 +126,7 @@ from netcross_core import (
     print_client_comparison,
     print_report,
     read_capture_comments,
+    read_capture_infos,
     redact_packets,
     replay_capture,
     split_capture,
@@ -1278,6 +1279,7 @@ def main():
     # un pcapng sans commentaire de section.
     if captures:
         r.capture_comments = read_capture_comments(captures)
+        r.capture_infos = read_capture_infos(captures)
     print_report(r)
 
     # --security-report (issue #139) : consolidation des quatre detecteurs

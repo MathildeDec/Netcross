@@ -16,7 +16,8 @@ Organisation en couches (bas en haut) :
     packet      -- assemblage du RawPacket normalise (dont RawPacket.comment,
                    commentaire de PAQUET pcapng -- Job 39)
     capinfos_source -- E/S separee : subprocess capinfos, commentaire de SECTION
-                   pcapng (metadonnee de fichier, pas de paquet -- Job 39)
+                   pcapng (metadonnee de fichier, pas de paquet -- Job 39) et
+                   metadonnees de capture : format, snaplen, paquets perdus (Job 38)
     capture     -- API publique : parse_capture / parse_captures_parallel / iter_live
                    (+ merge_captures : fusion de fichiers via mergecap, sans decodage
                    + replay_capture : rejeu de trafic via tcpreplay, sans decodage
@@ -42,7 +43,7 @@ Utilisation typique :
         ...
 """
 
-from pcap_parser.capinfos_source import read_capture_comment
+from pcap_parser.capinfos_source import CaptureInfo, read_capture_comment, read_capture_info
 from pcap_parser.capture import (
     CaptureRingBuffer,
     TcpreplayError,
@@ -69,6 +70,7 @@ from pcap_parser.protocols import (
 from pcap_parser.tunnels import detect_encapsulation, is_tunnel, select_innermost_layers
 
 __all__ = [
+    "CaptureInfo",
     "CaptureRingBuffer",
     "RawPacket",
     "TcpreplayError",
@@ -90,6 +92,7 @@ __all__ = [
     "parse_capture",
     "parse_captures_parallel",
     "read_capture_comment",
+    "read_capture_info",
     "replay_capture",
     "select_innermost_layers",
     "split_capture",

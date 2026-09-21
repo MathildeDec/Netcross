@@ -1301,6 +1301,16 @@ moteur d'exécution, par exemple, ne consomme que le code interne du
 projet lui-même — `expert_rules.py`/`synthesis.py`/`models.py` —, pas
 de documentation externe).
 
+## Couverture par PR (delta vs dev)
+
+Depuis le 21/09/2026 (suite de #224), le workflow
+`.github/workflows/pr-coverage.yml` commente chaque PR vers `dev` avec la
+couverture totale et le delta vs la base (`dev`) : pytest --cov exécuté sur
+le ref de fusion puis sur le SHA de base, comparaison par
+`scripts/pr_coverage_comment.py` (stdlib seule, commente via l'API GitHub,
+tests dans `tests/test_pr_coverage_comment.py`). Aucun seuil bloquant : la
+base de référence du 2026-09-21 est de 76,7 % (voir #224).
+
 ## Workflow d'intégration (dev → main)
 
 Depuis le 21/09/2026, `main` est protégée : toute fusion vers `main` passe

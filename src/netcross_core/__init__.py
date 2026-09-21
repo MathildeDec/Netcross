@@ -46,6 +46,7 @@ from netcross_core.parsing import (
     parse_rtp,
     parse_sip,
     read_capture_comments,
+    read_capture_infos,
 )
 from netcross_core.redact import AddressRedactor, redact_packets, write_redaction_map_csv
 from netcross_core.report_text import print_report, write_detail_csv
@@ -108,6 +109,7 @@ __all__ = [
     "print_diff_report",
     "print_report",
     "read_capture_comments",
+    "read_capture_infos",
     "redact_packets",
     "replay_capture",
     "split_capture",
