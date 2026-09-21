@@ -25,7 +25,7 @@ Les 25 issues sont réparties en 7 pistes pouvant être travaillées en parallè
 | 1 | #158 | Job 38 — capinfos (métadonnées de capture) | 1/5 | Aucune |
 | 2 | #156 | Job 36 — Export sous-ensemble PCAP | 2/5 | Aucune |
 | 3 | #165 | Job 45 — Ajustement de timestamps | 2/5 | Aucune |
-| 4 | #161 | Job 41 — Doublons inter-captures | 3/5 | payload_hash (existant) |
+| 4 | #161 | Job 41 — Doublons inter-captures | ✅ Livré | payload_hash (existant) |
 
 Toutes indépendantes — peuvent être traitées en parallèle. Fichiers : `pcap_parser/capture.py` (#158, #156, #165), `netcross_core/forensic.py` (#161).
 
