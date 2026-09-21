@@ -428,3 +428,84 @@ def _split_pcapng(f: BinaryIO, sink: _SegmentSink) -> None:
             sink.write_if_open(raw)
         else:
             sink.write(raw, is_packet=block_type in _PACKET_BLOCKS)
+
+
+# -- first_timestamp --------------------------------------------------------
+
+
+def first_timestamp(path: str) -> float:
+    """Timestamp epoch du premier paquet de `path` (pcap, nsecpcap ou
+    pcapng), lu directement du cadrage binaire sans tshark. Leve
+    FileNotFoundError si le fichier est absent, ValueError si le format
+    n'est pas reconnu ou si la capture ne contient aucun paquet."""
+    if not os.path.isfile(path):
+        raise FileNotFoundError(f"capture introuvable : {path}")
+    fmt = detect_format(path)
+    if fmt is None:
+        raise ValueError(f"format non reconnu : {path}")
+    with open(path, "rb") as f:
+        if fmt == FORMAT_PCAPNG:
+            return _first_timestamp_pcapng(f)
+        # pcap ou nsecpcap : lire l'en-tete global pour l'endianness
+        header = f.read(_PCAP_HEADER_LEN)
+        if len(header) < _PCAP_HEADER_LEN:
+            raise ValueError("fichier pcap tronque (en-tete global incomplet)")
+        endian, fmt_name = _PCAP_MAGICS[header[:4]]
+        nsec = fmt_name == FORMAT_NSECPCAP
+        return _first_timestamp_pcap(f, endian, nsec)
+
+
+def _first_timestamp_pcap(f: BinaryIO, endian: str, nsec: bool) -> float:
+    """Lit le timestamp du premier paquet d'un pcap classique. f est
+    positionne juste apres l'en-tete global (24 octets). Renvoie un
+    timestamp epoch en secondes (float)."""
+    header = f.read(_PCAP_RECORD_HEADER_LEN)
+    if len(header) < _PCAP_RECORD_HEADER_LEN:
+        raise ValueError("pcap sans paquet (en-tete global seul)")
+    ts_sec, ts_frac = struct.unpack_from(endian + "II", header, 0)
+    divisor = 1e9 if nsec else 1e6
+    return ts_sec + ts_frac / divisor
+
+
+def _iter_options(data: bytes, endian: str):
+    """Iterere sur les options TLV (type 2, length 2, value padded a 4
+    octets) d'un bloc pcapng. Renvoie (code, value) pour chaque option."""
+    offset = 0
+    while offset + 4 <= len(data):
+        code, length = struct.unpack_from(endian + "HH", data, offset)
+        if code == 0:  # opt_endofopt
+            break
+        offset += 4
+        if offset + length > len(data):
+            break
+        value = data[offset : offset + length]
+        yield code, value
+        # padding a 4 octets
+        padded = (length + 3) & ~3
+        offset += padded
+
+
+def _first_timestamp_pcapng(f: BinaryIO) -> float:
+    """Lit le timestamp du premier paquet (Enhanced Packet Block) d'un
+    pcapng. f est au debut du fichier. Renvoie un timestamp epoch en
+    secondes (float). Leve ValueError si aucun paquet n'est trouve."""
+    endian = "<"
+    tsresol_shift = 6  # microsecondes par defaut (2^6 = 64)
+    for block_type, raw in _iter_pcapng_blocks(f):
+        if block_type == _BLOCK_SHB:
+            bom = raw[8:12]
+            endian = "<" if bom == _BOM_LE else ">"
+        elif block_type == _BLOCK_IDB:
+            # if_tsresol (option 9) : log2 du diviseur. Defaut : 6 (us).
+            for code, value in _iter_options(raw[16:-4], endian):
+                if code == 9 and len(value) >= 1:
+                    tsresol_shift = value[0]
+        elif block_type == _BLOCK_EPB:
+            # EPB : ts_high (4) + ts_low (4) apres interface_id (4)
+            if len(raw) < 20:
+                continue
+            ts_high, ts_low = struct.unpack_from(endian + "II", raw, 12)
+            ts_64 = (ts_high << 32) | ts_low
+            divisor = 2**tsresol_shift
+            return ts_64 / divisor
+    raise ValueError("pcapng sans paquet (aucun Enhanced Packet Block)")
