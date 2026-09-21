@@ -1162,10 +1162,12 @@ def main():
             )
             print_security_report(build_security_report(r))
         finally:
-            # issue #217 : close_db() encapsule dans finally pour garantir la
-            # fermeture de la base SQLite meme si apply_security_findings()/
-            # build_security_report() leve -- sans quoi la connexion reste
-            # ouverte jusqu'a la fin (non geree) du processus.
+            # issue #217 (suite PR #212) : close_db() dans un finally pour
+            # garantir la fermeture de la connexion SQLite meme si
+            # apply_security_findings()/le rendu du rapport levent une
+            # exception -- sans consequence fonctionnelle immediate (le
+            # process se termine de toute facon) mais nuit a la robustesse
+            # sinon (ressource SQLite laissee ouverte).
             if cve_conn is not None:
                 close_db(cve_conn)
 
