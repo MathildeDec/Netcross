@@ -1,0 +1,56 @@
+# Couverture incrémentale par PR : commente chaque PR vers `dev` avec la
+# couverture totale et le delta vs la base (`dev`), suite de #224.
+#
+# Principe : la suite etant rapide (~10 s), on execute pytest --cov deux
+# fois -- une fois sur le ref de fusion de la PR, une fois sur le SHA de
+# base -- puis scripts/pr_coverage_comment.py publie (ou met a jour) un
+# commentaire sur la PR. Aucun seuil bloquant ici : la decision de
+# calibrer --cov-fail-under reste a une issue de suivi (voir #224).
+name: Couverture par PR
+
+on:
+  pull_request:
+    branches: [dev]
+
+permissions:
+  contents: read
+  pull-requests: write
+
+jobs:
+  commentaire-couverture:
+    name: Couverture (delta vs dev)
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout de la PR (ref de fusion)
+        uses: actions/checkout@v4
+
+      - name: Installation de uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        with:
+          enable-cache: true
+
+      - name: Installation de Python
+        run: uv python install
+
+      - name: Dépendances + couverture de la PR
+        run: |
+          uv sync --extra dev
+          uv run pytest --cov --cov-report=json:coverage-pr.json -q
+
+      - name: Couverture de la base (SHA de dev)
+        run: |
+          git fetch --no-tags --depth=1 origin ${{ github.event.pull_request.base.sha }}
+          git worktree add ../base ${{ github.event.pull_request.base.sha }}
+          cd ../base
+          uv sync --extra dev
+          uv run pytest --cov --cov-report=json:coverage-base.json -q
+          mv coverage-base.json "$OLDPWD/"
+
+      - name: Publication du commentaire de couverture
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          python3 scripts/pr_coverage_comment.py \
+            --pr-json coverage-pr.json \
+            --base-json coverage-base.json \
+            --pr-number "${{ github.event.pull_request.number }}"
