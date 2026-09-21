@@ -579,6 +579,17 @@ class Report:
     # liste des occurrences individuelles (frame, ports, proto).
     protocol_mismatches: dict[str, dict[str, int]] = field(default_factory=lambda: defaultdict(dict))
     protocol_mismatch_details: list[dict] = field(default_factory=list)
+    # -- DGA et fast flux (SCENARIO-6, issue #152) : alertes de domaines
+    # malveillants generes algorithmiquement (DGA) et d'infrastructures
+    # a flux rapide (fast flux). `dga_alerts` : un dict par domaine suspect,
+    # cles `domain`, `score`, `reason`, `entropy`, `consonant_ratio`,
+    # `rare_bigram_ratio`, `length`, `nxdomain_ratio`, `point`.
+    # `fast_flux_alerts` : un dict par domaine suspect, cles `domain`,
+    # `alert_type`, `score`, `reason`, `ips`, `nxdomain_ratio`, `point`.
+    # Remplis par `security.findings.apply_security_findings` via
+    # `security.dga.detect_dga` et `security.fast_flux.detect_fast_flux`.
+    dga_alerts: list[dict] = field(default_factory=list)
+    fast_flux_alerts: list[dict] = field(default_factory=list)
     # -- topologie deduite (ordre + chemins multiples) --
     topology_edges: list[tuple[str, str, dict]] = field(default_factory=list)
     topology_ambiguous: list[tuple[str, str, str]] = field(default_factory=list)
