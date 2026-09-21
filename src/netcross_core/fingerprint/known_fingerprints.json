@@ -1,0 +1,5 @@
+{
+  "_note": "Base livree vide : aucune empreinte JA4/HASSH reelle (curl, Chrome, OpenSSH...) n'a ete verifiee contre du trafic capture ni contre une base publique dans cet environnement (pas de tshark/capture reelle disponibles pour la produire honnetement -- voir netcross_core.fingerprint.tls_ja4 et .known). A completer localement : capturer le trafic d'un outil connu, calculer son empreinte avec ce module, et l'ajouter ici sous la cle ja4 ou hassh.",
+  "ja4": {},
+  "hassh": {}
+}
