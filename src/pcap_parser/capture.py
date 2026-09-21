@@ -44,7 +44,7 @@ from collections.abc import Iterator, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
-from pcap_parser.capfile import detect_format, format_extension, has_packets, split_by_size
+from pcap_parser.capfile import detect_format, first_timestamp, format_extension, has_packets, split_by_size
 from pcap_parser.ek_source import TsharkError, TsharkNotFoundError, iter_ek_records
 from pcap_parser.packet import RawPacket, build_packet
 
@@ -865,3 +865,54 @@ def export_filtered(
             returncode=proc.returncode,
             stderr=proc.stderr,
         )
+
+
+# -- adjust_timestamps --------------------------------------------------------
+
+
+def adjust_timestamps(
+    path_in: str,
+    path_out: str,
+    offset_seconds: float = 0.0,
+    normalize: bool = False,
+    align_to: str | None = None,
+) -> None:
+    """
+    Ajuste les timestamps d'une capture et ecrit le resultat dans
+    `path_out`. Trois modes mutuellement exclusifs :
+
+    - offset_seconds : decale tous les timestamps d'un montant fixe
+      (positif ou negatif). Utilise ``editcap -t``.
+    - normalize=True : aligne le premier paquet sur t=0.0 (calcule
+      l'offset = -first_timestamp(path_in) puis l'applique).
+    - align_to=PATH : aligne le premier paquet de path_in sur le
+      premier paquet de PATH (offset = first_timestamp(align_to) -
+      first_timestamp(path_in)).
+
+    Si normalize et align_to sont tous deux fournis, normalize est
+    ignore (align_to est prioritaire). Si aucun mode n'est fourni
+    (offset_seconds=0, normalize=False, align_to=None), la capture est
+    recopiee sans modification (utile pour convertir de format).
+
+    Leve FileNotFoundError, ValueError (aucun paquet, format non reconnu,
+    offset absurde), TsharkNotFoundError (editcap absent), TsharkError
+    (echec d'editcap).
+    """
+    if not os.path.isfile(path_in):
+        raise FileNotFoundError(f"capture introuvable : {path_in}")
+
+    # Calculer l'offset reel a appliquer
+    if align_to is not None:
+        ref_ts = first_timestamp(align_to)
+        src_ts = first_timestamp(path_in)
+        actual_offset = ref_ts - src_ts
+    elif normalize:
+        src_ts = first_timestamp(path_in)
+        actual_offset = -src_ts
+    else:
+        actual_offset = offset_seconds
+
+    # editcap -t SECONDS : decale tous les timestamps
+    editcap = _wireshark_tool_path("editcap")
+    args = [editcap, "-t", repr(float(actual_offset)), path_in, path_out]
+    _run_wireshark_tool(args)

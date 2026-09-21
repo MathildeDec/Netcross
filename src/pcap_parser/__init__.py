@@ -43,11 +43,13 @@ Utilisation typique :
         ...
 """
 
+from pcap_parser.capfile import first_timestamp
 from pcap_parser.capinfos_source import CaptureInfo, read_capture_comment, read_capture_info
 from pcap_parser.capture import (
     CaptureRingBuffer,
     TcpreplayError,
     TcpreplayNotFoundError,
+    adjust_timestamps,
     export_filtered,
     iter_live,
     iter_live_multi,
@@ -77,6 +79,7 @@ __all__ = [
     "TcpreplayNotFoundError",
     "TsharkError",
     "TsharkNotFoundError",
+    "adjust_timestamps",
     "compute_mos",
     "detect_encapsulation",
     "export_filtered",
@@ -85,6 +88,7 @@ __all__ = [
     "extract_rtp",
     "extract_sip",
     "extract_tls_certificate",
+    "first_timestamp",
     "is_tunnel",
     "iter_live",
     "iter_live_multi",

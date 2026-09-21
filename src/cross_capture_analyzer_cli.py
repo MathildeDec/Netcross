@@ -115,6 +115,7 @@ import threading
 import time
 
 from netcross_core import (
+    adjust_timestamps,
     analyse,
     compare_clients,
     correlate,
@@ -364,6 +365,42 @@ def _run_split(capture_specs, split_spec, output_dir):
     return status
 
 
+def _run_adjust_time(capture_specs, output_path, offset, normalize, align_to):
+    """--adjust-time : ajuste les timestamps d'une capture (decalage fixe,
+    normalisation ou alignement sur une autre capture). Comme --merge/--split,
+    ne lance aucune analyse ensuite."""
+    if not capture_specs:
+        print("--adjust-time necessite --capture (fichier source).", file=sys.stderr)
+        sys.exit(1)
+    if len(capture_specs) > 1:
+        print(
+            f"--adjust-time ajuste UN fichier a la fois (recu {len(capture_specs)} spec(s) --capture).",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    label, paths = _parse_capture_spec(capture_specs[0], "--capture")
+    if len(paths) > 1:
+        print(
+            f"--adjust-time ajuste UN fichier a la fois (recu {len(paths)} segments dans {label}).",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    path = paths[0]
+    try:
+        adjust_timestamps(
+            path,
+            output_path,
+            offset_seconds=offset,
+            normalize=normalize,
+            align_to=align_to,
+        )
+    except (TsharkNotFoundError, TsharkError, FileNotFoundError, ValueError) as e:
+        print(f"--adjust-time : {e}", file=sys.stderr)
+        sys.exit(1)
+    print(f"{output_path} cree ({label}).")
+    return 0
+
+
 def _run_replay(capture_specs, interface, speed, loop):
     """--replay : rejoue UNE capture sur une interface reseau via tcpreplay
     (voir pcap_parser.capture.replay_capture pour l'avertissement d'usage
@@ -552,6 +589,38 @@ def main():
         help="Avec --export-pcap : liste d'adresses IP a inclure (src OU dst), "
         "separees par des virgules. Un paquet est conserve si l'une de ses "
         "adresses IP correspond.",
+    )
+    ap.add_argument(
+        "--adjust-time-output",
+        metavar="PATH",
+        help="Ajuste les timestamps de la premiere capture de --capture et "
+        "ecrit le resultat dans ce fichier. Mode utilitaire (comme "
+        "--merge/--split/--export-pcap) : ne lance aucune analyse. "
+        "Choix du mode : --time-offset (decalage fixe), --normalize-time "
+        "(premier paquet a t=0) ou --align-to (alignement sur une autre capture). "
+        "Un seul mode a la fois.",
+    )
+    ap.add_argument(
+        "--time-offset",
+        type=float,
+        default=None,
+        metavar="SECONDES",
+        help="Avec --adjust-time-output : decale tous les timestamps d'un "
+        "montant fixe en secondes (positif ou negatif). Ex: 10.5, -3600.",
+    )
+    ap.add_argument(
+        "--normalize-time",
+        action="store_true",
+        help="Avec --adjust-time-output : aligne le premier paquet sur t=0.0 "
+        "(calcule l'offset = -timestamp du premier paquet).",
+    )
+    ap.add_argument(
+        "--align-to",
+        metavar="PATH",
+        help="Avec --adjust-time-output : aligne le premier paquet de la "
+        "capture source sur le premier paquet de PATH (reference). Utile "
+        "pour comparer deux captures dont les horloges etaient "
+        "desynchronisees.",
     )
     ap.add_argument("--order", help="Ordre physique des points sur le chemin reseau, ex: LAN,WAN,DC")
     ap.add_argument("--detail-csv", help="Chemin de sortie pour le detail par flux (CSV)")
@@ -949,6 +1018,19 @@ def main():
     if (args.replay_loop != 1 or args.replay_speed != "1.0") and not args.replay:
         print("--replay-speed/--replay-loop necessitent --replay.", file=sys.stderr)
         sys.exit(1)
+    # --adjust-time est exclusif avec les autres modes utilitaires
+    if args.adjust_time_output and (args.merge or args.split or args.replay):
+        print(
+            "--adjust-time est exclusif avec --merge/--split/--replay : une seule operation a la fois.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    if (args.time_offset is not None or args.normalize_time or args.align_to) and not args.adjust_time_output:
+        print(
+            "--time-offset/--normalize-time/--align-to necessitent --adjust-time-output.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
     if args.merge_dedup and not args.merge:
         print("--merge-dedup necessite --merge.", file=sys.stderr)
         sys.exit(1)
@@ -1083,6 +1165,54 @@ def main():
             sys.exit(1)
         _run_replay(args.capture, args.replay, args.replay_speed, args.replay_loop)
         return
+
+    if args.adjust_time_output:
+        if not args.capture:
+            print("--adjust-time necessite --capture (fichier source), pas --live.", file=sys.stderr)
+            sys.exit(1)
+        # --adjust-time est un mode utilitaire : toute option d'analyse
+        # serait silencieusement ignoree, on la refuse.
+        ignored = sorted(
+            "--" + dest.replace("_", "-")
+            for dest, value in vars(args).items()
+            if dest
+            not in (
+                "capture",
+                "adjust_time_output",
+                "time_offset",
+                "normalize_time",
+                "align_to",
+            )
+            and value != ap.get_default(dest)
+        )
+        if ignored:
+            print(
+                f"--adjust-time ne lance aucune analyse : option(s) incompatible(s) {', '.join(ignored)}. "
+                "Ajuster d'abord, puis analyser le resultat dans une seconde commande.",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        # Verifier qu'un seul mode est fourni
+        modes = [
+            args.time_offset is not None,
+            args.normalize_time,
+            args.align_to is not None,
+        ]
+        if sum(modes) > 1:
+            print(
+                "--time-offset, --normalize-time et --align-to sont mutuellement exclusifs.",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        sys.exit(
+            _run_adjust_time(
+                args.capture,
+                args.adjust_time_output,
+                args.time_offset or 0.0,
+                args.normalize_time,
+                args.align_to,
+            )
+        )
 
     # Table des noms (section 6.15) : optionnelle, chargee une fois pour
     # toutes les sorties (CSV detail + JSON). None si --names absent.
