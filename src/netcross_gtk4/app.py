@@ -1313,6 +1313,9 @@ class MainWindow(Gtk.ApplicationWindow):
             tls = self.tls_check.get_active()
             quic = self.quic_check.get_active()
             topn = int(self.topn_spin.get_value())
+            detect_duplicates = self.detect_duplicates_check.get_active()
+            exclude_duplicates = self.exclude_duplicates_check.get_active()
+            duplicate_threshold_ms = self.duplicate_threshold_spin.get_value()
             threading.Thread(
                 target=self._run_analysis_thread,
                 args=(
@@ -1328,6 +1331,9 @@ class MainWindow(Gtk.ApplicationWindow):
                     quic,
                     redact,
                     topn,
+                    detect_duplicates,
+                    exclude_duplicates,
+                    duplicate_threshold_ms,
                 ),
                 daemon=True,
             ).start()
@@ -1587,6 +1593,9 @@ class MainWindow(Gtk.ApplicationWindow):
         quic,
         redact,
         topn,
+        detect_duplicates,
+        exclude_duplicates,
+        duplicate_threshold_ms,
     ):
         try:
             points_order = None if auto_topology else [label for label, _ in captures]
@@ -1594,9 +1603,6 @@ class MainWindow(Gtk.ApplicationWindow):
             all_packets = self._load_packets(captures, parallel)
 
             duplicate_counts = None
-            detect_duplicates = self.detect_duplicates_check.get_active() or self.exclude_duplicates_check.get_active()
-            exclude_duplicates = self.exclude_duplicates_check.get_active()
-            duplicate_threshold_ms = self.duplicate_threshold_spin.get_value()
             if detect_duplicates:
                 GLib.idle_add(
                     self._log,
