@@ -14,7 +14,9 @@ detecteurs dans le format de constat documente sur `Report` :
 - CVE-3 (#137) `Report.exploit_suspicion_flows` -> constats `anomalie`
   (fuzzing / overflow / dos) ;
 - CVE-4 (#138) `security.correlate_banner` -> constats `cve`, un par CVE
-  applicable a la version EXACTE d'un service detecte.
+  applicable a la version EXACTE d'un service detecte ;
+- FLOW-3 (#144) `dns_tunnel.detect_dns_tunneling` -> constats `anomalie`
+  (tunneling DNS : suspicion par domaine, ou volume DNS anormal).
 
 Trois principes, pour respecter le critere d'acceptation « aucun faux
 positif sur trafic normal » :
@@ -46,6 +48,7 @@ from netcross_core.exploit_signatures import Detection, Signature, detect_exploi
 from netcross_core.fingerprint.report import build_fingerprint_records
 from netcross_core.models import Pkt, Report
 from netcross_core.security import correlate_banner
+from netcross_core.security.dns_tunnel import detect_dns_tunneling
 
 # Severite d'une signature d'exploit (vocabulaire de exploit_signatures :
 # anomalie / a_surveiller / info) -> severite du rapport de securite. Une
@@ -139,6 +142,51 @@ def anomaly_findings(suspicions: Iterable[dict]) -> list[dict[str, Any]]:
         findings.append(
             {
                 "severity": SUSPICION_SEVERITY.get(kind, "faible"),
+                "category": "anomalie",
+                "detail": detail,
+                "point": s.get("point") or None,
+            }
+        )
+    return findings
+
+
+# -- FLOW-3 : tunneling DNS ------------------------------------------------
+
+_DNS_SIGNAL_LABELS = {
+    "long_label": "label > 63 caracteres",
+    "long_name": "noms > 100 caracteres",
+    "high_entropy": "sous-domaines a haute entropie",
+    "large_response": "reponses volumineuses",
+    "dominant_domain": "domaine dominant",
+    "regular_timing": "requetes a intervalles reguliers",
+}
+
+
+def dns_tunnel_findings(suspicions: Iterable[dict]) -> list[dict[str, Any]]:
+    """Un constat `anomalie` par suspicion de `dns_tunnel.detect_dns_tunneling`.
+    La severite est celle calculee par `security.dns_tunnel` (moyenne, elevee
+    si des signaux corroborants s'ajoutent, faible pour le seul volume) : une
+    suspicion reste un INDICE a confirmer, jamais une compromission averee."""
+    findings = []
+    for s in suspicions:
+        if s.get("kind") == "volume":
+            detail = (
+                f"volume DNS anormal : {s.get('dns_packets', 0)} paquets DNS sur "
+                f"{s.get('total_packets', 0)} ({float(s.get('ratio', 0.0)) * 100:.0f} % du trafic du point)"
+            )
+        else:
+            signals = ", ".join(_DNS_SIGNAL_LABELS.get(sig, sig) for sig in s.get("signals") or [])
+            detail = (
+                f"suspicion de tunneling DNS vers {s.get('domain', '?')} : {signals} "
+                f"-- {s.get('queries', 0)} requete(s), {s.get('unique_subdomains', 0)} sous-domaine(s) distinct(s), "
+                f"entropie moyenne {s.get('mean_entropy', 0.0)} bits/car"
+            )
+            frames = ", ".join(str(f) for f in s.get("frames") or [])
+            if frames:
+                detail += f" -- trames {frames}"
+        findings.append(
+            {
+                "severity": s.get("severity") or "faible",
                 "category": "anomalie",
                 "detail": detail,
                 "point": s.get("point") or None,

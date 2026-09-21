@@ -119,13 +119,15 @@ Track D (détection flux)       Track E (scénarios menace)
 
 ## Restes de la PR #212 (CVE-5 clôturé)
 
-La PR #212 a validé le rapport de sécurité sur de vrais PCAPs tshark. Restes hors périmètre, à tracker :
+La PR #212 a validé le rapport de sécurité sur de vrais PCAPs tshark. Trois restes identifiés et trackés :
 
-| Reste | Statut | Issue proposée |
-|-------|--------|----------------|
-| Doc README.md / CLAUDE.md pour `--security-report` | À faire | Nouvelle issue |
-| `close_db()` dans `try/finally` dans la CLI | À faire | Nouvelle issue |
-| Rendu HTML/PDF du rapport de sécurité | Future sortie | Nouvelle issue |
+| Issue | Titre | Priorité | Difficulté | Piste |
+|-------|-------|----------|------------|-------|
+| #216 | Suite PR #212 : documenter --security-report dans CLAUDE.md | P3 | 1/5 | F |
+| #217 | Suite PR #212 : close_db() sans try/finally dans la CLI | P3 | 1/5 | F |
+| #218 | Suite PR #212 : rendu HTML/PDF du rapport de sécurité | P3 | 3/5 | F |
+
+README.md déjà documenté par PR #214.
 
 ## Voir aussi
 

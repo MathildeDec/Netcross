@@ -49,6 +49,7 @@ from netcross_core.models import (
     SEQ_GAP_CAPTURE_DROP,
     SEQ_GAP_INDETERMINATE,
     SEQ_GAP_NETWORK_LOSS,
+    ChecksumError,
     PacketAnnotation,
     Pkt,
     SequenceGap,
@@ -634,3 +635,55 @@ def detect_sequence_gaps(packets: Iterable[Pkt]) -> list[SequenceGap]:
         )
     gaps.sort(key=lambda g: (g.point, g.ts, g.start_seq))
     return gaps
+
+
+# -- Integrite/qualite de capture : validation des checksums IP/TCP/UDP -----
+# (Job 43/issue #163)
+#
+# validate_checksums() est un CONSOMMATEUR pur des champs de checksum deja
+# extraits par pcap_parser.packet.build_packet() (ip_checksum/tcp_checksum/
+# udp_checksum + leur pendant *_checksum_bad, voir Pkt) -- comme le reste de
+# ce module, aucune somme de controle n'est recalculee ici : Netcross lit le
+# verdict que tshark a deja rendu (validation activee par defaut, voir
+# pcap_parser.ek_source.DEFAULT_PREFS).
+
+
+def validate_checksums(packets: Iterable[Pkt]) -> list[ChecksumError]:
+    """Valide les checksums IP/TCP/UDP d'une liste de paquets deja parses.
+
+    Un paquet est signale (`ChecksumError`) UNIQUEMENT si tshark a
+    explicitement rendu son checksum "Bad" (`*_checksum_bad is True`) ET
+    que la valeur brute recue n'est PAS `0x0000` : ce cas particulier est
+    la signature de l'offload materiel (la carte reseau calcule le
+    checksum a l'emission, jamais rempli dans le paquet tel que capture),
+    pas une vraie corruption -- distinguer les deux etait explicitement
+    le second critere de l'issue, verifie empiriquement (tshark rend
+    "Bad" pour un checksum offload a 0x0000, la valeur recalculee ne
+    valant quasiment jamais elle-meme 0x0000).
+
+    Un paquet sans verdict exploitable (`*_checksum_bad is None` --
+    checksum absent, ex: IP en IPv6 qui n'a pas de checksum d'en-tete, ou
+    statut "Unverified" si la validation tshark est desactivee) n'est
+    jamais signale : l'absence de donnee n'est pas une preuve
+    d'invalidite."""
+    errors: list[ChecksumError] = []
+    for pk in packets:
+        for protocol, checksum, is_bad in (
+            ("IP", pk.ip_checksum, pk.ip_checksum_bad),
+            ("TCP", pk.tcp_checksum, pk.tcp_checksum_bad),
+            ("UDP", pk.udp_checksum, pk.udp_checksum_bad),
+        ):
+            if checksum is None or is_bad is None:
+                continue
+            if checksum.lower() == "0x0000":
+                continue  # offload materiel -- jamais une erreur, voir docstring
+            if is_bad:
+                errors.append(
+                    ChecksumError(
+                        point=pk.point,
+                        frame_number=pk.frame_number,
+                        protocol=protocol,
+                        checksum=checksum,
+                    )
+                )
+    return errors
