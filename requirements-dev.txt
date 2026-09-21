@@ -18,6 +18,13 @@
 
 pytest>=8.0
 
+# pytest-cov : mesure la couverture de tests (--cov, issue #224). Config
+# [tool.coverage.*] dans pyproject.toml (source=src, branch=true) ; usage :
+#   uv run pytest --cov --cov-report=term-missing
+# Pas de seuil bloquant (--cov-fail-under) pour l'instant -- base de
+# reference a etablir d'abord (issue #224), seuil a decider dans un suivi.
+pytest-cov>=5.0
+
 # ruff : version alignee sur `rev: v0.16.4` dans .pre-commit-config.yaml --
 # a faire evoluer ensemble si l'un des deux bouge (sinon le lint local via
 # `ruff check .` diverge de celui execute par le hook pre-commit).

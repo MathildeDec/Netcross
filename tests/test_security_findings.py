@@ -420,3 +420,66 @@ def test_cli_security_report_trafic_normal_rapport_vide(monkeypatch, capsys):
     assert "aucun constat" in out
     assert "aucune tentative d'exploitation detectee" in out
     assert "aucune CVE confirmee" in out
+
+
+def test_cli_security_report_close_db_appele_meme_si_exception(monkeypatch, tmp_path):
+    """issue #217 (suite PR #212) : close_db() doit etre appele meme si une
+    exception survient entre l'ouverture de la connexion CVE et la fin du
+    traitement --security-report (ex: panne pendant apply_security_findings),
+    pour ne pas laisser la connexion SQLite ouverte."""
+    db = tmp_path / "cve.db"
+    import_from_file(NVD_FIXTURE, db)
+    pkts = [_apache_pkt("2.4.49")]
+    monkeypatch.setattr(cli, "parse_capture", lambda label, path: pkts)
+    monkeypatch.setattr(findings_mod, "scan_capture_exploits", lambda label, path, signatures=None: [])
+
+    closed = []
+    real_close_db = cli.close_db
+
+    def spy_close_db(conn):
+        closed.append(conn)
+        real_close_db(conn)
+
+    def boom(*a, **k):
+        raise RuntimeError("panne simulee pendant apply_security_findings")
+
+    monkeypatch.setattr(cli, "close_db", spy_close_db)
+    monkeypatch.setattr(findings_mod, "apply_security_findings", boom)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["cross_capture_analyzer_cli.py", "--capture", "A=a.pcap", "--security-report", "--cve-db", str(db)],
+    )
+
+    with pytest.raises(RuntimeError, match="panne simulee"):
+        cli.main()
+
+    assert len(closed) == 1  # close_db() appele malgre l'exception, aucune connexion laissee ouverte
+
+
+def test_cli_security_report_close_db_appele_en_cas_de_succes(monkeypatch, tmp_path):
+    """Non-regression du chemin normal : close_db() continue d'etre appele
+    une fois le rapport de securite affiche avec succes."""
+    db = tmp_path / "cve.db"
+    import_from_file(NVD_FIXTURE, db)
+    pkts = [_apache_pkt("2.4.49")]
+    monkeypatch.setattr(cli, "parse_capture", lambda label, path: pkts)
+    monkeypatch.setattr(findings_mod, "scan_capture_exploits", lambda label, path, signatures=None: [])
+
+    closed = []
+    real_close_db = cli.close_db
+
+    def spy_close_db(conn):
+        closed.append(conn)
+        real_close_db(conn)
+
+    monkeypatch.setattr(cli, "close_db", spy_close_db)
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["cross_capture_analyzer_cli.py", "--capture", "A=a.pcap", "--security-report", "--cve-db", str(db)],
+    )
+
+    cli.main()
+
+    assert len(closed) == 1

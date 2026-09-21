@@ -45,6 +45,7 @@ from typing import Any
 import pcap_parser
 from netcross_core.application.banners import build_service_fingerprints
 from netcross_core.exploit_signatures import Detection, Signature, detect_exploits
+from netcross_core.fingerprint.report import build_fingerprint_records
 from netcross_core.models import Pkt, Report
 from netcross_core.security import correlate_banner
 from netcross_core.security.dns_tunnel import detect_dns_tunneling
@@ -252,13 +253,19 @@ def apply_security_findings(
     (les services restent listes, sans criticite). Les suspicions Expert
     Info (CVE-3) sont lues sur `report.exploit_suspicion_flows`, deja
     calcule par `analyse()` ; le tunneling DNS (FLOW-3) est calcule ici
-    depuis `all_packets`."""
-    packets = list(all_packets)  # parcouru par plusieurs detecteurs
-    report.service_fingerprints = build_service_fingerprints(packets)
+    depuis `all_packets`.
+
+    `service_fingerprints` contient aussi les empreintes JA4/HASSH
+    (issue #143, FLOW-2) -- integration demandee avec CVE-1 (#135) : ce
+    sont des entrees de plus dans la MEME liste (cle `service` valant
+    "TLS/JA4" ou "SSH/HASSH" plutot qu'un nom de logiciel), voir
+    `netcross_core.fingerprint.report.build_fingerprint_records`."""
+    all_packets = list(all_packets)
+    report.service_fingerprints = build_service_fingerprints(all_packets) + build_fingerprint_records(all_packets)
     findings = (
         exploit_findings(detections)
         + anomaly_findings(report.exploit_suspicion_flows)
-        + dns_tunnel_findings(detect_dns_tunneling(packets).suspicions)
+        + dns_tunnel_findings(detect_dns_tunneling(all_packets).suspicions)
     )
     if cve_conn is not None:
         findings += cve_findings(report.service_fingerprints, cve_conn)
