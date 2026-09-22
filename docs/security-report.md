@@ -104,6 +104,72 @@ constats (remplacement, pas ajout : deux appels donnent le même résultat).
 Voir `tests/test_security_findings.py` (trafic HTTP/TLS/DNS légitime, version corrigée,
 paquet malformé isolé, CLI de bout en bout).
 
+## Sorties (issue #218)
+
+Le rapport de sécurité existait uniquement en texte sur la sortie
+standard. Il alimente désormais quatre rendus, tous construits sur le
+**même socle** `security_report_to_dict()` — trois sérialisations
+indépendantes divergeraient au premier champ ajouté, et c'est exactement
+ce qui a produit l'issue #259.
+
+```bash
+netcross --capture POINT_A=a.pcap --security-report \
+         --security-html rapport-secu.html \
+         --json-report rapport.json \
+         --pdf-report rapport.pdf
+```
+
+| Sortie | Forme lisible des empreintes | Notes |
+|---|---|---|
+| **Texte** (stdout) | tronquée à 120 caractères, `...` visible | rendu par défaut |
+| **JSON** (`--json-report`, clé `security_report`) | **complète** | une sortie machine n'a pas de contrainte de largeur |
+| **HTML** (`--security-html`) | complète, tableaux filtrables | fichier unique, sans ressource externe |
+| **PDF** (`--pdf-report`) | tronquée à 90 caractères, `...` visible | section dédiée, tableaux plafonnés à 40 lignes avec le total réel écrit dessous |
+
+### Ce que disent les sorties quand il n'y a rien à dire
+
+Règle de traçabilité appliquée partout : une information absente est
+écrite, pas omise.
+
+- **Texte, HTML, PDF** : chaque section vide affiche son message
+  (`aucune tentative d'exploitation detectee`), jamais une section
+  escamotée. Une section absente fait douter de l'outil ; une section
+  vide est un résultat d'analyse.
+- **JSON sans `--security-report`** : la clé existe quand même, avec le
+  motif.
+
+  ```json
+  {"security_report": null,
+   "security_report_absent": "non demande (--security-report absent de l'appel)"}
+  ```
+
+  Sans cela, « non demandé », « demandé, rien trouvé » et « version de
+  netcross qui ne produit pas cette clé » seraient indistinguables.
+- **JSON avec `--security-report` mais sans constat** : un objet complet
+  avec des listes vides et un score de 0 — ce qui est un résultat, pas
+  une absence.
+- **PDF sans `--security-report`** : **aucune** section de sécurité. Une
+  section vide laisserait croire qu'une analyse de sécurité a eu lieu
+  sans rien trouver, alors qu'elle n'a pas tourné. `--security-html` et
+  `--cve-db` sans `--security-report` sont refusés avec un message
+  explicite plutôt que de produire un fichier vide.
+
+### Le rendu HTML
+
+Fichier unique, CSS et JavaScript inlinés, **aucune ressource externe** :
+un rapport d'incident est archivé dans un ticket et relu des mois plus
+tard, parfois sur un poste isolé. Une dépendance à un CDN en ferait une
+page cassée au moment précis où on la ressort.
+
+**Aucune donnée n'est interpolée dans du JavaScript.** Un rapport de
+sécurité contient par construction des chaînes hostiles — bannière
+forgée, détail d'exploit, nom d'hôte contrôlé par un attaquant. Le
+filtrage côté client ne lit que le DOM déjà rendu et échappé.
+
+Le mode sombre et l'impression sont pris en charge ; les teintes de
+sévérité restent distinguables en niveaux de gris, et le libellé textuel
+de la sévérité accompagne toujours la couleur.
+
 ## Limites connues
 
 - **Audit TLS** : seuls les certificats visibles en clair sont audités. TLS 1.3 chiffre le message

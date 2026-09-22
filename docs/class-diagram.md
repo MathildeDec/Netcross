@@ -11,7 +11,7 @@
 > Il remplace l'ancienne section 3 de `docs/features-backlog.md`, tenue à la main, qui avait dérivé
 > (voir `docs/sessions/session-36.md`, issue #140).
 
-118 modules · 166 classes · 328 fonctions publiques de module.
+119 modules · 166 classes · 332 fonctions publiques de module.
 
 Conventions : `+` public, `-` privé (préfixe `_`) ; `int?` = `int | None` ; `list~str~` = `list[str]` ;
 `<<module>>` regroupe les fonctions publiques d'un module ; `A --> B : champ` = `A` a un champ annoté
@@ -31,7 +31,7 @@ flowchart TD
     netcross_report["netcross_report"]
     netcross_core["netcross_core"]
     pcap_parser["pcap_parser"]
-    CLI -->|"13 imports"| netcross_report
+    CLI -->|"14 imports"| netcross_report
     CLI -->|"14 imports"| netcross_core
     CLI -->|"1 import"| pcap_parser
     netcross_gtk4 -->|"10 imports"| netcross_report
@@ -2460,6 +2460,7 @@ classDiagram
 | `netcross_report.path_metrics` | metriques de qualite par segment du chemin observe (Job 16/issue #12, FEATURES.md section 6.7). |
 | `netcross_report.pdf` | assemble le rapport PDF final (synthese, graphiques, tableaux de detail) a partir d'un Report netcross_core, avec reportlab. |
 | `netcross_report.rule_engine` | premier PILOTE du moteur d'EXECUTION evoque comme premier chantier ouvert par CLAUDE.md/`Prochaine feature` depuis la Session 54 (bibliotheque de regles §6.2 complete, 41 regles) : faire evaluer une… |
+| `netcross_report.security_html` | rendu HTML du rapport de securite (issue #218, troisieme sortie apres le texte et le JSON). |
 | `netcross_report.security_report` | rapport de securite consolide et tableau de bord (CVE-5, issue #139, parent #133). |
 | `netcross_report.sequence_view` | diagramme de sequence multi-hotes (Job 14/issue #11, FEATURES.md section 6.5). |
 | `netcross_report.session_objects` | construction et rendu CONSOLE des objets de contrat de la Session 0 (Job 4/issue #13). |
@@ -2556,7 +2557,7 @@ classDiagram
     %% ===== netcross_report.json_report =====
     class mod_netcross_report_json_report["netcross_report.json_report"] {
         <<module>>
-        +generate_json_report(r, output_path, title, meta, findings, tls_findings, quic_findings, flows, conversations, expert_events, diagnoses, compliance, wireshark_expert_events, rule_engine_findings, names) str
+        +generate_json_report(r, output_path, title, meta, findings, tls_findings, quic_findings, flows, conversations, expert_events, diagnoses, compliance, wireshark_expert_events, rule_engine_findings, names, security_report) str
         +generate_json_diff(findings, baseline, current, output_path, title, meta, tls_findings_baseline, tls_findings_current, quic_findings_baseline, quic_findings_current, flows, conversations, expert_events, diagnoses, compliance, wireshark_expert_events, names) str
     }
 
@@ -2636,7 +2637,8 @@ classDiagram
         +path_section_story(metrics, styles, chart_path)
         +sequence_section_story(views, styles, chart_paths)
         +expert_section_story(session_objects, styles, top_n)
-        +generate_pdf(r, output_path, title, meta, findings, tls_findings, quic_findings, session_objects, sequence_views)
+        +security_section_story(security_report, styles)
+        +generate_pdf(r, output_path, title, meta, findings, tls_findings, quic_findings, session_objects, sequence_views, security_report)
         +generate_diff_pdf(findings, baseline, current, output_path, title, meta, tls_findings_baseline, tls_findings_current, quic_findings_baseline, quic_findings_current)
     }
 
@@ -2645,6 +2647,13 @@ classDiagram
         <<module>>
         +evaluate(rule_id, report) list~Finding~
         +available_rule_ids() list~str~
+    }
+
+    %% ===== netcross_report.security_html =====
+    class mod_netcross_report_security_html["netcross_report.security_html"] {
+        <<module>>
+        +render_security_html(sr, title, meta, generated_at) str
+        +generate_security_html(sr, output_path, title, meta) str
     }
 
     %% ===== netcross_report.security_report =====
@@ -2699,6 +2708,7 @@ classDiagram
         +build_security_report(report) SecurityReport
         +format_security_report(sr) list~str~
         +print_security_report(sr) None
+        +security_report_to_dict(sr) dict
     }
 
     %% ===== netcross_report.sequence_view =====

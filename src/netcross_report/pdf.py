@@ -67,6 +67,14 @@ HEALTH_BADGE_COLORS = {
 }
 
 
+# Plafonds de la section securite (issue #218). Un PDF est un document
+# qu'on lit : 400 retransmissions correlees en anomalies produiraient 400
+# lignes que personne ne parcourt. On plafonne, et on ECRIT le total reel
+# sous le tableau plutot que de laisser croire a une liste exhaustive.
+MAX_SECURITY_ROWS = 40
+MAX_PDF_READABLE_LEN = 90
+
+
 def _styles():
     styles = getSampleStyleSheet()
     styles.add(ParagraphStyle("H1b", parent=styles["Heading1"], spaceBefore=18, spaceAfter=8))
@@ -591,6 +599,174 @@ def _kv_table(rows, styles, col_widths=None):
     return t
 
 
+_SEVERITY_PDF_COLORS = {
+    "critique": colors.HexColor("#7f1d1d"),
+    "elevee": colors.HexColor("#9a3412"),
+    "moyenne": colors.HexColor("#854d0e"),
+    "faible": colors.HexColor("#1e40af"),
+}
+
+
+def _securite_cible(host, port) -> str:
+    if not host:
+        return "-"
+    return f"{host}:{port}" if port is not None else str(host)
+
+
+def _securite_table_constats(items, styles, avec_cve: bool, message_vide: str):
+    """Tableau d'un lot de constats de securite, ou le message explicite
+    qu'il n'y en a pas -- jamais une section muette (issue #218)."""
+    if not items:
+        return Paragraph(message_vide, styles["Normal"])
+    entetes = ["Gravite"] + (["CVE", "CVSS"] if avec_cve else []) + ["Detail", "Service", "Cible", "Point"]
+    data = [[Paragraph(f"<b>{h}</b>", styles["Cell"]) for h in entetes]]
+    highlight = []
+    for rang, i in enumerate(items[:MAX_SECURITY_ROWS], start=1):
+        service = i.get("service") or ""
+        if service and i.get("version"):
+            service = f"{service} {i['version']}"
+        ligne = [Paragraph(i.get("severity") or "-", styles["Cell"])]
+        if avec_cve:
+            cvss = i.get("cvss")
+            ligne += [
+                Paragraph(i.get("cve_id") or "-", styles["Cell"]),
+                Paragraph("-" if cvss is None else f"{cvss}", styles["Cell"]),
+            ]
+        ligne += [
+            Paragraph(i.get("detail") or "-", styles["Cell"]),
+            Paragraph(service or "-", styles["Cell"]),
+            Paragraph(_securite_cible(i.get("host"), i.get("port")), styles["Cell"]),
+            Paragraph(i.get("point") or "-", styles["Cell"]),
+        ]
+        data.append(ligne)
+        couleur = _SEVERITY_PDF_COLORS.get(i.get("severity"))
+        if couleur is not None:
+            highlight.append((rang, couleur))
+    largeurs = (
+        [1.7 * cm, 2.6 * cm, 1.2 * cm, 5.6 * cm, 2.6 * cm, 2.6 * cm, 1.7 * cm]
+        if avec_cve
+        else [1.7 * cm, 8.4 * cm, 3.0 * cm, 2.9 * cm, 2.0 * cm]
+    )
+    return _grid_table(data, largeurs, highlight=highlight)
+
+
+def security_section_story(security_report, styles):
+    """Section "Rapport de securite" du PDF (issue #218).
+
+    Renvoie une liste vide si `security_report` est None : le PDF d'une
+    analyse ou --security-report n'a pas ete demande n'a pas a porter une
+    section de securite vide, qui laisserait croire qu'une analyse de
+    securite a eu lieu et n'a rien trouve. L'appelant (la CLI) ne passe
+    l'objet que si l'analyse a reellement tourne.
+
+    En revanche, si l'objet est fourni, TOUTES ses sections sont ecrites,
+    vides comprises, avec leur message d'absence -- c'est le manque qui a
+    produit l'issue #259 : une donnee calculee, jamais rendue.
+    """
+    if security_report is None:
+        return []
+    from netcross_report.security_report import SEVERITIES, security_report_to_dict
+
+    data = security_report_to_dict(security_report)
+    d = data["dashboard"]
+    story = [PageBreak(), Paragraph("Rapport de securite", styles["H1b"])]
+    story.append(
+        Paragraph(
+            "Detection passive : aucun paquet n'a ete emis vers les hotes listes. "
+            "Une banniere ou une empreinte peut etre forgee ; un service absent de "
+            "ce rapport n'est pas un service absent du reseau, seulement un service "
+            "qui n'a pas parle pendant la capture.",
+            styles["Small"],
+        )
+    )
+    story.append(Spacer(1, 0.3 * cm))
+
+    niveau = d["level"] or "aucun constat"
+    story.append(Paragraph("Tableau de bord", styles["H2b"]))
+    story.append(
+        _kv_table(
+            [
+                ("Score de risque", f"{d['score']}/100 (niveau : {niveau})"),
+                ("Services detectes", f"{d['services_total']} (dont {d['services_vulnerable']} vulnerable(s))"),
+                ("Tentatives d'exploitation", str(d["exploits"])),
+                ("Anomalies (Expert Info)", str(d["anomalies"])),
+                ("CVE confirmees", str(d["cves"])),
+                (
+                    "Repartition par severite",
+                    ", ".join(f"{sev}={d['by_severity'].get(sev, 0)}" for sev in SEVERITIES),
+                ),
+            ],
+            styles,
+        )
+    )
+
+    story.append(Paragraph("Services detectes", styles["H2b"]))
+    if data["services"]:
+        entetes = ["Criticite", "Service", "Cible", "Empreinte JA4/HASSH", "CVE", "Points"]
+        rows = [[Paragraph(f"<b>{h}</b>", styles["Cell"]) for h in entetes]]
+        highlight = []
+        for rang, s in enumerate(data["services"][:MAX_SECURITY_ROWS], start=1):
+            # L'empreinte et sa forme lisible (issue #259) : tronquee ici
+            # parce qu'une liste complete de ciphers deborde la colonne,
+            # mais la troncature est VISIBLE -- une troncature muette
+            # ferait croire au lecteur qu'il a la liste entiere.
+            empreinte = s.get("fingerprint") or "-"
+            lisible = s.get("fingerprint_readable")
+            if lisible:
+                if len(lisible) > MAX_PDF_READABLE_LEN:
+                    lisible = lisible[: MAX_PDF_READABLE_LEN - 3] + "..."
+                empreinte = f"{empreinte}<br/><font size=6.5 color=#6b7280>{lisible}</font>"
+            rows.append(
+                [
+                    Paragraph(s.get("severity") or "aucune CVE connue", styles["Cell"]),
+                    Paragraph(f"{s['service']} {s.get('version') or ''}".strip(), styles["Cell"]),
+                    Paragraph(_securite_cible(s.get("host"), s.get("port")), styles["Cell"]),
+                    Paragraph(empreinte, styles["Cell"]),
+                    Paragraph(", ".join(s.get("cve_ids") or []) or "-", styles["Cell"]),
+                    Paragraph(", ".join(s.get("points") or []) or "-", styles["Cell"]),
+                ]
+            )
+            couleur = _SEVERITY_PDF_COLORS.get(s.get("severity"))
+            if couleur is not None:
+                highlight.append((rang, couleur))
+        story.append(
+            _grid_table(
+                rows,
+                [2.2 * cm, 2.8 * cm, 2.6 * cm, 5.6 * cm, 2.2 * cm, 1.6 * cm],
+                highlight=highlight,
+            )
+        )
+    else:
+        story.append(Paragraph("Aucun service identifie dans cette capture.", styles["Normal"]))
+
+    for titre, cle, avec_cve, vide in (
+        ("Tentatives d'exploitation detectees", "exploits", False, "Aucune tentative d'exploitation detectee."),
+        ("Anomalies correlees (Expert Info)", "anomalies", False, "Aucune anomalie correlee."),
+        ("CVE confirmees", "cves", True, "Aucune CVE confirmee."),
+    ):
+        story.append(Paragraph(titre, styles["H2b"]))
+        story.append(_securite_table_constats(data[cle], styles, avec_cve, vide))
+
+    tronques = [
+        (cle, len(data[cle]))
+        for cle in ("services", "exploits", "anomalies", "cves")
+        if len(data[cle]) > MAX_SECURITY_ROWS
+    ]
+    if tronques:
+        # Ne jamais tronquer en silence : le lecteur doit savoir combien de
+        # lignes il ne voit pas, et ou les retrouver.
+        detail = ", ".join(f"{cle} : {total} au total" for cle, total in tronques)
+        story.append(Spacer(1, 0.2 * cm))
+        story.append(
+            Paragraph(
+                f"Tableaux limites aux {MAX_SECURITY_ROWS} premieres lignes ({detail}). "
+                "La liste complete est dans le --json-report ou le rendu HTML.",
+                styles["Small"],
+            )
+        )
+    return story
+
+
 def generate_pdf(
     r,
     output_path,
@@ -601,6 +777,7 @@ def generate_pdf(
     quic_findings=None,
     session_objects=None,
     sequence_views=None,
+    security_report=None,
 ):
     """
     r : objet Report (netcross_core.analyse). output_path : chemin du PDF.
@@ -614,6 +791,13 @@ def generate_pdf(
     "par ou commencer" en tete de rapport (memes categories/segments que les
     constats principaux -- rank_segments() est concu pour un melange des
     deux, voir netcross_report/triage.py).
+    security_report : SecurityReport optionnel (issue #218, voir
+    netcross_report.security_report.build_security_report). Si fourni, une
+    section dediee est ajoutee au PDF : tableau de bord, services avec
+    leurs empreintes JA4/HASSH, tentatives d'exploitation, anomalies et
+    CVE. Absent, le PDF ne porte AUCUNE section de securite -- une section
+    vide laisserait croire qu'une analyse de securite a eu lieu sans rien
+    trouver, alors qu'elle n'a pas tourne.
     sequence_views : liste de SequenceView optionnelle (Job 14/issue #11,
     voir netcross_report.sequence_view.top_flow_views()). Absente ou vide,
     le rapport ne contient aucune section "Sequence des echanges" -- ces
@@ -881,6 +1065,9 @@ def generate_pdf(
             if quic_findings:
                 story.append(Paragraph("QUIC / HTTP3", styles["Heading3"]))
                 story.append(_finding_table(quic_findings, styles))
+
+        # -- rapport de securite (issue #218) --
+        story.extend(security_section_story(security_report, styles))
 
         # -- expertise (objets enrichis de la Session 0, issue #13) --
         expert_story = expert_section_story(session_objects, styles)

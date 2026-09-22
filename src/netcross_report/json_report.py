@@ -245,6 +245,7 @@ def generate_json_report(
     wireshark_expert_events=None,
     rule_engine_findings=None,
     names=None,
+    security_report=None,
 ) -> str:
     """
     r : objet Report (netcross_core.analyse). output_path : chemin du
@@ -323,6 +324,21 @@ def generate_json_report(
         doc["compliance"] = [_compliance_dict(c) for c in compliance]
     if wireshark_expert_events is not None:
         doc["wireshark_expert_events"] = [_expert_event_dict(ev) for ev in wireshark_expert_events]
+    # security_report (issue #218) : SecurityReport optionnel
+    # (netcross_report.security_report.build_security_report). La cle est
+    # ecrite DANS LES DEUX CAS -- avec la raison de l'absence quand il n'y
+    # en a pas. Un consommateur doit pouvoir distinguer "pas de rapport de
+    # securite demande" de "rapport demande, rien trouve" et de "version de
+    # netcross qui ne produit pas cette cle" ; omettre la cle rendrait ces
+    # trois situations identiques. Meme regle de tracabilite que le rendu
+    # texte, qui ecrit ses sections vides.
+    if security_report is not None:
+        from netcross_report.security_report import security_report_to_dict
+
+        doc["security_report"] = security_report_to_dict(security_report)
+    else:
+        doc["security_report"] = None
+        doc["security_report_absent"] = "non demande (--security-report absent de l'appel)"
     if rule_engine_findings is not None:
         doc["rule_engine"] = {
             rule_id: [_finding_dict(f) for f in rule_list]
