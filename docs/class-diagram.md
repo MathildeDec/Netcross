@@ -11,7 +11,7 @@
 > Il remplace l'ancienne section 3 de `docs/features-backlog.md`, tenue à la main, qui avait dérivé
 > (voir `docs/sessions/session-36.md`, issue #140).
 
-99 modules · 132 classes · 290 fonctions publiques de module.
+100 modules · 132 classes · 292 fonctions publiques de module.
 
 Conventions : `+` public, `-` privé (préfixe `_`) ; `int?` = `int | None` ; `list~str~` = `list[str]` ;
 `<<module>>` regroupe les fonctions publiques d'un module ; `A --> B : champ` = `A` a un champ annoté
@@ -31,7 +31,7 @@ flowchart TD
     netcross_core["netcross_core"]
     pcap_parser["pcap_parser"]
     CLI -->|"13 imports"| netcross_report
-    CLI -->|"11 imports"| netcross_core
+    CLI -->|"12 imports"| netcross_core
     CLI -->|"1 import"| pcap_parser
     netcross_gtk4 -->|"10 imports"| netcross_report
     netcross_gtk4 -->|"18 imports"| netcross_core
@@ -372,6 +372,7 @@ classDiagram
 | `netcross_core.forensic` | index de correlation bidirectionnel evenement ↔ flow ↔ paquet (Job 8/issue #5, §6.3 et §6.14 de FEATURES.md). |
 | `netcross_core.forensic_search` | moteur de recherche analytique post-capture transversal (Job 17 / issue #16, section 6.13 de FEATURES.md). |
 | `netcross_core.live_diff` | Capture en continu + diff en direct (Job 33, issue #33). |
+| `netcross_core.logging_config` | configuration centrale du logging (issue #245). |
 | `netcross_core.models` | structures de donnees partagees : un paquet normalise (Pkt) et le resultat d'analyse consolide (Report). |
 | `netcross_core.naming` | table locale de correspondance adresse/MAC -> nom logique, type, contexte (Job 18 / issue #16-bis, section 6.15 de FEATURES.md). |
 | `netcross_core.parsing` | adaptateur entre pcap_parser (decodage via tshark -T ek) et le modele Pkt de netcross_core. |
@@ -905,6 +906,13 @@ classDiagram
     class mod_netcross_core_live_diff["netcross_core.live_diff"] {
         <<module>>
         +finding_to_alarm_signal(finding, segment) AlarmSignal
+    }
+
+    %% ===== netcross_core.logging_config =====
+    class mod_netcross_core_logging_config["netcross_core.logging_config"] {
+        <<module>>
+        +configure_logging(level) None
+        +get_logger(name)
     }
 
     %% ===== netcross_core.models =====
