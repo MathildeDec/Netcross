@@ -1286,6 +1286,25 @@ main, il n'y a plus de section « diagramme de classes » a relire dans `docs/fe
 recommiter) ; `tests/test_class_diagram.py::test_docs_class_diagram_est_a_jour` echoue si le fichier
 versionne est en retard sur le code.
 
+**tshark/editcap/capinfos en CI et en session (issues #261 et #262)** :
+jusqu'à la Session 68, ces binaires n'étaient installés dans AUCUN
+environnement de développement du projet ni en CI. Toute la suite
+`@requires_tshark` / `@requires_editcap` était donc **sautée**, et deux
+bugs bien réels ont survécu des mois à une CI verte : `export_filtered()`
+combinait `-f` avec `-r` (interdit par tshark, donc tout `bpf_filter`
+levait `TsharkError`) et ni `export_filtered()` ni `adjust_timestamps()`
+ne passaient `-F`, si bien qu'un `path_out` en `.pcap` contenait en
+réalité du pcapng. Le workflow `ci.yml` installe désormais `tshark`
+(étape « Installation de Wireshark CLI ») **et vérifie qu'aucun test ne
+reste sauté pour cette raison** : un test sauté est une vérification qui
+n'a pas eu lieu, pas un succès. En local : `sudo apt-get install -y
+tshark` (répondre « non » à la question sur les droits de capture, ou
+pré-répondre via `debconf-set-selections` comme le fait la CI).
+
+Leçon à généraliser : un `skipif` sur la disponibilité d'un outil externe
+ne protège le code que si l'outil est présent **quelque part**. Sinon il
+convertit silencieusement une absence de test en test vert.
+
 **Outils disponibles en session** : le connecteur MCP Context7 est
 accessible dans cet environnement (`mcp__Context7__resolve-library-id`
 / `mcp__Context7__query-docs`) — noté à la demande explicite en

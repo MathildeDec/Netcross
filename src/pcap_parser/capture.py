@@ -44,6 +44,8 @@ from collections.abc import Iterator, Sequence
 from dataclasses import dataclass
 from pathlib import Path
 
+from loguru import logger
+
 from pcap_parser.capfile import detect_format, first_timestamp, format_extension, has_packets, split_by_size
 from pcap_parser.ek_source import TsharkError, TsharkNotFoundError, iter_ek_records
 from pcap_parser.packet import RawPacket, build_packet
@@ -794,15 +796,23 @@ def _build_display_filter(
     time_start: float | None = None,
     time_end: float | None = None,
     endpoints: list[str] | None = None,
+    expression: str | None = None,
 ) -> str | None:
-    """Construit un filtre d'affichage tshark (-Y) pour les criteres
-    temporels et d'endpoints. Renvoie None si aucun critere n'est fourni.
+    """Construit un filtre d'affichage tshark (-Y) combinant tous les
+    criteres d'export. Renvoie None si aucun critere n'est fourni.
 
     time_start/time_end : secondes relatives au premier paquet de la
     capture (frame.time_relative).
     endpoints : liste d'adresses IP a inclure (ip.addr == X).
+    expression : filtre d'affichage libre fourni par l'appelant. Il
+    atterrit ici, et non dans `-f`, parce que tshark interdit un filtre
+    de capture en relecture de fichier (issue #261). Il est parenthese
+    pour que ses eventuels `||` ne se combinent pas de travers avec le
+    `&&` qui l'enchaine aux autres criteres.
     """
     parts: list[str] = []
+    if expression and expression.strip():
+        parts.append(f"({expression.strip()})")
     if time_start is not None:
         parts.append(f"frame.time_relative >= {float(time_start):.6f}")
     if time_end is not None:
@@ -812,6 +822,91 @@ def _build_display_filter(
         endpoint_filters = " || ".join(f"ip.addr == {ip}" for ip in endpoints)
         parts.append(f"({endpoint_filters})")
     return " && ".join(parts) if parts else None
+
+
+# -- format de sortie (issues #261 et #262) -----------------------------------
+
+# Extensions qui designent le format pcap CLASSIQUE. Tout le reste est
+# traite comme du pcapng, defaut de Wireshark depuis la version 1.8.
+_PCAP_EXTENSIONS = frozenset((".pcap", ".cap", ".dmp"))
+
+
+def _format_from_extension(path_out: str) -> str:
+    """Deduit le nom de format tshark/editcap (-F) de l'extension de
+    `path_out` : "pcap" pour les extensions du pcap classique, "pcapng"
+    sinon.
+
+    Pourquoi c'est necessaire (issue #262) : tshark et editcap IGNORENT
+    completement l'extension du fichier de sortie et ecrivent du pcapng
+    par defaut. Sans `-F`, un `path_out` nomme `.pcap` contient en realite
+    du pcapng (magic 0x0A0D0D0A) -- invisible pour les outils Wireshark
+    qui auto-detectent le format, mais cassant pour tout lecteur qui fait
+    confiance a l'extension. La docstring d'origine d'export_filtered
+    promettait cette deduction ; elle n'etait jamais appliquee.
+    """
+    return "pcap" if os.path.splitext(path_out)[1].lower() in _PCAP_EXTENSIONS else "pcapng"
+
+
+def _output_format_args(path_out: str) -> list[str]:
+    """Renvoie `["-F", <format>]` deduit de l'extension de `path_out`.
+
+    Les deux noms produits (`pcap`, `pcapng`) sont codes en dur plutot
+    qu'obtenus via `tshark -F` / `editcap -F`. L'issue #262 demandait de
+    ne pas coder en dur "si la liste peut varier selon la version" :
+    elle varie effectivement pour les formats optionnels (ERF, BLF,
+    btsnoop...), mais pas pour ces deux-la, qui sont le coeur de wiretap
+    et presents dans toute construction de Wireshark. L'hypothese est
+    verifiee par un test reel (`test_pcap_et_pcapng_sont_bien_supportes`)
+    qui interroge les outils installes : si une version les retirait un
+    jour, la suite echouerait au lieu de se degrader en silence.
+
+    Interroger l'outil a chaque export a ete essaye puis abandonne : cela
+    ajoutait un sous-processus par appel, et un cache du resultat rendait
+    le comportement dependant de l'ordre des tests.
+    """
+    voulu = _format_from_extension(path_out)
+    logger.debug("format de sortie {} impose pour {} (deduit de l'extension)", voulu, path_out)
+    return ["-F", voulu]
+
+
+# Mots-cles de la syntaxe BPF/tcpdump qui n'existent pas en filtre
+# d'affichage Wireshark. Leur presence signale presque a coup sur un
+# appelant qui a pris le nom `bpf_filter` au pied de la lettre.
+_BPF_ONLY_TOKENS = (
+    "port ",
+    "portrange ",
+    "host ",
+    "net ",
+    "src ",
+    "dst ",
+    "ether ",
+    "gateway ",
+    "proto ",
+    "less ",
+    "greater ",
+)
+
+
+def _verifier_filtre_affichage(expr: str) -> None:
+    """Leve ValueError si `expr` ressemble a de la syntaxe BPF/tcpdump.
+
+    Sans ce garde-fou, tshark rejette l'expression avec un message de
+    parseur peu parlant. Or l'erreur est previsible : le parametre
+    s'appelle historiquement `bpf_filter` alors qu'il attend desormais un
+    filtre d'AFFICHAGE (issue #261). Autant le dire clairement, en
+    donnant la traduction attendue.
+    """
+    bas = f"{expr.strip().lower()} "
+    for token in _BPF_ONLY_TOKENS:
+        if bas.startswith(token) or f" {token}" in bas:
+            raise ValueError(
+                f"filtre {expr!r} : syntaxe BPF/tcpdump detectee (mot-cle {token.strip()!r}), "
+                "alors qu'un filtre d'AFFICHAGE Wireshark est attendu. "
+                "tshark ne peut appliquer un vrai filtre BPF qu'en capture live (-i), "
+                "jamais en relecture de fichier (-r). "
+                "Traduisez, par exemple : 'tcp port 80' -> 'tcp.port == 80', "
+                "'host 10.0.0.1' -> 'ip.addr == 10.0.0.1', 'src net 10.0.0.0/8' -> 'ip.src == 10.0.0.0/8'."
+            )
 
 
 def export_filtered(
@@ -824,22 +919,32 @@ def export_filtered(
 ) -> None:
     """
     Exporte un sous-ensemble de la capture `path_in` vers `path_out`,
-    filtre par criteres combinables : BPF (capture filter), plage
-    temporelle (secondes relatives au premier paquet) et/ou endpoints
-    (adresses IP a inclure).
+    filtre par criteres combinables : expression libre (`bpf_filter`),
+    plage temporelle (secondes relatives au premier paquet) et/ou
+    endpoints (adresses IP a inclure).
+
+    ATTENTION au nom du parametre `bpf_filter` : malgre son nom, il attend
+    un filtre d'AFFICHAGE Wireshark (`tcp.port == 80`), pas une expression
+    BPF/tcpdump (`tcp port 80`). Ce n'est pas un choix de confort : tshark
+    refuse categoriquement `-f` (filtre de capture) combine a `-r`
+    (relecture de fichier) -- "Only read filters, not capture filters, can
+    be specified when reading a capture file". Le critere est donc replie
+    dans `-Y` avec les autres (issue #261). Le nom est conserve pour ne
+    pas casser les appelants existants, et une expression manifestement
+    BPF leve un ValueError explicite qui donne la traduction attendue.
 
     Le format de sortie (pcap ou pcapng) est deduit de l'extension de
-    `path_out` (`.pcap` -> pcap classique, sinon pcapng). Aucun outil
-    externe autre que tshark (deja requis par le reste du projet) :
-    utilise `tshark -r in -w out -f "bpf" -Y "display_filter"`.
+    `path_out` (`.pcap`/`.cap`/`.dmp` -> pcap classique, sinon pcapng)
+    et impose via `-F`. Sans cela tshark ecrit du pcapng quelle que soit
+    l'extension demandee (issue #262).
 
-    BPF et filtre d'affichage sont combines : un paquet doit passer les
-    DEUX pour etre ecrit. Si aucun critere n'est fourni, la capture
-    entiere est recopiee (utile pour convertir de format).
+    Tous les criteres sont combines en ET : un paquet doit les passer TOUS
+    pour etre ecrit. Si aucun critere n'est fourni, la capture entiere est
+    recopiee (utile pour convertir de format).
 
     Leve FileNotFoundError (capture absente), TsharkNotFoundError (tshark
     absent du PATH), TsharkError (echec de tshark), ou ValueError
-    (endpoints vides, time_start > time_end).
+    (endpoints vides, time_start > time_end, filtre en syntaxe BPF).
     """
     if not os.path.isfile(path_in):
         raise FileNotFoundError(f"capture introuvable : {path_in}")
@@ -847,16 +952,18 @@ def export_filtered(
         raise ValueError("endpoints ne peut pas etre une liste vide (utilisez None pour ignorer ce critere)")
     if time_start is not None and time_end is not None and float(time_start) > float(time_end):
         raise ValueError(f"time_start ({time_start}) > time_end ({time_end})")
+    if bpf_filter:
+        _verifier_filtre_affichage(bpf_filter)
 
     from pcap_parser.ek_source import _tshark_path
 
     tshark = _tshark_path()
     args: list[str] = [tshark, "-r", path_in, "-w", path_out]
-    if bpf_filter:
-        args += ["-f", bpf_filter]
-    display_filter = _build_display_filter(time_start, time_end, endpoints)
+    args += _output_format_args(path_out)
+    display_filter = _build_display_filter(time_start, time_end, endpoints, bpf_filter)
     if display_filter:
         args += ["-Y", display_filter]
+    logger.debug("export filtre : {} -> {} (filtre d'affichage : {})", path_in, path_out, display_filter or "aucun")
 
     proc = subprocess.run(args, capture_output=True, text=True, check=False)
     if proc.returncode != 0:
@@ -914,7 +1021,9 @@ def adjust_timestamps(
 
     # editcap -t SECONDS : decale tous les timestamps
     editcap = _wireshark_tool_path("editcap")
-    args = [editcap, "-t", repr(float(actual_offset)), path_in, path_out]
+    # -F deduit de l'extension : editcap ecrit du pcapng par defaut, quel
+    # que soit le nom du fichier de sortie (issue #262).
+    args = [editcap, *_output_format_args(path_out), "-t", repr(float(actual_offset)), path_in, path_out]
     _run_wireshark_tool(args)
 
 

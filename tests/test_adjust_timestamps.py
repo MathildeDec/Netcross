@@ -277,10 +277,19 @@ def test_reel_offset_plus_10s(tmp_path):
     assert os.path.isfile(out)
     _, packets = read_pcap(out)
     assert len(packets) == 5
-    # synthetic_packets : ts de 0, 0.1, 0.2, 0.3, 0.4
-    # apres +10s : 10.0, 10.1, 10.2, 10.3, 10.4
+    # synthetic_packets demarre a l'epoch 1_700_000_000 (pas a zero :
+    # l'ancien commentaire de ce test l'affirmait a tort, et l'assertion
+    # qui en decoulait n'avait jamais pu etre executee faute d'editcap).
+    # On compare donc au premier timestamp de la SOURCE plutot qu'a une
+    # constante, pour que le test survive a un changement de base.
+    _, sources = read_pcap(src)
+    src_first = sources[0][0] + sources[0][1] / 1e6
     first_ts = packets[0][0] + packets[0][1] / 1e6
-    assert first_ts == pytest.approx(10.0, abs=0.01)
+    assert first_ts == pytest.approx(src_first + 10.0, abs=0.01)
+    # L'ecart entre paquets doit etre preserve : un offset decale, il ne
+    # reechelonne pas.
+    second_ts = packets[1][0] + packets[1][1] / 1e6
+    assert second_ts - first_ts == pytest.approx(0.1, abs=0.01)
 
 
 @requires_editcap
@@ -315,3 +324,25 @@ def test_reel_align_to(tmp_path):
     out_ts = first_timestamp(str(out))
     ref_ts = first_timestamp(str(ref))
     assert out_ts == pytest.approx(ref_ts, abs=0.01)
+
+
+@requires_editcap
+def test_reel_extension_pcap_produit_vraiment_du_pcap(tmp_path):
+    """Issue #262 : editcap aussi ecrivait du pcapng vers un .pcap."""
+    from pcap_parser.capture import adjust_timestamps
+
+    src = tmp_path / "cap.pcap"
+    write_pcap(src, synthetic_packets(5))
+
+    out_pcap = tmp_path / "out.pcap"
+    adjust_timestamps(str(src), str(out_pcap), offset_seconds=1.0)
+    with open(out_pcap, "rb") as fh:
+        magic = fh.read(4)
+    assert magic in {b"\xd4\xc3\xb2\xa1", b"\xa1\xb2\xc3\xd4", b"\x4d\x3c\xb2\xa1", b"\xa1\xb2\x3c\x4d"}, (
+        "extension .pcap mais contenu pcapng (bug #262)"
+    )
+
+    out_pcapng = tmp_path / "out.pcapng"
+    adjust_timestamps(str(src), str(out_pcapng), offset_seconds=1.0)
+    with open(out_pcapng, "rb") as fh:
+        assert fh.read(4) == b"\x0a\x0d\x0d\x0a"

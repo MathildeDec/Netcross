@@ -7,6 +7,17 @@ et le projet adhère au [SemVer](https://semver.org/lang/fr/).
 
 ## [Unreleased]
 
+### Corrigé
+- `export_filtered()` : `bpf_filter` est replié dans le filtre d'affichage
+  `-Y` au lieu de `-f`, que tshark refuse en relecture de fichier — tout
+  appel avec ce paramètre échouait systématiquement (#261)
+- `export_filtered()` et `adjust_timestamps()` imposent `-F pcap`/`-F pcapng`
+  selon l'extension de sortie : sans cela tshark et editcap écrivaient du
+  pcapng dans un fichier nommé `.pcap` (#262)
+- CI : `tshark`/`editcap` sont installés et la CI échoue si un test
+  `@requires_tshark` reste sauté — 6 tests n'avaient jamais pu s'exécuter (#262)
+- 3 assertions de test erronées, révélées par leur première exécution réelle
+
 ### Ajouté
 - Dockerfile et .dockerignore pour déploiement conteneurisé (#170)
 - CONTRIBUTING.md — guide de contribution (#170)
