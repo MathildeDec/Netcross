@@ -11,7 +11,7 @@
 > Il remplace l'ancienne section 3 de `docs/features-backlog.md`, tenue à la main, qui avait dérivé
 > (voir `docs/sessions/session-36.md`, issue #140).
 
-97 modules · 126 classes · 285 fonctions publiques de module.
+97 modules · 126 classes · 288 fonctions publiques de module.
 
 Conventions : `+` public, `-` privé (préfixe `_`) ; `int?` = `int | None` ; `list~str~` = `list[str]` ;
 `<<module>>` regroupe les fonctions publiques d'un module ; `A --> B : champ` = `A` a un champ annoté
@@ -192,6 +192,9 @@ classDiagram
         +iter_live_multi(interfaces, stop_event, bpf_filter) Iterator~tuple~str, RawPacket~~
         +export_filtered(path_in, path_out, bpf_filter, time_start, time_end, endpoints) None
         +adjust_timestamps(path_in, path_out, offset_seconds, normalize, align_to) None
+        +convert_capture(path_in, path_out, fmt) None
+        +export_csv(path_in, path_out) None
+        +export_json(path_in, path_out) None
     }
 
     %% ===== pcap_parser.ek_fields =====
