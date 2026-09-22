@@ -308,9 +308,18 @@ def _texte_pdf(chemin) -> str:
     jamais la mise en page -- fragile et sans valeur -- mais le fait que
     la donnee arrive.
     """
-    proc = subprocess.run(["pdftotext", str(chemin), "-"], capture_output=True, text=True)
+    try:
+        proc = subprocess.run(["pdftotext", str(chemin), "-"], capture_output=True, text=True)
+    except FileNotFoundError:
+        # Message normalise : le workflow ci.yml echoue si cette chaine
+        # apparait dans la sortie de pytest (meme garde-fou que pour
+        # tshark/editcap, issue #262). La CI installe poppler-utils, donc
+        # un saut ici signifierait que la seule verification regardant le
+        # fichier PDF livre a disparu sans bruit -- exactement le silence
+        # qui a laisse passer l'issue #259.
+        pytest.skip("pdftotext non installe : contenu du PDF non verifiable")
     if proc.returncode != 0:
-        pytest.skip("pdftotext indisponible : contenu du PDF non verifiable")
+        pytest.skip(f"pdftotext non installe correctement (code {proc.returncode}) : contenu du PDF non verifiable")
     return proc.stdout
 
 
