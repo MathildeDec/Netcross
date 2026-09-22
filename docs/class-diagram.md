@@ -11,7 +11,7 @@
 > Il remplace l'ancienne section 3 de `docs/features-backlog.md`, tenue à la main, qui avait dérivé
 > (voir `docs/sessions/session-36.md`, issue #140).
 
-113 modules · 156 classes · 319 fonctions publiques de module.
+115 modules · 161 classes · 322 fonctions publiques de module.
 
 Conventions : `+` public, `-` privé (préfixe `_`) ; `int?` = `int | None` ; `list~str~` = `list[str]` ;
 `<<module>>` regroupe les fonctions publiques d'un module ; `A --> B : champ` = `A` a un champ annoté
@@ -37,7 +37,7 @@ flowchart TD
     netcross_gtk4 -->|"10 imports"| netcross_report
     netcross_gtk4 -->|"18 imports"| netcross_core
     netcross_api -->|"3 imports"| netcross_core
-    netcross_report -->|"11 imports"| netcross_core
+    netcross_report -->|"12 imports"| netcross_core
     netcross_core -->|"15 imports"| pcap_parser
 ```
 
@@ -374,6 +374,7 @@ classDiagram
 | `netcross_core.causality` | moteur de correlation causale (Session 3 de la section 13.3 de FEATURES.md, Job 4/issue #4). |
 | `netcross_core.client_diff` | comparaison "client vs client" : meme capture, memes points, seule la source (l'IP du poste) change. |
 | `netcross_core.compliance` | evaluateur de conformite, huitieme et neuvieme objets de contrat de la Session 0 (FEATURES.md section 13.3) : `ReferenceProfile`/`ComplianceResult` (netcross_core.expert_model). |
+| `netcross_core.config` | chargement de configuration depuis .netcross.toml (issue #170). |
 | `netcross_core.content` | Extraction des objets applicatifs HTTP/1.x sans conservation du corps. |
 | `netcross_core.correlate` | correlation des paquets entre points de capture (par 5-tuple strict ou par hash de payload en mode NAT-tolerant) et calcul du debit par fenetre temporelle. |
 | `netcross_core.expert_model` | objets de contrat partages entre netcross_core et netcross_report ("Session 0" de FEATURES.md section 13.3 : stabiliser les objets communs avant de batir le moteur d'expertise vise par la comparaison… |
@@ -536,6 +537,41 @@ classDiagram
     class mod_netcross_core_compliance["netcross_core.compliance"] {
         <<module>>
         +evaluate_compliance(report, references) list~ComplianceResult~
+    }
+
+    %% ===== netcross_core.config =====
+    class AnalysisConfig {
+        <<dataclass>>
+        +list~str~ points_order
+        +float bucket_seconds
+        +int rtp_clock_rate
+    }
+    class OutputConfig {
+        <<dataclass>>
+        +str format
+        +str output_path
+        +str json_report
+        +str security_report
+    }
+    class SecurityConfig {
+        <<dataclass>>
+        +bool enable
+    }
+    class ParallelConfig {
+        <<dataclass>>
+        +int workers
+    }
+    class NetcrossConfig {
+        <<dataclass>>
+        +AnalysisConfig analysis
+        +OutputConfig output
+        +SecurityConfig security
+        +ParallelConfig parallel
+        +str? source_path
+    }
+    class mod_netcross_core_config["netcross_core.config"] {
+        <<module>>
+        +load_config(config_path) NetcrossConfig
     }
 
     %% ===== netcross_core.content =====
@@ -1406,6 +1442,10 @@ classDiagram
     ClientReport --> ClientSignature : signature
     ClientReport --> Report : report
     ClientComparisonResult --> ClientReport : clients
+    NetcrossConfig --> AnalysisConfig : analysis
+    NetcrossConfig --> OutputConfig : output
+    NetcrossConfig --> ParallelConfig : parallel
+    NetcrossConfig --> SecurityConfig : security
     EvidenceLink --> PacketEvidence : packet
     ExpertEvent --> EvidenceLink : evidence
     ExpertEvent --> PacketEvidence : packet_evidence
@@ -2350,6 +2390,7 @@ classDiagram
 | `netcross_report.security_report` | rapport de securite consolide et tableau de bord (CVE-5, issue #139, parent #133). |
 | `netcross_report.sequence_view` | diagramme de sequence multi-hotes (Job 14/issue #11, FEATURES.md section 6.5). |
 | `netcross_report.session_objects` | construction et rendu CONSOLE des objets de contrat de la Session 0 (Job 4/issue #13). |
+| `netcross_report.siem_export` | export des constats de sécurité au format CEF (Common Event Format) pour intégration SIEM (issue #170). |
 | `netcross_report.synthesis` | transforme un Report en une liste de constats (Finding) via des regles et seuils explicites. |
 | `netcross_report.triage` | agrege les Finding (ou DiffFinding) produits par ailleurs pour repondre a une question que synthesis.py ne pose pas : "par ou je commence a regarder ?" |
 
@@ -2635,6 +2676,13 @@ classDiagram
         +build_session_objects(report, findings, flows, all_packets, wireshark_expert_events) SessionObjects
         +format_session_objects(objs, top_n) list~str~
         +print_session_objects(objs, top_n) None
+    }
+
+    %% ===== netcross_report.siem_export =====
+    class mod_netcross_report_siem_export["netcross_report.siem_export"] {
+        <<module>>
+        +export_cef(report) list~str~
+        +write_cef(report, output_path) str
     }
 
     %% ===== netcross_report.synthesis =====
