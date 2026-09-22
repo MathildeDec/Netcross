@@ -71,6 +71,7 @@ from netcross_core.baseline_diff import diff_reports, print_diff_report, write_d
 from netcross_core.bpf_filters import PREDEFINED_BPF_FILTERS, available_bpf_filters, upsert_bpf_filter  # noqa: E402
 from netcross_core.forensic import DEFAULT_DUPLICATE_THRESHOLD_MS, detect_cross_capture_duplicates  # noqa: E402
 from netcross_core.models import BPFFilter  # noqa: E402
+from netcross_gtk4 import row_labels  # noqa: E402
 from netcross_gtk4.dashboard_context import (  # noqa: E402
     DashboardSelection,
     build_dashboard_snapshot,
@@ -117,60 +118,6 @@ def _visible_scroller(vexpand=True):
 # Chaque paire (label, cle) : le label alimente le bouton cliquable, la cle
 # est remontee a _dashboard_select pour piloter le contexte partage.
 # Separes des methodes MainWindow pour rester testables sans instancier GTK.
-
-
-def _timeline_row_label(row):
-    return f"{row['label']} — {row['loss_events']} perte(s)"
-
-
-def _timeline_row_key(row):
-    return row["bucket"]
-
-
-def _segment_row_label(row):
-    lat = f", latence {row['latency_ms']} ms" if row["latency_ms"] is not None else ""
-    return f"{row['pair']} — {row['loss']} perte(s), {row['retrans']} retrans{lat}"
-
-
-def _segment_row_key(row):
-    return row["pair_tuple"][0]
-
-
-def _flow_row_label(row):
-    return f"{row['label']} — {row['packets']} paquets, {row['bytes']} octets"
-
-
-def _flow_row_key(row):
-    return row["flow_key"]
-
-
-def _endpoint_row_label(row):
-    peers = ", ".join(row["peers"]) or "?"
-    return f"{row['endpoint']} <-> {peers} — {row['flows']} flux, {row['packets']} paquets"
-
-
-def _endpoint_row_key(row):
-    return row["endpoint"]
-
-
-def _proto_row_label(row):
-    return f"{row['protocol']} — {row['flows']} flux, {row['packets']} paquets"
-
-
-def _proto_row_key(row):
-    return row["protocol"]
-
-
-def _event_row_label(row):
-    cat = row["category"] or "?"
-    sev = row["severity"] or "?"
-    proto = f" [{row['protocol']}]" if row["protocol"] else ""
-    msg = row["message"] or ""
-    return f"#{row['id']} {cat} ({sev}){proto} — {msg}"
-
-
-def _event_row_key(row):
-    return row["id"]
 
 
 class CaptureRow(Gtk.Box):
@@ -2307,12 +2254,12 @@ class MainWindow(Gtk.ApplicationWindow):
         self._dashboard_clear_sections()
         box = self.dashboard_sections_box
         sections = [
-            ("Timeline", snap.timeline_rows, "bucket", _timeline_row_label, _timeline_row_key),
-            ("Segments", snap.segment_rows, "point", _segment_row_label, _segment_row_key),
-            ("Flows", snap.flow_rows, "flow", _flow_row_label, _flow_row_key),
-            ("Endpoints", snap.endpoint_rows, "endpoint", _endpoint_row_label, _endpoint_row_key),
-            ("Protocoles", snap.protocol_rows, "protocol", _proto_row_label, _proto_row_key),
-            ("Evenements", snap.event_rows, "event", _event_row_label, _event_row_key),
+            ("Timeline", snap.timeline_rows, "bucket", row_labels.timeline_row_label, row_labels.timeline_row_key),
+            ("Segments", snap.segment_rows, "point", row_labels.segment_row_label, row_labels.segment_row_key),
+            ("Flows", snap.flow_rows, "flow", row_labels.flow_row_label, row_labels.flow_row_key),
+            ("Endpoints", snap.endpoint_rows, "endpoint", row_labels.endpoint_row_label, row_labels.endpoint_row_key),
+            ("Protocoles", snap.protocol_rows, "protocol", row_labels.proto_row_label, row_labels.proto_row_key),
+            ("Evenements", snap.event_rows, "event", row_labels.event_row_label, row_labels.event_row_key),
         ]
         for title, rows, kind, label_fn, key_fn in sections:
             frame = Gtk.Frame(label=f"{title} ({len(rows)})")

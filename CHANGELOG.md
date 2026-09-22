@@ -8,6 +8,10 @@ et le projet adhère au [SemVer](https://semver.org/lang/fr/).
 ## [Unreleased]
 
 ### Ajouté
+- `netcross_gtk4/row_labels.py` — les douze fonctions de libellé et de clé de
+  tri des lignes de la GUI, sorties de `app.py` pour devenir testables :
+  elles étaient à 0 % non par difficulté mais parce que leur fichier
+  `import gi` en tête, intestable en CI (#285, premier lot)
 - Le rapport de sécurité alimente désormais le JSON (`security_report`), le
   PDF (section dédiée) et un nouveau rendu HTML autonome `--security-html` —
   il n'existait qu'en sortie texte (#218)
