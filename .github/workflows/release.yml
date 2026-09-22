@@ -1,0 +1,85 @@
+# .github/workflows/release.yml -- CD : construction et publication des
+# paquets .deb et .rpm (issue #253).
+#
+# Declenche sur tag v* (ex: v1.0.1) : construit les paquets via les
+# scripts existants (build-deb/build.sh, build-rpm/build.sh) et les
+# attache a la release GitHub correspondante.
+#
+# Les paquets sont aussi telechargeables en artefact depuis l'onglet
+# Actions (sans attendre une release) -- utile pour tester un build
+# sans taguer.
+
+name: Release
+
+"on":
+  push:
+    tags:
+      - "v*"
+  workflow_dispatch:
+    inputs:
+      version:
+        description: "Version a construire (ex: 1.0.0)"
+        required: false
+        type: string
+
+permissions:
+  contents: write  # pour attacher les artefacts a la release GitHub
+
+jobs:
+  build-deb:
+    name: Paquet .deb (Ubuntu/Debian)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout du depot
+        uses: actions/checkout@v7
+
+      - name: Installation des dependances de build
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq debhelper dpkg-dev
+
+      - name: Construction du paquet .deb
+        run: ./build-deb/build.sh
+
+      - name: Upload de l'artefact
+        uses: actions/upload-artifact@v4
+        with:
+          name: netcross-deb
+          path: build-deb/dist/*.deb
+
+      - name: Attache a la release GitHub (si tag)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@c062e08bd532815e2082a85da87aa8ebc0c92d83  # v2
+        with:
+          files: build-deb/dist/*.deb
+          generate_release_notes: true
+
+  build-rpm:
+    name: Paquet .rpm (RHEL/Rocky)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout du depot
+        uses: actions/checkout@v7
+
+      - name: Installation des dependances de build
+        run: |
+          sudo apt-get update -qq
+          sudo apt-get install -y -qq rpm
+
+      - name: Construction du paquet .rpm
+        run: ./build-rpm/build.sh
+
+      - name: Upload de l'artefact
+        uses: actions/upload-artifact@v4
+        with:
+          name: netcross-rpm
+          path: build-rpm/dist/*.rpm
+
+      - name: Attache a la release GitHub (si tag)
+        if: startsWith(github.ref, 'refs/tags/v')
+        uses: softprops/action-gh-release@c062e08bd532815e2082a85da87aa8ebc0c92d83  # v2
+        with:
+          files: build-rpm/dist/*.rpm
+          generate_release_notes: true
