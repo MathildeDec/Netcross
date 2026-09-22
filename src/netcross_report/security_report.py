@@ -90,7 +90,14 @@ class SecurityItem:
 
 @dataclass(slots=True)
 class ServiceEntry:
-    """Un service detecte, avec sa criticite (None si aucune CVE connue)."""
+    """Un service detecte, avec sa criticite (None si aucune CVE connue).
+
+    `fingerprint`/`banner` (issue #259, regression sur #143) : valeur
+    d'empreinte opaque (JA4/HASSH -- voir `netcross_core.fingerprint`) et
+    sa forme lisible, quand le fingerprint amont en fournit une. None
+    pour un service identifie par simple banniere (CVE-1, #135), qui n'a
+    pas cette notion -- `banner` porte alors deja le texte source complet
+    et n'a pas besoin d'un champ separe."""
 
     service: str
     version: str | None = None
@@ -99,6 +106,8 @@ class ServiceEntry:
     points: list[str] = field(default_factory=list)
     severity: str | None = None
     cve_ids: list[str] = field(default_factory=list)
+    fingerprint: str | None = None
+    banner: str | None = None
 
     @property
     def vulnerable(self) -> bool:
@@ -234,6 +243,15 @@ def _build_services(fingerprints, cves: list[SecurityItem]) -> list[ServiceEntry
         point = _opt_str(raw.get("point"))
         if point is not None and point not in entry.points:
             entry.points.append(point)
+        # Premiere empreinte/banniere non vide gardee : plusieurs entrees
+        # brutes peuvent partager le meme (host, port, service, version)
+        # -- ex. deux negociations TLS distinctes du meme outil, meme
+        # tool-name -- sans que ce soit une regression pour l'analyste,
+        # qui voit deja l'ensemble des points via `points` ci-dessus.
+        if entry.fingerprint is None and raw.get("fingerprint"):
+            entry.fingerprint = _opt_str(raw.get("fingerprint"))
+        if entry.banner is None and raw.get("banner"):
+            entry.banner = _opt_str(raw.get("banner"))
 
     for entry in merged.values():
         matching = [c for c in cves if _cve_matches_service(c, entry)]
@@ -314,7 +332,15 @@ def _format_service(entry: ServiceEntry) -> str:
     label = _service_label(entry.service, entry.version)
     target = _target(entry.host, entry.port)
     line = f"  {tag} {label}" + (f" @ {target}" if target else "")
-    if entry.cve_ids:
+    # Empreinte JA4/HASSH (issue #259, regression sur #143) : le hash et
+    # sa forme lisible sont le seul contenu utile d'une entree "TLS/JA4"
+    # ou "SSH/HASSH" -- sans eux la ligne ne dit rien de plus que "une
+    # negociation TLS/SSH a eu lieu ici".
+    if entry.fingerprint:
+        line += f" -- {entry.fingerprint}"
+        if entry.banner:
+            line += f" ({entry.banner})"
+    elif entry.cve_ids:
         line += " -- " + ", ".join(entry.cve_ids)
     elif entry.vulnerable:
         line += " -- CVE non identifiee"
