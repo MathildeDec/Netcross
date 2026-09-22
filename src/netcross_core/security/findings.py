@@ -53,6 +53,7 @@ from netcross_core.models import Pkt, Report
 from netcross_core.security import correlate_banner
 from netcross_core.security.beaconing import detect_beaconing
 from netcross_core.security.dns_tunnel import detect_dns_tunneling
+from netcross_core.security.lateral_movement import detect_lateral_movement
 from netcross_core.security.protocol_mismatch import (
     count_protocol_mismatches,
     detect_protocol_mismatches,
@@ -246,6 +247,39 @@ def beaconing_findings(suspicions: Iterable[dict]) -> list[dict[str, Any]]:
     return findings
 
 
+# -- SCENARIO-3 : mouvements lateraux ---------------------------------------
+
+
+def lateral_movement_findings(events: list[dict]) -> list[dict[str, Any]]:
+    """Un constat `anomalie` par evenement de mouvement lateral detecte.
+    La severite depend du type : brute_force = elevee, port_scan et
+    host_scan = moyenne, unusual_protocol et new_connection = faible.
+    Un mouvement lateral reste un INDICE a confirmer (un scan peut etre
+    un audit legitime), jamais une compromission averee."""
+    severity_map = {
+        "brute_force": "elevee",
+        "port_scan": "moyenne",
+        "host_scan": "moyenne",
+        "unusual_protocol": "faible",
+        "new_connection": "faible",
+    }
+    findings: list[dict[str, Any]] = []
+    for ev in events:
+        ev_type = ev.get("type", "unknown")
+        findings.append(
+            {
+                "severity": severity_map.get(ev_type, "faible"),
+                "category": "anomalie",
+                "detail": (
+                    f"mouvement lateral ({ev_type}) : {ev.get('details', '?')} "
+                    f"-- source {ev.get('source', '?')}, score {ev.get('score', 0.0)}"
+                ),
+                "point": ev.get("point") or None,
+            }
+        )
+    return findings
+
+
 # -- CVE-4 : correlation version -> CVE -------------------------------------
 
 
@@ -319,12 +353,28 @@ def apply_security_findings(
     report.protocol_mismatches = count_protocol_mismatches(all_packets)
     report.protocol_mismatch_details = protocol_mismatch_details
 
+    # SCENARIO-3 (#149) : mouvements lateraux (scans, brute force, protocoles
+    # inhabituels, nouvelles connexions) -- detectes depuis les champs Pkt.
+    lateral_result = detect_lateral_movement(all_packets)
+    report.lateral_movement_events = [
+        {
+            "point": ev.point,
+            "source": ev.source,
+            "type": ev.event_type,
+            "details": ev.details,
+            "score": ev.score,
+            "targets": ev.targets,
+        }
+        for ev in lateral_result.events
+    ]
+
     findings = (
         exploit_findings(detections)
         + anomaly_findings(report.exploit_suspicion_flows)
         + dns_tunnel_findings(detect_dns_tunneling(all_packets).suspicions)
         + beaconing_findings(detect_beaconing(all_packets).suspicions)
         + protocol_mismatch_findings(protocol_mismatch_details)
+        + lateral_movement_findings(report.lateral_movement_events)
     )
     if cve_conn is not None:
         findings += cve_findings(report.service_fingerprints, cve_conn)
