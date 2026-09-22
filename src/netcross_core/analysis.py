@@ -23,6 +23,7 @@ from netcross_core.forensic import detect_sequence_gaps
 from netcross_core.models import Pkt, Report
 from netcross_core.parsing import compute_mos
 from netcross_core.security.expert_correlation import apply_expert_correlation
+from netcross_core.security.lateral_movement import apply_lateral_movement
 
 
 def analyse(
@@ -291,6 +292,10 @@ def analyse(
     # Alertes Expert Info applicatives + sequences TCP anormales -> suspicions
     # fuzzing/overflow/dos (issue #137).
     apply_expert_correlation(r, all_packets)
+    # Mouvements lateraux internes (scans, brute force, protocoles
+    # d'administration inhabituels, nouvelles connexions -- issue #149,
+    # SCENARIO-3, parent #141).
+    apply_lateral_movement(r, all_packets)
     _analyse_saturation(r)
     _analyse_bufferbloat(r)
     _analyse_handshake(r, flows, points, points_order, nat_tolerant)
