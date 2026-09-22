@@ -11,7 +11,7 @@
 > Il remplace l'ancienne section 3 de `docs/features-backlog.md`, tenue à la main, qui avait dérivé
 > (voir `docs/sessions/session-36.md`, issue #140).
 
-122 modules · 171 classes · 352 fonctions publiques de module.
+123 modules · 172 classes · 360 fonctions publiques de module.
 
 Conventions : `+` public, `-` privé (préfixe `_`) ; `int?` = `int | None` ; `list~str~` = `list[str]` ;
 `<<module>>` regroupe les fonctions publiques d'un module ; `A --> B : champ` = `A` a un champ annoté
@@ -50,8 +50,10 @@ du graphe de dépendances ci-dessus (qui ne compte que des `import`).
 
 ```mermaid
 flowchart LR
+    BPFFilter["netcross_core.models.BPFFilter"]
     CaptureInfo["pcap_parser.capinfos_source.CaptureInfo"]
     ClientReport["netcross_core.client_diff.ClientReport"]
+    DemandeSauvegarde["netcross_gtk4.bpf_panel.DemandeSauvegarde"]
     DiffFinding["netcross_core.baseline_diff.DiffFinding"]
     EvidenceLink["netcross_core.expert_model.EvidenceLink"]
     ExpertEvent["netcross_core.expert_model.ExpertEvent"]
@@ -69,6 +71,7 @@ flowchart LR
     netcross_core_security_expert_correlation__FlowState["netcross_core.security.expert_correlation._FlowState"]
     CaptureInfo -->|interfaces| InterfaceRecord
     ClientReport -->|report| Report
+    DemandeSauvegarde -->|filtre| BPFFilter
     DiffFinding -->|evidence| EvidenceLink
     Finding -->|event| ExpertEvent
     Finding -->|evidence| EvidenceLink
@@ -2899,6 +2902,7 @@ classDiagram
 | `netcross_gtk4` | — |
 | `netcross_gtk4.annotations_view` | logique de presentation pour l'etiquetage/signets sur paquets (Job 40 / issue #160, section "Metadonnees et annotation"). |
 | `netcross_gtk4.app` | interface GTK4 pour netcross_core / netcross_report. |
+| `netcross_gtk4.bpf_panel` | Decisions du panneau de filtres BPF de la capture live, sorties de ``netcross_gtk4/app.py`` (issue #285, quatrieme lot). |
 | `netcross_gtk4.dashboard_context` | contexte d'analyse partage pour le dashboard analytique interactif (issue #18, section 6.17). |
 | `netcross_gtk4.duplicate_view` | Presentation helpers for cross-capture duplicate detection (Job 41). |
 | `netcross_gtk4.live_capture_points` | points de capture en direct de la GUI (Job 48, issue #168) : une ligne du panneau de capture live peut porter PLUSIEURS interfaces d'une meme machine ("eth0, eth1"), chacune devenant son propre point… |
@@ -2964,6 +2968,25 @@ classDiagram
     class mod_netcross_gtk4_app["netcross_gtk4.app"] {
         <<module>>
         +main()
+    }
+
+    %% ===== netcross_gtk4.bpf_panel =====
+    class DemandeSauvegarde {
+        <<dataclass, frozen>>
+        +BPFFilter? filtre
+        +str message
+        +acceptee() bool
+    }
+    class mod_netcross_gtk4_bpf_panel["netcross_gtk4.bpf_panel"] {
+        <<module>>
+        +filtre_a_l_indice(index, filtres)
+        +infobulle_du_menu(index, filtres, indice_hint)
+        +selection_apres_choix(index, filtres)
+        +doit_desolidariser_le_menu(index, filtres, texte_du_champ)
+        +valider_sauvegarde(expression, nom, description, sauvegarde_possible)
+        +indice_du_filtre_nomme(nom, filtres)
+        +noms_du_menu(filtres, titre)
+        +indice_apres_deplacement(index, nombre_de_lignes, vers_le_haut)
     }
 
     %% ===== netcross_gtk4.dashboard_context =====
