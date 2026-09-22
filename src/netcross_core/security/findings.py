@@ -52,7 +52,9 @@ from netcross_core.logging_config import get_logger
 from netcross_core.models import Pkt, Report
 from netcross_core.security import correlate_banner
 from netcross_core.security.beaconing import detect_beaconing
+from netcross_core.security.dga import detect_dga
 from netcross_core.security.dns_tunnel import detect_dns_tunneling
+from netcross_core.security.fast_flux import detect_fast_flux
 from netcross_core.security.lateral_movement import detect_lateral_movement
 from netcross_core.security.protocol_mismatch import (
     count_protocol_mismatches,
@@ -319,6 +321,48 @@ def cve_findings(fingerprints: Iterable[dict], conn) -> list[dict[str, Any]]:
     return findings
 
 
+# -- SCENARIO-6 : DGA et fast flux -----------------------------------------
+
+
+def dga_findings(alerts: list[dict]) -> list[dict[str, Any]]:
+    """Un constat `anomalie` par alerte DGA. Severite `elevee` si score >= 0.8,
+    `moyenne` sinon. Un domaine DGA reste un INDICE a confirmer."""
+    findings: list[dict[str, Any]] = []
+    for a in alerts:
+        score = a.get("score", 0.0)
+        severity = "elevee" if score >= 0.8 else "moyenne"
+        findings.append(
+            {
+                "severity": severity,
+                "category": "anomalie",
+                "detail": (f"domaine DGA suspect : {a.get('domain', '?')} -- score {score} ({a.get('reason', '?')})"),
+                "point": a.get("point") or None,
+            }
+        )
+    return findings
+
+
+def fast_flux_findings(alerts: list[dict]) -> list[dict[str, Any]]:
+    """Un constat `anomalie` par alerte fast flux. Severite `elevee` pour
+    ip_rotation, `moyenne` pour high_nxdomain."""
+    severity_map = {"ip_rotation": "elevee", "high_nxdomain": "moyenne"}
+    findings: list[dict[str, Any]] = []
+    for a in alerts:
+        a_type = a.get("alert_type", "unknown")
+        findings.append(
+            {
+                "severity": severity_map.get(a_type, "moyenne"),
+                "category": "anomalie",
+                "detail": (
+                    f"fast flux ({a_type}) : {a.get('domain', '?')} "
+                    f"-- {a.get('reason', '?')}, score {a.get('score', 0.0)}"
+                ),
+                "point": a.get("point") or None,
+            }
+        )
+    return findings
+
+
 # -- assemblage -----------------------------------------------------------
 
 
@@ -353,6 +397,35 @@ def apply_security_findings(
     report.protocol_mismatches = count_protocol_mismatches(all_packets)
     report.protocol_mismatch_details = protocol_mismatch_details
 
+    # SCENARIO-6 (#152) : DGA et fast flux -- detectes depuis les champs DNS de Pkt.
+    dga_result = detect_dga(all_packets)
+    report.dga_alerts = [
+        {
+            "point": a.point,
+            "domain": a.domain,
+            "score": a.score,
+            "reason": a.reason,
+            "entropy": a.entropy,
+            "consonant_ratio": a.consonant_ratio,
+            "rare_bigram_ratio": a.rare_bigram_ratio,
+            "length": a.length,
+            "nxdomain_ratio": a.nxdomain_ratio,
+        }
+        for a in dga_result.alerts
+    ]
+    ff_result = detect_fast_flux(all_packets)
+    report.fast_flux_alerts = [
+        {
+            "point": a.point,
+            "domain": a.domain,
+            "alert_type": a.alert_type,
+            "score": a.score,
+            "reason": a.reason,
+            "ips": a.ips,
+            "nxdomain_ratio": a.nxdomain_ratio,
+        }
+        for a in ff_result.alerts
+    ]
     # SCENARIO-3 (#149) : mouvements lateraux (scans, brute force, protocoles
     # inhabituels, nouvelles connexions) -- detectes depuis les champs Pkt.
     lateral_result = detect_lateral_movement(all_packets)
@@ -374,6 +447,8 @@ def apply_security_findings(
         + dns_tunnel_findings(detect_dns_tunneling(all_packets).suspicions)
         + beaconing_findings(detect_beaconing(all_packets).suspicions)
         + protocol_mismatch_findings(protocol_mismatch_details)
+        + dga_findings(report.dga_alerts)
+        + fast_flux_findings(report.fast_flux_alerts)
         + lateral_movement_findings(report.lateral_movement_events)
     )
     if cve_conn is not None:
