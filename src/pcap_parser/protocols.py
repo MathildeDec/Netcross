@@ -193,7 +193,17 @@ def extract_dns(layers: dict) -> dict | None:
     dns.qry.name peut en theorie etre une liste si le paquet contient
     plusieurs questions (dns.count.queries > 1, rarissime en pratique) --
     on ne garde que la premiere, meme simplification que layer()/
-    innermost() pour les couches empilees ailleurs dans ce package."""
+    innermost() pour les couches empilees ailleurs dans ce package.
+
+    `answer_addrs`/`answer_ttl` (SCENARIO-6, issue #152) : les
+    enregistrements A/AAAA (dns.a/dns.aaaa) et le TTL (dns.resp.ttl) d'une
+    reponse. Contrairement a qry_name, on garde TOUTES les adresses (un
+    domaine en fast flux en porte plusieurs par reponse) ; tshark rend ces
+    champs en liste des qu'il y a plusieurs enregistrements, en valeur
+    scalaire sinon -- meme normalisation liste-ou-scalaire que qry_name.
+    `answer_ttl` est le plus PETIT TTL du paquet (le TTL court est le
+    signal, une moyenne le diluerait). Vide/None sur une requete, un
+    NXDOMAIN ou une reponse sans A/AAAA (CNAME/MX/TXT seuls)."""
     dns = innermost(layers, "dns")
     if dns is None:
         return None
@@ -203,11 +213,25 @@ def extract_dns(layers: dict) -> dict | None:
     qry_name = g(dns, "dns_dns_qry_name")
     if isinstance(qry_name, list):
         qry_name = qry_name[0] if qry_name else None
+
+    answer_addrs: list[str] = []
+    for key in ("dns_dns_a", "dns_dns_aaaa"):
+        raw = g(dns, key)
+        if raw is None:
+            continue
+        answer_addrs.extend(raw if isinstance(raw, list) else [raw])
+
+    ttl_raw = g(dns, "dns_dns_resp_ttl")
+    ttl_values = ttl_raw if isinstance(ttl_raw, list) else ([ttl_raw] if ttl_raw is not None else [])
+    ttls = [v for v in (hex_or_dec_to_int(t) for t in ttl_values) if v is not None]
+
     return {
         "txn_id": txn_id,
         "is_response": as_bool(g(dns, "dns_dns_flags_response")),
         "qry_name": qry_name,
         "rcode": hex_or_dec_to_int(g(dns, "dns_dns_flags_rcode")),
+        "answer_addrs": tuple(answer_addrs),
+        "answer_ttl": min(ttls) if ttls else None,
     }
 
 
