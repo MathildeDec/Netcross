@@ -256,6 +256,39 @@ class ChecksumError:
     checksum: str  # valeur brute recue sur le fil, ex: "0x1111"
 
 
+# Type d'evenement de mouvement lateral (LateralMovementEvent.kind) --
+# voir netcross_core.security.lateral_movement pour la detection (issue
+# #149, SCENARIO-3, parent #141) et le detail des cinq signaux.
+LATERAL_KIND_PORT_SCAN = "port_scan"
+LATERAL_KIND_HOST_SCAN = "host_scan"
+LATERAL_KIND_BRUTE_FORCE = "brute_force"
+LATERAL_KIND_UNUSUAL_PROTOCOL = "unusual_protocol"
+LATERAL_KIND_NEW_CONNECTION = "new_connection"
+
+
+@dataclass(slots=True)
+class LateralMovementEvent:
+    """Un evenement de mouvement lateral interne detecte (SCENARIO-3,
+    issue #149, parent #141) -- voir netcross_core.security.
+    lateral_movement pour le detail des cinq types (`kind`, constantes
+    LATERAL_KIND_*) et de leurs seuils.
+
+    `point` : point de capture. `source` : adresse IP interne a l'origine
+    de l'evenement. `detail` : description humaine (cibles, ports,
+    compteurs). `score` : indice de confiance 0-1 (voir la docstring du
+    module de detection -- un evenement reste un INDICE a confirmer,
+    jamais un diagnostic definitif). `frames` : numeros de trame
+    (Pkt.frame_number) representatifs, en preuve (voir PacketEvidence,
+    Session 37)."""
+
+    point: str
+    source: str
+    kind: str
+    detail: str
+    score: float
+    frames: tuple[int, ...] = ()
+
+
 @dataclass
 class Report:
     points: list[str] = field(default_factory=list)
@@ -579,6 +612,14 @@ class Report:
     # liste des occurrences individuelles (frame, ports, proto).
     protocol_mismatches: dict[str, dict[str, int]] = field(default_factory=lambda: defaultdict(dict))
     protocol_mismatch_details: list[dict] = field(default_factory=list)
+    # -- mouvements lateraux internes (SCENARIO-3, issue #149, parent
+    # #141, voir netcross_core.security.lateral_movement) : un
+    # LateralMovementEvent par (point, source, type de signal) --
+    # scan de ports, scan d'hotes, brute force SSH/RDP, protocole
+    # d'administration inhabituel, nouvelle connexion interne hors
+    # baseline. Vide si aucun signal n'a ete leve (jamais de constat
+    # invente, meme discipline que security_findings ci-dessus).
+    lateral_movement_events: list[LateralMovementEvent] = field(default_factory=list)
     # -- topologie deduite (ordre + chemins multiples) --
     topology_edges: list[tuple[str, str, dict]] = field(default_factory=list)
     topology_ambiguous: list[tuple[str, str, str]] = field(default_factory=list)
