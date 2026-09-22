@@ -33,7 +33,7 @@ flowchart TD
     pcap_parser["pcap_parser"]
     CLI -->|"14 imports"| netcross_report
     CLI -->|"16 imports"| netcross_core
-    CLI -->|"2 imports"| pcap_parser
+    CLI -->|"3 imports"| pcap_parser
     netcross_gtk4 -->|"10 imports"| netcross_report
     netcross_gtk4 -->|"18 imports"| netcross_core
     netcross_api -->|"3 imports"| netcross_core
@@ -1215,6 +1215,8 @@ classDiagram
         +list~float~ http_response_time_ms
         +dict~tuple~str, str~, int~ duplicate_count
         +bool duplicates_excluded
+        +bool truncated
+        +str truncation_note
         +list~dict~ http_objects
         +list~dict~ extracted_files
         +list~dict~ application_transactions
