@@ -75,14 +75,15 @@ from netcross_gtk4 import row_labels  # noqa: E402
 from netcross_gtk4.dashboard_context import (  # noqa: E402
     DashboardSelection,
     build_dashboard_snapshot,
-    select_bucket,
-    select_endpoint,
-    select_event,
-    select_flow,
-    select_point,
-    select_protocol,
 )
 from netcross_gtk4.live_capture_points import duplicate_labels, expand_live_points  # noqa: E402
+from netcross_gtk4.panel_state import (  # noqa: E402
+    apply_dashboard_selection,
+    comm_map_filters,
+    panel_visibility,
+    run_button_state,
+    selected_protocol,
+)
 from netcross_gtk4.run_outcome import analysis_outcome, diff_outcome  # noqa: E402
 from netcross_gtk4.stats_view import (  # noqa: E402
     build_events_by_segment,
@@ -915,46 +916,72 @@ class MainWindow(Gtk.ApplicationWindow):
         """Point unique qui decide, a partir des deux cases a cocher, quels
         panneaux/options sont visibles -- appele apres tout changement de
         mode pour eviter que diff_check et live_check ne divergent."""
-        diff_mode = self.diff_check.get_active()
-        live_mode = self.live_check.get_active()
-        self.single_panel.set_visible(not diff_mode and not live_mode)
-        self.live_panel.set_visible(live_mode)
-        self.live_extra_box.set_visible(live_mode)
-        self.diff_panels_box.set_visible(diff_mode)
-        # triage/TLS/QUIC restent pertinents (et visibles) en capture live --
-        # seuls TLS/QUIC sont indisponibles dans ce mode, cf. tls_check/quic_check ci-dessous.
-        self.single_options_box.set_visible(not diff_mode)
-        self.diff_options_box.set_visible(diff_mode)
-        self.tls_check.set_sensitive(not live_mode)
-        self.quic_check.set_sensitive(not live_mode)
-        if live_mode:
+        # Les regles sont dans netcross_gtk4.panel_state (issue #285, lot 3) :
+        # cette methode ne fait plus que les appliquer aux widgets. Le
+        # commentaire d'origine -- triage pertinent en live mais pas TLS/QUIC
+        # -- y est documente avec sa raison.
+        vue = panel_visibility(
+            self.diff_check.get_active(),
+            self.live_check.get_active(),
+            self.detect_duplicates_check.get_active(),
+        )
+        self.single_panel.set_visible(vue.single_panel)
+        self.live_panel.set_visible(vue.live_panel)
+        self.live_extra_box.set_visible(vue.live_extra)
+        self.diff_panels_box.set_visible(vue.diff_panels)
+        self.single_options_box.set_visible(vue.single_options)
+        self.diff_options_box.set_visible(vue.diff_options)
+        self.tls_check.set_sensitive(vue.tls_sensitive)
+        self.quic_check.set_sensitive(vue.quic_sensitive)
+        self.parallel_check.set_sensitive(vue.parallel_sensitive)
+        self.detect_duplicates_check.set_sensitive(vue.duplicate_detect_sensitive)
+        self.duplicate_threshold_spin.set_sensitive(vue.duplicate_threshold_sensitive)
+        self.exclude_duplicates_check.set_sensitive(vue.duplicate_exclude_sensitive)
+        if vue.force_tls_off:
             self.tls_check.set_active(False)
+        if vue.force_quic_off:
             self.quic_check.set_active(False)
-        self.parallel_check.set_sensitive(not live_mode)
-        duplicate_controls = not diff_mode
-        self.detect_duplicates_check.set_sensitive(duplicate_controls)
-        self.duplicate_threshold_spin.set_sensitive(duplicate_controls and self.detect_duplicates_check.get_active())
-        self.exclude_duplicates_check.set_sensitive(duplicate_controls and self.detect_duplicates_check.get_active())
-        if diff_mode:
+        if vue.force_duplicate_detect_off:
             self.detect_duplicates_check.set_active(False)
+        if vue.force_duplicate_exclude_off:
             self.exclude_duplicates_check.set_active(False)
+
+    def _run_button_state(self):
+        """Decision d'etat du bouton Lancer, deleguee a panel_state.
+
+        Les compteurs sont lus ici car ils viennent des panneaux GTK ; la
+        regle qui les interprete est dans netcross_gtk4.panel_state (issue
+        #285, lot 3).
+        """
+        return run_button_state(
+            live_capturing=self._live_capturing,
+            diff_mode=self.diff_check.get_active(),
+            live_mode=self.live_check.get_active(),
+            single_rows=len(self.single_panel.rows()),
+            baseline_rows=len(self.baseline_panel.rows()),
+            current_rows=len(self.current_panel.rows()),
+            # points apres eclatement : une seule ligne "eth0, eth1" en donne deux
+            live_points=len(expand_live_points(self.live_panel.captures())),
+            label_actuel=self.run_btn.get_label(),
+        )
 
     def _update_run_button_label(self):
         if self._live_capturing:
             return  # deja gere par _begin_live_capture/_end_live_capture
-        self.run_btn.set_label("Demarrer la capture" if self.live_check.get_active() else "Lancer l'analyse")
+        self.run_btn.set_label(self._run_button_state().label)
 
     def _update_run_sensitivity(self):
         if self._live_capturing:
             return  # bouton deja dans le bon etat pendant une capture en cours
-        if self.diff_check.get_active():
-            ok = len(self.baseline_panel.rows()) >= 2 and len(self.current_panel.rows()) >= 2
-        elif self.live_check.get_active():
-            # points apres eclatement : une seule ligne "eth0, eth1" en donne deux
-            ok = len(expand_live_points(self.live_panel.captures())) >= 2
-        else:
-            ok = len(self.single_panel.rows()) >= 2
-        self.run_btn.set_sensitive(ok)
+        etat = self._run_button_state()
+        self.run_btn.set_sensitive(etat.enabled)
+        # La raison du refus est affichee en infobulle plutot que gardee pour
+        # nous : elle est connue au moment de la decision, et un bouton grise
+        # sans explication oblige l'utilisateur a deviner combien de captures
+        # il manque -- particulierement en mode live, ou le compte porte sur
+        # les points APRES eclatement des interfaces et ne correspond donc pas
+        # au nombre de lignes affichees.
+        self.run_btn.set_tooltip_text(etat.raison)
 
     # ================= compat retro (tests existants) =================
     # Certains appelants (tests) pilotaient directement l'ancienne API a
@@ -2177,22 +2204,17 @@ class MainWindow(Gtk.ApplicationWindow):
         lies via le contexte partage, puis rafraichit. ``kind`` distingue
         la vue d'origine (timeline/segment/flow/endpoint/protocol/event).
         """
-        sel = self.dashboard_selection
-        if kind == "flow":
-            flow = self._flow_by_key(key)
-            if flow is not None:
-                sel = select_flow(sel, flow)
-        elif kind == "endpoint":
-            sel = select_endpoint(sel, key)
-        elif kind == "protocol":
-            sel = select_protocol(sel, key)
-        elif kind == "point":
-            sel = select_point(sel, key)
-        elif kind == "bucket":
-            sel = select_bucket(sel, key)
-        elif kind == "event":
-            sel = select_event(sel, key, self._dashboard_events())
-        self.dashboard_selection = sel
+        # Un `kind` inconnu leve desormais UnknownViewTypeError au lieu de
+        # traverser une cascade de elif sans rien faire : avant, un type mal
+        # orthographie rendait les clics d'une vue entiere inoperants, sans
+        # message ni trace (issue #285, lot 3).
+        self.dashboard_selection = apply_dashboard_selection(
+            kind,
+            self.dashboard_selection,
+            key,
+            flow_par_cle=self._flow_by_key,
+            evenements=self._dashboard_events(),
+        )
         self._refresh_dashboard()
 
     def _flow_by_key(self, key):
@@ -2281,15 +2303,18 @@ class MainWindow(Gtk.ApplicationWindow):
         """Filtres actifs, lus depuis les widgets. Extrait pour que la
         logique de lecture reste verifiable sans piloter l'interface."""
         model = self.comm_proto_drop.get_model()
-        index = self.comm_proto_drop.get_selected()
         protocole = None
-        if model is not None and 0 < index < model.get_n_items():
-            protocole = model.get_string(index)
-        return {
-            "protocols": [protocole] if protocole else None,
-            "top_n": int(self.comm_topn_spin.get_value()),
-            "only_anomalies": self.comm_anomalies_check.get_active(),
-        }
+        if model is not None:
+            protocole = selected_protocol(
+                self.comm_proto_drop.get_selected(),
+                model.get_n_items(),
+                model.get_string,
+            )
+        return comm_map_filters(
+            protocole,
+            self.comm_topn_spin.get_value(),
+            self.comm_anomalies_check.get_active(),
+        )
 
     def _refresh_comm_map(self):
         """Reconstruit la carte et son rendu PNG a partir des filtres

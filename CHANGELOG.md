@@ -8,6 +8,12 @@ et le projet adhère au [SemVer](https://semver.org/lang/fr/).
 ## [Unreleased]
 
 ### Ajouté
+- `netcross_gtk4/panel_state.py` — visibilité des panneaux, état du bouton
+  Lancer, filtres de cartographie et sélection au tableau de bord, sortis de
+  `app.py` (#285, troisième lot)
+- Le bouton Lancer explique en infobulle pourquoi il est inactif — combien de
+  captures manquent, et en mode live le compte porte sur les points **après**
+  éclatement des interfaces, ce que l'utilisateur ne pouvait pas deviner (#285)
 - `netcross_gtk4/run_outcome.py` — état de résultat de la GUI en structure
   unique et gelée : les quatorze champs `last_*` étaient réécrits séparément
   par l'analyse et par la comparaison, sans garantie qu'elles restent
@@ -38,6 +44,13 @@ et le projet adhère au [SemVer](https://semver.org/lang/fr/).
 - `docs/fingerprints-ja4-hassh.md` (#259)
 
 ### Corrigé
+- Un clic sur une vue du tableau de bord dont le type était mal orthographié
+  n'avait aucun effet, sans message ni trace : la cascade de `elif` de
+  `_dashboard_select` n'avait pas de branche finale. Un type inconnu lève
+  désormais `UnknownViewTypeError` (#285)
+- Avec les deux modes actifs, la page de configuration affichait le panneau de
+  capture live **et** ceux de comparaison ; la priorité va au live, alignée sur
+  l'ordre d'évaluation de `on_run_analysis` (#285)
 - `CLAUDE.md` annonçait « 1150/1150 tests » et `mypy` intégré à l'outillage :
   la suite en compte 2958 et `mypy` n'est pas configuré dans le projet (#216)
 - Le JSON écrit `security_report` dans tous les cas, avec le motif de

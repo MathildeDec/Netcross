@@ -11,7 +11,7 @@
 > Il remplace l'ancienne section 3 de `docs/features-backlog.md`, tenue à la main, qui avait dérivé
 > (voir `docs/sessions/session-36.md`, issue #140).
 
-121 modules · 167 classes · 347 fonctions publiques de module.
+122 modules · 170 classes · 352 fonctions publiques de module.
 
 Conventions : `+` public, `-` privé (préfixe `_`) ; `int?` = `int | None` ; `list~str~` = `list[str]` ;
 `<<module>>` regroupe les fonctions publiques d'un module ; `A --> B : champ` = `A` a un champ annoté
@@ -2899,6 +2899,7 @@ classDiagram
 | `netcross_gtk4.dashboard_context` | contexte d'analyse partage pour le dashboard analytique interactif (issue #18, section 6.17). |
 | `netcross_gtk4.duplicate_view` | Presentation helpers for cross-capture duplicate detection (Job 41). |
 | `netcross_gtk4.live_capture_points` | points de capture en direct de la GUI (Job 48, issue #168) : une ligne du panneau de capture live peut porter PLUSIEURS interfaces d'une meme machine ("eth0, eth1"), chacune devenant son propre point… |
+| `netcross_gtk4.panel_state` | decisions de visibilite, de sensibilite et de selection des panneaux de la GUI (issue #285, troisieme lot). |
 | `netcross_gtk4.row_labels` | libelles et cles de tri des lignes affichees par la GUI (issue #285, premier lot d'extraction de `app.py`). |
 | `netcross_gtk4.run_outcome` | etat de resultat et decisions d'affichage a la fin d'une analyse ou d'une comparaison (issue #285, deuxieme lot). |
 | `netcross_gtk4.stats_view` | logique de presentation pour la vue d'exploration statistique (Job 27 / issue #22, section 6.8). |
@@ -3007,6 +3008,44 @@ classDiagram
         +split_interfaces(text) list~str~
         +expand_live_points(rows) list~tuple~str, str, str?~~
         +duplicate_labels(points) list~str~
+    }
+
+    %% ===== netcross_gtk4.panel_state =====
+    class PanelVisibility {
+        <<dataclass, frozen>>
+        +bool single_panel
+        +bool live_panel
+        +bool live_extra
+        +bool diff_panels
+        +bool single_options
+        +bool diff_options
+        +bool tls_sensitive
+        +bool quic_sensitive
+        +bool parallel_sensitive
+        +bool duplicate_detect_sensitive
+        +bool duplicate_threshold_sensitive
+        +bool duplicate_exclude_sensitive
+        +bool force_tls_off
+        +bool force_quic_off
+        +bool force_duplicate_detect_off
+        +bool force_duplicate_exclude_off
+    }
+    class RunButtonState {
+        <<dataclass, frozen>>
+        +bool enabled
+        +str? raison
+        +str label
+    }
+    class UnknownViewTypeError {
+        <<ValueError>>
+    }
+    class mod_netcross_gtk4_panel_state["netcross_gtk4.panel_state"] {
+        <<module>>
+        +panel_visibility(diff_mode, live_mode, detect_duplicates_active) PanelVisibility
+        +run_button_state(live_capturing, diff_mode, live_mode, single_rows, baseline_rows, current_rows, live_points, label_actuel) RunButtonState
+        +selected_protocol(index, n_items, lire) str?
+        +comm_map_filters(protocole, top_n, only_anomalies) dict~str, Any~
+        +apply_dashboard_selection(kind, selection, key, flow_par_cle, evenements) Any
     }
 
     %% ===== netcross_gtk4.row_labels =====
