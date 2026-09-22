@@ -1,0 +1,89 @@
+"""
+netcross_gtk4.row_labels -- libelles et cles de tri des lignes affichees
+par la GUI (issue #285, premier lot d'extraction de `app.py`).
+
+Ces fonctions etaient definies dans `netcross_gtk4/app.py`. Elles sont
+pures : une ligne de donnees en entree, une chaine ou une cle en sortie,
+aucun widget, aucun etat. Elles etaient pourtant a **0 % de couverture**,
+comme tout le reste de `app.py` -- non pas parce qu'elles etaient
+difficiles a tester, mais parce qu'elles vivaient dans un module qui
+`import gi` en tete : impossible a importer en CI, ou PyGObject est
+absent. Le probleme n'etait pas un manque de tests, c'etait un fichier
+qui les empechait.
+
+Les deplacer ici les rend testables sans rien changer a leur
+comportement. Meme demarche que `dashboard_context.py` (logique du
+tableau de bord sortie de la vue, couverte a 88,6 %) : c'est la voie qui
+a deja fonctionne dans ce paquet.
+
+Deux familles :
+
+- `*_row_label(row)` : le texte montre a l'utilisateur. C'est du rendu,
+  donc l'endroit exact ou se cachent les defauts qu'il voit -- une valeur
+  manquante affichee comme `None`, une unite oubliee, un separateur
+  colle.
+- `*_row_key(row)` : la valeur de tri/selection associee a la ligne.
+
+Convention d'absence : une valeur absente est remplacee par `?`, jamais
+laissee s'afficher en `None` et jamais escamotee. Un `?` dit « on ne sait
+pas » ; un champ disparu laisse croire qu'il n'y avait rien a dire.
+"""
+
+from __future__ import annotations
+
+
+def timeline_row_label(row) -> str:
+    return f"{row['label']} — {row['loss_events']} perte(s)"
+
+
+def timeline_row_key(row):
+    return row["bucket"]
+
+
+def segment_row_label(row) -> str:
+    # La latence est optionnelle : absente, on ne montre pas " latence None
+    # ms" mais rien du tout -- le reste de la ligne (pertes, retransmissions)
+    # reste informatif sans elle.
+    lat = f", latence {row['latency_ms']} ms" if row["latency_ms"] is not None else ""
+    return f"{row['pair']} — {row['loss']} perte(s), {row['retrans']} retrans{lat}"
+
+
+def segment_row_key(row):
+    return row["pair_tuple"][0]
+
+
+def flow_row_label(row) -> str:
+    return f"{row['label']} — {row['packets']} paquets, {row['bytes']} octets"
+
+
+def flow_row_key(row):
+    return row["flow_key"]
+
+
+def endpoint_row_label(row) -> str:
+    peers = ", ".join(row["peers"]) or "?"
+    return f"{row['endpoint']} <-> {peers} — {row['flows']} flux, {row['packets']} paquets"
+
+
+def endpoint_row_key(row):
+    return row["endpoint"]
+
+
+def proto_row_label(row) -> str:
+    return f"{row['protocol']} — {row['flows']} flux, {row['packets']} paquets"
+
+
+def proto_row_key(row):
+    return row["protocol"]
+
+
+def event_row_label(row) -> str:
+    cat = row["category"] or "?"
+    sev = row["severity"] or "?"
+    proto = f" [{row['protocol']}]" if row["protocol"] else ""
+    msg = row["message"] or ""
+    return f"#{row['id']} {cat} ({sev}){proto} — {msg}"
+
+
+def event_row_key(row):
+    return row["id"]

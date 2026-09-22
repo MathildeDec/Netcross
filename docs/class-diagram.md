@@ -11,7 +11,7 @@
 > Il remplace l'ancienne section 3 de `docs/features-backlog.md`, tenue à la main, qui avait dérivé
 > (voir `docs/sessions/session-36.md`, issue #140).
 
-119 modules · 166 classes · 332 fonctions publiques de module.
+120 modules · 166 classes · 344 fonctions publiques de module.
 
 Conventions : `+` public, `-` privé (préfixe `_`) ; `int?` = `int | None` ; `list~str~` = `list[str]` ;
 `<<module>>` regroupe les fonctions publiques d'un module ; `A --> B : champ` = `A` a un champ annoté
@@ -2899,6 +2899,7 @@ classDiagram
 | `netcross_gtk4.dashboard_context` | contexte d'analyse partage pour le dashboard analytique interactif (issue #18, section 6.17). |
 | `netcross_gtk4.duplicate_view` | Presentation helpers for cross-capture duplicate detection (Job 41). |
 | `netcross_gtk4.live_capture_points` | points de capture en direct de la GUI (Job 48, issue #168) : une ligne du panneau de capture live peut porter PLUSIEURS interfaces d'une meme machine ("eth0, eth1"), chacune devenant son propre point… |
+| `netcross_gtk4.row_labels` | libelles et cles de tri des lignes affichees par la GUI (issue #285, premier lot d'extraction de `app.py`). |
 | `netcross_gtk4.stats_view` | logique de presentation pour la vue d'exploration statistique (Job 27 / issue #22, section 6.8). |
 
 ### Diagramme
@@ -3005,6 +3006,23 @@ classDiagram
         +split_interfaces(text) list~str~
         +expand_live_points(rows) list~tuple~str, str, str?~~
         +duplicate_labels(points) list~str~
+    }
+
+    %% ===== netcross_gtk4.row_labels =====
+    class mod_netcross_gtk4_row_labels["netcross_gtk4.row_labels"] {
+        <<module>>
+        +timeline_row_label(row) str
+        +timeline_row_key(row)
+        +segment_row_label(row) str
+        +segment_row_key(row)
+        +flow_row_label(row) str
+        +flow_row_key(row)
+        +endpoint_row_label(row) str
+        +endpoint_row_key(row)
+        +proto_row_label(row) str
+        +proto_row_key(row)
+        +event_row_label(row) str
+        +event_row_key(row)
     }
 
     %% ===== netcross_gtk4.stats_view =====
