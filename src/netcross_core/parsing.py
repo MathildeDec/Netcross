@@ -257,6 +257,70 @@ def read_capture_comments(captures) -> list[str]:
     return comments
 
 
+def read_capture_infos(captures) -> list[dict]:
+    """Lit les metadonnees de capture (format, snaplen, paquets perdus...)
+    de chaque fichier de ``captures`` (memes paires (label, path) que
+    parse_captures_parallel ci-dessus) et les renvoie sous forme de dicts
+    plats (un par fichier ayant reussi la lecture) -- meme raison d'etre
+    que read_capture_comments : pcap_parser.capinfos_source.read_capture_info
+    ne connait, volontairement, aucune notion de label/point de capture.
+
+    Contrairement a read_capture_comments, une capture SANS metadonnees
+    (capinfos absent, fichier illisible) ne produit aucune entree plutot
+    qu'une entree vide -- les metadonnees restent facultatives, jamais
+    une raison d'interrompre l'analyse.
+
+    Chaque dict porte les cles : label, path, file_type, version,
+    encapsulation, snaplen, packet_count, byte_count, duration_seconds,
+    start_time, end_time, hardware, operating_system, application,
+    dropped_by_interface, dropped_by_os, interfaces (liste de dicts
+    plats avec index, linktype, snaplen, name, received,
+    dropped_by_interface, dropped_by_os). Les cles absentes valent None."""
+    from pcap_parser.capinfos_source import read_capture_info
+
+    infos = []
+    for label, path in captures:
+        info = read_capture_info(path)
+        if info is None:
+            continue
+        infos.append(
+            {
+                "label": label,
+                "path": path,
+                "file_type": info.file_type,
+                "version": info.version,
+                "encapsulation": info.encapsulation,
+                "timestamp_precision": info.timestamp_precision,
+                "snaplen": info.snaplen,
+                "packet_count": info.packet_count,
+                "byte_count": info.byte_count,
+                "file_size": info.file_size,
+                "duration_seconds": info.duration_seconds,
+                "start_time": info.start_time,
+                "end_time": info.end_time,
+                "strict_time_order": info.strict_time_order,
+                "hardware": info.hardware,
+                "operating_system": info.operating_system,
+                "application": info.application,
+                "dropped_by_interface": info.dropped_by_interface,
+                "dropped_by_os": info.dropped_by_os,
+                "interfaces": [
+                    {
+                        "index": iface.index,
+                        "linktype": iface.linktype,
+                        "snaplen": iface.snaplen,
+                        "name": iface.name,
+                        "received": iface.received,
+                        "dropped_by_interface": iface.dropped_by_interface,
+                        "dropped_by_os": iface.dropped_by_os,
+                    }
+                    for iface in info.interfaces
+                ],
+            }
+        )
+    return infos
+
+
 def parse_live(label, interface, bpf_filter=None, stop_event=None):
     """Nouveaute (absente de l'ancienne version, qui ne savait lire
     que des fichiers deja ecrits) : capture en direct sur `interface`,

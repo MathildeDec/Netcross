@@ -216,6 +216,46 @@ def dns_tunnel_findings(suspicions: Iterable[dict]) -> list[dict[str, Any]]:
     return findings
 
 
+# -- SCENARIO-1 : beaconing C2 ---------------------------------------------
+
+_BEACON_SIGNAL_LABELS = {
+    "periodic": "intervalles reguliers",
+    "small_payload": "petites requetes",
+    "stable_size": "volume constant",
+    "asymmetric_ratio": "plus d'octets recus qu'envoyes",
+    "off_hours": "activite hors heures de bureau",
+}
+
+
+def beaconing_findings(suspicions: Iterable[dict]) -> list[dict[str, Any]]:
+    """Un constat `anomalie` par suspicion de `beaconing.detect_beaconing`.
+    La severite est celle calculee par `security.beaconing` (moyenne, elevee
+    si un signal faible corrobore) : une periodicite reste un INDICE a
+    confirmer (un heartbeat legitime est aussi regulier), jamais une
+    compromission averee."""
+    findings = []
+    for s in suspicions:
+        signals = ", ".join(_BEACON_SIGNAL_LABELS.get(sig, sig) for sig in s.get("signals") or [])
+        detail = (
+            f"suspicion de beaconing C2 de {s.get('src', '?')} vers {s.get('dst', '?')}:{s.get('dport', '?')}"
+            f"/{s.get('proto', '?')} : {signals} "
+            f"-- {s.get('checkins', 0)} check-in(s), intervalle moyen {s.get('mean_interval', 0.0)} s "
+            f"(ecart-type {s.get('interval_stddev', 0.0)} s), score de confiance {s.get('score', 0.0)}"
+        )
+        frames = ", ".join(str(f) for f in s.get("frames") or [])
+        if frames:
+            detail += f" -- trames {frames}"
+        findings.append(
+            {
+                "severity": s.get("severity") or "faible",
+                "category": "anomalie",
+                "detail": detail,
+                "point": s.get("point") or None,
+            }
+        )
+    return findings
+
+
 # -- SCENARIO-7 : audit des certificats TLS ---------------------------------
 
 

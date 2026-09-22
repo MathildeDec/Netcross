@@ -99,6 +99,16 @@ class Pkt:
     tls_cert_not_after: str | None
     tls_cert_san: tuple[str, ...] | None
     tls_cert_serial: str | None
+    # -- certificat TLS (SCENARIO-7, issue #153) -- champs étendus pour
+    # l'audit des certificats (émetteur, sujet, algorithme de signature,
+    # type/taille de clé, SAN IP, longueur de chaîne).
+    tls_cert_issuer: str | None
+    tls_cert_subject: str | None
+    tls_cert_sig_hash: str | None
+    tls_cert_key_type: str | None
+    tls_cert_key_bits: int | None
+    tls_cert_san_ip: tuple[str, ...] | None
+    tls_cert_chain_len: int | None
     # TLS (Session 54) -- voir pcap_parser.packet.RawPacket pour le detail
     # complet (meme trois champs, meme discipline booleenne).
     tls_client_hello: bool
