@@ -1,7 +1,7 @@
 """
 Tests d'intégration du Job 38/issue #158 : metadonnees de capture dans le
 Report (champ capture_infos), affichage dans print_report, et fonction
-netcross_core.parsing.read_capture_infos.
+pcap_parser.capinfos_source.read_capture_infos.
 """
 
 from __future__ import annotations
@@ -23,7 +23,7 @@ def test_read_capture_infos_filtre_les_none(monkeypatch, tmp_path):
     """Une capture dont read_capture_info renvoie None (capinfos absent,
     fichier illisible) ne produit aucune entree, comme read_capture_comments."""
     path = str(tmp_path / "absent.pcap")
-    with patch("netcross_core.parsing.read_capture_info", return_value=None):
+    with patch("pcap_parser.capinfos_source.read_capture_info", return_value=None):
         infos = read_capture_infos([("POINT_A", path)])
     assert infos == []
 
@@ -58,7 +58,7 @@ def test_read_capture_infos_formate_les_metadonnees_avec_le_label(monkeypatch, t
             ),
         ),
     )
-    with patch("netcross_core.parsing.read_capture_info", return_value=mock_info):
+    with patch("pcap_parser.capinfos_source.read_capture_info", return_value=mock_info):
         infos = read_capture_infos([("POINT_A", path)])
 
     assert len(infos) == 1
@@ -88,7 +88,7 @@ def test_read_capture_infos_plusieurs_captures(monkeypatch, tmp_path):
     path_a = str(tmp_path / "a.pcap")
     path_b = str(tmp_path / "b.pcapng")
     with patch(
-        "netcross_core.parsing.read_capture_info",
+        "pcap_parser.capinfos_source.read_capture_info",
         side_effect=[
             CaptureInfo(path=path_a, file_type="pcap", version="2.4", packet_count=10),
             None,  # capinfos absent pour b

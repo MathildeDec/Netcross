@@ -9,7 +9,7 @@ qui consolide les modules de détection passive de vulnérabilités (parent #133
 | Tentatives d'exploitation | signatures Log4Shell, Shellshock, Heartbleed, EternalBlue, compression TLS (CVE-2, #136) | `netcross_core.exploit_signatures` |
 | Anomalies | alertes Expert Info corrélées : fuzzing, overflow, dos (CVE-3, #137) | `netcross_core.security.expert_correlation` |
 | Anomalies | tunneling DNS : sous-domaines à haute entropie, labels/noms trop longs, volume DNS anormal (FLOW-3, #144) | `netcross_core.security.dns_tunnel` |
-| Anomalies | beaconing C2 : connexions périodiques, petites et constantes vers une destination externe (SCENARIO-1, #147) | `netcross_core.security.beaconing` |
+| Anomalies | audit des certificats TLS : expirés, auto-signés, MD5/SHA-1, clés faibles, validité excessive, chaîne incomplète, noms suspects, avec un score de risque TLS par serveur (SCENARIO-7, #153) | `netcross_core.security.tls_audit` |
 | CVE confirmées | version exacte + CVE-ID + score CVSS (CVE-4, #138) | `netcross_core.security` (base SQLite locale) |
 
 Le tout est classé par sévérité (critique / élevée / moyenne / faible) et résumé par un
@@ -22,8 +22,8 @@ risque global 0-100).
 # Base CVE locale (hors ligne au runtime), une fois :
 python3 scripts/import_nvd.py --db data/cve.db --fetch --keyword apache
 
-python3 src/cross_capture_analyzer_cli.py \
-    --capture DMZ=dmz.pcap --capture LAN=lan.pcap \
+python3 src/cross_capture_analyzer_cli.py \\
+    --capture DMZ=dmz.pcap --capture LAN=lan.pcap \\
     --security-report --cve-db data/cve.db
 ```
 
@@ -40,8 +40,8 @@ python3 src/cross_capture_analyzer_cli.py \
 Pkt.service_banners ──► build_service_fingerprints ──► Report.service_fingerprints ─┐
 RawPacket (charge utile) ► exploit_signatures.detect_exploits ► exploit_findings ──┤
 Report.exploit_suspicion_flows ───────────────────► anomaly_findings ─────────────┤
-Pkt (ts, ports, tcp_len) ► beaconing.detect_beaconing ► beaconing_findings ───────┤
 Pkt (champs dns_*) ► dns_tunnel.detect_dns_tunneling ► dns_tunnel_findings ───────┼► Report.security_findings
+Pkt (champs tls_cert_*) ► tls_audit.audit_tls_certificates ► tls_audit_findings ───┤
 service/version ──► security.correlate_banner ────► cve_findings ─────────────────┘            │
                                                                                                 ▼
                                                               netcross_report.security_report (rendu texte)
@@ -68,19 +68,28 @@ constats (remplacement, pas ajout : deux appels donnent le même résultat).
   déclenche naturellement). Limite : le type d'enregistrement (TXT…) n'est pas décodé par `Pkt`,
   « TXT > 100 octets » est approximé par la taille de la réponse. `detect_dns_tunneling(...).domain_entropy`
   donne le score d'entropie de Shannon de chaque domaine interrogé (suspect ou non).
-- **Beaconing C2** (`beaconing.py`, seuils dans `BeaconingThresholds`) : par point puis par
-  (protocole, source, destination externe, port de destination). Trois signaux *centraux*, tous
-  requis : ≥ 10 check-ins à intervalles réguliers (moyenne ≥ 5 s, coefficient de variation
-  écart-type/moyenne ≤ 0,15), charge utile médiane ≤ 512 octets, tailles de check-in stables
-  (CV ≤ 0,5) → moyenne ; un signal *faible* corroborant (le serveur renvoie > 1,5× ce qu'il
-  reçoit, ou ≥ 80 % des check-ins hors 7 h–19 h UTC) → élevée. Les signaux faibles seuls ne
-  lèvent rien. Chaque suspicion porte un score de confiance 0–1
-  (`detect_beaconing(...).suspicions[*]["score"]`). Ignorés : DNS/NTP/DHCP/NetBIOS/SSDP/mDNS,
-  keepalive TCP (segments de 0 ou 1 octet), destinations privées, multicast ou loopback.
-  Limites : une périodicité est un *indice* (un heartbeat cloud légitime est aussi régulier,
-  petit et constant) ; le CV remplace FFT/autocorrélation (une gigue > ~15 % n'est pas
-  détectée) ; pas de réputation de destination ; les heures de bureau se règlent en UTC
-  (`Pkt.ts` est en epoch).
+- **Audit des certificats TLS** (`tls_audit.py`, politique dans `TlsAuditPolicy`) : appliqué au
+  certificat *feuille* de chaque serveur (couple IP/port qui l'émet), un constat par certificat
+  distinct et par problème. Dates comparées à l'horodatage du **paquet**, jamais à l'heure actuelle
+  (une vieille capture reste correcte).
+
+  | Contrôle | Sévérité par défaut |
+  |---|---|
+  | certificat expiré (`notAfter` < date de capture) | élevée |
+  | signature MD2/MD4/MD5 · clé RSA/DSA < 2048 bits ou EC < 256 bits | élevée |
+  | pas encore valide · auto-signé (émetteur == sujet) · signature SHA-1 · joker trop large (`*`, `*.com`) | moyenne |
+  | validité > 398 jours · chaîne incomplète (feuille sans intermédiaire) · wildcard · IP dans le SAN · nom > 100 car. · nom d'apparence aléatoire | faible |
+
+  Jamais « critique » (réservé aux CVE confirmées). Le **score de risque par serveur** (0-100) est la
+  somme de 30/15/5 points par problème distinct (élevée/moyenne/faible) de chaque certificat distinct,
+  plafonnée à 100 ; il est rappelé dans le détail de chaque constat, et
+  `audit_tls_certificates(...).servers` le donne pour tous les serveurs (score 0 inclus). La politique
+  permet de changer les seuils (`max_validity_days`, `min_rsa_bits`, `min_ec_bits`…), de remplacer une
+  sévérité (`severities`) ou de désactiver un contrôle (`disabled`) ; elle se passe à
+  `apply_security_findings(..., tls_policy=...)`. Le plafond de 398 jours est celui du CA/B Forum
+  depuis 2020 ; il ne s'applique qu'aux certificats publiquement approuvés et baisse par paliers
+  (200 jours depuis le 15/03/2026, 100 en 2027, 47 en 2029) — d'où un seuil configurable et une
+  sévérité faible.
 - **CVE** : sévérité NVD reprise telle quelle (repli sur les tranches CVSS v3).
 
 ## Aucun faux positif sur trafic normal
@@ -93,12 +102,19 @@ constats (remplacement, pas ajout : deux appels donnent le même résultat).
 - sans détection, sans suspicion et sans CVE applicable, le rapport est vide (score 0).
 
 Voir `tests/test_security_findings.py` (trafic HTTP/TLS/DNS légitime, version corrigée,
-paquet malformé isolé, CLI de bout en bout), `tests/test_dns_tunnel.py` et
-`tests/test_beaconing.py` (poste de travail légitime : navigation, NTP, DNS, keepalive TCP,
-sauvegarde régulière).
+paquet malformé isolé, CLI de bout en bout).
 
 ## Limites connues
 
+- **Audit TLS** : seuls les certificats visibles en clair sont audités. TLS 1.3 chiffre le message
+  `Certificate` et une reprise de session n'en envoie pas : ces connexions sont invisibles sans clés
+  (`SSLKEYLOGFILE`). La chaîne de confiance PKI et la révocation ne sont pas vérifiées (pas de
+  magasin de confiance en capture passive). « Chaîne incomplète » est un indice faible : une
+  feuille émise directement par une racine connue du client est légitime. Un certificat auto-signé
+  est banal sur un équipement interne : ce sont des indices à confirmer. Les détails (émetteur,
+  sujet, algorithme, clé, IP du SAN) sont lus dans le DER brut exposé par tshark
+  (`pcap_parser.protocols.extract_tls_certificate`, via `cryptography`) ; sans ce DER, seuls les
+  contrôles de dates et de noms DNS restent possibles.
 - Pas de reassemblage TCP ni de déchiffrement TLS : un exploit dans un flux chiffré est
   invisible sans clés (voir `exploit_signatures`).
 - Une bannière peut être masquée ou falsifiée (`ServerTokens Prod`) : l'absence de service
