@@ -11,6 +11,7 @@ vérifier que la spec est à jour (comme le diagramme de classes).
 
 from __future__ import annotations
 
+import argparse
 import json
 import sys
 from pathlib import Path
@@ -24,7 +25,12 @@ from fastapi.openapi.utils import get_openapi  # noqa: E402
 from netcross_api.app import app  # noqa: E402
 
 
-def main() -> int:
+def _render() -> tuple[Path, str]:
+    """``(chemin_de_sortie, contenu)`` de la spec, sans rien ecrire.
+
+    Isole du rendu pour que ``--check`` puisse comparer sans toucher au
+    disque -- meme discipline que scripts/generate_class_diagram.py.
+    """
     spec = get_openapi(
         title=app.title,
         version=app.version,
@@ -34,20 +40,48 @@ def main() -> int:
     )
 
     output = Path(__file__).resolve().parent.parent / "docs" / "openapi.yaml"
-    output.parent.mkdir(parents=True, exist_ok=True)
-
-    # Écrire en YAML (pyyaml fait partie des deps de FastAPI)
     try:
         import yaml
 
-        with output.open("w") as f:
-            yaml.dump(spec, f, default_flow_style=False, sort_keys=False, allow_unicode=True)
+        return output, yaml.dump(spec, default_flow_style=False, sort_keys=False, allow_unicode=True)
     except ImportError:
-        # Repli : JSON si pyyaml n'est pas disponible
-        output = output.with_suffix(".json")
-        with output.open("w") as f:
-            json.dump(spec, f, indent=2, ensure_ascii=False)
+        # Repli : JSON si pyyaml n'est pas disponible.
+        return output.with_suffix(".json"), json.dumps(spec, indent=2, ensure_ascii=False)
 
+
+def main(argv=None) -> int:
+    parser = argparse.ArgumentParser(description="Genere docs/openapi.yaml depuis FastAPI")
+    parser.add_argument(
+        "--check",
+        action="store_true",
+        help="N'ecrit rien : verifie que la spec versionnee correspond au code "
+        "et sort en erreur sinon (utilise en CI, comme le diagramme de classes).",
+    )
+    args = parser.parse_args(argv)
+
+    output, contenu = _render()
+
+    if args.check:
+        if not output.exists():
+            print(
+                f"{output} est absent alors que l'API expose des routes : "
+                "lancer `python3 scripts/generate_openapi.py`.",
+                file=sys.stderr,
+            )
+            return 1
+        actuel = output.read_text(encoding="utf-8")
+        if actuel != contenu:
+            print(
+                f"{output} n'est plus a jour avec le code de netcross_api : "
+                "lancer `python3 scripts/generate_openapi.py` et commiter le resultat.",
+                file=sys.stderr,
+            )
+            return 1
+        print(f"{output} est a jour.")
+        return 0
+
+    output.parent.mkdir(parents=True, exist_ok=True)
+    output.write_text(contenu, encoding="utf-8")
     print(f"OpenAPI spec écrite dans {output}")
     return 0
 

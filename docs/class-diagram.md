@@ -11,7 +11,7 @@
 > Il remplace l'ancienne section 3 de `docs/features-backlog.md`, tenue à la main, qui avait dérivé
 > (voir `docs/sessions/session-36.md`, issue #140).
 
-115 modules · 161 classes · 322 fonctions publiques de module.
+118 modules · 166 classes · 328 fonctions publiques de module.
 
 Conventions : `+` public, `-` privé (préfixe `_`) ; `int?` = `int | None` ; `list~str~` = `list[str]` ;
 `<<module>>` regroupe les fonctions publiques d'un module ; `A --> B : champ` = `A` a un champ annoté
@@ -32,7 +32,7 @@ flowchart TD
     netcross_core["netcross_core"]
     pcap_parser["pcap_parser"]
     CLI -->|"13 imports"| netcross_report
-    CLI -->|"12 imports"| netcross_core
+    CLI -->|"14 imports"| netcross_core
     CLI -->|"1 import"| pcap_parser
     netcross_gtk4 -->|"10 imports"| netcross_report
     netcross_gtk4 -->|"18 imports"| netcross_core
@@ -2194,6 +2194,79 @@ classDiagram
     FastFluxResult --> FastFluxAlert : alerts
     FlowStatsResult --> FlowStat : flows
     LateralMovementResult --> LateralMovementEvent : events
+```
+
+## `netcross_core.support`
+
+| Module | Rôle |
+|---|---|
+| `netcross_core.support` | remontee de tickets anonymisee (issue #269). |
+| `netcross_core.support.scrubber` | anonymisation de TEXTE LIBRE (issue #269). |
+| `netcross_core.support.ticket` | remontee de tickets anonymisee (issue #269). |
+
+### Diagramme
+
+```mermaid
+classDiagram
+    direction LR
+
+    %% ===== netcross_core.support.scrubber =====
+    class ScrubReport {
+        <<dataclass>>
+        +dict~str, int~ par_categorie
+        +int total
+        +int valeurs_distinctes
+        +tuple~str, ...~ limites
+        +statut() str
+        +to_dict() dict
+    }
+    class TextScrubber {
+        +mapping_csv_rows() list~tuple~str, str, str~~
+        +scrub(text) tuple~str?, ScrubReport~
+        +scrub_lines(lines) tuple~list~str~, ScrubReport~
+    }
+
+    %% ===== netcross_core.support.ticket =====
+    class ConsentRequiredError {
+        <<RuntimeError>>
+    }
+    class Consent {
+        <<dataclass, frozen>>
+        +bool granted
+        +tuple~str, ...~ scopes
+        +str? granted_at
+        +str source
+        +allows(scope) bool
+        +to_dict() dict
+    }
+    class SupportTicket {
+        <<dataclass>>
+        +str ticket_id
+        +str kind
+        +str created_at
+        +Consent consent
+        +dict~str, str?~ markers
+        +dict~str, str?~ environment
+        +dict? crash
+        +list~str~ errors
+        +list~str~ log_lines
+        +dict anonymization
+        +list~dict~ self_check
+        +to_dict() dict
+        +to_json(indent) str
+    }
+    class mod_netcross_core_support_ticket["netcross_core.support.ticket"] {
+        <<module>>
+        +collect_environment() dict~str, str?~
+        +format_exception(exc) tuple~str, str, list~str~~
+        +build_ticket(consent, kind, exception, errors, log_lines, markers, scrubber) SupportTicket
+        +write_ticket(ticket, path) str
+        +write_support_map_csv(scrubber, path) str
+        +install_crash_handler(path, consent, markers) None
+    }
+
+    %% ===== relations =====
+    SupportTicket --> Consent : consent
 ```
 
 ## `netcross_core.tshark_stats`

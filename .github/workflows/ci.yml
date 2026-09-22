@@ -44,6 +44,14 @@ jobs:
         # filet de sécurité pour les contributions qui n'ont pas lancé le hook.
         run: python3 scripts/generate_class_diagram.py --check
 
+      - name: Spécification OpenAPI à jour (issue #209)
+        # Même filet de sécurité que le diagramme de classes ci-dessus :
+        # docs/openapi.yaml est dérivé du code de netcross_api, il doit donc
+        # être régénéré et commité dès qu'une route ou un modèle change.
+        env:
+          PYTHONPATH: src
+        run: uv run python scripts/generate_openapi.py --check
+
       - name: Tests (pytest + couverture)
         # --cov sans chemin : source lue depuis [tool.coverage.run] (source =
         # ["src"]) dans pyproject.toml. term-missing dans les logs CI,
