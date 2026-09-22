@@ -428,9 +428,9 @@ def test_inter_module_relations_sur_mini_src(mini_src):
     # Finding (netcross_core.models) référence RawPacket (pcap_parser.packet) via 'packets'
     assert "## Relations inter-modules" in doc
     assert "Finding -->|packets| RawPacket" in doc
-    # Les nœuds sont déclarés explicitement
-    assert 'Finding["Finding"]' in doc
-    assert 'RawPacket["RawPacket"]' in doc
+    # Les nœuds sont déclarés explicitement avec leur nom complet (module.Class)
+    assert 'Finding["netcross_core.models.Finding"]' in doc
+    assert 'RawPacket["pcap_parser.packet.RawPacket"]' in doc
     # ET cette relation n'apparait PAS dans les blocs classDiagram par package
     blocks = [b for b in _blocks(doc) if b.startswith("classDiagram")]
     for b in blocks:

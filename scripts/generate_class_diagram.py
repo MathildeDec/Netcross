@@ -451,7 +451,8 @@ def _render_inter_module_relations(modules: list[ModuleInfo], ids: dict[tuple[st
         return ""  # aucune relation inter-module détectée
 
     # Nœuds déclarés (pour que le flowchart soit autonome) : on liste chaque
-    # classe impliquée avec son nom complet entre crochets.
+    # classe impliquée avec son nom complet (module.Class) entre crochets,
+    # pour lever l'ambiguïté quand une classe existe dans plusieurs modules.
     node_lines: list[str] = []
     declared: set[str] = set()
     for line in relations:
@@ -459,11 +460,24 @@ def _render_inter_module_relations(modules: list[ModuleInfo], ids: dict[tuple[st
         src = parts[0].strip()
         if src not in declared:
             declared.add(src)
-            node_lines.append(f'    {src}["{src}"]')
+            # Cherche le module d'origine pour le label
+            src_label = src
+            for m in modules:
+                for c in m.classes:
+                    if ids[(m.name, c.name)] == src:
+                        src_label = f"{m.name}.{c.name}"
+                        break
+            node_lines.append(f'    {src}["{src_label}"]')
         dst = parts[-1].rsplit("| ", 1)[-1].strip()
         if dst not in declared:
             declared.add(dst)
-            node_lines.append(f'    {dst}["{dst}"]')
+            dst_label = dst
+            for m in modules:
+                for c in m.classes:
+                    if ids[(m.name, c.name)] == dst:
+                        dst_label = f"{m.name}.{c.name}"
+                        break
+            node_lines.append(f'    {dst}["{dst_label}"]')
 
     return "\n".join(["flowchart LR", *sorted(node_lines), *sorted(relations)])
 
