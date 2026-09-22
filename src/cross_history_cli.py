@@ -38,7 +38,7 @@ d'analyse simple -- d'un fichier partage entre plusieurs sites) :
 import argparse
 import sys
 
-from netcross_report import list_history, print_history
+from netcross_report import HistoryDatabaseError, list_history, print_history
 
 
 def main():
@@ -78,7 +78,13 @@ def main():
         print("--limit doit etre un entier strictement positif.", file=sys.stderr)
         sys.exit(1)
 
-    entries = list_history(args.db, limit=args.limit, label=args.label, run_type=args.run_type)
+    try:
+        entries = list_history(args.db, limit=args.limit, label=args.label, run_type=args.run_type)
+    except HistoryDatabaseError as exc:
+        # Un fichier qui existe mais n'est pas une base netcross : message
+        # nommant le chemin plutot qu'une trace sqlite3 brute (issue #287).
+        print(exc, file=sys.stderr)
+        sys.exit(1)
     print_history(entries)
 
 

@@ -111,7 +111,7 @@ def test_analyzer_cli_capture_segmentee_bout_en_bout(monkeypatch, capsys):
         "wan.pcap": [make_pkt(point="WAN", ts=0.0, key_id=1)],
     }
 
-    def fake_parse_capture(label, path):
+    def fake_parse_capture(label, path, raise_on_error=False):
         return list(segments[path])
 
     monkeypatch.setattr(analyzer_cli, "parse_capture", fake_parse_capture)
@@ -151,7 +151,7 @@ def test_diff_cli_baseline_et_current_segmentes_bout_en_bout(monkeypatch, capsys
         "cur3.pcap": [make_pkt(point="LAN", ts=2.0, key_id=1, seq=3000)],
     }
 
-    def fake_parse_capture(label, path):
+    def fake_parse_capture(label, path, raise_on_error=False):
         return list(segments[path])
 
     monkeypatch.setattr(diff_cli, "parse_capture", fake_parse_capture)
