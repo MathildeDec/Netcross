@@ -71,6 +71,42 @@ def synthetic_packets(count: int, step_us: int = 100_000, start_us: int = 1_700_
     return [(start_us + i * step_us, frame(i, size)) for i in range(count)]
 
 
+# -- trames Ethernet/IPv4 reelles (dissectables par tshark) ------------------
+#
+# frame() ci-dessus n'est PAS une trame Ethernet valide -- juste des octets
+# numerotes, suffisants pour verifier qu'un decoupage binaire (split/merge)
+# conserve l'ordre des paquets, mais indissectables par tshark. Pour tester
+# un filtre d'affichage tshark (ip.addr, tcp.port...), il faut de vraies
+# trames IP/TCP/UDP -- voir issue #261.
+
+
+def ip_udp_frame(src: str, dst: str, sport: int, dport: int, payload: bytes = b"") -> bytes:
+    """Trame Ethernet / IPv4 / UDP minimale mais valide, dissectable par
+    tshark (sommes de controle a 0 : tshark ne les verifie pas par defaut).
+    """
+    import socket
+
+    udp = struct.pack(">HHHH", sport, dport, 8 + len(payload), 0) + payload
+    ip = struct.pack(
+        ">BBHHHBBH4s4s", 0x45, 0, 20 + len(udp), 0, 0, 64, 17, 0, socket.inet_aton(src), socket.inet_aton(dst)
+    )
+    eth = bytes.fromhex("001122334455") + bytes.fromhex("665544332211") + b"\x08\x00"
+    return eth + ip + udp
+
+
+def ip_tcp_frame(src: str, dst: str, sport: int, dport: int, payload: bytes = b"") -> bytes:
+    """Trame Ethernet / IPv4 / TCP minimale mais valide (memes reserves que
+    ip_udp_frame)."""
+    import socket
+
+    tcp = struct.pack(">HHIIBBHHH", sport, dport, 0, 0, 0x50, 0x18, 65535, 0, 0) + payload
+    ip = struct.pack(
+        ">BBHHHBBH4s4s", 0x45, 0, 20 + len(tcp), 0, 0, 64, 6, 0, socket.inet_aton(src), socket.inet_aton(dst)
+    )
+    eth = bytes.fromhex("001122334455") + bytes.fromhex("665544332211") + b"\x08\x00"
+    return eth + ip + tcp
+
+
 # -- pcapng -------------------------------------------------------------------
 
 SHB, IDB, EPB, DSB = 0x0A0D0D0A, 0x1, 0x6, 0xA

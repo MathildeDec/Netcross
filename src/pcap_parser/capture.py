@@ -794,15 +794,23 @@ def _build_display_filter(
     time_start: float | None = None,
     time_end: float | None = None,
     endpoints: list[str] | None = None,
+    bpf_filter: str | None = None,
 ) -> str | None:
-    """Construit un filtre d'affichage tshark (-Y) pour les criteres
-    temporels et d'endpoints. Renvoie None si aucun critere n'est fourni.
+    """Construit le filtre d'affichage tshark (-Y) pour TOUS les criteres
+    d'export_filtered. Renvoie None si aucun n'est fourni.
 
     time_start/time_end : secondes relatives au premier paquet de la
     capture (frame.time_relative).
     endpoints : liste d'adresses IP a inclure (ip.addr == X).
+    bpf_filter : malgre son nom (issue #156), PAS une expression BPF/tcpdump
+    (`tcp port 80`) -- voir export_filtered. C'est une expression de filtre
+    d'affichage Wireshark (`tcp.port == 80`), recopiee telle quelle : tshark
+    ne peut de toute facon appliquer un vrai filtre BPF qu'en capture live
+    (-i), jamais en relecture de fichier (-r) -- voir issue #261.
     """
     parts: list[str] = []
+    if bpf_filter:
+        parts.append(f"({bpf_filter})")
     if time_start is not None:
         parts.append(f"frame.time_relative >= {float(time_start):.6f}")
     if time_end is not None:
@@ -824,18 +832,29 @@ def export_filtered(
 ) -> None:
     """
     Exporte un sous-ensemble de la capture `path_in` vers `path_out`,
-    filtre par criteres combinables : BPF (capture filter), plage
-    temporelle (secondes relatives au premier paquet) et/ou endpoints
-    (adresses IP a inclure).
+    filtre par criteres combinables : `bpf_filter`, plage temporelle
+    (secondes relatives au premier paquet) et/ou endpoints (adresses IP a
+    inclure). Tous les criteres sont en ET logique : un paquet doit tous
+    les satisfaire pour etre ecrit. Si aucun n'est fourni, la capture
+    entiere est recopiee (utile pour convertir de format).
+
+    `bpf_filter`, malgre son nom, N'EST PAS une expression BPF/tcpdump
+    (`tcp port 80`) : c'est une expression de filtre d'AFFICHAGE Wireshark
+    (`tcp.port == 80`, `ip.addr == 10.0.0.1`...). tshark refuse un filtre de
+    capture (`-f`) combine a une relecture de fichier (`-r`) -- "Only read
+    filters, not capture filters, can be specified when reading a capture
+    file" -- et ne peut appliquer un vrai BPF qu'en capture live (`-i`,
+    hors du perimetre de cette fonction). `bpf_filter` est donc replie dans
+    le meme filtre d'affichage (-Y) que les autres criteres (voir issue
+    #261 ; le nom du parametre est garde pour ne pas casser les appelants
+    existants).
 
     Le format de sortie (pcap ou pcapng) est deduit de l'extension de
-    `path_out` (`.pcap` -> pcap classique, sinon pcapng). Aucun outil
-    externe autre que tshark (deja requis par le reste du projet) :
-    utilise `tshark -r in -w out -f "bpf" -Y "display_filter"`.
-
-    BPF et filtre d'affichage sont combines : un paquet doit passer les
-    DEUX pour etre ecrit. Si aucun critere n'est fourni, la capture
-    entiere est recopiee (utile pour convertir de format).
+    `path_out` (`.pcap` -> pcap classique via `-F pcap`, sinon pcapng via
+    `-F pcapng` -- sans ce `-F` explicite, tshark ecrit toujours du pcapng
+    quelle que soit l'extension demandee, meme `.pcap` ; voir issue #261).
+    Aucun outil externe autre que tshark (deja requis par le reste du
+    projet) : `tshark -r in -w out -F format -Y "display_filter"`.
 
     Leve FileNotFoundError (capture absente), TsharkNotFoundError (tshark
     absent du PATH), TsharkError (echec de tshark), ou ValueError
@@ -851,10 +870,9 @@ def export_filtered(
     from pcap_parser.ek_source import _tshark_path
 
     tshark = _tshark_path()
-    args: list[str] = [tshark, "-r", path_in, "-w", path_out]
-    if bpf_filter:
-        args += ["-f", bpf_filter]
-    display_filter = _build_display_filter(time_start, time_end, endpoints)
+    file_type = "pcap" if path_out.lower().endswith(".pcap") else "pcapng"
+    args: list[str] = [tshark, "-r", path_in, "-w", path_out, "-F", file_type]
+    display_filter = _build_display_filter(time_start, time_end, endpoints, bpf_filter)
     if display_filter:
         args += ["-Y", display_filter]
 
