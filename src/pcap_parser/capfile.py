@@ -206,18 +206,22 @@ class CaptureStructure:
 def _iter_options(data: bytes, endian: str) -> Iterator[tuple[int, bytes]]:
     """Yield (code, valeur) pour chaque option pcapng de `data` (la zone
     d'options d'un bloc, sans l'octet de longueur finale). S'arrete a
-    opt_endofopt ou sur une option tronquee -- on garde ce qui precede."""
-    pos = 0
-    while pos + 4 <= len(data):
-        code, length = struct.unpack_from(endian + "HH", data, pos)
+    opt_endofopt ou sur une option tronquee -- on garde ce qui precede.
+
+    Iterere sur les options TLV (type 2, length 2, value padded a 4
+    octets) d'un bloc pcapng. Renvoie (code, value) pour chaque option."""
+    offset = 0
+    while offset + 4 <= len(data):
+        code, length = struct.unpack_from(endian + "HH", data, offset)
         if code == _OPT_ENDOFOPT:
             return
-        pos += 4
-        value = data[pos : pos + length]
-        if len(value) < length:
+        offset += 4
+        if offset + length > len(data):
             return
+        value = data[offset : offset + length]
         yield code, value
-        pos += (length + 3) & ~3  # valeur alignee sur 32 bits
+        # padding a 4 octets (aligne sur 32 bits)
+        offset += (length + 3) & ~3
 
 
 def _read_pcapng_structure(f: BinaryIO) -> CaptureStructure | None:
@@ -465,24 +469,6 @@ def _first_timestamp_pcap(f: BinaryIO, endian: str, nsec: bool) -> float:
     ts_sec, ts_frac = struct.unpack_from(endian + "II", header, 0)
     divisor = 1e9 if nsec else 1e6
     return ts_sec + ts_frac / divisor
-
-
-def _iter_options(data: bytes, endian: str):
-    """Iterere sur les options TLV (type 2, length 2, value padded a 4
-    octets) d'un bloc pcapng. Renvoie (code, value) pour chaque option."""
-    offset = 0
-    while offset + 4 <= len(data):
-        code, length = struct.unpack_from(endian + "HH", data, offset)
-        if code == 0:  # opt_endofopt
-            break
-        offset += 4
-        if offset + length > len(data):
-            break
-        value = data[offset : offset + length]
-        yield code, value
-        # padding a 4 octets
-        padded = (length + 3) & ~3
-        offset += padded
 
 
 def _first_timestamp_pcapng(f: BinaryIO) -> float:

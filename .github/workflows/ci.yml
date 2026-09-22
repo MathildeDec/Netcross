@@ -137,7 +137,6 @@ jobs:
     # dans [[tool.mypy.overrides]] de pyproject.toml).
     name: Types (mypy)
     runs-on: ubuntu-latest
-    continue-on-error: true
 
     steps:
       - name: Checkout du dépôt

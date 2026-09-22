@@ -14,7 +14,7 @@ from netcross_core.application.models import ApplicationTransaction
 from netcross_core.models import Pkt
 
 
-def _dns_key(pkt: Pkt) -> tuple[str, str, int, int, int, str | None]:
+def _dns_key(pkt: Pkt) -> tuple[str, str, str, int | None, int | None, str | int]:
     """Clé d'appariement DNS : point + endpoints + ports + txn_id + query.
 
     Inclure query_name réduit les collisions d'ID réutilisés ; inclure

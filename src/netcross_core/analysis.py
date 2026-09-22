@@ -1083,7 +1083,7 @@ def _analyse_application_transactions(r: Report, all_packets: list[Pkt]):
     d'analyse et de rapport.
     """
     # Collecte des signaux réseau par flux TCP (5-tuple directionnel)
-    network_signals: dict[tuple[str, str, int, int], list[str]] = {}
+    network_signals: dict[tuple[str, str, int | None, int | None], list[str]] = {}
     for pk in all_packets:
         if pk.proto != "TCP":
             continue
