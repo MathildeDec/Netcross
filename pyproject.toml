@@ -32,6 +32,14 @@ dev = [
     "import-linter>=2.13",
     "pre-commit>=4.0",
 ]
+# API REST (issue #209) : jamais obligatoire pour le cœur ou les rapports.
+# Installé avec : pip install -e ".[api]" ou uv sync --extra api
+api = [
+    "fastapi>=0.100",
+    "uvicorn>=0.20",
+    "python-multipart>=0.0.6",
+    "httpx>=0.24",  # pour TestClient dans les tests
+]
 
 [tool.uv]
 # `package = false` : netcross est une application lancee via
@@ -63,7 +71,7 @@ ignore = ["RUF100"]
 ban-relative-imports = "all"
 
 [tool.importlinter]
-root_packages = ["netcross_gtk4", "netcross_report", "netcross_core", "pcap_parser"]
+root_packages = ["netcross_gtk4", "netcross_report", "netcross_api", "netcross_core", "pcap_parser"]
 include_external_packages = true
 
 [[tool.importlinter.contracts]]
@@ -72,6 +80,7 @@ type = "layers"
 layers = [
     "netcross_gtk4",
     "netcross_report",
+    "netcross_api",
     "netcross_core",
     "pcap_parser",
 ]
