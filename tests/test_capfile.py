@@ -29,12 +29,27 @@ from pcap_builders import (
 )
 
 from pcap_parser.capfile import (
+    _BLOCK_EPB,
+    _BLOCK_IDB,
+    _BLOCK_ISB,
+    _BOM_BE,
+    _BOM_LE,
+    _MAX_UNIT_LEN,
+    _PCAP_HEADER_LEN,
+    _PCAPNG_MAGIC,
     FORMAT_NSECPCAP,
     FORMAT_PCAP,
     FORMAT_PCAPNG,
+    _iter_options,
+    _iter_pcap_records,
+    _iter_pcapng_blocks,
+    _read_exact_or_none,
+    _SegmentSink,
     detect_format,
+    first_timestamp,
     format_extension,
     has_packets,
+    read_structure,
     split_by_size,
 )
 
@@ -294,3 +309,680 @@ def test_split_by_size_n_ecrase_jamais_un_fichier_existant(tmp_path):
 
     assert existant.read_bytes() == b"a ne pas toucher"
     assert not (tmp_path / "cap_00000.pcap").exists()  # le segment deja ecrit est nettoye
+
+
+# -- Tests de couverture des branches partielles (issue #288) ------------------
+
+# -- _read_exact_or_none -------------------------------------------------------
+
+
+def test_read_exact_or_none_complet(tmp_path):
+    """Lecture complete d'un fichier."""
+    p = tmp_path / "test.bin"
+    p.write_bytes(b"\x01\x02\x03\x04")
+    with open(p, "rb") as f:
+        assert _read_exact_or_none(f, 4) == b"\x01\x02\x03\x04"
+
+
+def test_read_exact_or_none_tronque(tmp_path):
+    """Fichier tronque : retourne None."""
+    p = tmp_path / "test.bin"
+    p.write_bytes(b"\x01\x02")
+    with open(p, "rb") as f:
+        assert _read_exact_or_none(f, 4) is None
+
+
+# -- _iter_pcap_records : corruption -------------------------------------------
+
+
+def test_iter_pcap_records_longueur_aberrante():
+    """Une longueur de record aberrante leve ValueError."""
+    # En-tete global pcap (24 octets) - little endian
+    header = (
+        b"\xd4\xc3\xb2\xa1"
+        + b"\x00\x02\x00\x04"
+        + b"\x00\x00\x00\x00"
+        + b"\x00\x00\x00\x00"
+        + b"\xff\xff\x00\x00"
+        + b"\x01\x00\x00\x00"
+    )
+    # Record header avec incl_len aberrant (offset 8 = 3e uint32)
+    record_header = struct.pack("<IIII", 1, 0, _MAX_UNIT_LEN + 1, 0)
+    import io
+
+    f = io.BytesIO(header + record_header)
+    f.seek(_PCAP_HEADER_LEN)  # skip global header
+    endian = "<"
+    with pytest.raises(ValueError, match="corrompu"):
+        list(_iter_pcap_records(f, endian))
+
+
+def test_iter_pcap_records_tronque():
+    """Un record tronque (header incomplet) arrete silencieusement."""
+    header = (
+        b"\xd4\xc3\xb2\xa1"
+        + b"\x00\x02\x00\x04"
+        + b"\x00\x00\x00\x00"
+        + b"\x00\x00\x00\x00"
+        + b"\xff\xff\x00\x00"
+        + b"\x01\x00\x00\x00"
+    )
+    import io
+
+    f = io.BytesIO(header + b"\x00" * 10)  # header de record incomplet
+    f.seek(_PCAP_HEADER_LEN)  # skip global header
+    endian = "<"
+    records = list(_iter_pcap_records(f, endian))
+    assert records == []
+
+
+# -- _iter_pcapng_blocks : BOM et corruption -----------------------------------
+
+
+def test_iter_pcapng_blocks_bom_tronque():
+    """SHB avec BOM tronque : arret silencieux (ligne 142)."""
+    import io
+
+    # SHB header (8 octets) + BOM incomplet (2 octets au lieu de 4)
+    data = _PCAPNG_MAGIC + struct.pack("<I", 12) + _BOM_LE[:2]
+    f = io.BytesIO(data)
+    blocks = list(_iter_pcapng_blocks(f))
+    assert blocks == []
+
+
+def test_iter_pcapng_blocks_bom_invalide():
+    """BOM invalide dans un SHB : ValueError (ligne 148)."""
+    import io
+
+    # SHB header + BOM invalide
+    data = _PCAPNG_MAGIC + struct.pack("<I", 12) + b"\x00\x00\x00\x00"
+    f = io.BytesIO(data)
+    with pytest.raises(ValueError, match="byte-order magic"):
+        list(_iter_pcapng_blocks(f))
+
+
+def test_iter_pcapng_blocks_bom_big_endian():
+    """BOM big-endian dans un SHB."""
+    import io
+
+    # SHB avec BOM big-endian : total_len doit etre packe en big-endian
+    shb = _PCAPNG_MAGIC + struct.pack(">I", 16) + _BOM_BE
+    # Ajouter un IDB simple en big-endian
+    idb = struct.pack(">I", _BLOCK_IDB) + struct.pack(">I", 20) + struct.pack(">HHI", 1, 0, 65535) + b"\x00\x00\x00\x00"
+    f = io.BytesIO(shb + idb)
+    blocks = list(_iter_pcapng_blocks(f))
+    # Au moins le SHB doit etre lu
+    assert len(blocks) >= 1
+
+
+def test_iter_pcapng_blocks_bloc_corrompu():
+    """Bloc avec longueur invalide : ValueError."""
+    import io
+
+    # SHB valide (total_len=16, avec 4 octets de padding apres BOM)
+    shb = _PCAPNG_MAGIC + struct.pack("<I", 16) + _BOM_LE + b"\x00" * 4
+    # Bloc corrompu : total_len < 12
+    bad_block = struct.pack("<I", _BLOCK_IDB) + struct.pack("<I", 4)
+    f = io.BytesIO(shb + bad_block)
+    with pytest.raises(ValueError, match="corrompu"):
+        list(_iter_pcapng_blocks(f))
+
+
+# -- _iter_options -------------------------------------------------------------
+
+
+def test_iter_options_endofopt():
+    """opt_endofopt arrete l'iteration."""
+    data = struct.pack("<HH", 0, 0)  # opt_endofopt
+    assert list(_iter_options(data, "<")) == []
+
+
+def test_iter_options_normales():
+    """Options normales sont yielded."""
+    # Option code=2, length=5, value="eth0\0" padded to 8
+    value = b"eth0\0"
+    padded_len = (len(value) + 3) & ~3  # 8
+    opt = struct.pack("<HH", 2, len(value)) + value + b"\x00" * (padded_len - len(value))
+    opt += struct.pack("<HH", 0, 0)  # endofopt
+    options = list(_iter_options(opt, "<"))
+    assert len(options) == 1
+    code, val = options[0]
+    assert code == 2
+    assert val == b"eth0\0"
+
+
+def test_iter_options_tronquee():
+    """Option tronquee : arret."""
+    data = struct.pack("<HH", 2, 100) + b"\x00"  # length=100 mais 1 octet present
+    options = list(_iter_options(data, "<"))
+    assert options == []
+
+
+def test_iter_options_trop_court():
+    """Donnees trop courtes pour un en-tete d'option."""
+    assert list(_iter_options(b"\x00\x00", "<")) == []
+
+
+# -- _read_pcapng_structure : ISB et interfaces --------------------------------
+
+
+def test_read_structure_pcapng_avec_isb(tmp_path):
+    """read_structure lit les compteurs ISB d'un pcapng."""
+    p = tmp_path / "test.pcapng"
+    # SHB
+    shb_body = _BOM_LE + struct.pack("<HH", 1, 0) + b"\x00" * 4
+    shb_total_len = 8 + len(shb_body) + 4
+    shb = _PCAPNG_MAGIC + struct.pack("<I", shb_total_len) + shb_body + b"\x00" * 4
+    # IDB avec nom d'interface
+    if_name = b"eth0"
+    if_name_padded = if_name + b"\x00" * ((4 - len(if_name) % 4) % 4)
+    idb_options = struct.pack("<HH", 2, len(if_name)) + if_name_padded + struct.pack("<HH", 0, 0)
+    idb_body = struct.pack("<HHI", 1, 0, 65535) + idb_options
+    idb_total_len = 8 + len(idb_body) + 4
+    idb = struct.pack("<I", _BLOCK_IDB) + struct.pack("<I", idb_total_len) + idb_body + b"\x00" * 4
+    # ISB avec ifrecv=100, ifdrop=5
+    # ISB body: interface_id(4) + timestamp(8) = 12 bytes avant options
+    isb_body = struct.pack("<I", 0) + struct.pack("<II", 0, 0)  # interface_id=0 + timestamp
+    isb_options = (
+        struct.pack("<HH", 4, 8)
+        + struct.pack("<Q", 100)  # ifrecv
+        + struct.pack("<HH", 5, 8)
+        + struct.pack("<Q", 5)  # ifdrop
+        + struct.pack("<HH", 0, 0)  # endofopt
+    )
+    isb_total_len = 8 + len(isb_body) + len(isb_options) + 4
+    isb = struct.pack("<I", _BLOCK_ISB) + struct.pack("<I", isb_total_len) + isb_body + isb_options + b"\x00" * 4
+    p.write_bytes(shb + idb + isb)
+
+    struct_info = read_structure(str(p))
+    assert struct_info is not None
+    assert struct_info.fmt == FORMAT_PCAPNG
+    assert len(struct_info.interfaces) == 1
+    assert struct_info.interfaces[0].name == "eth0"
+    assert struct_info.interfaces[0].received == 100
+    assert struct_info.interfaces[0].dropped_by_interface == 5
+
+
+def test_read_structure_pcapng_isb_interface_inconnue(tmp_path):
+    """ISB pour une interface inconnue : ignore (ligne 244)."""
+    p = tmp_path / "test.pcapng"
+    shb_body = _BOM_LE + struct.pack("<HH", 1, 0) + b"\x00" * 4
+    shb_total_len = 8 + len(shb_body) + 4
+    shb = _PCAPNG_MAGIC + struct.pack("<I", shb_total_len) + shb_body + b"\x00" * 4
+    # ISB pour interface_id=99 (inexistante)
+    isb_body = struct.pack("<I", 99) + struct.pack("<HH", 0, 0)
+    isb_total_len = 8 + len(isb_body) + 4
+    isb = struct.pack("<I", _BLOCK_ISB) + struct.pack("<I", isb_total_len) + isb_body + b"\x00" * 4
+    p.write_bytes(shb + isb)
+
+    struct_info = read_structure(str(p))
+    assert struct_info is not None
+    assert len(struct_info.interfaces) == 0  # pas d'IDB
+
+
+def test_read_structure_pcapng_isb_valeur_non_8_octets(tmp_path):
+    """ISB avec une option dont la valeur n'a pas 8 octets : ignore (ligne 249)."""
+    p = tmp_path / "test.pcapng"
+    shb_body = _BOM_LE + struct.pack("<HH", 1, 0) + b"\x00" * 4
+    shb_total_len = 8 + len(shb_body) + 4
+    shb = _PCAPNG_MAGIC + struct.pack("<I", shb_total_len) + shb_body + b"\x00" * 4
+    # IDB simple
+    idb_body = struct.pack("<HHI", 1, 0, 65535)
+    idb_total_len = 8 + len(idb_body) + 4
+    idb = struct.pack("<I", _BLOCK_IDB) + struct.pack("<I", idb_total_len) + idb_body + b"\x00" * 4
+    # ISB avec option ifrecv de longueur 4 (pas 8)
+    isb_body = struct.pack("<I", 0)
+    isb_options = struct.pack("<HH", 4, 4) + struct.pack("<I", 100) + struct.pack("<HH", 0, 0)
+    isb_total_len = 8 + len(isb_body) + len(isb_options) + 4
+    isb = struct.pack("<I", _BLOCK_ISB) + struct.pack("<I", isb_total_len) + isb_body + isb_options + b"\x00" * 4
+    p.write_bytes(shb + idb + isb)
+
+    struct_info = read_structure(str(p))
+    assert struct_info is not None
+    assert struct_info.interfaces[0].received is None  # valeur ignoree
+
+
+def test_read_structure_format_inconnu(tmp_path):
+    """read_structure avec un format non reconnu retourne None."""
+    p = tmp_path / "test.bin"
+    p.write_bytes(b"\x00\x00\x00\x00")
+    assert read_structure(str(p)) is None
+
+
+def test_read_structure_pcap_tronque(tmp_path):
+    """read_structure avec un pcap tronque avant l'en-tete global."""
+    p = tmp_path / "test.pcap"
+    p.write_bytes(b"\xd4\xc3\xb2\xa1\x00\x02")  # magic + version incomplete
+    assert read_structure(str(p)) is None
+
+
+def test_read_structure_pcapng_sans_shb(tmp_path):
+    """read_structure pcapng sans SHB : version None, retourne None (ligne 263)."""
+    p = tmp_path / "test.pcapng"
+    # Pas de SHB, juste un IDB
+    idb = struct.pack("<I", _BLOCK_IDB) + struct.pack("<I", 20) + struct.pack("<HHI", 1, 0, 65535) + b"\x00\x00\x00\x00"
+    p.write_bytes(idb)
+    assert read_structure(str(p)) is None
+
+
+# -- has_packets ---------------------------------------------------------------
+
+
+def test_has_packets_pcap_vide(tmp_path):
+    """has_packets sur un pcap sans paquet."""
+    p = tmp_path / "empty.pcap"
+    header = (
+        b"\xd4\xc3\xb2\xa1"
+        + b"\x00\x02\x00\x04"
+        + b"\x00\x00\x00\x00"
+        + b"\x00\x00\x00\x00"
+        + b"\xff\xff\x00\x00"
+        + b"\x01\x00\x00\x00"
+    )
+    p.write_bytes(header)
+    assert has_packets(str(p)) is False
+
+
+def test_has_packets_format_inconnu(tmp_path):
+    """has_packets sur un format inconnu retourne True."""
+    p = tmp_path / "unknown.bin"
+    p.write_bytes(b"\x00" * 4)
+    assert has_packets(str(p)) is True
+
+
+# -- _SegmentSink --------------------------------------------------------------
+
+
+def test_segment_sink_is_open():
+    """_SegmentSink.is_open avant et apres ouverture."""
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as tmpdir:
+        sink = _SegmentSink(f"{tmpdir}/seg", ".pcap", 1024)
+        assert sink.is_open is False
+        sink.preamble = [b"header"]
+        sink.write(b"packet", is_packet=True)
+        assert sink.is_open is True
+
+
+def test_segment_sink_close_segment_sans_paquet(tmp_path):
+    """close() supprime un segment sans paquet."""
+    sink = _SegmentSink(str(tmp_path / "seg"), ".pcap", 1024)
+    sink.preamble = [b"header"]
+    sink.write(b"preamble_only", is_packet=False)
+    sink.close()
+    assert len(sink.paths) == 0  # segment supprime car sans paquet
+
+
+def test_segment_sink_abort(tmp_path):
+    """abort() supprime tous les segments."""
+    sink = _SegmentSink(str(tmp_path / "seg"), ".pcap", 1024)
+    sink.preamble = [b"header"]
+    sink.write(b"packet1", is_packet=True)
+    sink.write(b"packet2", is_packet=True)
+    assert len(sink.paths) >= 1
+    sink.abort()
+    assert len(sink.paths) == 0
+    import os
+
+    for path in sink.paths:
+        assert not os.path.exists(path)
+
+
+# -- split_by_size : cas limites ------------------------------------------------
+
+
+def test_split_by_size_max_bytes_invalide(tmp_path):
+    """split_by_size avec max_bytes < 1 : ValueError."""
+    p = tmp_path / "test.pcap"
+    p.write_bytes(b"\xd4\xc3\xb2\xa1" + b"\x00" * 20)
+    with pytest.raises(ValueError, match="max_bytes"):
+        split_by_size(str(p), str(tmp_path / "out"), 0)
+
+
+def test_split_by_size_format_inconnu(tmp_path):
+    """split_by_size avec un format non reconnu : ValueError."""
+    p = tmp_path / "test.bin"
+    p.write_bytes(b"\x00" * 4)
+    with pytest.raises(ValueError, match="format non reconnu"):
+        split_by_size(str(p), str(tmp_path / "out"), 1024)
+
+
+def test_split_by_size_pcap_vide(tmp_path):
+    """split_by_size sur un pcap sans paquet : aucun segment."""
+    p = tmp_path / "empty.pcap"
+    header = (
+        b"\xd4\xc3\xb2\xa1"
+        + b"\x00\x02\x00\x04"
+        + b"\x00\x00\x00\x00"
+        + b"\x00\x00\x00\x00"
+        + b"\xff\xff\x00\x00"
+        + b"\x01\x00\x00\x00"
+    )
+    p.write_bytes(header)
+    segments = split_by_size(str(p), str(tmp_path / "seg"), 1024)
+    assert segments == []
+
+
+# -- first_timestamp : cas limites ---------------------------------------------
+
+
+def test_first_timestamp_pcapng_sans_paquet(tmp_path):
+    """first_timestamp sur un pcapng sans EPB : ValueError."""
+    p = tmp_path / "test.pcapng"
+    shb_body = _BOM_LE + struct.pack("<HH", 1, 0) + b"\x00" * 4
+    shb_total_len = 8 + len(shb_body) + 4
+    shb = _PCAPNG_MAGIC + struct.pack("<I", shb_total_len) + shb_body + b"\x00" * 4
+    p.write_bytes(shb)
+    with pytest.raises(ValueError, match="sans paquet"):
+        first_timestamp(str(p))
+
+
+def test_first_timestamp_pcap_sans_paquet(tmp_path):
+    """first_timestamp sur un pcap sans paquet : ValueError."""
+    p = tmp_path / "empty.pcap"
+    header = (
+        b"\xd4\xc3\xb2\xa1"
+        + b"\x00\x02\x00\x04"
+        + b"\x00\x00\x00\x00"
+        + b"\x00\x00\x00\x00"
+        + b"\xff\xff\x00\x00"
+        + b"\x01\x00\x00\x00"
+    )
+    p.write_bytes(header)
+    with pytest.raises(ValueError, match="sans paquet"):
+        first_timestamp(str(p))
+
+
+def test_first_timestamp_fichier_inexistant():
+    """first_timestamp sur un fichier inexistant : FileNotFoundError."""
+    with pytest.raises(FileNotFoundError):
+        first_timestamp("/nonexistent/path/file.pcap")
+
+
+def test_first_timestamp_format_inconnu(tmp_path):
+    """first_timestamp sur un format inconnu : ValueError."""
+    p = tmp_path / "test.bin"
+    p.write_bytes(b"\x00" * 4)
+    with pytest.raises(ValueError, match="format non reconnu"):
+        first_timestamp(str(p))
+
+
+# -- format_extension ----------------------------------------------------------
+
+
+def test_format_extension_pcap():
+    assert format_extension(FORMAT_PCAP) == ".pcap"
+
+
+def test_format_extension_nsecpcap():
+    assert format_extension(FORMAT_NSECPCAP) == ".pcap"
+
+
+def test_format_extension_pcapng():
+    assert format_extension(FORMAT_PCAPNG) == ".pcapng"
+
+
+def test_format_extension_none():
+    assert format_extension(None) == ".pcapng"
+
+
+def test_format_extension_unknown():
+    assert format_extension("unknown") == ".pcapng"
+
+
+# -- first_timestamp avec paquets reels ----------------------------------------
+
+
+def test_first_timestamp_pcap_avec_paquet(tmp_path):
+    """first_timestamp sur un pcap avec un paquet (lignes 465-467)."""
+    p = tmp_path / "test.pcap"
+    # En-tete global pcap little-endian
+    header = b"\xd4\xc3\xb2\xa1" + struct.pack("<HHiIII", 2, 4, 0, 0, 65535, 1)
+    # Record: ts_sec=1000, ts_usec=500000, incl_len=4, orig_len=4, data=4 octets
+    record = struct.pack("<IIII", 1000, 500000, 4, 4) + b"\x00" * 4
+    p.write_bytes(header + record)
+    ts = first_timestamp(str(p))
+    assert ts == 1000.5  # 1000 + 500000/1e6
+
+
+def test_first_timestamp_nsecpcap(tmp_path):
+    """first_timestamp sur un nsecpcap (diviseur 1e9)."""
+    p = tmp_path / "test.pcap"
+    # Magic nsecpcap little-endian
+    header = b"\x4d\x3c\xb2\xa1" + struct.pack("<HHiIII", 2, 4, 0, 0, 65535, 1)
+    # Record: ts_sec=1000, ts_nsec=500000000, incl_len=4, orig_len=4
+    record = struct.pack("<IIII", 1000, 500000000, 4, 4) + b"\x00" * 4
+    p.write_bytes(header + record)
+    ts = first_timestamp(str(p))
+    assert abs(ts - 1000.5) < 0.001
+
+
+def test_first_timestamp_pcapng_avec_epb(tmp_path):
+    """first_timestamp sur un pcapng avec un EPB (lignes 498-510)."""
+    p = tmp_path / "test.pcapng"
+    # SHB
+    shb_body = _BOM_LE + struct.pack("<HH", 1, 0) + struct.pack("<q", -1)
+    shb_total_len = 8 + len(shb_body) + 4
+    shb = _PCAPNG_MAGIC + struct.pack("<I", shb_total_len) + shb_body + b"\x00" * 4
+    # IDB
+    idb_body = struct.pack("<HHI", 1, 0, 65535)
+    idb_total_len = 8 + len(idb_body) + 4
+    idb = struct.pack("<I", _BLOCK_IDB) + struct.pack("<I", idb_total_len) + idb_body + b"\x00" * 4
+    # EPB: interface_id(4) + ts_high(4) + ts_low(4) + captured_len(4) + packet_len(4) + data
+    epb_ts_high = 0
+    epb_ts_low = 1000  # timestamp = 1000 (en unite de tsresol, defaut us)
+    epb_data = b"\x00" * 4
+    epb_body = struct.pack("<IIIII", 0, epb_ts_high, epb_ts_low, len(epb_data), len(epb_data)) + epb_data
+    # Pad to 4 bytes
+    padded_len = (len(epb_body) + 3) & ~3
+    epb_body += b"\x00" * (padded_len - len(epb_body))
+    epb_total_len = 8 + len(epb_body) + 4
+    epb = struct.pack("<I", _BLOCK_EPB) + struct.pack("<I", epb_total_len) + epb_body + b"\x00" * 4
+    p.write_bytes(shb + idb + epb)
+
+    ts = first_timestamp(str(p))
+    assert ts == 1000.0 / 64  # 1000 units / 2^6 (default tsresol)
+
+
+def test_first_timestamp_pcapng_avec_tsresol(tmp_path):
+    """first_timestamp sur un pcapng avec if_tsresol (option 9 dans IDB)."""
+    p = tmp_path / "test.pcapng"
+    # SHB
+    shb_body = _BOM_LE + struct.pack("<HH", 1, 0) + struct.pack("<q", -1)
+    shb_total_len = 8 + len(shb_body) + 4
+    shb = _PCAPNG_MAGIC + struct.pack("<I", shb_total_len) + shb_body + b"\x00" * 4
+    # IDB avec option if_tsresol (code 9, value=0 = 2^0 = 1 = secondes)
+    tsresol_val = bytes([0])  # shift=0, divisor=2^0=1 (secondes)
+    tsresol_opt = struct.pack("<HH", 9, 1) + tsresol_val + b"\x00\x00\x00"  # padded to 4
+    idb_body = struct.pack("<HHI", 1, 0, 65535) + tsresol_opt + struct.pack("<HH", 0, 0)
+    idb_total_len = 8 + len(idb_body) + 4
+    idb = struct.pack("<I", _BLOCK_IDB) + struct.pack("<I", idb_total_len) + idb_body + b"\x00" * 4
+    # EPB avec timestamp = 5 (en secondes)
+    epb_body = struct.pack("<IIIII", 0, 0, 5, 4, 4) + b"\x00" * 4
+    padded_len = (len(epb_body) + 3) & ~3
+    epb_body += b"\x00" * (padded_len - len(epb_body))
+    epb_total_len = 8 + len(epb_body) + 4
+    epb = struct.pack("<I", _BLOCK_EPB) + struct.pack("<I", epb_total_len) + epb_body + b"\x00" * 4
+    p.write_bytes(shb + idb + epb)
+
+    ts = first_timestamp(str(p))
+    assert ts == 5.0  # 5 secondes
+
+
+def test_first_timestamp_pcap_big_endian(tmp_path):
+    """first_timestamp sur un pcap big-endian."""
+    p = tmp_path / "test.pcap"
+    # Magic pcap big-endian
+    header = b"\xa1\xb2\xc3\xd4" + struct.pack(">HHiIII", 2, 4, 0, 0, 65535, 1)
+    # Record: ts_sec=2000, ts_usec=250000, incl_len=4, orig_len=4
+    record = struct.pack(">IIII", 2000, 250000, 4, 4) + b"\x00" * 4
+    p.write_bytes(header + record)
+    ts = first_timestamp(str(p))
+    assert ts == 2000.25
+
+
+# -- split_by_size avec donnees reelles ----------------------------------------
+
+
+def test_split_by_size_pcap_avec_paquet(tmp_path):
+    """split_by_size sur un pcap avec un paquet (ligne 410)."""
+    p = tmp_path / "test.pcap"
+    header = b"\xd4\xc3\xb2\xa1" + struct.pack("<HHiIII", 2, 4, 0, 0, 65535, 1)
+    record = struct.pack("<IIII", 1000, 0, 4, 4) + b"\x00" * 4
+    p.write_bytes(header + record)
+    segments = split_by_size(str(p), str(tmp_path / "seg"), 1024)
+    assert len(segments) == 1
+    import os
+
+    assert os.path.exists(segments[0])
+
+
+def test_split_by_size_pcapng_avec_paquet(tmp_path):
+    """split_by_size sur un pcapng avec un EPB (ligne 452)."""
+    p = tmp_path / "test.pcapng"
+    # SHB
+    shb_body = _BOM_LE + struct.pack("<HH", 1, 0) + struct.pack("<q", -1)
+    shb_total_len = 8 + len(shb_body) + 4
+    shb = _PCAPNG_MAGIC + struct.pack("<I", shb_total_len) + shb_body + b"\x00" * 4
+    # IDB
+    idb_body = struct.pack("<HHI", 1, 0, 65535)
+    idb_total_len = 8 + len(idb_body) + 4
+    idb = struct.pack("<I", _BLOCK_IDB) + struct.pack("<I", idb_total_len) + idb_body + b"\x00" * 4
+    # EPB
+    epb_data = b"\x00" * 4
+    epb_body = struct.pack("<IIIII", 0, 0, 1000, len(epb_data), len(epb_data)) + epb_data
+    padded_len = (len(epb_body) + 3) & ~3
+    epb_body += b"\x00" * (padded_len - len(epb_body))
+    epb_total_len = 8 + len(epb_body) + 4
+    epb = struct.pack("<I", _BLOCK_EPB) + struct.pack("<I", epb_total_len) + epb_body + b"\x00" * 4
+    p.write_bytes(shb + idb + epb)
+
+    segments = split_by_size(str(p), str(tmp_path / "seg"), 1024)
+    assert len(segments) >= 1
+    import os
+
+    for s in segments:
+        assert os.path.exists(s)
+
+
+def test_split_by_size_pcapng_multi_sections(tmp_path):
+    """split_by_size sur un pcapng avec deux sections (SHB multiple)."""
+    p = tmp_path / "test.pcapng"
+    # Premiere section
+    shb1_body = _BOM_LE + struct.pack("<HH", 1, 0) + struct.pack("<q", -1)
+    shb1_total_len = 8 + len(shb1_body) + 4
+    shb1 = _PCAPNG_MAGIC + struct.pack("<I", shb1_total_len) + shb1_body + b"\x00" * 4
+    idb_body = struct.pack("<HHI", 1, 0, 65535)
+    idb_total_len = 8 + len(idb_body) + 4
+    idb = struct.pack("<I", _BLOCK_IDB) + struct.pack("<I", idb_total_len) + idb_body + b"\x00" * 4
+    epb_data = b"\x00" * 4
+    epb_body = struct.pack("<IIIII", 0, 0, 1000, len(epb_data), len(epb_data)) + epb_data
+    padded_len = (len(epb_body) + 3) & ~3
+    epb_body += b"\x00" * (padded_len - len(epb_body))
+    epb_total_len = 8 + len(epb_body) + 4
+    epb = struct.pack("<I", _BLOCK_EPB) + struct.pack("<I", epb_total_len) + epb_body + b"\x00" * 4
+    # Deuxieme section
+    shb2 = shb1  # meme structure
+    p.write_bytes(shb1 + idb + epb + shb2 + idb + epb)
+    segments = split_by_size(str(p), str(tmp_path / "seg"), 4096)
+    assert len(segments) >= 1
+
+
+# -- has_packets pcapng --------------------------------------------------------
+
+
+def test_has_packets_pcapng_avec_epb(tmp_path):
+    """has_packets sur un pcapng avec un EPB."""
+    p = tmp_path / "test.pcapng"
+    shb_body = _BOM_LE + struct.pack("<HH", 1, 0) + struct.pack("<q", -1)
+    shb_total_len = 8 + len(shb_body) + 4
+    shb = _PCAPNG_MAGIC + struct.pack("<I", shb_total_len) + shb_body + b"\x00" * 4
+    idb_body = struct.pack("<HHI", 1, 0, 65535)
+    idb_total_len = 8 + len(idb_body) + 4
+    idb = struct.pack("<I", _BLOCK_IDB) + struct.pack("<I", idb_total_len) + idb_body + b"\x00" * 4
+    epb_data = b"\x00" * 4
+    epb_body = struct.pack("<IIIII", 0, 0, 1000, len(epb_data), len(epb_data)) + epb_data
+    padded_len = (len(epb_body) + 3) & ~3
+    epb_body += b"\x00" * (padded_len - len(epb_body))
+    epb_total_len = 8 + len(epb_body) + 4
+    epb = struct.pack("<I", _BLOCK_EPB) + struct.pack("<I", epb_total_len) + epb_body + b"\x00" * 4
+    p.write_bytes(shb + idb + epb)
+    assert has_packets(str(p)) is True
+
+
+def test_has_packets_pcapng_sans_paquet(tmp_path):
+    """has_packets sur un pcapng sans bloc de paquet."""
+    p = tmp_path / "test.pcapng"
+    shb_body = _BOM_LE + struct.pack("<HH", 1, 0) + struct.pack("<q", -1)
+    shb_total_len = 8 + len(shb_body) + 4
+    shb = _PCAPNG_MAGIC + struct.pack("<I", shb_total_len) + shb_body + b"\x00" * 4
+    p.write_bytes(shb)
+    assert has_packets(str(p)) is False
+
+
+# -- _SegmentSink.write_if_open ------------------------------------------------
+
+
+def test_segment_sink_write_if_open(tmp_path):
+    """write_if_open ecrit dans le segment courant s'il est ouvert."""
+    sink = _SegmentSink(str(tmp_path / "seg"), ".pcap", 1024)
+    sink.preamble = [b"header"]
+    sink.write(b"packet", is_packet=True)  # ouvre un segment
+    assert sink.is_open
+    sink.write_if_open(b"preamble_block")  # ecrit dans le segment ouvert
+    sink.close()
+    # Le segment doit exister et contenir le preamble_block
+    assert len(sink.paths) == 1
+    with open(sink.paths[0], "rb") as f:
+        content = f.read()
+    assert b"preamble_block" in content
+
+
+def test_segment_sink_write_if_open_sans_segment(tmp_path):
+    """write_if_open sans segment ouvert n'ecrit rien."""
+    sink = _SegmentSink(str(tmp_path / "seg"), ".pcap", 1024)
+    sink.preamble = [b"header"]
+    # Pas de segment ouvert : write_if_open ne fait rien
+    sink.write_if_open(b"preamble_block")
+    assert not sink.is_open
+    sink.close()
+    assert len(sink.paths) == 0  # aucun segment cree
+
+
+# -- detect_format : nsecpcap --------------------------------------------------
+
+
+def test_detect_format_nsecpcap_le(tmp_path):
+    """detect_format reconnait un nsecpcap little-endian."""
+    p = tmp_path / "test.pcap"
+    p.write_bytes(b"\x4d\x3c\xb2\xa1")
+    assert detect_format(str(p)) == FORMAT_NSECPCAP
+
+
+def test_detect_format_nsecpcap_be(tmp_path):
+    """detect_format reconnait un nsecpcap big-endian."""
+    p = tmp_path / "test.pcap"
+    p.write_bytes(b"\xa1\xb2\x3c\x4d")
+    assert detect_format(str(p)) == FORMAT_NSECPCAP
+
+
+def test_detect_format_pcap_be(tmp_path):
+    """detect_format reconnait un pcap big-endian."""
+    p = tmp_path / "test.pcap"
+    p.write_bytes(b"\xa1\xb2\xc3\xd4")
+    assert detect_format(str(p)) == FORMAT_PCAP
+
+
+def test_detect_format_inconnu(tmp_path):
+    """detect_format retourne None pour un format inconnu."""
+    p = tmp_path / "test.bin"
+    p.write_bytes(b"\x00\x00\x00\x00")
+    assert detect_format(str(p)) is None
+
+
+def test_detect_format_vide(tmp_path):
+    """detect_format retourne None pour un fichier vide."""
+    p = tmp_path / "empty.pcap"
+    p.write_bytes(b"")
+    assert detect_format(str(p)) is None
