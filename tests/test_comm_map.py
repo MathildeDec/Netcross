@@ -333,10 +333,26 @@ def test_gui_expose_la_cartographie():
 
 
 def test_gui_branche_les_trois_filtres():
+    """Les trois widgets de filtre existent et alimentent bien les trois cles
+    attendues par le rendu de la carte.
+
+    Les cles etaient cherchees comme sous-chaines litterales dans app.py.
+    L'extraction de #285 (lot 3) a deplace leur construction vers
+    `netcross_gtk4.panel_state.comm_map_filters`, ce qui a rendu cette
+    verification fausse alors que le comportement est intact. Elle porte
+    desormais sur la fonction elle-meme : c'est plus fiable qu'une recherche
+    de texte, qui ne disait rien de la forme reellement produite.
+    """
     src = _app_source()
     for widget in ("comm_proto_drop", "comm_topn_spin", "comm_anomalies_check"):
         assert widget in src, widget
-    assert '"protocols"' in src and '"top_n"' in src and '"only_anomalies"' in src
+    assert "comm_map_filters(" in src, "app.py ne construit plus les filtres"
+
+    from netcross_gtk4.panel_state import comm_map_filters
+
+    filtres = comm_map_filters("TLS", 15, True)
+    assert set(filtres) == {"protocols", "top_n", "only_anomalies"}
+    assert filtres == {"protocols": ["TLS"], "top_n": 15, "only_anomalies": True}
 
 
 def test_gui_reinitialise_la_carte_apres_analyse():
