@@ -1679,7 +1679,7 @@ classDiagram
     %% ===== netcross_core.fingerprint.known =====
     class mod_netcross_core_fingerprint_known["netcross_core.fingerprint.known"] {
         <<module>>
-        +load_known_fingerprints(path) dict~str, dict~str, str~~
+        +load_known_fingerprints(path) dict~str, dict~
         +identify_tool(fingerprint_type, fingerprint, known) str?
     }
 
@@ -2670,6 +2670,8 @@ classDiagram
         +list~str~ points
         +str? severity
         +list~str~ cve_ids
+        +str? fingerprint
+        +str? fingerprint_readable
         +vulnerable() bool
     }
     class SecurityDashboard {

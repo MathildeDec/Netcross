@@ -497,8 +497,13 @@ def apply_security_findings(
     if cve_conn is not None:
         findings += cve_findings(report.service_fingerprints, cve_conn)
     report.security_findings = findings
+    # Le troisieme compteur annoncait "fingerprints" alors qu'il comptait
+    # report.protocol_mismatch_details (issue #259) : la ligne affichait
+    # "0 fingerprints" sur une capture qui en contenait deux. Un journal qui
+    # se trompe d'etiquette est pire qu'un journal muet -- il fait chercher
+    # un bug la ou il n'y en a pas, et masque celui qui existe.
     logger.info(
-        "security_findings : {} constats ({} services, {} fingerprints)",
+        "security_findings : {} constats ({} empreintes de service, {} incoherences de protocole)",
         len(findings),
         len(report.service_fingerprints),
         len(report.protocol_mismatch_details),
