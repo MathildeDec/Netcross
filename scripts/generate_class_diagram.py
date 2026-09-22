@@ -42,7 +42,7 @@ DEFAULT_OUTPUT = REPO_ROOT / "docs" / "class-diagram.md"
 # Ordre des couches, de la plus basse a la plus haute (contrat import-linter de
 # pyproject.toml, lu a l'envers). Tout module de src/ hors de ces packages est
 # range dans le groupe CLI.
-LAYER_ORDER = ["pcap_parser", "netcross_core", "netcross_report", "netcross_gtk4"]
+LAYER_ORDER = ["pcap_parser", "netcross_core", "netcross_report", "netcross_api", "netcross_gtk4"]
 CLI_GROUP = "CLI"
 
 # Marge sous la limite de 50 000 caracteres par defaut de mermaid (maxTextSize).
@@ -407,6 +407,81 @@ def _top_level(dotted: str) -> str | None:
     return top if top in LAYER_ORDER else None
 
 
+def _render_inter_module_relations(modules: list[ModuleInfo], ids: dict[tuple[str, str], str]) -> str:
+    """Flowchart des relations de classes ENTRE modules (inter-modules).
+
+    Contrairement aux blocs `classDiagram` par package (qui ne peuvent
+    référencer que les classes qu'ils déclarent), cette section centrale
+    liste TOUTES les associations de classes détectées via les annotations
+    de champs lorsqu'elles franchissent une frontière de module
+    (source_module != target_module), y compris au sein d'un même package
+    (ex. `netcross_report.synthesis` -> `netcross_core.expert_model`).
+    Complément indispensable du graphe de dépendances entre packages (qui
+    ne compte que des `import`) : ici on sait QUELLE classe référence
+    quelle autre, et par quels champs.
+    """
+    # Index global : nom de classe -> (module, ClassInfo) pour résolution
+    # des références (un nom peut exister dans plusieurs modules).
+    global_index: dict[str, list[tuple[ModuleInfo, ClassInfo]]] = {}
+    for m in modules:
+        for c in m.classes:
+            global_index.setdefault(c.name, []).append((m, c))
+
+    relations: list[str] = []
+    seen: set[tuple[str, str, str]] = set()
+    for m in modules:
+        for c in m.classes:
+            cid = ids[(m.name, c.name)]
+            for target, fields_ in sorted(c.refs.items()):
+                if target == c.name or target in c.bases:
+                    continue
+                # Toutes les classes cibles dans d'autres modules.
+                for tm, tc in global_index.get(target, []):
+                    if tm.name == m.name:
+                        continue  # intra-module : déjà dans le bloc du module
+                    tid = ids[(tm.name, tc.name)]
+                    label = ", ".join(sorted(set(fields_)))
+                    key = (cid, tid, label)
+                    if key in seen:
+                        continue
+                    seen.add(key)
+                    relations.append(f"    {cid} -->|{label}| {tid}")
+
+    if not relations:
+        return ""  # aucune relation inter-module détectée
+
+    # Nœuds déclarés (pour que le flowchart soit autonome) : on liste chaque
+    # classe impliquée avec son nom complet (module.Class) entre crochets,
+    # pour lever l'ambiguïté quand une classe existe dans plusieurs modules.
+    node_lines: list[str] = []
+    declared: set[str] = set()
+    for line in relations:
+        parts = line.strip().split(" -->|")
+        src = parts[0].strip()
+        if src not in declared:
+            declared.add(src)
+            # Cherche le module d'origine pour le label
+            src_label = src
+            for m in modules:
+                for c in m.classes:
+                    if ids[(m.name, c.name)] == src:
+                        src_label = f"{m.name}.{c.name}"
+                        break
+            node_lines.append(f'    {src}["{src_label}"]')
+        dst = parts[-1].rsplit("| ", 1)[-1].strip()
+        if dst not in declared:
+            declared.add(dst)
+            dst_label = dst
+            for m in modules:
+                for c in m.classes:
+                    if ids[(m.name, c.name)] == dst:
+                        dst_label = f"{m.name}.{c.name}"
+                        break
+            node_lines.append(f'    {dst}["{dst_label}"]')
+
+    return "\n".join(["flowchart LR", *sorted(node_lines), *sorted(relations)])
+
+
 def _render_package_graph(modules: list[ModuleInfo]) -> str:
     counts: dict[tuple[str, str], int] = {}
     for m in modules:
@@ -463,6 +538,25 @@ def render_document(modules: list[ModuleInfo]) -> str:
         _render_package_graph(modules),
         "```",
     ]
+
+    # Section inter-modules : relations de classes entre packages
+    # (issue #140 suite) — complète le graphe de dépendances entre packages
+    # en montrant QUELLE classe référence quelle autre, par quels champs.
+    inter_module = _render_inter_module_relations(modules, ids)
+    if inter_module:
+        out += [
+            "",
+            "## Relations inter-modules",
+            "",
+            "Associations de classes détectées via les annotations de champs lorsqu'elles franchissent",
+            "une frontière de module (source_module != target_module). Chaque flèche indique la classe",
+            "source, le ou les champs concernés, et la classe cible (dans un autre module). Complément",
+            "du graphe de dépendances ci-dessus (qui ne compte que des `import`).",
+            "",
+            "```mermaid",
+            inter_module,
+            "```",
+        ]
 
     for group in sorted(groups, key=_group_sort_key):
         mods = groups[group]

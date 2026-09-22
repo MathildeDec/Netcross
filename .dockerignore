@@ -1,0 +1,20 @@
+# Fichiers ignorés par le build Docker
+.git
+.github
+.venv
+__pycache__
+*.pyc
+*.pyo
+*.egg-info
+.coverage
+.pytest_cache
+.mypy_cache
+.ruff_cache
+htmlcov/
+dist/
+build/
+*.deb
+*.rpm
+docs/
+*.md
+!CHANGELOG.md
