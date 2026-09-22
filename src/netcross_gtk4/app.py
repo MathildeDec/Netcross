@@ -728,6 +728,42 @@ class MainWindow(Gtk.ApplicationWindow):
         self.live_extra_box.set_visible(False)
         page.append(self.live_extra_box)
 
+        # -- rotation de capture (ring buffer) --
+        # Option de configuration pour les captures longues en mode live
+        # (issue #157 / #264). Purement preparatoire a ce stade : ni la
+        # capture live de cette page ni LiveDiffEngine ne s'appellent l'un
+        # l'autre aujourd'hui -- le cablage reel est laisse a une session
+        # qui raccordera les deux. Meme principe de visibilite que
+        # live_extra_box : masque hors mode capture live.
+        self.ring_buffer_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        self.ring_buffer_check = Gtk.CheckButton(label="Rotation de capture (ring buffer)")
+        self.ring_buffer_check.set_tooltip_text(
+            "Active la rotation des fichiers de capture : ecrit dans des "
+            "fichiers de duree fixe et supprime automatiquement le plus "
+            "ancien au-dela du nombre maximal. Option preparatoire : "
+            "non cablee au moteur de capture pour l'instant."
+        )
+        self.ring_buffer_check.connect("toggled", self._on_ring_buffer_toggled)
+        self.ring_buffer_box.append(self.ring_buffer_check)
+        self.ring_buffer_box.append(Gtk.Label(label="Fichiers max :", halign=Gtk.Align.START))
+        self.ring_max_files_spin = Gtk.SpinButton.new_with_range(1, 1000, 1)
+        self.ring_max_files_spin.set_value(10)
+        self.ring_max_files_spin.set_sensitive(False)
+        self.ring_max_files_spin.set_tooltip_text(
+            "Nombre maximal de fichiers de capture conserves sur disque (defaut : 10)."
+        )
+        self.ring_buffer_box.append(self.ring_max_files_spin)
+        self.ring_buffer_box.append(Gtk.Label(label="Duree/fichier (s) :", halign=Gtk.Align.START))
+        self.ring_max_duration_spin = Gtk.SpinButton.new_with_range(1, 86400, 10)
+        self.ring_max_duration_spin.set_value(60)
+        self.ring_max_duration_spin.set_sensitive(False)
+        self.ring_max_duration_spin.set_tooltip_text(
+            "Duree maximale de chaque fichier de capture en secondes (defaut : 60)."
+        )
+        self.ring_buffer_box.append(self.ring_max_duration_spin)
+        self.ring_buffer_box.set_visible(False)
+        page.append(self.ring_buffer_box)
+
         # -- panneaux mode comparaison (caches par defaut) --
         self.diff_panels_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=16)
         self.baseline_panel = CaptureListPanel("Baseline (avant)", on_change=self._update_run_sensitivity)
@@ -933,6 +969,16 @@ class MainWindow(Gtk.ApplicationWindow):
             if redact:
                 check.set_active(False)
 
+    def _on_ring_buffer_toggled(self, _btn):
+        """Active/desactive les SpinButton de configuration du ring buffer
+        selon l'etat de la case a cocher -- meme schéma que
+        `_on_duplicate_exclusion_toggled` pour les seuils de doublons : un
+        controle reglable alors que la fonctionnalite n'est pas activee
+        est une invitation a perdre du temps."""
+        active = self.ring_buffer_check.get_active()
+        self.ring_max_files_spin.set_sensitive(active)
+        self.ring_max_duration_spin.set_sensitive(active)
+
     def _sync_panel_visibility(self):
         """Point unique qui decide, a partir des deux cases a cocher, quels
         panneaux/options sont visibles -- appele apres tout changement de
@@ -949,6 +995,7 @@ class MainWindow(Gtk.ApplicationWindow):
         self.single_panel.set_visible(vue.single_panel)
         self.live_panel.set_visible(vue.live_panel)
         self.live_extra_box.set_visible(vue.live_extra)
+        self.ring_buffer_box.set_visible(vue.live_extra)
         self.diff_panels_box.set_visible(vue.diff_panels)
         self.single_options_box.set_visible(vue.single_options)
         self.diff_options_box.set_visible(vue.diff_options)
@@ -1389,6 +1436,7 @@ class MainWindow(Gtk.ApplicationWindow):
 
         self.live_panel.set_sensitive(False)
         self.live_extra_box.set_sensitive(False)
+        self.ring_buffer_box.set_sensitive(False)
         self.run_btn.set_label("Arreter et analyser")
         self.pdf_btn.set_sensitive(False)
         self.csv_btn.set_sensitive(False)
@@ -1548,6 +1596,7 @@ class MainWindow(Gtk.ApplicationWindow):
         self._live_capturing = False
         self.live_panel.set_sensitive(True)
         self.live_extra_box.set_sensitive(True)
+        self.ring_buffer_box.set_sensitive(True)
         self.work_stop_btn.set_visible(False)
         self.work_stop_btn.set_sensitive(True)
         self._update_run_button_label()
