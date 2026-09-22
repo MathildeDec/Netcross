@@ -48,6 +48,7 @@ import pcap_parser
 from netcross_core.application.banners import build_service_fingerprints
 from netcross_core.exploit_signatures import Detection, Signature, detect_exploits
 from netcross_core.fingerprint.report import build_fingerprint_records
+from netcross_core.logging_config import get_logger
 from netcross_core.models import Pkt, Report
 from netcross_core.security import correlate_banner
 from netcross_core.security.beaconing import detect_beaconing
@@ -58,6 +59,8 @@ from netcross_core.security.protocol_mismatch import (
     detect_protocol_mismatches,
     protocol_mismatch_findings,
 )
+
+logger = get_logger(__name__)
 
 # Severite d'une signature d'exploit (vocabulaire de exploit_signatures :
 # anomalie / a_surveiller / info) -> severite du rapport de securite. Une
@@ -376,3 +379,9 @@ def apply_security_findings(
     if cve_conn is not None:
         findings += cve_findings(report.service_fingerprints, cve_conn)
     report.security_findings = findings
+    logger.info(
+        "security_findings : {} constats ({} services, {} fingerprints)",
+        len(findings),
+        len(report.service_fingerprints),
+        len(report.protocol_mismatch_details),
+    )
