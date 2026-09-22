@@ -16,6 +16,24 @@ jobs:
       - name: Checkout du dépôt
         uses: actions/checkout@v7
 
+      - name: Installation de Wireshark CLI (tshark, editcap, capinfos)
+        # Issue #262 : tshark n'était installé dans AUCUN environnement de
+        # développement du projet, donc toute la suite @requires_tshark /
+        # @requires_editcap était systématiquement sautée. Deux bugs réels
+        # (#261 filtre inutilisable, #262 format de sortie ignoré) ont ainsi
+        # survécu des mois à une CI verte. Les installer ici rend ces tests
+        # exécutables : c'est la seule correction qui empêche la classe entière
+        # de régressions de redevenir invisible.
+        # DEBIAN_FRONTEND + preseed : l'installeur de wireshark-common pose
+        # sinon une question interactive sur les droits de capture.
+        run: |
+          echo "wireshark-common wireshark-common/install-setuid boolean false" \
+            | sudo debconf-set-selections
+          sudo DEBIAN_FRONTEND=noninteractive apt-get update -qq
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq tshark
+          tshark --version | head -1
+          editcap --version | head -1
+
       - name: Installation de uv
         uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
         with:
@@ -59,6 +77,22 @@ jobs:
         # bloquant (--cov-fail-under) tant que la base de reference n'est
         # pas calibree -- a decider dans une issue de suivi.
         run: uv run pytest --cov --cov-report=term-missing --cov-report=xml
+
+      - name: Aucun test sauté silencieusement (issues #261/#262)
+        # Trace le nombre de tests sautés et échoue si la suite @requires_tshark
+        # l'est encore : un test sauté est une vérification qui n'a pas eu lieu,
+        # et le rapport doit le dire plutôt que de le laisser passer pour un
+        # succès (règle de traçabilité du projet).
+        run: |
+          set -o pipefail
+          uv run pytest -q -rs --no-header \
+            tests/test_export_filtered.py tests/test_adjust_timestamps.py \
+            | tee /tmp/reel.txt
+          if grep -q "tshark non installe\|editcap non installe" /tmp/reel.txt; then
+            echo "::error::des tests exigeant tshark/editcap ont été sautés alors que CI les installe"
+            exit 1
+          fi
+          echo "tests réels tshark/editcap : tous exécutés"
 
       - name: Publication du rapport de couverture (artifact)
         # coverage.xml (format Cobertura) produit par l'etape pytest --cov ;
