@@ -8,6 +8,11 @@ et le projet adhère au [SemVer](https://semver.org/lang/fr/).
 ## [Unreleased]
 
 ### Ajouté
+- `tests/test_pdf_report.py` et `tests/test_charts.py` — première couverture
+  dédiée du rendu : `pdf.py` 63,1 % → 77,9 %, `charts.py` 41,2 % → 93,5 %. Le
+  texte est réextrait des PDF produits (`pdftotext`) plutôt qu'inspecté avant
+  rendu, et `generate_diff_pdf` — le rapport du mode comparaison — passe de
+  zéro test à une couverture de bout en bout (#286)
 - `netcross_gtk4/panel_state.py` — visibilité des panneaux, état du bouton
   Lancer, filtres de cartographie et sélection au tableau de bord, sortis de
   `app.py` (#285, troisième lot)
