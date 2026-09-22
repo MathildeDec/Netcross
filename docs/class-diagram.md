@@ -11,7 +11,7 @@
 > Il remplace l'ancienne section 3 de `docs/features-backlog.md`, tenue à la main, qui avait dérivé
 > (voir `docs/sessions/session-36.md`, issue #140).
 
-97 modules · 126 classes · 285 fonctions publiques de module.
+99 modules · 132 classes · 290 fonctions publiques de module.
 
 Conventions : `+` public, `-` privé (préfixe `_`) ; `int?` = `int | None` ; `list~str~` = `list[str]` ;
 `<<module>>` regroupe les fonctions publiques d'un module ; `A --> B : champ` = `A` a un champ annoté
@@ -37,6 +37,42 @@ flowchart TD
     netcross_gtk4 -->|"18 imports"| netcross_core
     netcross_report -->|"11 imports"| netcross_core
     netcross_core -->|"14 imports"| pcap_parser
+```
+
+## Relations inter-modules
+
+Associations de classes détectées via les annotations de champs lorsqu'elles franchissent
+une frontière de module (source_module != target_module). Chaque flèche indique la classe
+source, le ou les champs concernés, et la classe cible (dans un autre module). Complément
+du graphe de dépendances ci-dessus (qui ne compte que des `import`).
+
+```mermaid
+flowchart LR
+    CaptureInfo["pcap_parser.capinfos_source.CaptureInfo"]
+    ClientReport["netcross_core.client_diff.ClientReport"]
+    DiffFinding["netcross_core.baseline_diff.DiffFinding"]
+    EvidenceLink["netcross_core.expert_model.EvidenceLink"]
+    ExpertEvent["netcross_core.expert_model.ExpertEvent"]
+    Finding["netcross_report.synthesis.Finding"]
+    FlowView["netcross_core.flow_view.FlowView"]
+    Flow["netcross_core.expert_model.Flow"]
+    InterfaceRecord["pcap_parser.capfile.InterfaceRecord"]
+    LiveDiffState["netcross_core.live_diff.LiveDiffState"]
+    Pkt["netcross_core.models.Pkt"]
+    Report["netcross_core.models.Report"]
+    SegmentScore["netcross_report.triage.SegmentScore"]
+    _Detector["netcross_core.exploit_signatures._Detector"]
+    netcross_core_security_expert_correlation__FlowState["netcross_core.security.expert_correlation._FlowState"]
+    CaptureInfo -->|interfaces| InterfaceRecord
+    ClientReport -->|report| Report
+    DiffFinding -->|evidence| EvidenceLink
+    Finding -->|event| ExpertEvent
+    Finding -->|evidence| EvidenceLink
+    FlowView -->|events| ExpertEvent
+    FlowView -->|flow| Flow
+    LiveDiffState -->|packets_in_window| Pkt
+    SegmentScore -->|findings| Finding
+    _Detector -->|run| netcross_core_security_expert_correlation__FlowState
 ```
 
 ## `pcap_parser`
@@ -156,6 +192,9 @@ classDiagram
         +iter_live_multi(interfaces, stop_event, bpf_filter) Iterator~tuple~str, RawPacket~~
         +export_filtered(path_in, path_out, bpf_filter, time_start, time_end, endpoints) None
         +adjust_timestamps(path_in, path_out, offset_seconds, normalize, align_to) None
+        +convert_capture(path_in, path_out, fmt) None
+        +export_csv(path_in, path_out) None
+        +export_json(path_in, path_out) None
     }
 
     %% ===== pcap_parser.ek_fields =====
@@ -1553,8 +1592,10 @@ classDiagram
 | `netcross_core.security.cpe_match` | conversion d'une banniere de service ("Apache/2.4.41") en identifiant CPE 2.3 et comparaison de versions avec les ranges NVD (versionStart/EndIncluding/Excluding). |
 | `netcross_core.security.cve_db` | base SQLite locale des CVE, peuplee par scripts/import_nvd.py depuis le flux NVD (voir ce script pour le format JSON attendu, API NVD 2.0). |
 | `netcross_core.security.dns_tunnel` | issue #144 (FLOW-3, parent #141) : detection de tunneling DNS (exfiltration, C2, VPN over DNS). |
+| `netcross_core.security.exfiltration` | issue #148 (SCENARIO-2, parent #141) : detection d'exfiltration de données (transferts sortants anormaux). |
 | `netcross_core.security.expert_correlation` | issue #137 (CVE-3) : exploitation des alertes Expert Info de tshark pour DETECTER des tentatives d'exploitation (fuzzing, depassement de tampon, deni de service) a partir de paquets malformes et de… |
 | `netcross_core.security.findings` | alimentation de `Report.service_fingerprints` et `Report.security_findings` a partir des modules de detection CVE-1 a CVE-4 (issue #139, CVE-5, parent #133). |
+| `netcross_core.security.flow_stats` | issue #145 (FLOW-4, parent #141) : analyse statistique des flux pour detecter les comportements anormaux. |
 | `netcross_core.security.protocol_mismatch` | issue #142 (FLOW-1, parent #141) : detection des flux cachés où un protocole utilise un port non standard (SSH sur 443, DNS sur 443, HTTP sur 22, etc.). |
 
 ### Diagramme
@@ -1691,6 +1732,40 @@ classDiagram
         +detect_dns_tunneling(packets, thresholds) DnsTunnelResult
     }
 
+    %% ===== netcross_core.security.exfiltration =====
+    class ExfiltrationThresholds {
+        <<dataclass, frozen>>
+        +int min_volume_bytes
+        +float min_asymmetric_ratio
+        +int business_hours_start
+        +int business_hours_end
+        +int min_packets_for_volume
+        +int min_bytes_for_protocol
+    }
+    class ExfiltrationAlert {
+        <<dataclass>>
+        +str src
+        +str dst
+        +list~str~ signals
+        +int volume_bytes
+        +int upload_bytes
+        +int download_bytes
+        +float ratio
+        +set~str~ protocols
+        +list~int?~ frames
+        +is_strong() bool
+        +to_dict() dict
+    }
+    class ExfiltrationResult {
+        <<dataclass>>
+        +list~dict~ alerts
+        +list~dict~ flow_stats
+    }
+    class mod_netcross_core_security_exfiltration["netcross_core.security.exfiltration"] {
+        <<module>>
+        +detect_exfiltration(packets, thresholds, known_destinations) ExfiltrationResult
+    }
+
     %% ===== netcross_core.security.expert_correlation =====
     class CorrelationThresholds {
         <<dataclass, frozen>>
@@ -1736,6 +1811,42 @@ classDiagram
         +apply_security_findings(report, all_packets, detections, cve_conn) None
     }
 
+    %% ===== netcross_core.security.flow_stats =====
+    class FlowStatsThresholds {
+        <<dataclass, frozen>>
+        +int small_packet_threshold
+        +int large_packet_threshold
+        +float high_entropy_threshold
+        +int splt_max_packets
+    }
+    class FlowStat {
+        <<dataclass>>
+        +str src
+        +str dst
+        +int packet_count
+        +int byte_count
+        +list~tuple~int, float~~ splt
+        +Counter size_distribution
+        +int upload_bytes
+        +int download_bytes
+        +list~float~ inter_arrivals
+        +str classification
+        +float entropy
+        +float median_size
+        +float upload_ratio
+        +float regularity_cv
+        +to_dict() dict
+    }
+    class FlowStatsResult {
+        <<dataclass>>
+        +list~FlowStat~ flows
+        +to_dict() dict
+    }
+    class mod_netcross_core_security_flow_stats["netcross_core.security.flow_stats"] {
+        <<module>>
+        +analyze_flow_stats(packets, thresholds) FlowStatsResult
+    }
+
     %% ===== netcross_core.security.protocol_mismatch =====
     class mod_netcross_core_security_protocol_mismatch["netcross_core.security.protocol_mismatch"] {
         <<module>>
@@ -1747,6 +1858,7 @@ classDiagram
 
     %% ===== relations =====
     CveEntry --> AffectedProduct : affected
+    FlowStatsResult --> FlowStat : flows
 ```
 
 ## `netcross_core.tshark_stats`
