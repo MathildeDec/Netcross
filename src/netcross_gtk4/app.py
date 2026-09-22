@@ -226,6 +226,11 @@ class LiveCaptureRow(Gtk.Box):
     interface accepte plusieurs interfaces separees par des virgules : la
     ligne represente alors une machine, chaque interface un point.
 
+    Capture distante (Job 46, issue #166) : le champ interface accepte
+    aussi une URL rpcap://, ssh:// ou pipe/"-" a la place d'un nom
+    d'interface local -- voir pcap_parser.ek_source._resolve_live_source
+    pour la syntaxe exacte et les formats reconnus.
+
     Filtres BPF (Job 47) : ``filters`` est la liste de BPFFilter proposee par
     le menu deroulant (catalogue predefini + filtres sauvegardes) et
     ``on_save_filter(BPFFilter)`` persiste un nouveau filtre (la ligne affiche
@@ -260,13 +265,18 @@ class LiveCaptureRow(Gtk.Box):
             # bouton depend du contenu du champ, pas seulement du nombre de lignes
             self.interface_entry.connect("changed", lambda _entry: on_change())
         self.interface_entry.set_width_chars(10)
-        self.interface_entry.set_placeholder_text("eth0 ou eth0, eth1...")
+        self.interface_entry.set_placeholder_text("eth0, rpcap://hote:port/if, ssh://user@hote/if...")
         self.interface_entry.set_tooltip_text(
             "Nom de l'interface reseau a capturer (voir `tshark -D` ou "
             "`ip link` pour lister les interfaces disponibles). Plusieurs "
             "interfaces separees par des virgules (ex: eth0, eth1) sont "
             "capturees simultanement : chacune devient un point "
-            "'NOM:interface', dans l'ordre saisi (= chemin physique reseau)."
+            "'NOM:interface', dans l'ordre saisi (= chemin physique reseau).\n"
+            "Capture distante (Job 46) : accepte aussi une URL a la place "
+            "d'un nom d'interface local -- rpcap://hote:port/interface "
+            "(demon rpcapd distant), ssh://[utilisateur[:motdepasse]@]"
+            "hote[:port]/interface (via SSH, port 22 par defaut), ou "
+            '"-" / pipe:// (lecture depuis un pipe/stdin).'
         )
         self.interface_entry.set_hexpand(True)
         self.append(self.interface_entry)
