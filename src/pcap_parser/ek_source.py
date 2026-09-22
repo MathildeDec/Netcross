@@ -33,6 +33,7 @@ import re
 import shutil
 import subprocess
 import threading
+import urllib.parse
 from collections.abc import Iterator, Sequence
 from dataclasses import dataclass
 from typing import IO
@@ -70,6 +71,117 @@ class TsharkError(RuntimeError):
         super().__init__(message)
         self.returncode = returncode
         self.stderr = stderr
+
+
+class InvalidCaptureSourceError(ValueError):
+    """Source de capture live malformee (Job 46, issue #166) : URL
+    rpcap:// ou ssh:// avec un hote, un port ou une interface distante
+    manquant/invalide. Leve cote Python, avant tout lancement de
+    tshark, pour un message clair plutot que l'echec bas niveau que
+    tshark produirait de toute facon (device/preference inconnue)."""
+
+
+def _require_host(host: str | None, source: str) -> str:
+    if not host:
+        raise InvalidCaptureSourceError(f"hote manquant dans la source de capture : {source!r}")
+    return host
+
+
+def _parsed_port(parsed: urllib.parse.ParseResult, source: str) -> int | None:
+    # parsed.port leve ValueError (pas au moment du urlparse() mais a
+    # l'ACCES de l'attribut) si le port n'est pas un entier -- il
+    # valide deja la plage 0-65535, mais 0 n'a pas de sens pour un
+    # serveur rpcap/sshdump, d'ou la verification 1-65535 ci-dessous.
+    try:
+        port = parsed.port
+    except ValueError as e:
+        raise InvalidCaptureSourceError(f"port invalide dans la source de capture : {source!r}") from e
+    if port is not None and not (1 <= port <= 65535):
+        raise InvalidCaptureSourceError(f"port hors plage (1-65535) dans la source de capture : {source!r}")
+    return port
+
+
+def _resolve_rpcap_source(source: str, parsed: urllib.parse.ParseResult) -> tuple[str, list[str]]:
+    # rpcap:// est nativement compris par tshark/dumpcap (libpcap sait
+    # parler le protocole RPCAP) : on transmet l'URL D'ORIGINE telle
+    # quelle a -i, sans la reconstruire -- seule la VALIDATION est
+    # faite ici, pour echouer cote Python avec un message clair (hote/
+    # port/interface manquant) plutot que de laisser tshark echouer
+    # avec "There is no device named ...". Verifie empiriquement sur
+    # tshark 4.2.2 : `-i rpcap://host:port/iface` est accepte tel quel.
+    _require_host(parsed.hostname, source)
+    port = _parsed_port(parsed, source)
+    if port is None:
+        raise InvalidCaptureSourceError(f"port manquant dans la source rpcap:// : {source!r}")
+    if not parsed.path.lstrip("/"):
+        raise InvalidCaptureSourceError(f"interface distante manquante dans la source rpcap:// : {source!r}")
+    return source, []
+
+
+def _resolve_ssh_source(source: str, parsed: urllib.parse.ParseResult) -> tuple[str, list[str]]:
+    # sshdump est une interface EXTCAP, pas un device libpcap direct :
+    # ses parametres ne se passent ni en "-i ssh://...", ni en flags
+    # directs sur tshark (--remote-host, essaye et refuse -- "unrecognized
+    # option"), ni en "-o sshdump:remote-host=..." (refuse -- "unknown
+    # preference"). Seule la forme "-o extcap.<interface>.<option>:<valeur>"
+    # est reconnue (point comme separateur nom/valeur -- ":" comme tout -o
+    # tshark, pas "="). Noms exacts et confirmation empirique sur tshark
+    # 4.2.2 : `sshdump --extcap-interface sshdump --extcap-config` liste
+    # les options (--remote-host, --remote-port, ...) : `tshark -G
+    # currentprefs` confirme les noms de preference correspondants
+    # (extcap.sshdump.remotehost, .remoteport, .remoteusername,
+    # .remotepassword) ; `-i sshdump -o extcap.sshdump.remotehost:X ...`
+    # est accepte et tente reellement la connexion (erreur reseau, pas
+    # une erreur d'argument).
+    #
+    # Le mot de passe, s'il est fourni, finit en clair dans les arguments
+    # du processus tshark (donc visible via /proc ou `ps aux` pour tout
+    # utilisateur local) -- c'est une limite de sshdump lui-meme, pas de
+    # ce module. Preferer une cle SSH (non geree ici, cf. issue) pour un
+    # usage sensible.
+    host = _require_host(parsed.hostname, source)
+    port = _parsed_port(parsed, source) or 22
+    remote_interface = parsed.path.lstrip("/")
+    prefs = [
+        f"extcap.sshdump.remotehost:{host}",
+        f"extcap.sshdump.remoteport:{port}",
+    ]
+    if parsed.username:
+        prefs.append(f"extcap.sshdump.remoteusername:{urllib.parse.unquote(parsed.username)}")
+    if parsed.password:
+        prefs.append(f"extcap.sshdump.remotepassword:{urllib.parse.unquote(parsed.password)}")
+    if remote_interface:
+        prefs.append(f"extcap.sshdump.remoteinterface:{remote_interface}")
+    return "sshdump", prefs
+
+
+def _resolve_live_source(source: str) -> tuple[str, list[str]]:
+    """
+    Traduit une source de capture live en (valeur -i, prefs -o
+    supplementaires) pour tshark -- detecte le type depuis l'URL (Job
+    46, issue #166) :
+
+    - interface locale (pas de schema), ex. "eth0" : inchangee, aucune
+      pref supplementaire -- comportement historique, avant #166.
+    - "rpcap://hote:port/interface" : capture distante via le protocole
+      RPCAP (demon rpcapd sur la machine distante).
+    - "ssh://[utilisateur[:mot_de_passe]@]hote[:port]/interface" :
+      capture distante via SSH (extcap sshdump, sans demon a
+      installer sur la machine distante -- juste un serveur SSH).
+      Port par defaut 22 si absent.
+    - "-" ou "pipe://" : lecture depuis un pipe/stdin (tshark -i -),
+      ex. `mkfifo capture.fifo && qqchose > capture.fifo` en amont.
+
+    Leve InvalidCaptureSourceError si l'URL rpcap:// ou ssh:// est
+    malformee (hote/port/interface manquant ou invalide).
+    """
+    if source in ("-", "pipe://", "pipe"):
+        return "-", []
+    if source.startswith("rpcap://"):
+        return _resolve_rpcap_source(source, urllib.parse.urlparse(source))
+    if source.startswith("ssh://"):
+        return _resolve_ssh_source(source, urllib.parse.urlparse(source))
+    return source, []
 
 
 # Preferences tshark activees par defaut. rtp.heuristic_rtp est le point
@@ -121,6 +233,7 @@ def _build_args(
         raise ValueError("fournir soit path= (batch), soit interface= (live), pas les deux")
 
     args = [_tshark_path()]
+    source_prefs: Sequence[str] = ()
     if path is not None:
         args += ["-r", path]
     else:
@@ -129,13 +242,18 @@ def _build_args(
         # moment). -Q : reduit le bruit sur stderr (pas de compteur de
         # paquets capture).
         assert interface is not None  # garanti par le check path/interface ci-dessus
-        args += ["-i", interface, "-l", "-Q"]
+        # _resolve_live_source (Job 46, #166) detecte rpcap://, ssh:// et
+        # pipe/"-" depuis la chaine `interface` et renvoie la vraie valeur
+        # -i (inchangee pour une interface locale) plus les prefs -o
+        # necessaires (sshdump uniquement -- extcap, pas un device direct).
+        resolved_interface, source_prefs = _resolve_live_source(interface)
+        args += ["-i", resolved_interface, "-l", "-Q"]
 
     if bpf_filter:
         args += ["-f", bpf_filter]
     if display_filter:
         args += ["-Y", display_filter]
-    for pref in (*DEFAULT_PREFS, *extra_prefs):
+    for pref in (*DEFAULT_PREFS, *source_prefs, *extra_prefs):
         args += ["-o", pref]
     for script in lua_scripts:
         args += ["-X", f"lua_script:{script}"]
