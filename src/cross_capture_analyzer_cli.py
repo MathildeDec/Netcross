@@ -136,10 +136,13 @@ from netcross_core import (
     write_redaction_map_csv,
 )
 from netcross_core.forensic import DEFAULT_DUPLICATE_THRESHOLD_MS, detect_cross_capture_duplicates
+from netcross_core.logging_config import get_logger
 from netcross_core.security import close_db, connect_cve_db
 from netcross_core.security import findings as security_findings
 from netcross_report.security_report import build_security_report, print_security_report
 from pcap_parser.ek_source import TsharkError, TsharkNotFoundError
+
+logger = get_logger(__name__)
 
 
 def _parse_live_spec(spec):
