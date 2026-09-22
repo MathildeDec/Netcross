@@ -401,7 +401,7 @@ def test_vrai_diagramme_structure_sure_pour_mermaid():
     blocks = _blocks(GENERATED.read_text(encoding="utf-8"))
     assert len(blocks) >= 2
     for block in blocks:
-        assert block.startswith(("classDiagram", "flowchart TD"))
+        assert block.startswith(("classDiagram", "flowchart TD", "flowchart LR"))
         assert len(block) <= gen.MAX_BLOCK_CHARS + 5_000  # marge sous les 50 000 de mermaid
         assert block.count("{") == block.count("}")  # accolades de classes equilibrees
         assert "`" not in block
@@ -412,3 +412,40 @@ def test_vrai_diagramme_couvre_les_classes_cles():
     for name in ("RawPacket", "Pkt", "Report", "Finding", "ExpertEvent", "MainWindow"):
         # `class Nom` si le nom est unique dans src/, sinon `class <module>_Nom["<module>.Nom"]`.
         assert re.search(rf'class (\w*_)?{name}\b(\["[\w.]*{name}"\])?', text), name
+
+
+def test_vrai_diagramme_possede_section_inter_modules():
+    """Le diagramme versionné doit inclure une section 'Relations inter-modules'."""
+    text = GENERATED.read_text(encoding="utf-8")
+    assert "## Relations inter-modules" in text
+    # Au moins une relation flowchart inter-modules (syntaxe mermaid -->|label|)
+    assert re.search(r"flowchart LR\n.*-->\|.*\|--", text, re.DOTALL)
+
+
+def test_inter_module_relations_sur_mini_src(mini_src):
+    """Les relations inter-modules sont détectées et placées dans une section dédiée."""
+    doc = _render(mini_src)
+    # Finding (netcross_core.models) référence RawPacket (pcap_parser.packet) via 'packets'
+    assert "## Relations inter-modules" in doc
+    assert "Finding -->|packets| RawPacket" in doc
+    # Les nœuds sont déclarés explicitement
+    assert 'Finding["Finding"]' in doc
+    assert 'RawPacket["RawPacket"]' in doc
+    # ET cette relation n'apparait PAS dans les blocs classDiagram par package
+    blocks = [b for b in _blocks(doc) if b.startswith("classDiagram")]
+    for b in blocks:
+        assert "--> RawPacket" not in b
+
+
+def test_inter_module_relations_aucune_relation_retourne_vide():
+    """Sans relation inter-module, la section n'est pas ajoutée."""
+    import tempfile
+
+    with tempfile.TemporaryDirectory() as tmp:
+        src = gen.Path(tmp) / "src"
+        _write(src, "pkg_a/__init__.py", '"""Package A."""\n')
+        _write(src, "pkg_a/a.py", "class A:\n    pass\n")
+        _write(src, "pkg_b/__init__.py", '"""Package B."""\n')
+        _write(src, "pkg_b/b.py", "class B:\n    pass\n")
+        doc = _render(src)
+        assert "Relations inter-modules" not in doc

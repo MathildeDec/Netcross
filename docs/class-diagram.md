@@ -39,6 +39,42 @@ flowchart TD
     netcross_core -->|"14 imports"| pcap_parser
 ```
 
+## Relations inter-modules
+
+Associations de classes détectées via les annotations de champs lorsqu'elles franchissent
+une frontière de module (source_module != target_module). Chaque flèche indique la classe
+source, le ou les champs concernés, et la classe cible (dans un autre module). Complément
+du graphe de dépendances ci-dessus (qui ne compte que des `import`).
+
+```mermaid
+flowchart LR
+    CaptureInfo["CaptureInfo"]
+    ClientReport["ClientReport"]
+    DiffFinding["DiffFinding"]
+    EvidenceLink["EvidenceLink"]
+    ExpertEvent["ExpertEvent"]
+    Finding["Finding"]
+    FlowView["FlowView"]
+    Flow["Flow"]
+    InterfaceRecord["InterfaceRecord"]
+    LiveDiffState["LiveDiffState"]
+    Pkt["Pkt"]
+    Report["Report"]
+    SegmentScore["SegmentScore"]
+    _Detector["_Detector"]
+    netcross_core_security_expert_correlation__FlowState["netcross_core_security_expert_correlation__FlowState"]
+    CaptureInfo -->|interfaces| InterfaceRecord
+    ClientReport -->|report| Report
+    DiffFinding -->|evidence| EvidenceLink
+    Finding -->|event| ExpertEvent
+    Finding -->|evidence| EvidenceLink
+    FlowView -->|events| ExpertEvent
+    FlowView -->|flow| Flow
+    LiveDiffState -->|packets_in_window| Pkt
+    SegmentScore -->|findings| Finding
+    _Detector -->|run| netcross_core_security_expert_correlation__FlowState
+```
+
 ## `pcap_parser`
 
 | Module | Rôle |
