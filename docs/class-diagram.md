@@ -11,7 +11,7 @@
 > Il remplace l'ancienne section 3 de `docs/features-backlog.md`, tenue à la main, qui avait dérivé
 > (voir `docs/sessions/session-36.md`, issue #140).
 
-103 modules · 141 classes · 303 fonctions publiques de module.
+105 modules · 143 classes · 305 fonctions publiques de module.
 
 Conventions : `+` public, `-` privé (préfixe `_`) ; `int?` = `int | None` ; `list~str~` = `list[str]` ;
 `<<module>>` regroupe les fonctions publiques d'un module ; `A --> B : champ` = `A` a un champ annoté
@@ -1158,6 +1158,7 @@ classDiagram
         +dict~tuple~str, str~, int~ duplicate_count
         +bool duplicates_excluded
         +list~dict~ http_objects
+        +list~dict~ extracted_files
         +list~dict~ application_transactions
         +list~dict~ service_fingerprints
         +list~dict~ security_findings
@@ -1481,6 +1482,51 @@ classDiagram
 
     %% ===== relations =====
     ApplicationTransaction --> TransactionClassification : classification
+```
+
+## `netcross_core.extract`
+
+| Module | Rôle |
+|---|---|
+| `netcross_core.extract` | extraction et reconstruction de fichiers (issue #150). |
+| `netcross_core.extract.carver` | issue #150 (SCENARIO-4, parent #141) : extraction et reconstruction de fichiers depuis les traces réseau. |
+
+### Diagramme
+
+```mermaid
+classDiagram
+    direction LR
+
+    %% ===== netcross_core.extract.carver =====
+    class ExtractedFile {
+        <<dataclass>>
+        +str point
+        +str proto_source
+        +str src
+        +str dst
+        +float ts
+        +str? uri
+        +str? content_type
+        +int? size
+        +str? hash_md5
+        +str? hash_sha256
+        +str type_detected
+        +int? frame_number
+    }
+    class ExtractionResult {
+        <<dataclass>>
+        +list~ExtractedFile~ files
+        +has_files() bool
+        +files_by_type() dict~str, list~ExtractedFile~~
+    }
+    class mod_netcross_core_extract_carver["netcross_core.extract.carver"] {
+        <<module>>
+        +detect_file_type(data) str?
+        +detect_extracted_files(packets, extract_dir) ExtractionResult
+    }
+
+    %% ===== relations =====
+    ExtractionResult --> ExtractedFile : files
 ```
 
 ## `netcross_core.fingerprint`

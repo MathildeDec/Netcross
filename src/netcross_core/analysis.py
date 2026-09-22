@@ -19,6 +19,7 @@ from netcross_core.application import (
 )
 from netcross_core.content import extract_http_objects
 from netcross_core.correlate import TOPN_DIMENSIONS, compute_throughput, compute_topn_series
+from netcross_core.extract.carver import detect_extracted_files
 from netcross_core.forensic import detect_sequence_gaps
 from netcross_core.logging_config import get_logger
 from netcross_core.models import Pkt, Report
@@ -96,6 +97,25 @@ def analyse(
     r.topology_merge_points = topo_merge
     r.topology_used_for_order = used_topology_for_order
     r.http_objects = [obj.__dict__ for obj in extract_http_objects(all_packets)]
+    # SCENARIO-4 (#150) : extraction de fichiers (HTTP, email, SMB, FTP)
+    extraction = detect_extracted_files(all_packets)
+    r.extracted_files = [
+        {
+            "point": f.point,
+            "proto_source": f.proto_source,
+            "src": f.src,
+            "dst": f.dst,
+            "ts": f.ts,
+            "uri": f.uri,
+            "content_type": f.content_type,
+            "size": f.size,
+            "hash_md5": f.hash_md5,
+            "hash_sha256": f.hash_sha256,
+            "type_detected": f.type_detected,
+            "frame_number": f.frame_number,
+        }
+        for f in extraction.files
+    ]
     _analyse_application_transactions(r, all_packets)
     if points_order:
         r.topology_order_conflicts = _check_order_consistency(points_order, topo_edges)

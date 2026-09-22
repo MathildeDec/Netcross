@@ -551,6 +551,12 @@ class Report:
     duplicates_excluded: bool = False
     # -- objets applicatifs HTTP (Job 25), metadonnees uniquement
     http_objects: list[dict] = field(default_factory=list)
+    # -- fichiers extraits (SCENARIO-4, issue #150) : métadonnées des fichiers
+    # transmis dans les flux réseau (HTTP, email, SMB, FTP). Un dict par
+    # fichier, cles `point`, `proto_source`, `src`, `dst`, `ts`, `uri`,
+    # `content_type`, `size`, `hash_md5`, `hash_sha256`, `type_detected`,
+    # `frame_number`. Rempli par `extract.carver.detect_extracted_files`.
+    extracted_files: list[dict] = field(default_factory=list)
     # -- transactions applicatives (Job 23, §6.9/§6.10)
     application_transactions: list[dict] = field(default_factory=list)
     # -- securite / detection passive de vulnerabilites (CVE-5, issue #139,
