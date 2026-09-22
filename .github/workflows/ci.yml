@@ -38,6 +38,12 @@ jobs:
         env:
           PYTHONPATH: src
 
+      - name: Diagramme de classes à jour (issue #140)
+        # Vérifie que docs/class-diagram.md correspond au code source de src/.
+        # Le hook pre-commit `class-diagram` le fait en local, mais CI est le
+        # filet de sécurité pour les contributions qui n'ont pas lancé le hook.
+        run: python3 scripts/generate_class_diagram.py --check
+
       - name: Tests (pytest + couverture)
         # --cov sans chemin : source lue depuis [tool.coverage.run] (source =
         # ["src"]) dans pyproject.toml. term-missing dans les logs CI,
