@@ -7,7 +7,21 @@ et le projet adhère au [SemVer](https://semver.org/lang/fr/).
 
 ## [Unreleased]
 
+### Ajouté
+- Les empreintes JA4/HASSH sont enfin affichées dans le rapport de sécurité
+  (`JA4=…` / `HASSH=…` + forme lisible tronquée) : elles étaient calculées
+  puis silencieusement jetées avant l'affichage (#259)
+- `known_fingerprints.json` peuplé de 7 empreintes réelles (curl TLS 1.2 et
+  1.3, wget, `openssl s_client`, `python ssl`, OpenSSH client et serveur),
+  chacune vérifiée identique à celle calculée par Wireshark (#259)
+- `scripts/capture_reference_fingerprints.py` — génère la base depuis du
+  trafic réel en boucle locale et rejette toute empreinte en désaccord avec
+  tshark (#259)
+- `docs/fingerprints-ja4-hassh.md` (#259)
+
 ### Corrigé
+- Journal de `apply_security_findings` : le compteur annoncé comme
+  « fingerprints » comptait en réalité les incohérences de protocole (#259)
 - `export_filtered()` : `bpf_filter` est replié dans le filtre d'affichage
   `-Y` au lieu de `-f`, que tshark refuse en relecture de fichier — tout
   appel avec ce paramètre échouait systématiquement (#261)

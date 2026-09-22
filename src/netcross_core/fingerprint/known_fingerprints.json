@@ -1,5 +1,74 @@
 {
-  "_note": "Base livree vide : aucune empreinte JA4/HASSH reelle (curl, Chrome, OpenSSH...) n'a ete verifiee contre du trafic capture ni contre une base publique dans cet environnement (pas de tshark/capture reelle disponibles pour la produire honnetement -- voir netcross_core.fingerprint.tls_ja4 et .known). A completer localement : capturer le trafic d'un outil connu, calculer son empreinte avec ce module, et l'ajouter ici sous la cle ja4 ou hassh.",
-  "ja4": {},
-  "hassh": {}
+  "_note": "Base peuplee par scripts/capture_reference_fingerprints.py (issue #259). Chaque empreinte a ete capturee sur du trafic REEL en boucle locale, puis verifiee identique a celle calculee par l'implementation de reference de Wireshark (tls.handshake.ja4, ssh.kex.hassh, ssh.kex.hasshserver). Toute empreinte en desaccord avec tshark est rejetee par le script, jamais enregistree. Liste NON exhaustive : elle ne contient que les outils presents sur la machine de generation -- l'absence d'un navigateur ici ne dit rien de son empreinte. Relancer le script pour l'enrichir.",
+  "_genere_le": "2026-09-22T13:01:06+00:00",
+  "_journal_de_generation": [
+    "genere avec tshark 4.6.4",
+    "curl : JA4=t13i3012h2_1d37bd780c83_8537cf56674e (concorde avec tshark)",
+    "curl (TLS 1.2 force) : JA4=t12i2707h2_a2460661a67a_eed5f1524d5c (concorde avec tshark)",
+    "wget : JA4=t13i291200_723694b0fccc_74a6a6dea387 (concorde avec tshark)",
+    "openssl s_client : JA4=t13i301100_1d37bd780c83_ecd0401ec68b (concorde avec tshark)",
+    "python ssl : JA4=t13i171000_ab0a1bf427ad_8e6e362c5eac (concorde avec tshark)",
+    "OpenSSH (client) : HASSH=eeca2460550b9ded084ecf2f70a75356 (concorde avec tshark)",
+    "OpenSSH (serveur) : HASSH=671c5858369db8e0a60108d866bbf8ec (concorde avec tshark)"
+  ],
+  "ja4": {
+    "t13i3012h2_1d37bd780c83_8537cf56674e": {
+      "libelle": "curl 8.18.0",
+      "outil": "curl",
+      "version": "curl 8.18.0 (x86_64-pc-linux-gnu) libcurl/8.18.0 OpenSSL/3.5.5 zlib/1.3.1 brotli/1.2.0 zstd/1.5.7 libidn2/2.3.8 libpsl/0.21.2 libssh2/1.11.1 nghttp2/1.68.0 librtmp/2.3 mit-krb5/1.22.1 OpenLDAP/2.6.10",
+      "lisible": "ciphers=[0x1302,0x1303,0x1301,0xc02c,0xc030,0x009f,0xcca9,0xcca8,0xccaa,0xc02b,0xc02f,0x009e,0xc024,0xc028,0x006b,0xc023,0xc027,0x0067,0xc00a,0xc014,0x0039,0xc009,0xc013,0x0033,0x009d,0x009c,0x003d,0x003c,0x0035,0x002f] extensions=[0xff01,0x000b,0x000a,0x0010,0x0016,0x0017,0x0031,0x000d,0x002b,0x002d,0x0033,0x001b] alpn=[h2,http/1.1] sni=False",
+      "verifie_contre": "tshark 4.6.4",
+      "methode": "capture reelle sur boucle locale"
+    },
+    "t12i2707h2_a2460661a67a_eed5f1524d5c": {
+      "libelle": "curl (TLS 1.2 force) 8.18.0",
+      "outil": "curl (TLS 1.2 force)",
+      "version": "curl 8.18.0 (x86_64-pc-linux-gnu) libcurl/8.18.0 OpenSSL/3.5.5 zlib/1.3.1 brotli/1.2.0 zstd/1.5.7 libidn2/2.3.8 libpsl/0.21.2 libssh2/1.11.1 nghttp2/1.68.0 librtmp/2.3 mit-krb5/1.22.1 OpenLDAP/2.6.10",
+      "lisible": "ciphers=[0xc02c,0xc030,0x009f,0xcca9,0xcca8,0xccaa,0xc02b,0xc02f,0x009e,0xc024,0xc028,0x006b,0xc023,0xc027,0x0067,0xc00a,0xc014,0x0039,0xc009,0xc013,0x0033,0x009d,0x009c,0x003d,0x003c,0x0035,0x002f] extensions=[0xff01,0x000b,0x000a,0x0010,0x0016,0x0017,0x000d] alpn=[h2,http/1.1] sni=False",
+      "verifie_contre": "tshark 4.6.4",
+      "methode": "capture reelle sur boucle locale"
+    },
+    "t13i291200_723694b0fccc_74a6a6dea387": {
+      "libelle": "wget 1.25.0",
+      "outil": "wget",
+      "version": "GNU Wget 1.25.0 built on linux-gnu.",
+      "lisible": "ciphers=[0x1302,0x1303,0x1301,0x1304,0xc02c,0xcca9,0xc0ad,0xc00a,0xc02b,0xc0ac,0xc009,0xc030,0xcca8,0xc014,0xc02f,0xc013,0x009d,0xc09d,0x0035,0x009c,0xc09c,0x002f,0x009f,0xccaa,0xc09f,0x0039,0x009e,0xc09e,0x0033] extensions=[0x001c,0x000a,0x0005,0x000b,0x0031,0x002b,0x000d,0xff01,0x0033,0x002d,0x0023,0x0015] alpn=[-] sni=False",
+      "verifie_contre": "tshark 4.6.4",
+      "methode": "capture reelle sur boucle locale"
+    },
+    "t13i301100_1d37bd780c83_ecd0401ec68b": {
+      "libelle": "openssl s_client 3.5.5",
+      "outil": "openssl s_client",
+      "version": "OpenSSL 3.5.5 27 Jan 2026 (Library: OpenSSL 3.5.5 27 Jan 2026)",
+      "lisible": "ciphers=[0x1302,0x1303,0x1301,0xc02c,0xc030,0x009f,0xcca9,0xcca8,0xccaa,0xc02b,0xc02f,0x009e,0xc024,0xc028,0x006b,0xc023,0xc027,0x0067,0xc00a,0xc014,0x0039,0xc009,0xc013,0x0033,0x009d,0x009c,0x003d,0x003c,0x0035,0x002f] extensions=[0xff01,0x000b,0x000a,0x0023,0x0016,0x0017,0x000d,0x002b,0x002d,0x0033,0x001b] alpn=[-] sni=False",
+      "verifie_contre": "tshark 4.6.4",
+      "methode": "capture reelle sur boucle locale"
+    },
+    "t13i171000_ab0a1bf427ad_8e6e362c5eac": {
+      "libelle": "python ssl 3.14.3",
+      "outil": "python ssl",
+      "version": "Python 3.14.3 (main, Mar 10 2026, 18:18:50) [Clang 21.1.4 ]",
+      "lisible": "ciphers=[0x1302,0x1303,0x1301,0xc02c,0xc030,0xc02b,0xc02f,0xcca9,0xcca8,0xc024,0xc028,0xc023,0xc027,0x009f,0x009e,0x006b,0x0067] extensions=[0xff01,0x000b,0x000a,0x0023,0x0016,0x0017,0x000d,0x002b,0x002d,0x0033] alpn=[-] sni=False",
+      "verifie_contre": "tshark 4.6.4",
+      "methode": "capture reelle sur boucle locale"
+    }
+  },
+  "hassh": {
+    "eeca2460550b9ded084ecf2f70a75356": {
+      "libelle": "OpenSSH (client) 10.2p1",
+      "outil": "OpenSSH (client)",
+      "version": "OpenSSH_10.2p1 Ubuntu-2ubuntu3.6, OpenSSL 3.5.5 27 Jan 2026",
+      "lisible": "kex=[mlkem768x25519-sha256,sntrup761x25519-sha512,sntrup761x25519-sha512@openssh.com,curve25519-sha256,curve25519-sha256@libssh.org,ecdh-sha2-nistp256,ecdh-sha2-nistp384,ecdh-sha2-nistp521,diffie-hellman-group-exchange-sha256,diffie-hellman-group16-sha512,diffie-hellman-group18-sha512,diffie-hellman-group14-sha256,ext-info-c,kex-strict-c-v00@openssh.com] enc=[chacha20-poly1305@openssh.com,aes128-gcm@openssh.com,aes256-gcm@openssh.com,aes128-ctr,aes192-ctr,aes256-ctr] mac=[umac-64-etm@openssh.com,umac-128-etm@openssh.com,hmac-sha2-256-etm@openssh.com,hmac-sha2-512-etm@openssh.com,hmac-sha1-etm@openssh.com,umac-64@openssh.com,umac-128@openssh.com,hmac-sha2-256,hmac-sha2-512,hmac-sha1] comp=[none,zlib@openssh.com]",
+      "verifie_contre": "tshark 4.6.4",
+      "methode": "capture reelle sur boucle locale"
+    },
+    "671c5858369db8e0a60108d866bbf8ec": {
+      "libelle": "OpenSSH (serveur) 10.2p1",
+      "outil": "OpenSSH (serveur)",
+      "version": "OpenSSH_10.2p1 Ubuntu-2ubuntu3.6, OpenSSL 3.5.5 27 Jan 2026",
+      "lisible": "kex=[mlkem768x25519-sha256,sntrup761x25519-sha512,sntrup761x25519-sha512@openssh.com,curve25519-sha256,curve25519-sha256@libssh.org,ecdh-sha2-nistp256,ecdh-sha2-nistp384,ecdh-sha2-nistp521,ext-info-s,kex-strict-s-v00@openssh.com] enc=[chacha20-poly1305@openssh.com,aes128-gcm@openssh.com,aes256-gcm@openssh.com,aes128-ctr,aes192-ctr,aes256-ctr] mac=[umac-64-etm@openssh.com,umac-128-etm@openssh.com,hmac-sha2-256-etm@openssh.com,hmac-sha2-512-etm@openssh.com,hmac-sha1-etm@openssh.com,umac-64@openssh.com,umac-128@openssh.com,hmac-sha2-256,hmac-sha2-512,hmac-sha1] comp=[none,zlib@openssh.com]",
+      "verifie_contre": "tshark 4.6.4",
+      "methode": "capture reelle sur boucle locale"
+    }
+  }
 }
