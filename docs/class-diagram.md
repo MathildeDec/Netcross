@@ -33,7 +33,7 @@ flowchart TD
     pcap_parser["pcap_parser"]
     CLI -->|"14 imports"| netcross_report
     CLI -->|"16 imports"| netcross_core
-    CLI -->|"2 imports"| pcap_parser
+    CLI -->|"3 imports"| pcap_parser
     netcross_gtk4 -->|"10 imports"| netcross_report
     netcross_gtk4 -->|"18 imports"| netcross_core
     netcross_api -->|"3 imports"| netcross_core
@@ -1225,6 +1225,8 @@ classDiagram
         +list~dict~ dga_alerts
         +list~dict~ fast_flux_alerts
         +list~dict~ lateral_movement_events
+        +bool truncated
+        +str truncation_note
         +list~tuple~str, str, dict~~ topology_edges
         +list~tuple~str, str, str~~ topology_ambiguous
         +list~str~ topology_isolated

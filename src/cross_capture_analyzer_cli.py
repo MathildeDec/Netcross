@@ -622,6 +622,157 @@ def _parse_support_markers(specs) -> dict[str, str]:
     return markers
 
 
+# -- estimation memoire / avertissement avant analyse (issue #283, Etape 2) -
+#
+# Ordre de grandeur retenu pour l'octet-par-paquet en memoire de travail,
+# base sur scripts/bench_memory.py (voir la courbe consignee dans l'issue
+# #283) : un Pkt (dataclass a slots, ~65 champs scalaires) plus les
+# structures accumulees par correlate()/analyse() (flux, historiques de
+# latence/hop_delta, index de correlation...) qui, elles, croissent avec le
+# nombre de paquets et pas seulement avec leur taille sur le fil -- d'ou une
+# estimation basee sur le NOMBRE de paquets (capinfos "Number of packets"),
+# pas sur la taille du fichier (un fichier de 4 Go avec des trames courtes
+# comporte largement plus de paquets, donc plus de memoire de travail,
+# qu'un fichier de 4 Go avec des trames pleines). Le facteur 4 supplementaire
+# couvre le cout des structures de flux/correlation construites en aval de
+# la liste de Pkt elle-meme -- volontairement conservateur (arrondi au
+# superieur) : une estimation trop basse laisserait l'OOM-killer faire le
+# travail que cette fonction doit eviter.
+_ESTIMATED_BYTES_PER_PACKET = 350
+
+
+def _format_go(n_bytes: float) -> str:
+    """``4_200_000_000`` -> ``"4.2 Go"`` (Go decimal = 10**9, coherent avec
+    le reste de cette CLI pour les tailles de fichier)."""
+    return f"{n_bytes / 1_000_000_000:.1f} Go"
+
+
+def _format_paquets(n: int) -> str:
+    """``18_300_000`` -> ``"18,3 M paquets"`` ; sous le million, la valeur
+    brute (``500`` -> ``"500 paquets"``) -- pas d'arrondi trompeur sur de
+    petites captures."""
+    if n >= 1_000_000:
+        return f"{n / 1_000_000:.1f}".replace(".", ",") + " M paquets"
+    return f"{n} paquets"
+
+
+def _available_memory_bytes() -> int | None:
+    """Memoire disponible en octets, lue dans ``/proc/meminfo`` (champ
+    ``MemAvailable``, qui tient deja compte du cache/buffers reclamables --
+    plus fiable que ``MemFree`` seul pour savoir ce qu'un nouveau process
+    peut effectivement obtenir). Pas de dependance psutil (absente de
+    pyproject.toml) : ``/proc/meminfo`` suffit sur toute cible Linux, seul
+    OS supporte par cette CLI (voir install.sh). ``None`` si le fichier est
+    absent/illisible ou mal forme -- jamais d'exception, l'appelant doit
+    alors simplement renoncer a l'avertissement plutot que planter dessus.
+    """
+    try:
+        with open("/proc/meminfo") as f:
+            for line in f:
+                if line.startswith("MemAvailable:"):
+                    parts = line.split()
+                    if len(parts) < 2:
+                        return None
+                    return int(parts[1]) * 1024
+    except (OSError, ValueError):
+        return None
+    return None
+
+
+def _estimate_memory_bytes(packet_count: int) -> int:
+    """Estimation grossiere, volontairement pessimiste -- voir
+    _ESTIMATED_BYTES_PER_PACKET."""
+    return packet_count * _ESTIMATED_BYTES_PER_PACKET * 4
+
+
+def _memory_warning(label: str, file_size: int, packet_count: int) -> str | None:
+    """Construit le message d'avertissement memoire pour une capture, ou
+    ``None`` si l'estimation ne depasse pas la memoire disponible (ou si
+    cette derniere n'a pas pu etre determinee -- dans le doute, ne pas
+    avertir plutot qu'avertir sur une base inconnue)."""
+    available = _available_memory_bytes()
+    if available is None:
+        return None
+    estimated = _estimate_memory_bytes(packet_count)
+    if estimated <= available:
+        return None
+    return (
+        f"{label} : {_format_go(file_size)}, {_format_paquets(packet_count)} -> environ "
+        f"{_format_go(estimated)} de memoire estimes, {_format_go(available)} disponibles. "
+        "Analyse complete probablement impossible. Utiliser --max-packets, --sample ou --stream."
+    )
+
+
+def _check_memory_before_analysis(captures: list[tuple[str, str]]) -> None:
+    """Avertit sur stderr, capture par capture, AVANT tout parsing --
+    l'objectif de l'issue #283 est que la limite soit annoncee avant
+    l'echec, pas decouverte par un OOM-kill. S'appuie sur capinfos (deja
+    requis par le reste de la CLI, voir pcap_parser.capinfos_source) pour
+    le nombre de paquets et la taille de fichier ; capinfos absent ou
+    capture illisible -> silence, jamais d'exception ici (meme discipline
+    que read_capture_info lui-meme)."""
+    from pcap_parser import capinfos_source
+
+    for label, path in captures:
+        info = capinfos_source.read_capture_info(path)
+        if info is None:
+            continue
+        if info.file_size is None or info.packet_count is None:
+            continue
+        message = _memory_warning(label, info.file_size, info.packet_count)
+        if message is not None:
+            print(f"\nATTENTION memoire : {message}", file=sys.stderr)
+
+
+_SAMPLE_SPEC_RE = re.compile(r"^\s*1\s*/\s*(\d+)\s*$")
+
+
+def _parse_sample_spec(spec: str) -> int:
+    """``"1/50"`` -> ``50``. Seul le format ``1/N`` (un paquet gardé sur N)
+    est accepte -- pas de fraction generale (``2/7``) : ce que --sample
+    doit exprimer est un taux de sous-echantillonnage regulier, pas une
+    proportion arbitraire, et 1/N se relit sans ambiguite dans un rapport
+    ou un log."""
+    m = _SAMPLE_SPEC_RE.match(spec)
+    if not m:
+        print(
+            f"--sample : format attendu 1/N (ex: 1/50), recu {spec!r}.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    n = int(m.group(1))
+    if n <= 0:
+        print(f"--sample : N doit etre strictement positif, recu 1/{n}.", file=sys.stderr)
+        sys.exit(1)
+    return n
+
+
+def _apply_packet_limits(all_packets: list, max_packets: int | None, sample_n: int | None) -> tuple[list, str | None]:
+    """Applique --sample puis --max-packets (dans cet ordre : echantillonner
+    d'abord conserve une couverture temporelle etalee sur toute la capture,
+    plutot que de la couper avant meme d'echantillonner) et renvoie la
+    liste effectivement analysee ainsi qu'une note de troncature a inclure
+    dans le rapport (Report.truncation_note), ou ``None`` si aucune des
+    deux options n'a reellement change la population de paquets (capture
+    plus petite que --max-packets, ou --sample 1/1)."""
+    original_count = len(all_packets)
+    packets = all_packets
+    notes = []
+
+    if sample_n is not None and sample_n > 1:
+        packets = packets[::sample_n]
+        notes.append(f"echantillonnage 1/{sample_n} ({len(packets)} paquet(s) retenu(s) sur {original_count})")
+
+    if max_packets is not None and len(packets) > max_packets:
+        before_cap = len(packets)
+        packets = packets[:max_packets]
+        notes.append(f"analyse limitee aux {max_packets} premiers paquets sur {before_cap}")
+
+    if not notes:
+        return packets, None
+    return packets, "; ".join(notes)
+
+
 def main():
     ap = argparse.ArgumentParser(description="Analyse croisee de captures Wireshark multi-points")
     ap.add_argument(
@@ -783,6 +934,26 @@ def main():
         f"{DEFAULT_DUPLICATE_THRESHOLD_MS:g}ms). A regler SOUS la plus petite latence "
         "attendue entre deux points : au-dela, le trafic normal du segment est "
         "marque doublon.",
+    )
+    ap.add_argument(
+        "--max-packets",
+        type=int,
+        default=None,
+        metavar="N",
+        help="Limite l'analyse aux N premiers paquets (apres --sample le "
+        "cas echeant) -- utile quand l'avertissement memoire signale "
+        "qu'une analyse complete est probablement impossible. Le rapport "
+        "indique alors explicitement (Report.truncated/truncation_note) "
+        "qu'il est tronque : jamais silencieusement.",
+    )
+    ap.add_argument(
+        "--sample",
+        default=None,
+        metavar="1/N",
+        help="Analyse un paquet sur N (ex: 1/50), applique avant "
+        "--max-packets pour garder une couverture temporelle etalee sur "
+        "toute la capture plutot que de la couper d'un bloc. Comme "
+        "--max-packets, rend l'analyse tronquee explicite dans le rapport.",
     )
     ap.add_argument(
         "--bucket-ms",
@@ -1253,6 +1424,8 @@ def main():
                 ("--quic", args.quic),
                 ("--security-report", args.security_report),
                 ("--cve-db", args.cve_db),
+                ("--max-packets", args.max_packets),
+                ("--sample", args.sample),
                 ("--parallel", args.parallel),
             )
             if given
@@ -1289,6 +1462,8 @@ def main():
                 ("--quic", args.quic),
                 ("--security-report", args.security_report),
                 ("--cve-db", args.cve_db),
+                ("--max-packets", args.max_packets),
+                ("--sample", args.sample),
                 ("--parallel", args.parallel),
             )
             if given
@@ -1388,6 +1563,8 @@ def main():
                 ("--quic", args.quic),
                 ("--security-report", args.security_report),
                 ("--cve-db", args.cve_db),
+                ("--max-packets", args.max_packets),
+                ("--sample", args.sample),
                 ("--parallel", args.parallel),
             )
             if given
@@ -1534,6 +1711,14 @@ def main():
         label, paths = _parse_capture_spec(c, "--capture")
         captures.extend((label, path) for path in paths)
 
+    sample_n = _parse_sample_spec(args.sample) if args.sample else None
+
+    # Avertissement memoire (issue #283, Etape 2) : avant tout parsing, pas
+    # apres -- l'objectif est d'annoncer la limite, pas de la decouvrir via
+    # un OOM-kill. N'a pas de sens pour --live (pas de fichier a mesurer).
+    if not args.live:
+        _check_memory_before_analysis(captures)
+
     all_packets = []
     if args.live:
         all_packets = _run_live_captures(args.live, args.live_duration)
@@ -1654,6 +1839,17 @@ def main():
         # rapport principal. exclude_duplicates est quand meme transmis
         # plus bas : c'est lui qui renseigne Report.duplicates_excluded.
         all_packets = [pk for pk in all_packets if not pk.is_duplicate]
+
+    # --sample / --max-packets (issue #283, Etape 3) : applique juste avant
+    # correlate()/analyse() pour que TOUT l'aval (flux, rapport, CSV/PDF/
+    # JSON...) voie la meme population reduite -- pas seulement un compteur
+    # affiche a part. truncation_note est reporte plus bas sur Report.
+    truncation_note = None
+    if args.max_packets is not None or sample_n is not None:
+        all_packets, truncation_note = _apply_packet_limits(all_packets, args.max_packets, sample_n)
+        if truncation_note:
+            print(f"\nAnalyse tronquee : {truncation_note}.", file=sys.stderr)
+
     flows = correlate(all_packets, args.nat_tolerant, args.nat_window_ms, args.exclude_duplicates)
     r = analyse(
         flows,
@@ -1667,6 +1863,13 @@ def main():
         exclude_duplicates=args.exclude_duplicates,
         duplicate_counts=duplicate_counts,
     )
+    # --sample/--max-packets (issue #283) : le rapport doit TOUJOURS dire
+    # explicitement qu'il est tronque, jamais le laisser deviner -- voir
+    # Report.truncated/truncation_note et l'acceptation de l'issue.
+    if truncation_note:
+        r.truncated = True
+        r.truncation_note = truncation_note
+        print(f"\nRapport : {truncation_note}.")
     # Commentaires de SECTION pcapng (Job 39/issue #159) -- lus ici, au
     # dernier moment avant le rendu : metadonnee de fichier, pas de paquet,
     # donc remplie par l'appelant (voir Report.capture_comments) et pas par

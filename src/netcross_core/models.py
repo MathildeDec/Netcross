@@ -612,6 +612,10 @@ class Report:
     # `targets`. Rempli par `security.findings.apply_security_findings` via
     # `security.lateral_movement.detect_lateral_movement`.
     lateral_movement_events: list[dict] = field(default_factory=list)
+    # -- gestion memoire (issue #283) : indique si l'analyse a ete
+    # tronquee (--max-packets / --sample) et pourquoi.
+    truncated: bool = False
+    truncation_note: str = ""
     # -- topologie deduite (ordre + chemins multiples) --
     topology_edges: list[tuple[str, str, dict]] = field(default_factory=list)
     topology_ambiguous: list[tuple[str, str, str]] = field(default_factory=list)
