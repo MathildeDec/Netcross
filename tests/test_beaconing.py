@@ -297,6 +297,6 @@ def test_apply_security_findings_trafic_legitime_reste_vide():
     # Le trafic legitime ne leve aucun constat de securite (beaconing, tunneling,
     # mouvement lateral...). flow_stats peut classer des flux (interactif,
     # transfert) -- ce ne sont pas des constats de securite, juste des stats.
-    assert all(
-        "flux " in f.get("detail", "") for f in report.security_findings
-    ), f"constats inattendus sur trafic legitime: {report.security_findings}"
+    assert all("flux " in f.get("detail", "") for f in report.security_findings), (
+        f"constats inattendus sur trafic legitime: {report.security_findings}"
+    )
