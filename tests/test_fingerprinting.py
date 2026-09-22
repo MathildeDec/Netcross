@@ -19,6 +19,7 @@ from netcross_core.fingerprint.known import identify_tool, load_known_fingerprin
 from netcross_core.fingerprint.report import build_fingerprint_records, compute_pkt_fingerprints
 from netcross_core.models import ROLE_CLIENT, ROLE_SERVER, Report
 from netcross_core.security.findings import apply_security_findings
+from netcross_report.security_report import build_security_report, format_security_report
 
 # -- fabriques : ClientHello TLS -------------------------------------------
 
@@ -184,6 +185,35 @@ def test_ja4_alpn_code_premiere_valeur_seulement():
     assert ja4[8:10] == "h2"  # premiere valeur ALPN = "h2"
 
 
+def test_ja4_sans_signature_algorithms_pas_de_underscore_final():
+    # Regression (issue #259) : trouve par comparaison avec ja4plus (implementation
+    # tierce validee contre les vecteurs de test officiels FoxIO) -- sans extension
+    # signature_algorithms, JA4_c hache la liste d'extensions SEULE, sans "_" final.
+    hello = _client_hello_record([0x1301, 0xC02F], _supported_versions_ext([0x0303]))
+    ch = tls_ja4.parse_client_hello(hello)
+    ja4 = tls_ja4.compute_ja4(ch)
+    assert ja4 == "t12i020100_c1929292aa6b_b9a491fefe05"
+
+
+def test_ja4_sans_extension_ni_sigalgs_sentinelle_zero():
+    # Regression (issue #259) : quand il ne reste rien a hacher pour JA4_c
+    # (aucune extension hors SNI/ALPN/GREASE, pas de signature_algorithms),
+    # la reference n'utilise PAS le SHA256 d'une chaine vide mais la
+    # sentinelle "000000000000".
+    hello = _client_hello_record([0x1301], b"")
+    ch = tls_ja4.parse_client_hello(hello)
+    ja4 = tls_ja4.compute_ja4(ch)
+    assert ja4.endswith("_000000000000")
+
+
+def test_ja4_sans_ciphers_sentinelle_zero():
+    hello = _client_hello_record([], _sni_ext())
+    ch = tls_ja4.parse_client_hello(hello)
+    ja4 = tls_ja4.compute_ja4(ch)
+    parts = ja4.split("_")
+    assert parts[1] == "000000000000"
+
+
 def test_identify_sur_client_hello_renvoie_ja4_et_forme_lisible():
     result = tls_ja4.identify(_CURL_LIKE_HELLO)
     assert result is not None
@@ -322,3 +352,37 @@ def test_apply_security_findings_ajoute_les_empreintes_a_service_fingerprints():
     apply_security_findings(report, [pk])
     services = {e["service"] for e in report.service_fingerprints}
     assert "SSH/HASSH" in services
+
+
+# -- rendu texte de bout en bout (issue #259) --------------------------------
+#
+# C'est CE test qui aurait attrape la regression #259 : les tests ci-dessus
+# verifient que le hash/la forme lisible atteignent bien report.service_
+# fingerprints, mais pas qu'ils survivent jusqu'au texte que l'analyste lit
+# reellement (netcross_report.security_report). Sans lui, un renommage ou un
+# oubli de cle cote consommateur passe inapercu malgre des tests unitaires
+# tous verts.
+
+
+def test_rapport_texte_affiche_le_hash_ja4_et_la_forme_lisible():
+    ja4, readable = tls_ja4.identify(_CURL_LIKE_HELLO)
+    pk = make_pkt(src="10.0.0.5", tls_ja4=ja4, tls_ja4_readable=readable)
+    report = Report(points=["A"])
+    apply_security_findings(report, [pk])
+    sr = build_security_report(report)
+    text = "\n".join(format_security_report(sr))
+    assert ja4 in text
+    assert "0x1301" in text  # extrait de la forme lisible (ciphers)
+
+
+def test_rapport_texte_affiche_le_hash_hassh_et_la_forme_lisible():
+    hassh, role, readable = ssh_hassh.identify(_OPENSSH_CLIENT_KEXINIT, sport=51000, dport=22)
+    pk = make_pkt(
+        src="10.0.0.5", sport=51000, dport=22, ssh_hassh=hassh, ssh_hassh_role=role, ssh_hassh_readable=readable
+    )
+    report = Report(points=["A"])
+    apply_security_findings(report, [pk])
+    sr = build_security_report(report)
+    text = "\n".join(format_security_report(sr))
+    assert hassh in text
+    assert "curve25519-sha256" in text  # extrait de la forme lisible (kex)
