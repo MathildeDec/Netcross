@@ -82,8 +82,8 @@ from netcross_gtk4.dashboard_context import (  # noqa: E402
     select_point,
     select_protocol,
 )
-from netcross_gtk4.duplicate_view import format_duplicate_indicator  # noqa: E402
 from netcross_gtk4.live_capture_points import duplicate_labels, expand_live_points  # noqa: E402
+from netcross_gtk4.run_outcome import analysis_outcome, diff_outcome  # noqa: E402
 from netcross_gtk4.stats_view import (  # noqa: E402
     build_events_by_segment,
     build_query,
@@ -1841,6 +1841,24 @@ class MainWindow(Gtk.ApplicationWindow):
         self.run_btn.set_sensitive(True)
         return False
 
+    def _appliquer_outcome(self, outcome):
+        """Recopie un RunOutcome dans la fenetre (issue #285, lot 2).
+
+        Les quatorze champs d'etat sont recopies EN BOUCLE depuis
+        `outcome.etat()`, pas un par un : un champ ajoute a `RunOutcome`
+        arrive ainsi automatiquement dans les deux modes. C'est le point de
+        l'extraction -- avant, analyse et comparaison reecrivaient chacune
+        sa liste, et un oubli d'un seul cote faisait afficher au run
+        suivant des donnees restees du precedent, sans aucun message.
+        """
+        for nom, valeur in outcome.etat().items():
+            setattr(self, nom, valeur)
+        self.duplicate_indicator.set_text(outcome.duplicate_indicator)
+        self.spinner.stop()
+        self.work_status_label.set_text(outcome.work_status)
+        self.result_view.get_buffer().set_text(outcome.result_text)
+        self.status_label.set_text(outcome.status)
+
     def _on_analysis_done(
         self,
         mode,
@@ -1852,30 +1870,23 @@ class MainWindow(Gtk.ApplicationWindow):
         quic_findings=None,
         wireshark_expert_events=None,
     ):
-        self.last_mode = mode
-        self.last_report = report
-        self.last_flows = flows
-        self.duplicate_indicator.set_text(format_duplicate_indicator(report))
-        self.last_findings = findings
-        self.last_tls_findings = tls_findings
-        self.last_quic_findings = quic_findings
         # Signaux tshark bruts : calcules dans le thread d'analyse, ou les
         # paquets sont encore disponibles (issue #14). On garde le RESULTAT
         # plutot que les paquets : conserver `all_packets` dans la fenetre
         # pour un export JSON eventuel immobiliserait la capture entiere en
         # memoire jusqu'a l'analyse suivante.
-        self.last_wireshark_expert_events = wireshark_expert_events
-        self.last_diff_findings = None
-        self.last_baseline_report = None
-        self.last_current_report = None
-        self.last_diff_tls_findings_baseline = None
-        self.last_diff_tls_findings_current = None
-        self.last_diff_quic_findings_baseline = None
-        self.last_diff_quic_findings_current = None
-        self.spinner.stop()
-        self.work_status_label.set_text("Analyse terminee.")
-        self.result_view.get_buffer().set_text(text)
-        self.status_label.set_text("Analyse terminee.")
+        self._appliquer_outcome(
+            analysis_outcome(
+                mode,
+                report,
+                flows,
+                findings,
+                text,
+                tls_findings=tls_findings,
+                quic_findings=quic_findings,
+                wireshark_expert_events=wireshark_expert_events,
+            )
+        )
         self.run_btn.set_sensitive(True)
         self.pdf_btn.set_sensitive(True)
         self.csv_btn.set_sensitive(True)
@@ -1903,29 +1914,17 @@ class MainWindow(Gtk.ApplicationWindow):
         quic_findings_baseline=None,
         quic_findings_current=None,
     ):
-        self.last_mode = "diff"
-        self.last_report = None
-        self.last_flows = None
-        self.duplicate_indicator.set_text("Doublons inter-captures : non disponible en mode comparaison.")
-        self.last_findings = None
-        self.last_tls_findings = None
-        self.last_quic_findings = None
-        self.last_wireshark_expert_events = None
-        self.last_diff_findings = findings
-        self.last_baseline_report = baseline_report
-        self.last_current_report = current_report
-        self.last_diff_tls_findings_baseline = tls_findings_baseline
-        self.last_diff_tls_findings_current = tls_findings_current
-        self.last_diff_quic_findings_baseline = quic_findings_baseline
-        self.last_diff_quic_findings_current = quic_findings_current
-        self.spinner.stop()
-        self.work_status_label.set_text("Comparaison terminee.")
-        self.result_view.get_buffer().set_text(text)
-        regressions = sum(1 for f in findings if f.severity == "regression")
-        self.status_label.set_text(
-            f"Comparaison terminee -- {regressions} regression(s) detectee(s)."
-            if regressions
-            else "Comparaison terminee -- aucune regression."
+        self._appliquer_outcome(
+            diff_outcome(
+                findings,
+                baseline_report,
+                current_report,
+                text,
+                tls_findings_baseline=tls_findings_baseline,
+                tls_findings_current=tls_findings_current,
+                quic_findings_baseline=quic_findings_baseline,
+                quic_findings_current=quic_findings_current,
+            )
         )
         self.run_btn.set_sensitive(True)
         self.pdf_btn.set_sensitive(True)

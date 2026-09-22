@@ -11,7 +11,7 @@
 > Il remplace l'ancienne section 3 de `docs/features-backlog.md`, tenue à la main, qui avait dérivé
 > (voir `docs/sessions/session-36.md`, issue #140).
 
-120 modules · 166 classes · 344 fonctions publiques de module.
+121 modules · 167 classes · 347 fonctions publiques de module.
 
 Conventions : `+` public, `-` privé (préfixe `_`) ; `int?` = `int | None` ; `list~str~` = `list[str]` ;
 `<<module>>` regroupe les fonctions publiques d'un module ; `A --> B : champ` = `A` a un champ annoté
@@ -2900,6 +2900,7 @@ classDiagram
 | `netcross_gtk4.duplicate_view` | Presentation helpers for cross-capture duplicate detection (Job 41). |
 | `netcross_gtk4.live_capture_points` | points de capture en direct de la GUI (Job 48, issue #168) : une ligne du panneau de capture live peut porter PLUSIEURS interfaces d'une meme machine ("eth0, eth1"), chacune devenant son propre point… |
 | `netcross_gtk4.row_labels` | libelles et cles de tri des lignes affichees par la GUI (issue #285, premier lot d'extraction de `app.py`). |
+| `netcross_gtk4.run_outcome` | etat de resultat et decisions d'affichage a la fin d'une analyse ou d'une comparaison (issue #285, deuxieme lot). |
 | `netcross_gtk4.stats_view` | logique de presentation pour la vue d'exploration statistique (Job 27 / issue #22, section 6.8). |
 
 ### Diagramme
@@ -3023,6 +3024,36 @@ classDiagram
         +proto_row_key(row)
         +event_row_label(row) str
         +event_row_key(row)
+    }
+
+    %% ===== netcross_gtk4.run_outcome =====
+    class RunOutcome {
+        <<dataclass, frozen>>
+        +str mode
+        +Any report
+        +Any flows
+        +Any findings
+        +Any tls_findings
+        +Any quic_findings
+        +Any wireshark_expert_events
+        +Any diff_findings
+        +Any baseline_report
+        +Any current_report
+        +Any diff_tls_findings_baseline
+        +Any diff_tls_findings_current
+        +Any diff_quic_findings_baseline
+        +Any diff_quic_findings_current
+        +str work_status
+        +str status
+        +str duplicate_indicator
+        +str result_text
+        +etat() dict~str, Any~
+    }
+    class mod_netcross_gtk4_run_outcome["netcross_gtk4.run_outcome"] {
+        <<module>>
+        +analysis_outcome(mode, report, flows, findings, text, tls_findings, quic_findings, wireshark_expert_events) RunOutcome
+        +diff_status_text(findings) str
+        +diff_outcome(findings, baseline_report, current_report, text, tls_findings_baseline, tls_findings_current, quic_findings_baseline, quic_findings_current) RunOutcome
     }
 
     %% ===== netcross_gtk4.stats_view =====
