@@ -19,9 +19,9 @@ from pathlib import Path
 src = Path(__file__).resolve().parent.parent / "src"
 sys.path.insert(0, str(src))
 
-from fastapi.openapi.utils import get_openapi
+from fastapi.openapi.utils import get_openapi  # noqa: E402
 
-from netcross_api.app import app
+from netcross_api.app import app  # noqa: E402
 
 
 def main() -> int:

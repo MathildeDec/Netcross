@@ -11,7 +11,7 @@
 > Il remplace l'ancienne section 3 de `docs/features-backlog.md`, tenue à la main, qui avait dérivé
 > (voir `docs/sessions/session-36.md`, issue #140).
 
-109 modules · 150 classes · 314 fonctions publiques de module.
+113 modules · 156 classes · 319 fonctions publiques de module.
 
 Conventions : `+` public, `-` privé (préfixe `_`) ; `int?` = `int | None` ; `list~str~` = `list[str]` ;
 `<<module>>` regroupe les fonctions publiques d'un module ; `A --> B : champ` = `A` a un champ annoté
@@ -27,6 +27,7 @@ Nombre d'instructions `import` d'un package vers un autre (contrat de couches v�
 flowchart TD
     CLI["CLI (src/*.py)"]
     netcross_gtk4["netcross_gtk4"]
+    netcross_api["netcross_api"]
     netcross_report["netcross_report"]
     netcross_core["netcross_core"]
     pcap_parser["pcap_parser"]
@@ -35,6 +36,7 @@ flowchart TD
     CLI -->|"1 import"| pcap_parser
     netcross_gtk4 -->|"10 imports"| netcross_report
     netcross_gtk4 -->|"18 imports"| netcross_core
+    netcross_api -->|"3 imports"| netcross_core
     netcross_report -->|"11 imports"| netcross_core
     netcross_core -->|"15 imports"| pcap_parser
 ```
@@ -2567,7 +2569,7 @@ classDiagram
         +int score
         +str? level
     }
-    class SecurityReport {
+    class netcross_report_security_report_SecurityReport["netcross_report.security_report.SecurityReport"] {
         <<dataclass, slots>>
         +list~ServiceEntry~ services
         +list~SecurityItem~ exploits
@@ -2674,11 +2676,84 @@ classDiagram
     %% ===== relations =====
     netcross_report_metric_charts_MetricSeries --> ComplianceZone : zones
     netcross_report_metric_charts_MetricSeries --> Threshold : thresholds
-    SecurityReport --> SecurityDashboard : dashboard
-    SecurityReport --> SecurityItem : anomalies, cves, exploits
-    SecurityReport --> ServiceEntry : services
+    netcross_report_security_report_SecurityReport --> SecurityDashboard : dashboard
+    netcross_report_security_report_SecurityReport --> SecurityItem : anomalies, cves, exploits
+    netcross_report_security_report_SecurityReport --> ServiceEntry : services
     SequenceView --> SequenceStep : steps
     SegmentScore --> Finding : findings
+```
+
+## `netcross_api`
+
+| Module | Rôle |
+|---|---|
+| `netcross_api` | service REST FastAPI pour exposer les analyses Netcross (issue #209). |
+| `netcross_api.app` | application FastAPI pour exposer les analyses Netcross (issue #209). |
+| `netcross_api.models` | modèles Pydantic pour les requêtes/réponses API (issue #209). |
+| `netcross_api.store` | store en mémoire des analyses (issue #209). |
+
+### Diagramme
+
+```mermaid
+classDiagram
+    direction LR
+
+    %% ===== netcross_api.app =====
+    class mod_netcross_api_app["netcross_api.app"] {
+        <<module>>
+        +health() HealthResponse
+        +upload_capture(file, label) AnalysisSummary
+        +get_analysis(analysis_id) JSONResponse
+        +get_security_report(analysis_id) SecurityReport
+        +list_analyses() dict
+    }
+
+    %% ===== netcross_api.models =====
+    class HealthResponse {
+        <<BaseModel>>
+        +str status
+        +str version
+    }
+    class AnalysisSummary {
+        <<BaseModel>>
+        +str analysis_id
+        +str status
+        +int point_count
+        +int packet_count
+        +int security_finding_count
+    }
+    class SecurityFinding {
+        <<BaseModel>>
+        +str severity
+        +str category
+        +str detail
+        +str? point
+    }
+    class netcross_api_models_SecurityReport["netcross_api.models.SecurityReport"] {
+        <<BaseModel>>
+        +str analysis_id
+        +list~SecurityFinding~ findings
+        +list~dict~ service_fingerprints
+        +list~dict~ lateral_movement_events
+        +list~dict~ dga_alerts
+        +list~dict~ fast_flux_alerts
+    }
+    class ErrorResponse {
+        <<BaseModel>>
+        +str detail
+    }
+
+    %% ===== netcross_api.store =====
+    class AnalysesStore {
+        +add(report, metadata) str
+        +get(analysis_id) dict?
+        +get_report(analysis_id) Report?
+        +exists(analysis_id) bool
+        +list_ids() list~str~
+    }
+
+    %% ===== relations =====
+    netcross_api_models_SecurityReport --> SecurityFinding : findings
 ```
 
 ## `netcross_gtk4`
