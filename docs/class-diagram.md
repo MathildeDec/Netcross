@@ -11,7 +11,7 @@
 > Il remplace l'ancienne section 3 de `docs/features-backlog.md`, tenue à la main, qui avait dérivé
 > (voir `docs/sessions/session-36.md`, issue #140).
 
-94 modules · 121 classes · 272 fonctions publiques de module.
+95 modules · 121 classes · 273 fonctions publiques de module.
 
 Conventions : `+` public, `-` privé (préfixe `_`) ; `int?` = `int | None` ; `list~str~` = `list[str]` ;
 `<<module>>` regroupe les fonctions publiques d'un module ; `A --> B : champ` = `A` a un champ annoté
@@ -32,10 +32,11 @@ flowchart TD
     pcap_parser["pcap_parser"]
     CLI -->|"13 imports"| netcross_report
     CLI -->|"11 imports"| netcross_core
+    CLI -->|"1 import"| pcap_parser
     netcross_gtk4 -->|"10 imports"| netcross_report
     netcross_gtk4 -->|"17 imports"| netcross_core
     netcross_report -->|"11 imports"| netcross_core
-    netcross_core -->|"13 imports"| pcap_parser
+    netcross_core -->|"14 imports"| pcap_parser
 ```
 
 ## `pcap_parser`
@@ -46,6 +47,7 @@ flowchart TD
 | `pcap_parser.capfile` | couche 1 bis : cadrage binaire minimal des fichiers pcap / pcapng. |
 | `pcap_parser.capinfos_source` | lecture du commentaire de SECTION pcapng (Section Header Block, "capture comment") d'un fichier de capture, via `capinfos -k`. |
 | `pcap_parser.capture` | couche 6 (orchestration) : point d'entree public du package. |
+| `pcap_parser.convert` | conversion de captures entre formats (Job 49, issue #169). |
 | `pcap_parser.ek_fields` | couche 2 : acces bas niveau aux champs d'un paquet EK. |
 | `pcap_parser.ek_source` | couche 1 : execution de tshark -T ek et lecture du flux NDJSON qui en resulte, fichier pcap ou interface live. |
 | `pcap_parser.packet` | couche 5 : assemblage d'un RawPacket normalise a partir des couches EK d'un paquet, une fois l'encapsulation detectee (tunnels.py) et les protocoles applicatifs extraits (protocols.py). |
@@ -111,6 +113,12 @@ classDiagram
         +replay_capture(path, interface, speed, loop) None
         +split_capture(path, output_dir, by, value) list~str~
         +iter_live_multi(interfaces, stop_event, bpf_filter) Iterator~tuple~str, RawPacket~~
+    }
+
+    %% ===== pcap_parser.convert =====
+    class mod_pcap_parser_convert["pcap_parser.convert"] {
+        <<module>>
+        +convert_capture(path_in, path_out, format, fields) None
     }
 
     %% ===== pcap_parser.ek_fields =====
