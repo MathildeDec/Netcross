@@ -1,0 +1,42 @@
+# Changelog
+
+Tous les changements notables du projet Netcross sont documentés dans ce fichier.
+
+Le format suit [Keep a Changelog](https://keepachangelog.com/fr/1.1.0/),
+et le projet adhère au [SemVer](https://semver.org/lang/fr/).
+
+## [Unreleased]
+
+### Ajouté
+- Dockerfile et .dockerignore pour déploiement conteneurisé (#170)
+- CONTRIBUTING.md — guide de contribution (#170)
+- SECURITY.md — politique de sécurité et reporting CVE (#170)
+- `netcross_core/config.py` — loader de configuration `.netcross.toml` (#170)
+- `netcross_report/siem_export.py` — export CEF pour intégration SIEM (#170)
+
+## [1.0.0] — 2026-09-22
+
+### Ajouté
+- Analyse croisée multi-points de captures Wireshark (.pcap/.pcapng)
+- Corrélation de flux entre points (pertes, latence, QoS, retransmissions)
+- Détection de signatures d'exploits (CVE-1 à CVE-5)
+- Empreintes de services et versions (bannières, JA4, HASSH)
+- Détection de tunneling DNS, beaconing C2, mouvements latéraux
+- Détection DGA et fast flux DNS
+- Extraction de fichiers (file carving) depuis captures
+- Rapports PDF, JSON, CSV, texte
+- Interface GTK4
+- API REST FastAPI + spécification OpenAPI (#209)
+- Logging structuré via loguru (#245)
+- Pipeline CI/CD complet (lint, tests, coverage, guard main)
+- Statistiques de flux et conversation (#145)
+- Audit TLS (#153), découverte d'actifs (#151)
+- Conversion de formats (#169), exfiltration de données (#148)
+
+### Sécurité
+- Politique de sécurité et procédure de reporting CVE (SECURITY.md)
+
+---
+
+Les versions antérieures ne sont pas trackées dans ce fichier.
+Le projet utilisait des releases GitHub ad-hoc avant la version 1.0.0.
