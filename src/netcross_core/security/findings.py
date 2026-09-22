@@ -18,7 +18,10 @@ detecteurs dans le format de constat documente sur `Report` :
 - FLOW-3 (#144) `dns_tunnel.detect_dns_tunneling` -> constats `anomalie`
   (tunneling DNS : suspicion par domaine, ou volume DNS anormal) ;
 - SCENARIO-1 (#147) `beaconing.detect_beaconing` -> constats `anomalie`
-  (beaconing C2 : communications periodiques vers une destination externe).
+  (beaconing C2 : communications periodiques vers une destination externe) ;
+- SCENARIO-2 (#148) `exfiltration.detect_exfiltration` -> constats
+  `anomalie` (exfiltration de donnees : transferts sortants anormaux --
+  ratio upload/download, volume, horaire, destination, protocole).
 
 Trois principes, pour respecter le critere d'acceptation « aucun faux
 positif sur trafic normal » :
@@ -52,6 +55,7 @@ from netcross_core.models import Pkt, Report
 from netcross_core.security import correlate_banner
 from netcross_core.security.beaconing import detect_beaconing
 from netcross_core.security.dns_tunnel import detect_dns_tunneling
+from netcross_core.security.exfiltration import detect_exfiltration
 from netcross_core.security.protocol_mismatch import (
     count_protocol_mismatches,
     detect_protocol_mismatches,
@@ -243,6 +247,51 @@ def beaconing_findings(suspicions: Iterable[dict]) -> list[dict[str, Any]]:
     return findings
 
 
+# -- SCENARIO-2 : exfiltration de donnees -----------------------------------
+
+_EXFIL_SIGNAL_LABELS = {
+    "upload_ratio": "ratio upload/download anormal",
+    "large_volume": "volume sortant superieur au seuil",
+    "off_hours": "transfert hors heures ouvrees",
+    "new_destination": "destination inhabituelle",
+    "dns_large_volume": "reponses DNS volumineuses",
+    "icmp_payload": "charge utile ICMP anormale",
+    "http_cloud_upload": "upload HTTP vers un service de stockage cloud",
+}
+
+
+def exfiltration_findings(suspicions: Iterable[dict]) -> list[dict[str, Any]]:
+    """Un constat `anomalie` par suspicion de `exfiltration.detect_exfiltration`.
+    La severite est celle calculee par `security.exfiltration` (moyenne, ou
+    elevee si des signaux corroborants -- horaire, destination, protocole --
+    s'ajoutent au signal fort) : une suspicion reste un INDICE a confirmer
+    (une sauvegarde cloud legitime peut aussi transferer un gros volume),
+    jamais une exfiltration averee."""
+    findings = []
+    for s in suspicions:
+        signals = ", ".join(_EXFIL_SIGNAL_LABELS.get(sig, sig) for sig in s.get("signals") or [])
+        megaoctets = s.get("bytes_out", 0) / (1024 * 1024)
+        detail = (
+            f"transfert sortant suspect de {s.get('internal', '?')} vers {s.get('external', '?')} "
+            f"({s.get('proto', '?')}) : {signals} "
+            f"-- {megaoctets:.1f} Mo envoyes, score de risque {s.get('risk_score', 0)}/100"
+        )
+        frames = ", ".join(str(f) for f in s.get("frames") or [])
+        if frames:
+            detail += f" -- trames {frames}"
+        findings.append(
+            {
+                "severity": s.get("severity") or "faible",
+                "category": "anomalie",
+                "detail": detail,
+                "host": s.get("external"),
+                "port": s.get("ext_port"),
+                "point": s.get("point") or None,
+            }
+        )
+    return findings
+
+
 # -- CVE-4 : correlation version -> CVE -------------------------------------
 
 
@@ -300,8 +349,9 @@ def apply_security_findings(
     connexion a la base CVE locale (CVE-4) ; None = pas de correlation CVE
     (les services restent listes, sans criticite). Les suspicions Expert
     Info (CVE-3) sont lues sur `report.exploit_suspicion_flows`, deja
-    calcule par `analyse()` ; le tunneling DNS (FLOW-3) et le beaconing C2
-    (SCENARIO-1) sont calcules ici depuis `all_packets`.
+    calcule par `analyse()` ; le tunneling DNS (FLOW-3), le beaconing C2
+    (SCENARIO-1) et l'exfiltration de donnees (SCENARIO-2) sont calcules
+    ici depuis `all_packets`.
 
     `service_fingerprints` contient aussi les empreintes JA4/HASSH
     (issue #143, FLOW-2) -- integration demandee avec CVE-1 (#135) : ce
@@ -321,6 +371,7 @@ def apply_security_findings(
         + anomaly_findings(report.exploit_suspicion_flows)
         + dns_tunnel_findings(detect_dns_tunneling(all_packets).suspicions)
         + beaconing_findings(detect_beaconing(all_packets).suspicions)
+        + exfiltration_findings(detect_exfiltration(all_packets).suspicions)
         + protocol_mismatch_findings(protocol_mismatch_details)
     )
     if cve_conn is not None:
