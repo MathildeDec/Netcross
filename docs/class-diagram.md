@@ -11,7 +11,7 @@
 > Il remplace l'ancienne section 3 de `docs/features-backlog.md`, tenue à la main, qui avait dérivé
 > (voir `docs/sessions/session-36.md`, issue #140).
 
-101 modules · 135 classes · 299 fonctions publiques de module.
+103 modules · 141 classes · 303 fonctions publiques de module.
 
 Conventions : `+` public, `-` privé (préfixe `_`) ; `int?` = `int | None` ; `list~str~` = `list[str]` ;
 `<<module>>` regroupe les fonctions publiques d'un module ; `A --> B : champ` = `A` a un champ annoté
@@ -1163,6 +1163,8 @@ classDiagram
         +list~dict~ security_findings
         +dict~str, dict~str, int~~ protocol_mismatches
         +list~dict~ protocol_mismatch_details
+        +list~dict~ dga_alerts
+        +list~dict~ fast_flux_alerts
         +list~dict~ lateral_movement_events
         +list~tuple~str, str, dict~~ topology_edges
         +list~tuple~str, str, str~~ topology_ambiguous
@@ -1600,9 +1602,11 @@ classDiagram
 | `netcross_core.security.beaconing` | issue #147 (SCENARIO-1, parent #141) : detection de beaconing C2 (communications periodiques d'un hote interne vers une destination externe : check-in regulier, petites requetes). |
 | `netcross_core.security.cpe_match` | conversion d'une banniere de service ("Apache/2.4.41") en identifiant CPE 2.3 et comparaison de versions avec les ranges NVD (versionStart/EndIncluding/Excluding). |
 | `netcross_core.security.cve_db` | base SQLite locale des CVE, peuplee par scripts/import_nvd.py depuis le flux NVD (voir ce script pour le format JSON attendu, API NVD 2.0). |
+| `netcross_core.security.dga` | issue #152 (SCENARIO-6, parent #141) : detection de domaines generes algorithmiquement (DGA). |
 | `netcross_core.security.dns_tunnel` | issue #144 (FLOW-3, parent #141) : detection de tunneling DNS (exfiltration, C2, VPN over DNS). |
 | `netcross_core.security.exfiltration` | issue #148 (SCENARIO-2, parent #141) : detection d'exfiltration de données (transferts sortants anormaux). |
 | `netcross_core.security.expert_correlation` | issue #137 (CVE-3) : exploitation des alertes Expert Info de tshark pour DETECTER des tentatives d'exploitation (fuzzing, depassement de tampon, deni de service) a partir de paquets malformes et de… |
+| `netcross_core.security.fast_flux` | issue #152 (SCENARIO-6, parent #141) : detection d'infrastructures a flux rapide (fast flux) utilisees par les botnets et C2. |
 | `netcross_core.security.findings` | alimentation de `Report.service_fingerprints` et `Report.security_findings` a partir des modules de detection CVE-1 a CVE-4 (issue #139, CVE-5, parent #133). |
 | `netcross_core.security.flow_stats` | issue #145 (FLOW-4, parent #141) : analyse statistique des flux pour detecter les comportements anormaux. |
 | `netcross_core.security.lateral_movement` | issue #149 (SCENARIO-3, parent #141) : detection de mouvements latéraux internes (scans réseau, propagation, brute force, protocoles inhabituels, nouvelles connexions). |
@@ -1707,6 +1711,41 @@ classDiagram
         +count_cves(conn) int
     }
 
+    %% ===== netcross_core.security.dga =====
+    class DgaThresholds {
+        <<dataclass>>
+        +float score_threshold
+        +int min_subdomain_len
+        +float entropy_min_bits
+        +float consonant_ratio_min
+        +float rare_bigram_ratio_min
+        +int suspicious_length
+        +float nxdomain_ratio_min
+        +int max_unique_queries_per_domain
+    }
+    class DgaAlert {
+        <<dataclass>>
+        +str point
+        +str domain
+        +float score
+        +str reason
+        +float entropy
+        +float consonant_ratio
+        +float rare_bigram_ratio
+        +int length
+        +float nxdomain_ratio
+    }
+    class DgaResult {
+        <<dataclass>>
+        +list~DgaAlert~ alerts
+        +list~dict~ domain_scores
+        +suspicious() bool
+    }
+    class mod_netcross_core_security_dga["netcross_core.security.dga"] {
+        <<module>>
+        +detect_dga(packets, thresholds) DgaResult
+    }
+
     %% ===== netcross_core.security.dns_tunnel =====
     class DnsTunnelThresholds {
         <<dataclass, frozen>>
@@ -1809,6 +1848,34 @@ classDiagram
         +apply_expert_correlation(r, all_packets, thresholds) None
     }
 
+    %% ===== netcross_core.security.fast_flux =====
+    class FastFluxThresholds {
+        <<dataclass>>
+        +int min_ips
+        +float window_seconds
+        +float nxdomain_ratio_min
+        +int nxdomain_min_responses
+    }
+    class FastFluxAlert {
+        <<dataclass>>
+        +str point
+        +str domain
+        +str alert_type
+        +float score
+        +str reason
+        +list~str~ ips
+        +float nxdomain_ratio
+    }
+    class FastFluxResult {
+        <<dataclass>>
+        +list~FastFluxAlert~ alerts
+        +suspicious() bool
+    }
+    class mod_netcross_core_security_fast_flux["netcross_core.security.fast_flux"] {
+        <<module>>
+        +detect_fast_flux(packets, thresholds) FastFluxResult
+    }
+
     %% ===== netcross_core.security.findings =====
     class mod_netcross_core_security_findings["netcross_core.security.findings"] {
         <<module>>
@@ -1819,6 +1886,8 @@ classDiagram
         +beaconing_findings(suspicions) list~dict~str, Any~~
         +lateral_movement_findings(events) list~dict~str, Any~~
         +cve_findings(fingerprints, conn) list~dict~str, Any~~
+        +dga_findings(alerts) list~dict~str, Any~~
+        +fast_flux_findings(alerts) list~dict~str, Any~~
         +apply_security_findings(report, all_packets, detections, cve_conn) None
     }
 
@@ -1907,6 +1976,8 @@ classDiagram
 
     %% ===== relations =====
     CveEntry --> AffectedProduct : affected
+    DgaResult --> DgaAlert : alerts
+    FastFluxResult --> FastFluxAlert : alerts
     FlowStatsResult --> FlowStat : flows
     LateralMovementResult --> LateralMovementEvent : events
 ```
