@@ -34,7 +34,7 @@ import pcap_parser
 from netcross_core.application.banners import extract_banners
 from netcross_core.fingerprint.report import compute_pkt_fingerprints
 from netcross_core.models import Pkt
-from pcap_parser.capinfos_source import read_capture_comment, read_capture_info
+from pcap_parser.capinfos_source import read_capture_comment
 from pcap_parser.ek_source import TsharkError, TsharkNotFoundError
 from pcap_parser.packet import RawPacket
 from pcap_parser.protocols import compute_mos
@@ -49,7 +49,6 @@ __all__ = [
     "parse_rtp",
     "parse_sip",
     "read_capture_comments",
-    "read_capture_infos",
 ]
 
 
@@ -136,6 +135,13 @@ def _to_pkt(label: str, raw: RawPacket) -> Pkt:
         tcp_checksum_bad=raw.tcp_checksum_bad,
         udp_checksum=raw.udp_checksum,
         udp_checksum_bad=raw.udp_checksum_bad,
+        tls_cert_issuer=raw.tls_cert_issuer,
+        tls_cert_subject=raw.tls_cert_subject,
+        tls_cert_sig_hash=raw.tls_cert_sig_hash,
+        tls_cert_key_type=raw.tls_cert_key_type,
+        tls_cert_key_bits=raw.tls_cert_key_bits,
+        tls_cert_san_ip=raw.tls_cert_san_ip,
+        tls_cert_chain_len=raw.tls_cert_chain_len,
         expert_flags=raw.expert_flags,
         expert_details=raw.expert_details,
         service_banners=extract_banners(raw.proto, raw.sport, raw.dport, raw.payload),
@@ -270,6 +276,8 @@ def read_capture_infos(captures) -> list[dict]:
     dropped_by_interface, dropped_by_os, interfaces (liste de dicts
     plats avec index, linktype, snaplen, name, received,
     dropped_by_interface, dropped_by_os). Les cles absentes valent None."""
+    from pcap_parser.capinfos_source import read_capture_info
+
     infos = []
     for label, path in captures:
         info = read_capture_info(path)

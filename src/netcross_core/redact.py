@@ -23,7 +23,8 @@ Perimetre assume, volontairement etroit (nom du flag CLI : --redact,
 Explicitement HORS PERIMETRE de cette passe (voir FEATURES.md section
 5.2, ligne "Anonymisation") -- ce sont des NOMS, pas des ADRESSES, et
 laisses tels quels : noms DNS (dns_qry_name), URI/host HTTP (http_uri),
-SAN de certificat TLS (tls_cert_san), identifiants SIP (sip_call_id/
+SAN de certificat TLS (tls_cert_san, tls_cert_san_ip) et sujet/emetteur
+(tls_cert_subject/tls_cert_issuer), identifiants SIP (sip_call_id/
 sip_user_agent/sip_server). Une capture "redigee" avec ce module reste
 donc potentiellement identifiante via ces canaux -- limite assumee et
 documentee (README.md, "Limites connues"), pas un oubli.

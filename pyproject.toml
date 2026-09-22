@@ -16,6 +16,7 @@ requires-python = ">=3.10"
 # systeme, jamais installable proprement via pip/uv, voir install.sh.
 dependencies = [
     "cryptography>=41.0",
+    "loguru>=0.7",
     "reportlab>=4.0",
     "matplotlib>=3.6",
     "networkx>=2.8",
@@ -30,6 +31,14 @@ dev = [
     "ruff==0.16.4",
     "import-linter>=2.13",
     "pre-commit>=4.0",
+]
+# API REST (issue #209) : jamais obligatoire pour le cœur ou les rapports.
+# Installé avec : pip install -e ".[api]" ou uv sync --extra api
+api = [
+    "fastapi>=0.100",
+    "uvicorn>=0.20",
+    "python-multipart>=0.0.6",
+    "httpx>=0.24",  # pour TestClient dans les tests
 ]
 
 [tool.uv]
@@ -62,7 +71,7 @@ ignore = ["RUF100"]
 ban-relative-imports = "all"
 
 [tool.importlinter]
-root_packages = ["netcross_gtk4", "netcross_report", "netcross_core", "pcap_parser"]
+root_packages = ["netcross_gtk4", "netcross_report", "netcross_api", "netcross_core", "pcap_parser"]
 include_external_packages = true
 
 [[tool.importlinter.contracts]]
@@ -71,6 +80,7 @@ type = "layers"
 layers = [
     "netcross_gtk4",
     "netcross_report",
+    "netcross_api",
     "netcross_core",
     "pcap_parser",
 ]

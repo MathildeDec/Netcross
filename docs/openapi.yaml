@@ -1,0 +1,311 @@
+openapi: 3.1.0
+info:
+  title: Netcross API
+  description: Analyse croisée de captures réseau — service REST
+  version: 1.0.0
+paths:
+  /health:
+    get:
+      tags:
+      - meta
+      summary: Health
+      description: Health check du service.
+      operationId: health_health_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+  /captures:
+    post:
+      tags:
+      - captures
+      summary: Upload Capture
+      description: 'Upload d''un fichier pcap, lancement de l''analyse.
+
+
+        Le fichier est temporairement écrit sur disque pour que tshark puisse
+
+        le lire, puis supprimé. L''analyse complète (correlation + sécurité) est
+
+        exécutée et le rapport est stocké en mémoire.'
+      operationId: upload_capture_captures_post
+      parameters:
+      - name: label
+        in: query
+        required: false
+        schema:
+          type: string
+          default: capture
+          title: Label
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Body_upload_capture_captures_post'
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnalysisSummary'
+        '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Bad Request
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /analyses/{analysis_id}:
+    get:
+      tags:
+      - analyses
+      summary: Get Analysis
+      description: 'Récupère le rapport complet d''une analyse (JSON).
+
+
+        Le rapport est sérialisé en dict JSON directement (sans passer par
+
+        generate_json_report qui écrit sur disque).'
+      operationId: get_analysis_analyses__analysis_id__get
+      parameters:
+      - name: analysis_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Analysis Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Not Found
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /analyses/{analysis_id}/security:
+    get:
+      tags:
+      - analyses
+      summary: Get Security Report
+      description: Récupère les constats de sécurité d'une analyse.
+      operationId: get_security_report_analyses__analysis_id__security_get
+      parameters:
+      - name: analysis_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Analysis Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SecurityReport'
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Not Found
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /analyses:
+    get:
+      tags:
+      - analyses
+      summary: List Analyses
+      description: Liste les IDs d'analyses disponibles.
+      operationId: list_analyses_analyses_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                additionalProperties: true
+                type: object
+                title: Response List Analyses Analyses Get
+components:
+  schemas:
+    AnalysisSummary:
+      properties:
+        analysis_id:
+          type: string
+          title: Analysis Id
+        status:
+          type: string
+          title: Status
+          default: completed
+        point_count:
+          type: integer
+          title: Point Count
+          default: 0
+        packet_count:
+          type: integer
+          title: Packet Count
+          default: 0
+        security_finding_count:
+          type: integer
+          title: Security Finding Count
+          default: 0
+      type: object
+      required:
+      - analysis_id
+      title: AnalysisSummary
+      description: Résumé d'une analyse (retourné par POST /captures).
+    Body_upload_capture_captures_post:
+      properties:
+        file:
+          type: string
+          contentMediaType: application/octet-stream
+          title: File
+          description: Fichier pcap/pcapng à analyser
+      type: object
+      required:
+      - file
+      title: Body_upload_capture_captures_post
+    ErrorResponse:
+      properties:
+        detail:
+          type: string
+          title: Detail
+      type: object
+      required:
+      - detail
+      title: ErrorResponse
+      description: Réponse d'erreur standard.
+    HTTPValidationError:
+      properties:
+        detail:
+          items:
+            $ref: '#/components/schemas/ValidationError'
+          type: array
+          title: Detail
+      type: object
+      title: HTTPValidationError
+    HealthResponse:
+      properties:
+        status:
+          type: string
+          title: Status
+          default: ok
+        version:
+          type: string
+          title: Version
+          default: 1.0.0
+      type: object
+      title: HealthResponse
+      description: Réponse du health check.
+    SecurityFinding:
+      properties:
+        severity:
+          type: string
+          title: Severity
+          default: ''
+        category:
+          type: string
+          title: Category
+          default: ''
+        detail:
+          type: string
+          title: Detail
+          default: ''
+        point:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Point
+      type: object
+      title: SecurityFinding
+      description: Un constat de sécurité sérialisé.
+    SecurityReport:
+      properties:
+        analysis_id:
+          type: string
+          title: Analysis Id
+        findings:
+          items:
+            $ref: '#/components/schemas/SecurityFinding'
+          type: array
+          title: Findings
+        service_fingerprints:
+          items:
+            additionalProperties: true
+            type: object
+          type: array
+          title: Service Fingerprints
+        lateral_movement_events:
+          items:
+            additionalProperties: true
+            type: object
+          type: array
+          title: Lateral Movement Events
+        dga_alerts:
+          items:
+            additionalProperties: true
+            type: object
+          type: array
+          title: Dga Alerts
+        fast_flux_alerts:
+          items:
+            additionalProperties: true
+            type: object
+          type: array
+          title: Fast Flux Alerts
+      type: object
+      required:
+      - analysis_id
+      title: SecurityReport
+      description: Rapport de sécurité pour GET /analyses/{id}/security.
+    ValidationError:
+      properties:
+        loc:
+          items:
+            anyOf:
+            - type: string
+            - type: integer
+          type: array
+          title: Location
+        msg:
+          type: string
+          title: Message
+        type:
+          type: string
+          title: Error Type
+        input:
+          title: Input
+        ctx:
+          type: object
+          title: Context
+      type: object
+      required:
+      - loc
+      - msg
+      - type
+      title: ValidationError

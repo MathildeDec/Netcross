@@ -916,3 +916,95 @@ def adjust_timestamps(
     editcap = _wireshark_tool_path("editcap")
     args = [editcap, "-t", repr(float(actual_offset)), path_in, path_out]
     _run_wireshark_tool(args)
+
+
+# -- convert_capture (Job 49 / issue #169) ------------------------------------
+
+# Formats de capture reconnus par tshark -F (sous-ensemble utile, pas
+# exhaustif -- tshark en supporte des dizaines, seuls ceux demandes par
+# l'issue #169 sont listes).
+_SUPPORTED_FORMATS = {"pcap", "pcapng", "erf"}
+
+# Champs exportes en CSV structure (un paquet par ligne).
+_CSV_FIELDS = [
+    "frame.time_epoch",
+    "ip.src",
+    "ip.dst",
+    "_ws.col.Protocol",
+    "frame.len",
+]
+
+
+def convert_capture(path_in: str, path_out: str, fmt: str = "pcapng") -> None:
+    """
+    Convertit un fichier de capture entre formats : pcap, pcapng, ERF.
+    Utilise ``tshark -r input -F format -w output``.
+
+    Leve FileNotFoundError (capture absente), TsharkNotFoundError (tshark
+    absent), TsharkError (echec de tshark), ValueError (format non supporte).
+    """
+    if not os.path.isfile(path_in):
+        raise FileNotFoundError(f"capture introuvable : {path_in}")
+    fmt_lower = fmt.lower()
+    if fmt_lower not in _SUPPORTED_FORMATS:
+        raise ValueError(f"format non supporte : {fmt!r}. Formats reconnus : {', '.join(sorted(_SUPPORTED_FORMATS))}.")
+    from pcap_parser.ek_source import _tshark_path
+
+    tshark = _tshark_path()
+    args = [tshark, "-r", path_in, "-F", fmt_lower, "-w", path_out]
+    proc = subprocess.run(args, capture_output=True, text=True, check=False)
+    if proc.returncode != 0:
+        raise TsharkError(
+            f"tshark a echoue lors de la conversion (code {proc.returncode}) : {proc.stderr.strip()}",
+            returncode=proc.returncode,
+            stderr=proc.stderr,
+        )
+
+
+def export_csv(path_in: str, path_out: str) -> None:
+    """
+    Exporte une capture en CSV structure : un paquet par ligne, champs
+    choisis (timestamp, src, dst, protocole, taille).
+    Utilise ``tshark -r input -T fields -E header=y -E separator=, -e ...``.
+
+    Leve FileNotFoundError, TsharkNotFoundError, TsharkError.
+    """
+    if not os.path.isfile(path_in):
+        raise FileNotFoundError(f"capture introuvable : {path_in}")
+    from pcap_parser.ek_source import _tshark_path
+
+    tshark = _tshark_path()
+    args = [tshark, "-r", path_in, "-T", "fields", "-E", "header=y", "-E", "separator=,"]
+    for field in _CSV_FIELDS:
+        args += ["-e", field]
+    with open(path_out, "w", encoding="utf-8") as fh:
+        proc = subprocess.run(args, capture_output=True, text=True, check=False, stdout=fh)
+    if proc.returncode != 0:
+        raise TsharkError(
+            f"tshark a echoue lors de l'export CSV (code {proc.returncode}) : {proc.stderr.strip()}",
+            returncode=proc.returncode,
+            stderr=proc.stderr,
+        )
+
+
+def export_json(path_in: str, path_out: str) -> None:
+    """
+    Exporte une capture en JSON structure : un objet par paquet avec tous
+    les champs EK. Utilise ``tshark -r input -T json``.
+
+    Leve FileNotFoundError, TsharkNotFoundError, TsharkError.
+    """
+    if not os.path.isfile(path_in):
+        raise FileNotFoundError(f"capture introuvable : {path_in}")
+    from pcap_parser.ek_source import _tshark_path
+
+    tshark = _tshark_path()
+    args = [tshark, "-r", path_in, "-T", "json"]
+    with open(path_out, "w", encoding="utf-8") as fh:
+        proc = subprocess.run(args, capture_output=True, text=True, check=False, stdout=fh)
+    if proc.returncode != 0:
+        raise TsharkError(
+            f"tshark a echoue lors de l'export JSON (code {proc.returncode}) : {proc.stderr.strip()}",
+            returncode=proc.returncode,
+            stderr=proc.stderr,
+        )

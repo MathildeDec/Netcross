@@ -34,6 +34,14 @@ from netcross_core.correlate import (
     correlate,
     flow_key,
 )
+from netcross_core.discovery import (
+    AssetInventory,
+    ExposedService,
+    HostAsset,
+    OsGuess,
+    build_asset_inventory,
+    load_baseline_hosts,
+)
 from netcross_core.live_diff import LiveDiffConfig, LiveDiffEngine, LiveDiffState, finding_to_alarm_signal
 from netcross_core.models import Pkt, Report
 from netcross_core.parsing import (
@@ -67,20 +75,25 @@ from pcap_parser.capture import (
 __all__ = [
     "DEFAULT_REFERENCES",
     "AddressRedactor",
+    "AssetInventory",
     "Call",
     "ClientComparisonResult",
     "ClientReport",
     "DiffFinding",
+    "ExposedService",
+    "HostAsset",
     "HttpObject",
     "LiveDiffConfig",
     "LiveDiffEngine",
     "LiveDiffState",
+    "OsGuess",
     "Pkt",
     "Report",
     "TcpreplayError",
     "TcpreplayNotFoundError",
     "adjust_timestamps",
     "analyse",
+    "build_asset_inventory",
     "build_calls",
     "build_conversations",
     "build_flows",
@@ -101,6 +114,7 @@ __all__ = [
     "finding_to_alarm_signal",
     "first_timestamp",
     "flow_key",
+    "load_baseline_hosts",
     "merge_captures",
     "objects_to_dicts",
     "parse_capture",

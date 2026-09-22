@@ -37,6 +37,8 @@ from collections.abc import Iterator, Sequence
 from dataclasses import dataclass
 from typing import IO
 
+from loguru import logger
+
 # frame_frame_time_epoch : "2026-08-20T20:19:51.632525000Z" (nanosecondes).
 # Nettement plus precis que le "timestamp" racine du bulk EK (millisecondes
 # seulement) -- important pour des mesures de latence inter-points fines.
@@ -223,6 +225,7 @@ def iter_ek_records(
         extra_args=extra_args,
         lua_scripts=lua_scripts,
     )
+    logger.debug("tshark args : {}", args)
 
     proc = subprocess.Popen(
         args,
