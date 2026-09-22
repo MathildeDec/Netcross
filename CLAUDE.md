@@ -52,6 +52,33 @@ que pour un contexte spécifique, pas systématiquement.
   Note : `src/cross_capture_analyzer_cli.py` est passé de `100755` à
   `100644` lors du push par l'API (contenu identique) —
   `git update-index --chmod=+x` pour le rétablir.
+- **Sécurité (CVE, `--security-report`/`--cve-db`, parent #133)** :
+  rapport de sécurité consolidé de `cross_capture_analyzer_cli.py`,
+  détection passive de vulnérabilités (sans scan actif, corrélation sur
+  traces déjà capturées). Chantier entièrement clôturé — le parent
+  #133 et ses cinq sous-issues sont tous fermés : CVE-1 (#135,
+  bannières de version — `netcross_core.application.banners`, peuple
+  `Pkt.service_banners` puis `Report.service_fingerprints`), CVE-2
+  (#136, signatures d'exploits — `netcross_core.exploit_signatures` :
+  Log4Shell, Shellshock, Heartbleed, EternalBlue, compression TLS),
+  CVE-3 (#137, corrélation des alertes Expert Info —
+  `netcross_core.security.expert_correlation`), CVE-4 (#138, base CVE
+  locale SQLite et corrélation version + CVE-ID + score CVSS —
+  `netcross_core.security`, alimentée hors ligne par
+  `scripts/import_nvd.py`), CVE-5 (#139, rapport consolidé et tableau
+  de bord — `netcross_report.security_report`). Point d'assemblage
+  unique : `netcross_core.security.findings.apply_security_findings()`
+  (remplacement, pas ajout — deux appels donnent le même résultat) ; le
+  même rapport inclut aussi les anomalies FLOW-3 tunneling DNS (#144,
+  `netcross_core.security.dns_tunnel`) et SCENARIO-1 beaconing C2
+  (#147, `netcross_core.security.beaconing`). `--cve-db CHEMIN` doit
+  désigner un fichier existant (refusé sinon) ; sans lui, les services
+  sont listés sans corrélation CVE. Refusé avec `--live`, `--redact`,
+  `--merge`/`--split`/`--replay`. Rendu texte uniquement pour
+  l'instant — pas encore de section dédiée dans
+  `--pdf-report`/`--json-report` ni d'équivalent GTK4 (issue #218,
+  ouverte). Détail complet, choix de sévérité et schéma
+  d'architecture : `docs/security-report.md`.
 - **Session 71** : nettoyage mypy complet (issue #28) — les 49 erreurs
   préexistantes sur 9 fichiers sont TOUTES résolues :
   `PYTHONPATH=src uv run mypy --ignore-missing-imports src/` renvoie
