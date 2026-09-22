@@ -119,8 +119,11 @@ from netcross_core import (
     adjust_timestamps,
     analyse,
     compare_clients,
+    convert_capture,
     correlate,
+    export_csv,
     export_filtered,
+    export_json,
     merge_captures,
     parse_capture,
     parse_captures_parallel,
@@ -255,6 +258,36 @@ def _run_merge(capture_specs, output_path, dedup):
         + (" (paquets identiques dedupliques)" if dedup else "")
         + "."
     )
+
+
+def _run_convert(capture_specs, output_path, fmt):
+    """--convert : convertit UN fichier de capture vers un autre format
+    (pcap, pcapng, erf) ou exporte en CSV/JSON structure, puis s'arrete
+    sans lancer d'analyse. Comme --merge/--split, ne lance aucune analyse."""
+    if not capture_specs:
+        print("--convert necessite --capture (fichier source).", file=sys.stderr)
+        sys.exit(1)
+    if len(capture_specs) > 1:
+        print(
+            f"--convert convertit UN fichier a la fois (recu {len(capture_specs)} spec(s) --capture) -- "
+            "fusionnez d'abord avec --merge si besoin.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    paths = [c["path"] for c in capture_specs]
+    path_in = paths[0]
+    try:
+        if fmt in ("csv", "json"):
+            if fmt == "csv":
+                export_csv(path_in, output_path)
+            else:
+                export_json(path_in, output_path)
+        else:
+            convert_capture(path_in, output_path, fmt=fmt)
+    except (OSError, ValueError, RuntimeError) as e:
+        print(f"--convert : {e}", file=sys.stderr)
+        sys.exit(1)
+    print(f"Converti {path_in} -> {output_path} (format: {fmt}).")
 
 
 def _run_export(capture_specs, output_path, bpf_filter, time_start, time_end, endpoints):
@@ -976,6 +1009,26 @@ def main():
         "integralement (defaut: 1, une seule passe). Doit etre >= 1.",
     )
     ap.add_argument(
+        "--convert",
+        metavar="SORTIE",
+        help="Convertit le fichier passe a --capture (un seul) vers un autre "
+        "format, puis s'arrete SANS lancer d'analyse. Le format de sortie "
+        "depend de --convert-format (defaut: pcapng). Pour un export "
+        "structure (CSV/JSON), utiliser --convert-format csv ou json. "
+        "Incompatible avec --live/--merge/--split/--replay et avec les "
+        "options d'analyse/de rapport.",
+    )
+    ap.add_argument(
+        "--convert-format",
+        default="pcapng",
+        choices=["pcap", "pcapng", "erf", "csv", "json"],
+        metavar="FORMAT",
+        help="Avec --convert : format de sortie (defaut: pcapng). Formats de "
+        "capture : pcap, pcapng, erf (via tshark -F). Exports structures : "
+        "csv (un paquet par ligne, colonnes timestamp/src/dst/proto/length), "
+        "json (un objet par paquet avec tous les champs EK).",
+    )
+    ap.add_argument(
         "--redact",
         action="store_true",
         help="Anonymise les adresses IP (RFC 5737/3849, plages de documentation) "
@@ -1154,6 +1207,13 @@ def main():
             file=sys.stderr,
         )
         sys.exit(1)
+    if args.convert and (args.merge or args.split or args.replay or args.export_pcap or args.adjust_time_output):
+        print(
+            "--convert est exclusif avec --merge/--split/--replay/--export-pcap/--adjust-time : "
+            "une seule operation a la fois.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
     if (args.replay_loop != 1 or args.replay_speed != "1.0") and not args.replay:
         print("--replay-speed/--replay-loop necessitent --replay.", file=sys.stderr)
         sys.exit(1)
@@ -1204,6 +1264,42 @@ def main():
             )
             sys.exit(1)
         _run_merge(args.capture, args.merge, args.merge_dedup)
+        return
+
+    if args.convert:
+        if not args.capture:
+            print("--convert necessite --capture (fichier source).", file=sys.stderr)
+            sys.exit(1)
+        if args.live:
+            print("--convert convertit un fichier (--capture) : incompatible avec --live.", file=sys.stderr)
+            sys.exit(1)
+        # --convert est un mode utilitaire qui s'arrete apres la conversion :
+        # toute autre option (analyse, rapport...) serait silencieusement ignoree.
+        ignored = sorted(
+            flag
+            for flag, given in (
+                ("--pdf-report", args.pdf_report),
+                ("--json-report", args.json_report),
+                ("--detail-csv", args.detail_csv),
+                ("--history-db", args.history_db),
+                ("--client-group", args.client_group),
+                ("--redact", args.redact),
+                ("--triage", args.triage),
+                ("--tls", args.tls),
+                ("--quic", args.quic),
+                ("--security-report", args.security_report),
+                ("--cve-db", args.cve_db),
+                ("--parallel", args.parallel),
+            )
+            if given
+        )
+        if ignored:
+            print(
+                f"--convert convertit le fichier sans lancer d'analyse : incompatible avec {', '.join(ignored)}.",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        _run_convert(args.capture, args.convert, args.convert_format)
         return
 
     if args.split_output_dir and not args.split:
