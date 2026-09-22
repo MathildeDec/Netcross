@@ -8,6 +8,10 @@ et le projet adhère au [SemVer](https://semver.org/lang/fr/).
 ## [Unreleased]
 
 ### Ajouté
+- `tests/test_history_cli.py` et `tests/test_cli_entrypoints.py` — première
+  couverture des points d'entrée : `cross_history_cli.py` **0 % → 100 %**,
+  analyzer 54,5 % → 61,3 %, diff 60,6 % → 62,4 %. Inventaire des codes de
+  retour documenté dans le module de test (#287)
 - `tests/test_pdf_report.py` et `tests/test_charts.py` — première couverture
   dédiée du rendu : `pdf.py` 63,1 % → 77,9 %, `charts.py` 41,2 % → 93,5 %. Le
   texte est réextrait des PDF produits (`pdftotext`) plutôt qu'inspecté avant
@@ -49,6 +53,16 @@ et le projet adhère au [SemVer](https://semver.org/lang/fr/).
 - `docs/fingerprints-ja4-hassh.md` (#259)
 
 ### Corrigé
+- Une base d'historique invalide (`--history-db` / `--db` pointant sur un
+  fichier qui n'est pas du SQLite) faisait remonter `sqlite3.DatabaseError` en
+  trace Python. Sur l'analyzer et le diff, l'historique étant écrit **à la fin**
+  du run, toute l'analyse était perdue. Message nommant le chemin et code 1
+  via `HistoryDatabaseError` (#287)
+- Une capture introuvable n'était plus signalée sur la **branche de chargement
+  par défaut** : `[A] 0 paquets chargés` était indistinguable d'une capture
+  sans trafic IP, et l'avertissement « résultat incomplet » n'existait que sur
+  `--parallel`. Les deux CLI rapportent désormais `ECHEC` par fichier dans les
+  deux branches (#287)
 - Un clic sur une vue du tableau de bord dont le type était mal orthographié
   n'avait aucun effet, sans message ni trace : la cascade de `elif` de
   `_dashboard_select` n'avait pas de branche finale. Un type inconnu lève

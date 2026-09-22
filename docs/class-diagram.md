@@ -11,7 +11,7 @@
 > Il remplace l'ancienne section 3 de `docs/features-backlog.md`, tenue à la main, qui avait dérivé
 > (voir `docs/sessions/session-36.md`, issue #140).
 
-122 modules · 170 classes · 352 fonctions publiques de module.
+122 modules · 171 classes · 352 fonctions publiques de module.
 
 Conventions : `+` public, `-` privé (préfixe `_`) ; `int?` = `int | None` ; `list~str~` = `list[str]` ;
 `<<module>>` regroupe les fonctions publiques d'un module ; `A --> B : champ` = `A` a un champ annoté
@@ -33,7 +33,7 @@ flowchart TD
     pcap_parser["pcap_parser"]
     CLI -->|"14 imports"| netcross_report
     CLI -->|"14 imports"| netcross_core
-    CLI -->|"1 import"| pcap_parser
+    CLI -->|"2 imports"| pcap_parser
     netcross_gtk4 -->|"10 imports"| netcross_report
     netcross_gtk4 -->|"18 imports"| netcross_core
     netcross_api -->|"3 imports"| netcross_core
@@ -2545,6 +2545,9 @@ classDiagram
         +int total_findings
         +dict~str, int~ finding_counts
         +dict meta
+    }
+    class HistoryDatabaseError {
+        <<ValueError>>
     }
     class mod_netcross_report_history["netcross_report.history"] {
         <<module>>

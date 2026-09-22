@@ -129,7 +129,7 @@ def test_live_current_bout_en_bout(monkeypatch, capsys):
         make_pkt(point="LAN", ts=0.0, src="10.0.0.1", dst="10.0.0.2", key_id=1, seq=1000),
     ]
 
-    def fake_parse_capture(label, path):
+    def fake_parse_capture(label, path, raise_on_error=False):
         return list(baseline_pkts)
 
     def fake_parse_live(label, iface, bpf_filter=None, stop_event=None):
@@ -162,7 +162,7 @@ def test_live_current_bout_en_bout(monkeypatch, capsys):
 
 
 def test_live_current_plusieurs_points_simultanes(monkeypatch, capsys):
-    def fake_parse_capture(label, path):
+    def fake_parse_capture(label, path, raise_on_error=False):
         return [make_pkt(point=label, ts=0.0, key_id=1)]
 
     def fake_parse_live(label, iface, bpf_filter=None, stop_event=None):

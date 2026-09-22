@@ -1492,10 +1492,32 @@ def main():
                 file=sys.stderr,
             )
     else:
+        # Meme exigence de tracabilite que la branche --parallel ci-dessus :
+        # chaque fichier est rapporte, succes ou echec. Avant l'issue #287,
+        # cette branche -- qui est la branche PAR DEFAUT -- se contentait de
+        # `parse_capture(label, path)`, qui avale l'erreur et renvoie une liste
+        # vide : la sortie affichait alors "[A] 0 paquets charges", strictement
+        # indistinguable d'une capture legitimement sans trafic IP, et le
+        # resume ATTENTION n'existait que pour --parallel. Un fichier
+        # introuvable passait donc pour une capture vide sur le chemin le plus
+        # emprunte. raise_on_error=True rend l'echec visible ici.
+        any_error = False
         for label, path in captures:
-            pkts = parse_capture(label, path)
+            try:
+                pkts = parse_capture(label, path, raise_on_error=True)
+            except (TsharkNotFoundError, TsharkError) as exc:
+                any_error = True
+                print(f"[{label}] ECHEC sur {path} : {exc}", file=sys.stderr)
+                continue
             print(f"[{label}] {len(pkts)} paquets IP/TCP/UDP/ICMP charges depuis {path}")
             all_packets.extend(pkts)
+        if any_error:
+            print(
+                "\nATTENTION : au moins un fichier n'a pas pu etre lu (voir ECHEC "
+                "ci-dessus) -- l'analyse continue sur les fichiers restants, mais le "
+                "resultat est incomplet.",
+                file=sys.stderr,
+            )
 
     # CVE-2 (issue #136, pour --security-report) : les signatures d'exploits
     # cherchent la charge utile BRUTE, que Pkt ne garde pas -- relecture de
@@ -1778,22 +1800,32 @@ def main():
         print(f"Rapport JSON ecrit dans {args.json_report}")
 
     if args.history_db:
-        from netcross_report import list_history, print_history, record_run
+        from netcross_report import HistoryDatabaseError, list_history, print_history, record_run
 
-        record_run(
-            r,
-            args.history_db,
-            findings=findings,
-            tls_findings=tls_findings,
-            quic_findings=quic_findings,
-            meta={"Anonymisation": "adresses IP/MAC anonymisees (--redact)"} if args.redact else None,
-            label=args.history_label,
-        )
-        label_txt = f" (etiquette: {args.history_label})" if args.history_label else ""
-        print(f"\nResume de ce run enregistre dans l'historique {args.history_db}{label_txt}.")
-        if args.history_show is not None:
-            entries = list_history(args.history_db, limit=args.history_show, label=args.history_label)
-            print_history(entries)
+        # L'historique est ecrit a la FIN du run : un --history-db pointant sur
+        # un fichier qui n'est pas une base netcross faisait perdre toute
+        # l'analyse sur une trace sqlite3 brute (issue #287). Le message nomme
+        # le chemin, et le run reste un echec explicite -- ecrire "analyse
+        # terminee" alors que la trace demandee n'a pas ete conservee serait
+        # pire que l'erreur.
+        try:
+            record_run(
+                r,
+                args.history_db,
+                findings=findings,
+                tls_findings=tls_findings,
+                quic_findings=quic_findings,
+                meta={"Anonymisation": "adresses IP/MAC anonymisees (--redact)"} if args.redact else None,
+                label=args.history_label,
+            )
+            label_txt = f" (etiquette: {args.history_label})" if args.history_label else ""
+            print(f"\nResume de ce run enregistre dans l'historique {args.history_db}{label_txt}.")
+            if args.history_show is not None:
+                entries = list_history(args.history_db, limit=args.history_show, label=args.history_label)
+                print_history(entries)
+        except HistoryDatabaseError as exc:
+            print(exc, file=sys.stderr)
+            sys.exit(1)
 
     # --support-ticket (issue #269) : le run s'est termine SANS crash (le
     # gestionnaire installe plus haut aurait pris la main sinon), donc le
