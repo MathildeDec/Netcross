@@ -34,7 +34,7 @@ import pcap_parser
 from netcross_core.application.banners import extract_banners
 from netcross_core.fingerprint.report import compute_pkt_fingerprints
 from netcross_core.models import Pkt
-from pcap_parser.capinfos_source import read_capture_comment, read_capture_info
+from pcap_parser.capinfos_source import read_capture_comment
 from pcap_parser.ek_source import TsharkError, TsharkNotFoundError
 from pcap_parser.packet import RawPacket
 from pcap_parser.protocols import compute_mos
@@ -49,7 +49,6 @@ __all__ = [
     "parse_rtp",
     "parse_sip",
     "read_capture_comments",
-    "read_capture_infos",
 ]
 
 
@@ -136,6 +135,13 @@ def _to_pkt(label: str, raw: RawPacket) -> Pkt:
         tcp_checksum_bad=raw.tcp_checksum_bad,
         udp_checksum=raw.udp_checksum,
         udp_checksum_bad=raw.udp_checksum_bad,
+        tls_cert_issuer=raw.tls_cert_issuer,
+        tls_cert_subject=raw.tls_cert_subject,
+        tls_cert_sig_hash=raw.tls_cert_sig_hash,
+        tls_cert_key_type=raw.tls_cert_key_type,
+        tls_cert_key_bits=raw.tls_cert_key_bits,
+        tls_cert_san_ip=raw.tls_cert_san_ip,
+        tls_cert_chain_len=raw.tls_cert_chain_len,
         expert_flags=raw.expert_flags,
         expert_details=raw.expert_details,
         service_banners=extract_banners(raw.proto, raw.sport, raw.dport, raw.payload),
@@ -249,68 +255,6 @@ def read_capture_comments(captures) -> list[str]:
         if comment:
             comments.append(f"{label} : {comment}")
     return comments
-
-
-def read_capture_infos(captures) -> list[dict]:
-    """Lit les metadonnees de capture (format, snaplen, paquets perdus...)
-    de chaque fichier de ``captures`` (memes paires (label, path) que
-    parse_captures_parallel ci-dessus) et les renvoie sous forme de dicts
-    plats (un par fichier ayant reussi la lecture) -- meme raison d'etre
-    que read_capture_comments : pcap_parser.capinfos_source.read_capture_info
-    ne connait, volontairement, aucune notion de label/point de capture.
-
-    Contrairement a read_capture_comments, une capture SANS metadonnees
-    (capinfos absent, fichier illisible) ne produit aucune entree plutot
-    qu'une entree vide -- les metadonnees restent facultatives, jamais
-    une raison d'interrompre l'analyse.
-
-    Chaque dict porte les cles : label, path, file_type, version,
-    encapsulation, snaplen, packet_count, byte_count, duration_seconds,
-    start_time, end_time, hardware, operating_system, application,
-    dropped_by_interface, dropped_by_os, interfaces (liste de dicts
-    plats avec index, linktype, snaplen, name, received,
-    dropped_by_interface, dropped_by_os). Les cles absentes valent None."""
-    infos = []
-    for label, path in captures:
-        info = read_capture_info(path)
-        if info is None:
-            continue
-        infos.append(
-            {
-                "label": label,
-                "path": path,
-                "file_type": info.file_type,
-                "version": info.version,
-                "encapsulation": info.encapsulation,
-                "timestamp_precision": info.timestamp_precision,
-                "snaplen": info.snaplen,
-                "packet_count": info.packet_count,
-                "byte_count": info.byte_count,
-                "file_size": info.file_size,
-                "duration_seconds": info.duration_seconds,
-                "start_time": info.start_time,
-                "end_time": info.end_time,
-                "strict_time_order": info.strict_time_order,
-                "hardware": info.hardware,
-                "operating_system": info.operating_system,
-                "application": info.application,
-                "dropped_by_interface": info.dropped_by_interface,
-                "dropped_by_os": info.dropped_by_os,
-                "interfaces": [
-                    {
-                        "index": iface.index,
-                        "linktype": iface.linktype,
-                        "snaplen": iface.snaplen,
-                        "name": iface.name,
-                        "received": iface.received,
-                        "dropped_by_interface": iface.dropped_by_interface,
-                        "dropped_by_os": iface.dropped_by_os,
-                    }
-                    for iface in info.interfaces
-                ],
-            }
-        )
-    return infos
 
 
 def parse_live(label, interface, bpf_filter=None, stop_event=None):
