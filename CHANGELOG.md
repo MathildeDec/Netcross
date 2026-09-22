@@ -8,6 +8,11 @@ et le projet adhère au [SemVer](https://semver.org/lang/fr/).
 ## [Unreleased]
 
 ### Ajouté
+- `netcross_gtk4/run_outcome.py` — état de résultat de la GUI en structure
+  unique et gelée : les quatorze champs `last_*` étaient réécrits séparément
+  par l'analyse et par la comparaison, sans garantie qu'elles restent
+  synchronisées, ce qui exposait à un affichage de données du run précédent
+  (#285, deuxième lot)
 - `netcross_gtk4/row_labels.py` — les douze fonctions de libellé et de clé de
   tri des lignes de la GUI, sorties de `app.py` pour devenir testables :
   elles étaient à 0 % non par difficulté mais parce que leur fichier

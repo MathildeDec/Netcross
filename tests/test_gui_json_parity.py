@@ -187,7 +187,31 @@ def test_le_thread_pdf_passe_les_objets_enrichis():
 
 
 def test_lanalyse_calcule_les_signaux_tshark_avant_de_liberer_les_paquets():
+    """Les signaux Expert Info doivent etre calcules dans le thread
+    d'analyse, tant que les paquets existent encore (issue #14), et le
+    resultat remonte a la fenetre.
+
+    La seconde verification portait sur la ligne litterale
+    `self.last_wireshark_expert_events = wireshark_expert_events`. Elle est
+    devenue fausse avec l'extraction de #285 (lot 2) alors que le
+    comportement est intact : la fenetre recopie desormais les quatorze
+    champs d'etat en boucle depuis `RunOutcome.etat()`, ce qui est
+    precisement ce qui empeche qu'un champ soit oublie d'un cote.
+
+    Le test verifie donc ce qui est observable ici -- que le resultat est
+    transmis au constructeur d'etat -- et la conservation effective du
+    champ est verifiee pour de vrai dans tests/test_run_outcome.py, sur
+    l'objet et non sur une chaine de caracteres. Un test de sous-chaine est
+    une approximation du comportement ; quand le vrai test devient
+    possible, c'est lui qui fait foi.
+    """
     source = APP_SOURCE.read_text()
     assert "build_wireshark_expert_events(all_packets)" in source
-    # ... et le resultat est bien remonte a la fenetre
-    assert "self.last_wireshark_expert_events = wireshark_expert_events" in source
+    assert "wireshark_expert_events=wireshark_expert_events" in source
+    assert "analysis_outcome(" in source
+
+    from netcross_gtk4.run_outcome import RunOutcome, analysis_outcome
+
+    assert "wireshark_expert_events" in RunOutcome.CHAMPS_ETAT
+    outcome = analysis_outcome("single", None, None, None, "", wireshark_expert_events=["signal"])
+    assert outcome.etat()["last_wireshark_expert_events"] == ["signal"]
