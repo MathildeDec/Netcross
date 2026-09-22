@@ -18,6 +18,47 @@ que pour un contexte spécifique, pas systématiquement.
   `import-linter`, `mypy` sur les fichiers modifiés) intégralement
   vert ; `pre-commit` non exécutable dans cet environnement (zip livré
   sans `.git` — voir Commandes qualité ci-dessous).
+- **Sécurité — rapport de vulnérabilités consolidé** (chantier CVE,
+  parent #133, CVE-1 à CVE-5 = issues #135-139, **toutes closes**) :
+  `--security-report` / `--cve-db CHEMIN` de
+  `cross_capture_analyzer_cli.py` produit un rapport texte qui
+  consolide, via `netcross_core.security.findings.apply_security_findings()`
+  (remplace `Report.service_fingerprints`/`Report.security_findings`
+  plutôt que d'y ajouter — deux appels donnent le même résultat), les
+  détecteurs suivants : bannières de version lues sur le fil (CVE-1
+  #135, `netcross_core.application.banners`), signatures d'exploits
+  connus Log4Shell/Shellshock/Heartbleed/EternalBlue (CVE-2 #136,
+  `netcross_core.exploit_signatures`), alertes Expert Info corrélées —
+  fuzzing/overflow/dos (CVE-3 #137, `netcross_core.security.expert_correlation`),
+  CVE confirmées par corrélation version exacte + CVE-ID + score CVSS
+  sur une base SQLite locale construite par `scripts/import_nvd.py`
+  (CVE-4 #138, `netcross_core.security`/`security.cve_db`) — étendu
+  depuis, hors périmètre initial du chantier, par le tunneling DNS
+  (FLOW-3 #144, `security.dns_tunnel`) et le beaconing C2 (SCENARIO-1
+  #147, `security.beaconing`). Classement par sévérité
+  critique/élevée/moyenne/faible et score de risque global 0-100
+  (`netcross_report.security_report`, qui ne détecte rien, ne fait que
+  regrouper/classer/mettre en forme). Sans `--cve-db` (fichier
+  existant exigé, sinon refusé), les services sont listés sans
+  corrélation CVE et la CLI le signale explicitement. Refusé avec
+  `--live`/`--redact` (relit la charge utile brute depuis les fichiers
+  `--capture`, comme `--tls`) et avec `--merge`/`--replay`. **Sortie
+  texte uniquement pour l'instant** : ni `--json-report`, ni
+  `--pdf-report`, ni la GUI GTK4 ne référencent encore
+  `security_findings` (rendu HTML/PDF identifié comme future sortie ;
+  suite ouverte en issue #218). `tests/test_security_findings.py` (38,
+  unitaires), `test_security_report.py` (28, rendu texte) et
+  `test_security_report_pcap.py` (4, PCAP Ethernet/IPv4/TCP
+  synthétisés octet par octet passés à la vraie CLI avec un vrai
+  `tshark` — sautés sinon ; Log4Shell détecté à 1 exploit + 2 CVE
+  niveau critique, trafic légitime à score 0/100 et zéro faux positif
+  avec ou sans `--cve-db`). Contrat de couches : `netcross_core`
+  uniquement (+ `pcap_parser` pour relire les charges utiles brutes,
+  comme `tls_diagnostics`) ; le rendu vit dans
+  `netcross_report.security_report`. Détail complet, table de
+  correspondance module/issue, choix de sévérité (prudents, jamais
+  déduits d'un mot du texte) et limites documentées :
+  `docs/security-report.md`.
 - **Job 34 (issue #154)** : fusion de captures PCAP — nouvelle fonction
   `pcap_parser.capture.merge_captures(paths, output_path, dedup=False)`
   (réexportée par `pcap_parser` et `netcross_core`) et flags
@@ -1330,3 +1371,4 @@ suite. » — à chaque session : mettre à jour ce `CLAUDE.md` (état courant +
 prochaine feature) et `docs/features-backlog.md`, ajouter le journal
 détaillé dans un nouveau `docs/sessions/session-NN.md`, puis livrer le zip
 horodaté sans enchaîner sur la feature suivante.
+</content>
