@@ -16,12 +16,16 @@ valider ce module empiriquement).
 
 Reference : specification JA4 publique (FoxIO / John Althouse, "JA4+
 Network Fingerprinting", 2023). Ecrit depuis la description publique de
-l'algorithme, PAS verifie octet-par-octet contre l'implementation de
-reference ni contre une base publique (ja4db.com) faute de capture reelle
-ou de tshark disponibles ici -- voir `compute_ja4` pour le detail exact
-des hypotheses retenues. A confirmer avant de considerer une empreinte
-produite ici comme directement comparable a une empreinte JA4 publiee
-ailleurs.
+l'algorithme. Verifie depuis (issue #259, voir
+`scripts/capture_reference_fingerprints.py` et
+`fingerprint/known_fingerprints.json`) : empreintes calculees ici
+comparees octet-pres a celles de l'implementation de reference
+Wireshark (`tls.handshake.ja4`) sur du trafic TLS reel (curl, wget,
+openssl s_client, python ssl -- TLS 1.2 et 1.3) -- concordance exacte
+dans tous les cas testes, y compris l'hypothese JA4_c ci-dessous.
+Limite : verifie sur les outils/versions listes dans
+known_fingerprints.json, pas une preuve pour toute implementation TLS
+existante.
 """
 
 from __future__ import annotations
@@ -245,11 +249,10 @@ def compute_ja4(client_hello: dict, *, transport: str = "t") -> str:
       de la liste des signature algorithms dans leur ORDRE D'EMISSION
       (celui-la n'est pas trie), les deux jointes par "_" avant hachage.
 
-    Hypothese non revalidee empiriquement (voir docstring du module) :
-    l'exact format de la chaine hachee pour JA4_c (separateur "_" entre
-    extensions triees et signature algorithms) suit la description
-    publique de la spec mais n'a pas ete confirme octet-pres contre
-    l'implementation de reference faute de capture/tshark disponibles.
+    Format de JA4_c confirme empiriquement (voir docstring du module,
+    issue #259) : le separateur "_" entre extensions triees et signature
+    algorithms, contre l'implementation de reference Wireshark, sur du
+    trafic TLS 1.2 et 1.3 reel.
     """
     ciphers = [c for c in client_hello["cipher_suites"] if not _is_grease(c)]
     extensions = [e for e in client_hello["extensions"] if not _is_grease(e)]
