@@ -11,7 +11,7 @@
 > Il remplace l'ancienne section 3 de `docs/features-backlog.md`, tenue à la main, qui avait dérivé
 > (voir `docs/sessions/session-36.md`, issue #140).
 
-97 modules · 126 classes · 288 fonctions publiques de module.
+98 modules · 129 classes · 289 fonctions publiques de module.
 
 Conventions : `+` public, `-` privé (préfixe `_`) ; `int?` = `int | None` ; `list~str~` = `list[str]` ;
 `<<module>>` regroupe les fonctions publiques d'un module ; `A --> B : champ` = `A` a un champ annoté
@@ -1592,6 +1592,7 @@ classDiagram
 | `netcross_core.security.cpe_match` | conversion d'une banniere de service ("Apache/2.4.41") en identifiant CPE 2.3 et comparaison de versions avec les ranges NVD (versionStart/EndIncluding/Excluding). |
 | `netcross_core.security.cve_db` | base SQLite locale des CVE, peuplee par scripts/import_nvd.py depuis le flux NVD (voir ce script pour le format JSON attendu, API NVD 2.0). |
 | `netcross_core.security.dns_tunnel` | issue #144 (FLOW-3, parent #141) : detection de tunneling DNS (exfiltration, C2, VPN over DNS). |
+| `netcross_core.security.exfiltration` | issue #148 (SCENARIO-2, parent #141) : detection d'exfiltration de données (transferts sortants anormaux). |
 | `netcross_core.security.expert_correlation` | issue #137 (CVE-3) : exploitation des alertes Expert Info de tshark pour DETECTER des tentatives d'exploitation (fuzzing, depassement de tampon, deni de service) a partir de paquets malformes et de… |
 | `netcross_core.security.findings` | alimentation de `Report.service_fingerprints` et `Report.security_findings` a partir des modules de detection CVE-1 a CVE-4 (issue #139, CVE-5, parent #133). |
 | `netcross_core.security.protocol_mismatch` | issue #142 (FLOW-1, parent #141) : detection des flux cachés où un protocole utilise un port non standard (SSH sur 443, DNS sur 443, HTTP sur 22, etc.). |
@@ -1728,6 +1729,40 @@ classDiagram
         +shannon_entropy(text) float
         +split_domain(name) tuple~str, str~
         +detect_dns_tunneling(packets, thresholds) DnsTunnelResult
+    }
+
+    %% ===== netcross_core.security.exfiltration =====
+    class ExfiltrationThresholds {
+        <<dataclass, frozen>>
+        +int min_volume_bytes
+        +float min_asymmetric_ratio
+        +int business_hours_start
+        +int business_hours_end
+        +int min_packets_for_volume
+        +int min_bytes_for_protocol
+    }
+    class ExfiltrationAlert {
+        <<dataclass>>
+        +str src
+        +str dst
+        +list~str~ signals
+        +int volume_bytes
+        +int upload_bytes
+        +int download_bytes
+        +float ratio
+        +set~str~ protocols
+        +list~int?~ frames
+        +is_strong() bool
+        +to_dict() dict
+    }
+    class ExfiltrationResult {
+        <<dataclass>>
+        +list~dict~ alerts
+        +list~dict~ flow_stats
+    }
+    class mod_netcross_core_security_exfiltration["netcross_core.security.exfiltration"] {
+        <<module>>
+        +detect_exfiltration(packets, thresholds, known_destinations) ExfiltrationResult
     }
 
     %% ===== netcross_core.security.expert_correlation =====
