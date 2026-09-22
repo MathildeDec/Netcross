@@ -11,7 +11,7 @@
 > Il remplace l'ancienne section 3 de `docs/features-backlog.md`, tenue à la main, qui avait dérivé
 > (voir `docs/sessions/session-36.md`, issue #140).
 
-98 modules · 129 classes · 289 fonctions publiques de module.
+99 modules · 132 classes · 290 fonctions publiques de module.
 
 Conventions : `+` public, `-` privé (préfixe `_`) ; `int?` = `int | None` ; `list~str~` = `list[str]` ;
 `<<module>>` regroupe les fonctions publiques d'un module ; `A --> B : champ` = `A` a un champ annoté
@@ -1595,6 +1595,7 @@ classDiagram
 | `netcross_core.security.exfiltration` | issue #148 (SCENARIO-2, parent #141) : detection d'exfiltration de données (transferts sortants anormaux). |
 | `netcross_core.security.expert_correlation` | issue #137 (CVE-3) : exploitation des alertes Expert Info de tshark pour DETECTER des tentatives d'exploitation (fuzzing, depassement de tampon, deni de service) a partir de paquets malformes et de… |
 | `netcross_core.security.findings` | alimentation de `Report.service_fingerprints` et `Report.security_findings` a partir des modules de detection CVE-1 a CVE-4 (issue #139, CVE-5, parent #133). |
+| `netcross_core.security.flow_stats` | issue #145 (FLOW-4, parent #141) : analyse statistique des flux pour detecter les comportements anormaux. |
 | `netcross_core.security.protocol_mismatch` | issue #142 (FLOW-1, parent #141) : detection des flux cachés où un protocole utilise un port non standard (SSH sur 443, DNS sur 443, HTTP sur 22, etc.). |
 
 ### Diagramme
@@ -1810,6 +1811,42 @@ classDiagram
         +apply_security_findings(report, all_packets, detections, cve_conn) None
     }
 
+    %% ===== netcross_core.security.flow_stats =====
+    class FlowStatsThresholds {
+        <<dataclass, frozen>>
+        +int small_packet_threshold
+        +int large_packet_threshold
+        +float high_entropy_threshold
+        +int splt_max_packets
+    }
+    class FlowStat {
+        <<dataclass>>
+        +str src
+        +str dst
+        +int packet_count
+        +int byte_count
+        +list~tuple~int, float~~ splt
+        +Counter size_distribution
+        +int upload_bytes
+        +int download_bytes
+        +list~float~ inter_arrivals
+        +str classification
+        +float entropy
+        +float median_size
+        +float upload_ratio
+        +float regularity_cv
+        +to_dict() dict
+    }
+    class FlowStatsResult {
+        <<dataclass>>
+        +list~FlowStat~ flows
+        +to_dict() dict
+    }
+    class mod_netcross_core_security_flow_stats["netcross_core.security.flow_stats"] {
+        <<module>>
+        +analyze_flow_stats(packets, thresholds) FlowStatsResult
+    }
+
     %% ===== netcross_core.security.protocol_mismatch =====
     class mod_netcross_core_security_protocol_mismatch["netcross_core.security.protocol_mismatch"] {
         <<module>>
@@ -1821,6 +1858,7 @@ classDiagram
 
     %% ===== relations =====
     CveEntry --> AffectedProduct : affected
+    FlowStatsResult --> FlowStat : flows
 ```
 
 ## `netcross_core.tshark_stats`
