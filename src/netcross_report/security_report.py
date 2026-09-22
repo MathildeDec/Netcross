@@ -443,3 +443,71 @@ def print_security_report(sr: SecurityReport) -> None:
     """Ecrit `format_security_report()` sur stdout."""
     for line in format_security_report(sr):
         print(line)
+
+
+# -- serialisation (socle commun aux sorties JSON, HTML et PDF) -------------
+
+
+def security_report_to_dict(sr: SecurityReport) -> dict:
+    """Represente le rapport en structures Python serialisables.
+
+    Socle unique des trois sorties non textuelles (JSON, HTML, PDF) : sans
+    lui, chacune re-parcourrait les dataclasses a sa facon et divergerait
+    au premier champ ajoute -- exactement ce qui a produit l'issue #259
+    (un champ present dans les donnees, absent d'un rendu).
+
+    Les champs valant None sont CONSERVES plutot que retires. Un
+    consommateur doit pouvoir distinguer « non renseigne » de « cle que
+    cette version de netcross ne produit pas » ; et la regle de tracabilite
+    du projet veut qu'une information absente soit dite, pas passee sous
+    silence.
+    """
+    return {
+        "dashboard": {
+            "score": sr.dashboard.score,
+            "level": sr.dashboard.level,
+            "services_total": sr.dashboard.services_total,
+            "services_vulnerable": sr.dashboard.services_vulnerable,
+            "exploits": sr.dashboard.exploits,
+            "anomalies": sr.dashboard.anomalies,
+            "cves": sr.dashboard.cves,
+            "by_severity": dict(sr.dashboard.by_severity),
+        },
+        "services": [
+            {
+                "service": s.service,
+                "version": s.version,
+                "host": s.host,
+                "port": s.port,
+                "points": list(s.points),
+                "severity": s.severity,
+                "vulnerable": s.vulnerable,
+                "cve_ids": list(s.cve_ids),
+                # Forme lisible NON tronquee, contrairement au rendu texte :
+                # une sortie machine n'a pas de contrainte de largeur, et
+                # tronquer ici priverait un consommateur de la liste
+                # complete des ciphers (issue #259).
+                "fingerprint": s.fingerprint,
+                "fingerprint_readable": s.fingerprint_readable,
+            }
+            for s in sr.services
+        ],
+        **{
+            cle: [
+                {
+                    "category": i.category,
+                    "severity": i.severity,
+                    "detail": i.detail,
+                    "cve_id": i.cve_id,
+                    "cvss": i.cvss,
+                    "service": i.service,
+                    "version": i.version,
+                    "host": i.host,
+                    "port": i.port,
+                    "point": i.point,
+                }
+                for i in items
+            ]
+            for cle, items in (("exploits", sr.exploits), ("anomalies", sr.anomalies), ("cves", sr.cves))
+        },
+    }
