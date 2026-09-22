@@ -11,7 +11,7 @@
 > Il remplace l'ancienne section 3 de `docs/features-backlog.md`, tenue à la main, qui avait dérivé
 > (voir `docs/sessions/session-36.md`, issue #140).
 
-95 modules · 121 classes · 273 fonctions publiques de module.
+97 modules · 125 classes · 277 fonctions publiques de module.
 
 Conventions : `+` public, `-` privé (préfixe `_`) ; `int?` = `int | None` ; `list~str~` = `list[str]` ;
 `<<module>>` regroupe les fonctions publiques d'un module ; `A --> B : champ` = `A` a un champ annoté
@@ -33,7 +33,7 @@ flowchart TD
     CLI -->|"13 imports"| netcross_report
     CLI -->|"11 imports"| netcross_core
     netcross_gtk4 -->|"10 imports"| netcross_report
-    netcross_gtk4 -->|"18 imports"| netcross_core
+    netcross_gtk4 -->|"17 imports"| netcross_core
     netcross_report -->|"11 imports"| netcross_core
     netcross_core -->|"13 imports"| pcap_parser
 ```
@@ -1378,6 +1378,78 @@ classDiagram
 
     %% ===== relations =====
     ApplicationTransaction --> TransactionClassification : classification
+```
+
+## `netcross_core.discovery`
+
+| Module | Rôle |
+|---|---|
+| `netcross_core.discovery` | decouverte et cartographie passive des actifs reseau (SCENARIO-5, issue #151, parent #141). |
+| `netcross_core.discovery.assets` | inventaire passif des actifs reseau (SCENARIO-5, issue #151, parent #141). |
+| `netcross_core.discovery.os_detect` | identification passive de systeme d'exploitation par TTL et options TCP (empreinte type p0f), SCENARIO-5 (issue #151, parent #141). |
+
+### Diagramme
+
+```mermaid
+classDiagram
+    direction LR
+
+    %% ===== netcross_core.discovery.assets =====
+    class ExposedService {
+        <<dataclass>>
+        +int port
+        +str transport
+        +str? service
+        +str? version
+    }
+    class HostAsset {
+        <<dataclass>>
+        +str ip
+        +str? mac
+        +float first_seen
+        +float last_seen
+        +int packet_count
+        +set~str~ points
+        +set~int~ vlan_ids
+        +dict~tuple~int, str~, ExposedService~ ports
+        +OsGuess? os_guess
+        +sorted_ports() list~ExposedService~
+    }
+    class AssetInventory {
+        <<dataclass>>
+        +dict~str, HostAsset~ hosts
+        +tuple~str, ...~ new_hosts
+        +int baseline_size
+        +sorted_hosts() list~HostAsset~
+        +to_records() list~dict~
+    }
+    class mod_netcross_core_discovery_assets["netcross_core.discovery.assets"] {
+        <<module>>
+        +load_baseline_hosts(path) set~str~
+        +build_asset_inventory(all_packets, baseline_hosts) AssetInventory
+    }
+
+    %% ===== netcross_core.discovery.os_detect =====
+    class OsGuess {
+        <<dataclass, frozen, slots>>
+        +str family
+        +int guessed_initial_ttl
+        +int observed_ttl
+        +int hop_estimate
+        +str confidence
+        +str evidence
+    }
+    class mod_netcross_core_discovery_os_detect["netcross_core.discovery.os_detect"] {
+        <<module>>
+        +guess_initial_ttl(observed_ttl) int
+        +guess_os_from_ttl(observed_ttl) OsGuess
+        +refine_with_tcp_options(guess, wscale_shift, sack_permitted, mss_val) OsGuess
+    }
+
+    %% ===== relations =====
+    HostAsset --> ExposedService : ports
+    HostAsset --> OsGuess : os_guess
+    AssetInventory --> HostAsset : hosts
 ```
 
 ## `netcross_core.fingerprint`
