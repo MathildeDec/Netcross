@@ -11,7 +11,7 @@
 > Il remplace l'ancienne section 3 de `docs/features-backlog.md`, tenue à la main, qui avait dérivé
 > (voir `docs/sessions/session-36.md`, issue #140).
 
-105 modules · 143 classes · 305 fonctions publiques de module.
+108 modules · 147 classes · 310 fonctions publiques de module.
 
 Conventions : `+` public, `-` privé (préfixe `_`) ; `int?` = `int | None` ; `list~str~` = `list[str]` ;
 `<<module>>` regroupe les fonctions publiques d'un module ; `A --> B : champ` = `A` a un champ annoté
@@ -56,8 +56,10 @@ flowchart LR
     Finding["netcross_report.synthesis.Finding"]
     FlowView["netcross_core.flow_view.FlowView"]
     Flow["netcross_core.expert_model.Flow"]
+    HostAsset["netcross_core.discovery.assets.HostAsset"]
     InterfaceRecord["pcap_parser.capfile.InterfaceRecord"]
     LiveDiffState["netcross_core.live_diff.LiveDiffState"]
+    OsGuess["netcross_core.discovery.os_detect.OsGuess"]
     Pkt["netcross_core.models.Pkt"]
     Report["netcross_core.models.Report"]
     SegmentScore["netcross_report.triage.SegmentScore"]
@@ -70,6 +72,7 @@ flowchart LR
     Finding -->|evidence| EvidenceLink
     FlowView -->|events| ExpertEvent
     FlowView -->|flow| Flow
+    HostAsset -->|os_guess| OsGuess
     LiveDiffState -->|packets_in_window| Pkt
     SegmentScore -->|findings| Finding
     _Detector -->|run| netcross_core_security_expert_correlation__FlowState
@@ -1482,6 +1485,78 @@ classDiagram
 
     %% ===== relations =====
     ApplicationTransaction --> TransactionClassification : classification
+```
+
+## `netcross_core.discovery`
+
+| Module | Rôle |
+|---|---|
+| `netcross_core.discovery` | decouverte et cartographie passive des actifs reseau (SCENARIO-5, issue #151, parent #141). |
+| `netcross_core.discovery.assets` | inventaire passif des actifs reseau (SCENARIO-5, issue #151, parent #141). |
+| `netcross_core.discovery.os_detect` | identification passive de systeme d'exploitation par TTL et options TCP (empreinte type p0f), SCENARIO-5 (issue #151, parent #141). |
+
+### Diagramme
+
+```mermaid
+classDiagram
+    direction LR
+
+    %% ===== netcross_core.discovery.assets =====
+    class ExposedService {
+        <<dataclass>>
+        +int port
+        +str transport
+        +str? service
+        +str? version
+    }
+    class HostAsset {
+        <<dataclass>>
+        +str ip
+        +str? mac
+        +float first_seen
+        +float last_seen
+        +int packet_count
+        +set~str~ points
+        +set~int~ vlan_ids
+        +dict~tuple~int, str~, ExposedService~ ports
+        +OsGuess? os_guess
+        +sorted_ports() list~ExposedService~
+    }
+    class AssetInventory {
+        <<dataclass>>
+        +dict~str, HostAsset~ hosts
+        +tuple~str, ...~ new_hosts
+        +int baseline_size
+        +sorted_hosts() list~HostAsset~
+        +to_records() list~dict~
+    }
+    class mod_netcross_core_discovery_assets["netcross_core.discovery.assets"] {
+        <<module>>
+        +load_baseline_hosts(path) set~str~
+        +build_asset_inventory(all_packets, baseline_hosts) AssetInventory
+    }
+
+    %% ===== netcross_core.discovery.os_detect =====
+    class OsGuess {
+        <<dataclass, frozen, slots>>
+        +str family
+        +int guessed_initial_ttl
+        +int observed_ttl
+        +int hop_estimate
+        +str confidence
+        +str evidence
+    }
+    class mod_netcross_core_discovery_os_detect["netcross_core.discovery.os_detect"] {
+        <<module>>
+        +guess_initial_ttl(observed_ttl) int
+        +guess_os_from_ttl(observed_ttl) OsGuess
+        +refine_with_tcp_options(guess, wscale_shift, sack_permitted, mss_val) OsGuess
+    }
+
+    %% ===== relations =====
+    HostAsset --> ExposedService : ports
+    HostAsset --> OsGuess : os_guess
+    AssetInventory --> HostAsset : hosts
 ```
 
 ## `netcross_core.extract`
