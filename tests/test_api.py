@@ -11,13 +11,21 @@ from __future__ import annotations
 from unittest.mock import patch
 
 import pytest
-from fastapi.testclient import TestClient
 
-from netcross_api.app import app
-from netcross_api.store import store
 from tests.conftest import make_pkt
 
-client = TestClient(app)
+try:
+    from fastapi.testclient import TestClient
+
+    from netcross_api.app import app
+    from netcross_api.store import store
+
+    client = TestClient(app)
+    HAS_FASTAPI = True
+except ImportError:
+    HAS_FASTAPI = False
+
+pytestmark = pytest.mark.skipif(not HAS_FASTAPI, reason="fastapi non installé (extra [api])")
 
 
 @pytest.fixture(autouse=True)
