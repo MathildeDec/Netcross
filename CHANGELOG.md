@@ -8,6 +8,9 @@ et le projet adhère au [SemVer](https://semver.org/lang/fr/).
 ## [Unreleased]
 
 ### Corrigé
+- Rapport texte : l'encapsulation au niveau fichier (lue par capinfos) est
+  enfin affichée, et le code DLT par interface est traduit en nom lisible
+  (`linktype 1 (Ethernet)`) (#263)
 - `export_filtered()` : `bpf_filter` est replié dans le filtre d'affichage
   `-Y` au lieu de `-f`, que tshark refuse en relecture de fichier — tout
   appel avec ce paramètre échouait systématiquement (#261)
