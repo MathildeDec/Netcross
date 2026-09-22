@@ -388,7 +388,7 @@ def test_cli_security_report_affiche_le_rapport_consolide(monkeypatch, capsys, t
     db = tmp_path / "cve.db"
     import_from_file(NVD_FIXTURE, db)
     pkts = [_apache_pkt("2.4.49")]
-    monkeypatch.setattr(cli, "parse_capture", lambda label, path: pkts)
+    monkeypatch.setattr(cli, "parse_capture", lambda label, path, raise_on_error=False: pkts)
     monkeypatch.setattr(
         findings_mod,
         "scan_capture_exploits",
@@ -410,7 +410,7 @@ def test_cli_security_report_affiche_le_rapport_consolide(monkeypatch, capsys, t
 
 def test_cli_security_report_trafic_normal_rapport_vide(monkeypatch, capsys):
     pkts = [make_pkt(point="A", sport=40000, dport=80, ts=0.0, flags="S", seq=1)]
-    monkeypatch.setattr(cli, "parse_capture", lambda label, path: pkts)
+    monkeypatch.setattr(cli, "parse_capture", lambda label, path, raise_on_error=False: pkts)
     monkeypatch.setattr(findings_mod, "scan_capture_exploits", lambda label, path, signatures=None: [])
     monkeypatch.setattr(sys, "argv", ["cross_capture_analyzer_cli.py", "--capture", "A=a.pcap", "--security-report"])
     cli.main()
@@ -430,7 +430,7 @@ def test_cli_security_report_close_db_appele_meme_si_exception(monkeypatch, tmp_
     db = tmp_path / "cve.db"
     import_from_file(NVD_FIXTURE, db)
     pkts = [_apache_pkt("2.4.49")]
-    monkeypatch.setattr(cli, "parse_capture", lambda label, path: pkts)
+    monkeypatch.setattr(cli, "parse_capture", lambda label, path, raise_on_error=False: pkts)
     monkeypatch.setattr(findings_mod, "scan_capture_exploits", lambda label, path, signatures=None: [])
 
     closed = []
@@ -463,7 +463,7 @@ def test_cli_security_report_close_db_appele_en_cas_de_succes(monkeypatch, tmp_p
     db = tmp_path / "cve.db"
     import_from_file(NVD_FIXTURE, db)
     pkts = [_apache_pkt("2.4.49")]
-    monkeypatch.setattr(cli, "parse_capture", lambda label, path: pkts)
+    monkeypatch.setattr(cli, "parse_capture", lambda label, path, raise_on_error=False: pkts)
     monkeypatch.setattr(findings_mod, "scan_capture_exploits", lambda label, path, signatures=None: [])
 
     closed = []

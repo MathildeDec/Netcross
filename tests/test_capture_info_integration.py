@@ -67,6 +67,10 @@ def test_read_capture_infos_formate_les_metadonnees_avec_le_label(monkeypatch, t
     assert info["path"] == path
     assert info["file_type"] == "pcapng"
     assert info["version"] == "1.0"
+    # Assertion manquante jusqu'a l'issue #263 : la cle etait bien produite
+    # par read_capture_infos, mais rien ne le verifiait et personne ne
+    # l'affichait -- le champ traversait tout le pipeline sans usage.
+    assert info["encapsulation"] == "Ethernet"
     assert info["snaplen"] == 65535
     assert info["packet_count"] == 42
     assert info["byte_count"] == 4096
@@ -137,6 +141,7 @@ def test_print_report_avec_capture_infos_affiche_la_section(capsys):
             "label": "POINT_A",
             "file_type": "pcapng",
             "version": "1.0",
+            "encapsulation": "ether",
             "snaplen": 65535,
             "packet_count": 42,
             "byte_count": 4096,
@@ -164,6 +169,10 @@ def test_print_report_avec_capture_infos_affiche_la_section(capsys):
     assert "Metadonnees de capture" in out
     assert "POINT_A" in out
     assert "pcapng" in out
+    # Issue #263 : ce test verifiait chaque autre champ de la section mais
+    # pas l'encapsulation -- coherent avec le fait qu'elle n'etait pas
+    # affichee. L'assertion manquante etait le signal.
+    assert "encapsulation ether" in out
     assert "1.0" in out
     assert "42 paquets" in out
     assert "snaplen" in out
@@ -212,3 +221,107 @@ def test_print_report_capture_infos_sans_snaplen_n_affiche_pas_snaplen(capsys):
     print_report(r)
     out = capsys.readouterr().out
     assert "snaplen" not in out
+
+
+# -- link type dans le rapport (issue #263) -----------------------------------
+
+
+def _rapport(capture_infos, capsys):
+    """Rend print_report() sur un Report minimal et renvoie la sortie."""
+    r = Report(points=["A"])
+    r.capture_infos = capture_infos
+    print_report(r)
+    return capsys.readouterr().out
+
+
+def test_le_rapport_affiche_l_encapsulation_au_niveau_fichier(capsys):
+    """Issue #263 : `encapsulation` etait lu par capinfos, propage jusqu'au
+    dict du rapport... et jamais affiche."""
+    sortie = _rapport(
+        [
+            {
+                "label": "POINT_A",
+                "file_type": "pcapng",
+                "version": "1.0",
+                "encapsulation": "ether",
+                "packet_count": 42,
+                "interfaces": [{"index": 0, "linktype": 1, "name": "eth0"}],
+            }
+        ],
+        capsys,
+    )
+    assert "encapsulation ether" in sortie
+
+
+def test_le_rapport_traduit_le_code_dlt_en_nom_lisible(capsys):
+    """`linktype 1` ne dit rien a un lecteur ; `1 (Ethernet)` si."""
+    sortie = _rapport(
+        [
+            {
+                "label": "POINT_A",
+                "file_type": "pcap",
+                "version": "2.4",
+                "interfaces": [{"index": 0, "linktype": 1, "name": "eth0"}],
+            }
+        ],
+        capsys,
+    )
+    assert "linktype 1 (Ethernet)" in sortie
+
+
+def test_un_code_dlt_inconnu_reste_affiche_tel_quel(capsys):
+    """Un code absent de la table est affiche brut plutot que masque : sa
+    presence dans un rapport est ce qui permettra d'enrichir la table."""
+    sortie = _rapport(
+        [
+            {
+                "label": "POINT_A",
+                "file_type": "pcap",
+                "version": "2.4",
+                "interfaces": [{"index": 0, "linktype": 9999, "name": "exotique"}],
+            }
+        ],
+        capsys,
+    )
+    assert "linktype 9999" in sortie
+
+
+def test_encapsulation_visible_meme_sans_detail_par_interface(capsys):
+    """Cas du fichier compresse : le cadrage binaire echoue donc
+    `interfaces` est vide, mais capinfos a quand meme lu l'encapsulation.
+    C'est precisement le cas ou l'absence d'affichage privait le rapport de
+    TOUTE information de link type (issue #263)."""
+    sortie = _rapport(
+        [
+            {
+                "label": "POINT_A",
+                "file_type": "pcapng",
+                "version": "1.0",
+                "encapsulation": "Linux cooked (SLL)",
+                "packet_count": 7,
+                "interfaces": [],
+            }
+        ],
+        capsys,
+    )
+    assert "encapsulation Linux cooked (SLL)" in sortie
+    assert "non renseigne" not in sortie
+
+
+def test_absence_totale_de_link_type_est_signalee_explicitement(capsys):
+    """Regle de tracabilite : une information absente est tracee, pas omise.
+    Sans cette ligne, un rapport sans link type serait indistinguable d'un
+    rapport ou la question ne se pose pas."""
+    sortie = _rapport(
+        [
+            {
+                "label": "POINT_A",
+                "file_type": "pcap",
+                "version": "2.4",
+                "packet_count": 3,
+                "interfaces": [],
+            }
+        ],
+        capsys,
+    )
+    assert "link type : non renseigne" in sortie

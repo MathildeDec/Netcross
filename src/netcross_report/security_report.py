@@ -99,6 +99,15 @@ class ServiceEntry:
     points: list[str] = field(default_factory=list)
     severity: str | None = None
     cve_ids: list[str] = field(default_factory=list)
+    # Issue #259 : le hash JA4/HASSH et sa forme lisible etaient produits
+    # par fingerprint.report.build_fingerprint_records puis silencieusement
+    # jetes ici -- ServiceEntry n'avait aucun champ pour les porter, et
+    # _build_services ne lisait que service/version/host/port/point. La
+    # fonctionnalite entiere (issue #143) etait donc invisible de bout en
+    # bout malgre 26 tests unitaires verts : ils testaient le calcul, jamais
+    # le rendu.
+    fingerprint: str | None = None
+    fingerprint_readable: str | None = None
 
     @property
     def vulnerable(self) -> bool:
@@ -227,10 +236,22 @@ def _build_services(fingerprints, cves: list[SecurityItem]) -> list[ServiceEntry
         version = _opt_str(raw.get("version"))
         host = _opt_str(raw.get("host"))
         port = _opt_int(raw.get("port"))
-        key = (host, port, service.lower(), version)
+        fingerprint = _opt_str(raw.get("fingerprint"))
+        readable = _opt_str(raw.get("banner"))
+        # L'empreinte fait partie de l'identite de l'entree : deux JA4
+        # differents vus sur le meme hote sont deux clients differents, les
+        # fusionner effacerait l'information la plus utile de la section.
+        key = (host, port, service.lower(), version, fingerprint)
         entry = merged.get(key)
         if entry is None:
-            entry = merged[key] = ServiceEntry(service=service, version=version, host=host, port=port)
+            entry = merged[key] = ServiceEntry(
+                service=service,
+                version=version,
+                host=host,
+                port=port,
+                fingerprint=fingerprint,
+                fingerprint_readable=readable,
+            )
         point = _opt_str(raw.get("point"))
         if point is not None and point not in entry.points:
             entry.points.append(point)
@@ -244,7 +265,15 @@ def _build_services(fingerprints, cves: list[SecurityItem]) -> list[ServiceEntry
 
     def _rank(e: ServiceEntry):
         sev = SEVERITIES.index(e.severity) if e.severity else len(SEVERITIES)
-        return (sev, -len(e.cve_ids), e.service.lower(), e.version or "", e.host or "", e.port or 0)
+        return (
+            sev,
+            -len(e.cve_ids),
+            e.service.lower(),
+            e.version or "",
+            e.host or "",
+            e.port or 0,
+            e.fingerprint or "",
+        )
 
     return sorted(merged.values(), key=_rank)
 
@@ -309,11 +338,42 @@ def _format_item(item: SecurityItem) -> str:
     return "  " + line
 
 
+# Prefixe d'affichage du hash, par type de service d'empreinte. L'issue
+# #143 demandait explicitement la forme "JA4=xy123" / "HASSH=xy123" ; la
+# deduire du champ `service` evite de trainer un champ de plus dans le
+# dict produit par fingerprint.report.
+_FINGERPRINT_PREFIXES = {"tls/ja4": "JA4", "ssh/hassh": "HASSH"}
+
+# La forme lisible (liste complete des ciphers/extensions ou des
+# algorithmes negocies) fait plusieurs centaines de caracteres. Elle est
+# tronquee a l'affichage : le hash suffit a comparer deux empreintes, la
+# chaine sert a comprendre CE QUI a ete propose, et un rapport texte reste
+# lisible. La valeur complete demeure dans le champ du dataclass pour les
+# consommateurs programmatiques (JSON, API).
+MAX_READABLE_LEN = 120
+
+
+def _format_fingerprint(entry: ServiceEntry) -> str:
+    """Rend la partie empreinte d'une ligne de service, ou "" si l'entree
+    n'en porte pas (cas des services detectes par banniere, CVE-1)."""
+    if not entry.fingerprint:
+        return ""
+    prefixe = _FINGERPRINT_PREFIXES.get(entry.service.lower(), "empreinte")
+    rendu = f" {prefixe}={entry.fingerprint}"
+    lisible = entry.fingerprint_readable
+    if lisible:
+        if len(lisible) > MAX_READABLE_LEN:
+            lisible = lisible[: MAX_READABLE_LEN - 3] + "..."
+        rendu += f" [{lisible}]"
+    return rendu
+
+
 def _format_service(entry: ServiceEntry) -> str:
     tag = f"[{entry.severity}]" if entry.severity else "[ok]"
     label = _service_label(entry.service, entry.version)
     target = _target(entry.host, entry.port)
     line = f"  {tag} {label}" + (f" @ {target}" if target else "")
+    line += _format_fingerprint(entry)
     if entry.cve_ids:
         line += " -- " + ", ".join(entry.cve_ids)
     elif entry.vulnerable:
@@ -383,3 +443,71 @@ def print_security_report(sr: SecurityReport) -> None:
     """Ecrit `format_security_report()` sur stdout."""
     for line in format_security_report(sr):
         print(line)
+
+
+# -- serialisation (socle commun aux sorties JSON, HTML et PDF) -------------
+
+
+def security_report_to_dict(sr: SecurityReport) -> dict:
+    """Represente le rapport en structures Python serialisables.
+
+    Socle unique des trois sorties non textuelles (JSON, HTML, PDF) : sans
+    lui, chacune re-parcourrait les dataclasses a sa facon et divergerait
+    au premier champ ajoute -- exactement ce qui a produit l'issue #259
+    (un champ present dans les donnees, absent d'un rendu).
+
+    Les champs valant None sont CONSERVES plutot que retires. Un
+    consommateur doit pouvoir distinguer « non renseigne » de « cle que
+    cette version de netcross ne produit pas » ; et la regle de tracabilite
+    du projet veut qu'une information absente soit dite, pas passee sous
+    silence.
+    """
+    return {
+        "dashboard": {
+            "score": sr.dashboard.score,
+            "level": sr.dashboard.level,
+            "services_total": sr.dashboard.services_total,
+            "services_vulnerable": sr.dashboard.services_vulnerable,
+            "exploits": sr.dashboard.exploits,
+            "anomalies": sr.dashboard.anomalies,
+            "cves": sr.dashboard.cves,
+            "by_severity": dict(sr.dashboard.by_severity),
+        },
+        "services": [
+            {
+                "service": s.service,
+                "version": s.version,
+                "host": s.host,
+                "port": s.port,
+                "points": list(s.points),
+                "severity": s.severity,
+                "vulnerable": s.vulnerable,
+                "cve_ids": list(s.cve_ids),
+                # Forme lisible NON tronquee, contrairement au rendu texte :
+                # une sortie machine n'a pas de contrainte de largeur, et
+                # tronquer ici priverait un consommateur de la liste
+                # complete des ciphers (issue #259).
+                "fingerprint": s.fingerprint,
+                "fingerprint_readable": s.fingerprint_readable,
+            }
+            for s in sr.services
+        ],
+        **{
+            cle: [
+                {
+                    "category": i.category,
+                    "severity": i.severity,
+                    "detail": i.detail,
+                    "cve_id": i.cve_id,
+                    "cvss": i.cvss,
+                    "service": i.service,
+                    "version": i.version,
+                    "host": i.host,
+                    "port": i.port,
+                    "point": i.point,
+                }
+                for i in items
+            ]
+            for cle, items in (("exploits", sr.exploits), ("anomalies", sr.anomalies), ("cves", sr.cves))
+        },
+    }

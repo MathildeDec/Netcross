@@ -11,7 +11,7 @@
 > Il remplace l'ancienne section 3 de `docs/features-backlog.md`, tenue à la main, qui avait dérivé
 > (voir `docs/sessions/session-36.md`, issue #140).
 
-118 modules · 166 classes · 328 fonctions publiques de module.
+123 modules · 172 classes · 360 fonctions publiques de module.
 
 Conventions : `+` public, `-` privé (préfixe `_`) ; `int?` = `int | None` ; `list~str~` = `list[str]` ;
 `<<module>>` regroupe les fonctions publiques d'un module ; `A --> B : champ` = `A` a un champ annoté
@@ -31,9 +31,9 @@ flowchart TD
     netcross_report["netcross_report"]
     netcross_core["netcross_core"]
     pcap_parser["pcap_parser"]
-    CLI -->|"13 imports"| netcross_report
+    CLI -->|"14 imports"| netcross_report
     CLI -->|"14 imports"| netcross_core
-    CLI -->|"1 import"| pcap_parser
+    CLI -->|"2 imports"| pcap_parser
     netcross_gtk4 -->|"10 imports"| netcross_report
     netcross_gtk4 -->|"18 imports"| netcross_core
     netcross_api -->|"3 imports"| netcross_core
@@ -50,8 +50,10 @@ du graphe de dépendances ci-dessus (qui ne compte que des `import`).
 
 ```mermaid
 flowchart LR
+    BPFFilter["netcross_core.models.BPFFilter"]
     CaptureInfo["pcap_parser.capinfos_source.CaptureInfo"]
     ClientReport["netcross_core.client_diff.ClientReport"]
+    DemandeSauvegarde["netcross_gtk4.bpf_panel.DemandeSauvegarde"]
     DiffFinding["netcross_core.baseline_diff.DiffFinding"]
     EvidenceLink["netcross_core.expert_model.EvidenceLink"]
     ExpertEvent["netcross_core.expert_model.ExpertEvent"]
@@ -69,6 +71,7 @@ flowchart LR
     netcross_core_security_expert_correlation__FlowState["netcross_core.security.expert_correlation._FlowState"]
     CaptureInfo -->|interfaces| InterfaceRecord
     ClientReport -->|report| Report
+    DemandeSauvegarde -->|filtre| BPFFilter
     DiffFinding -->|evidence| EvidenceLink
     Finding -->|event| ExpertEvent
     Finding -->|evidence| EvidenceLink
@@ -1679,7 +1682,7 @@ classDiagram
     %% ===== netcross_core.fingerprint.known =====
     class mod_netcross_core_fingerprint_known["netcross_core.fingerprint.known"] {
         <<module>>
-        +load_known_fingerprints(path) dict~str, dict~str, str~~
+        +load_known_fingerprints(path) dict~str, dict~
         +identify_tool(fingerprint_type, fingerprint, known) str?
     }
 
@@ -2460,6 +2463,7 @@ classDiagram
 | `netcross_report.path_metrics` | metriques de qualite par segment du chemin observe (Job 16/issue #12, FEATURES.md section 6.7). |
 | `netcross_report.pdf` | assemble le rapport PDF final (synthese, graphiques, tableaux de detail) a partir d'un Report netcross_core, avec reportlab. |
 | `netcross_report.rule_engine` | premier PILOTE du moteur d'EXECUTION evoque comme premier chantier ouvert par CLAUDE.md/`Prochaine feature` depuis la Session 54 (bibliotheque de regles §6.2 complete, 41 regles) : faire evaluer une… |
+| `netcross_report.security_html` | rendu HTML du rapport de securite (issue #218, troisieme sortie apres le texte et le JSON). |
 | `netcross_report.security_report` | rapport de securite consolide et tableau de bord (CVE-5, issue #139, parent #133). |
 | `netcross_report.sequence_view` | diagramme de sequence multi-hotes (Job 14/issue #11, FEATURES.md section 6.5). |
 | `netcross_report.session_objects` | construction et rendu CONSOLE des objets de contrat de la Session 0 (Job 4/issue #13). |
@@ -2545,6 +2549,9 @@ classDiagram
         +dict~str, int~ finding_counts
         +dict meta
     }
+    class HistoryDatabaseError {
+        <<ValueError>>
+    }
     class mod_netcross_report_history["netcross_report.history"] {
         <<module>>
         +record_run(r, db_path, findings, tls_findings, quic_findings, meta, label) int
@@ -2556,7 +2563,7 @@ classDiagram
     %% ===== netcross_report.json_report =====
     class mod_netcross_report_json_report["netcross_report.json_report"] {
         <<module>>
-        +generate_json_report(r, output_path, title, meta, findings, tls_findings, quic_findings, flows, conversations, expert_events, diagnoses, compliance, wireshark_expert_events, rule_engine_findings, names) str
+        +generate_json_report(r, output_path, title, meta, findings, tls_findings, quic_findings, flows, conversations, expert_events, diagnoses, compliance, wireshark_expert_events, rule_engine_findings, names, security_report) str
         +generate_json_diff(findings, baseline, current, output_path, title, meta, tls_findings_baseline, tls_findings_current, quic_findings_baseline, quic_findings_current, flows, conversations, expert_events, diagnoses, compliance, wireshark_expert_events, names) str
     }
 
@@ -2636,7 +2643,8 @@ classDiagram
         +path_section_story(metrics, styles, chart_path)
         +sequence_section_story(views, styles, chart_paths)
         +expert_section_story(session_objects, styles, top_n)
-        +generate_pdf(r, output_path, title, meta, findings, tls_findings, quic_findings, session_objects, sequence_views)
+        +security_section_story(security_report, styles)
+        +generate_pdf(r, output_path, title, meta, findings, tls_findings, quic_findings, session_objects, sequence_views, security_report)
         +generate_diff_pdf(findings, baseline, current, output_path, title, meta, tls_findings_baseline, tls_findings_current, quic_findings_baseline, quic_findings_current)
     }
 
@@ -2645,6 +2653,13 @@ classDiagram
         <<module>>
         +evaluate(rule_id, report) list~Finding~
         +available_rule_ids() list~str~
+    }
+
+    %% ===== netcross_report.security_html =====
+    class mod_netcross_report_security_html["netcross_report.security_html"] {
+        <<module>>
+        +render_security_html(sr, title, meta, generated_at) str
+        +generate_security_html(sr, output_path, title, meta) str
     }
 
     %% ===== netcross_report.security_report =====
@@ -2670,6 +2685,8 @@ classDiagram
         +list~str~ points
         +str? severity
         +list~str~ cve_ids
+        +str? fingerprint
+        +str? fingerprint_readable
         +vulnerable() bool
     }
     class SecurityDashboard {
@@ -2697,6 +2714,7 @@ classDiagram
         +build_security_report(report) SecurityReport
         +format_security_report(sr) list~str~
         +print_security_report(sr) None
+        +security_report_to_dict(sr) dict
     }
 
     %% ===== netcross_report.sequence_view =====
@@ -2884,9 +2902,13 @@ classDiagram
 | `netcross_gtk4` | — |
 | `netcross_gtk4.annotations_view` | logique de presentation pour l'etiquetage/signets sur paquets (Job 40 / issue #160, section "Metadonnees et annotation"). |
 | `netcross_gtk4.app` | interface GTK4 pour netcross_core / netcross_report. |
+| `netcross_gtk4.bpf_panel` | Decisions du panneau de filtres BPF de la capture live, sorties de ``netcross_gtk4/app.py`` (issue #285, quatrieme lot). |
 | `netcross_gtk4.dashboard_context` | contexte d'analyse partage pour le dashboard analytique interactif (issue #18, section 6.17). |
 | `netcross_gtk4.duplicate_view` | Presentation helpers for cross-capture duplicate detection (Job 41). |
 | `netcross_gtk4.live_capture_points` | points de capture en direct de la GUI (Job 48, issue #168) : une ligne du panneau de capture live peut porter PLUSIEURS interfaces d'une meme machine ("eth0, eth1"), chacune devenant son propre point… |
+| `netcross_gtk4.panel_state` | decisions de visibilite, de sensibilite et de selection des panneaux de la GUI (issue #285, troisieme lot). |
+| `netcross_gtk4.row_labels` | libelles et cles de tri des lignes affichees par la GUI (issue #285, premier lot d'extraction de `app.py`). |
+| `netcross_gtk4.run_outcome` | etat de resultat et decisions d'affichage a la fin d'une analyse ou d'une comparaison (issue #285, deuxieme lot). |
 | `netcross_gtk4.stats_view` | logique de presentation pour la vue d'exploration statistique (Job 27 / issue #22, section 6.8). |
 
 ### Diagramme
@@ -2948,6 +2970,25 @@ classDiagram
         +main()
     }
 
+    %% ===== netcross_gtk4.bpf_panel =====
+    class DemandeSauvegarde {
+        <<dataclass, frozen>>
+        +BPFFilter? filtre
+        +str message
+        +acceptee() bool
+    }
+    class mod_netcross_gtk4_bpf_panel["netcross_gtk4.bpf_panel"] {
+        <<module>>
+        +filtre_a_l_indice(index, filtres)
+        +infobulle_du_menu(index, filtres, indice_hint)
+        +selection_apres_choix(index, filtres)
+        +doit_desolidariser_le_menu(index, filtres, texte_du_champ)
+        +valider_sauvegarde(expression, nom, description, sauvegarde_possible)
+        +indice_du_filtre_nomme(nom, filtres)
+        +noms_du_menu(filtres, titre)
+        +indice_apres_deplacement(index, nombre_de_lignes, vers_le_haut)
+    }
+
     %% ===== netcross_gtk4.dashboard_context =====
     class DashboardSelection {
         <<dataclass>>
@@ -2993,6 +3034,91 @@ classDiagram
         +split_interfaces(text) list~str~
         +expand_live_points(rows) list~tuple~str, str, str?~~
         +duplicate_labels(points) list~str~
+    }
+
+    %% ===== netcross_gtk4.panel_state =====
+    class PanelVisibility {
+        <<dataclass, frozen>>
+        +bool single_panel
+        +bool live_panel
+        +bool live_extra
+        +bool diff_panels
+        +bool single_options
+        +bool diff_options
+        +bool tls_sensitive
+        +bool quic_sensitive
+        +bool parallel_sensitive
+        +bool duplicate_detect_sensitive
+        +bool duplicate_threshold_sensitive
+        +bool duplicate_exclude_sensitive
+        +bool force_tls_off
+        +bool force_quic_off
+        +bool force_duplicate_detect_off
+        +bool force_duplicate_exclude_off
+    }
+    class RunButtonState {
+        <<dataclass, frozen>>
+        +bool enabled
+        +str? raison
+        +str label
+    }
+    class UnknownViewTypeError {
+        <<ValueError>>
+    }
+    class mod_netcross_gtk4_panel_state["netcross_gtk4.panel_state"] {
+        <<module>>
+        +panel_visibility(diff_mode, live_mode, detect_duplicates_active) PanelVisibility
+        +run_button_state(live_capturing, diff_mode, live_mode, single_rows, baseline_rows, current_rows, live_points, label_actuel) RunButtonState
+        +selected_protocol(index, n_items, lire) str?
+        +comm_map_filters(protocole, top_n, only_anomalies) dict~str, Any~
+        +apply_dashboard_selection(kind, selection, key, flow_par_cle, evenements) Any
+    }
+
+    %% ===== netcross_gtk4.row_labels =====
+    class mod_netcross_gtk4_row_labels["netcross_gtk4.row_labels"] {
+        <<module>>
+        +timeline_row_label(row) str
+        +timeline_row_key(row)
+        +segment_row_label(row) str
+        +segment_row_key(row)
+        +flow_row_label(row) str
+        +flow_row_key(row)
+        +endpoint_row_label(row) str
+        +endpoint_row_key(row)
+        +proto_row_label(row) str
+        +proto_row_key(row)
+        +event_row_label(row) str
+        +event_row_key(row)
+    }
+
+    %% ===== netcross_gtk4.run_outcome =====
+    class RunOutcome {
+        <<dataclass, frozen>>
+        +str mode
+        +Any report
+        +Any flows
+        +Any findings
+        +Any tls_findings
+        +Any quic_findings
+        +Any wireshark_expert_events
+        +Any diff_findings
+        +Any baseline_report
+        +Any current_report
+        +Any diff_tls_findings_baseline
+        +Any diff_tls_findings_current
+        +Any diff_quic_findings_baseline
+        +Any diff_quic_findings_current
+        +str work_status
+        +str status
+        +str duplicate_indicator
+        +str result_text
+        +etat() dict~str, Any~
+    }
+    class mod_netcross_gtk4_run_outcome["netcross_gtk4.run_outcome"] {
+        <<module>>
+        +analysis_outcome(mode, report, flows, findings, text, tls_findings, quic_findings, wireshark_expert_events) RunOutcome
+        +diff_status_text(findings) str
+        +diff_outcome(findings, baseline_report, current_report, text, tls_findings_baseline, tls_findings_current, quic_findings_baseline, quic_findings_current) RunOutcome
     }
 
     %% ===== netcross_gtk4.stats_view =====

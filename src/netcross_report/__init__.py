@@ -17,7 +17,14 @@ from netcross_report.comm_map import (
     format_comm_map,
 )
 from netcross_report.expert_events import build_diagnoses, build_expert_events
-from netcross_report.history import HistoryEntry, list_history, print_history, record_diff_run, record_run
+from netcross_report.history import (
+    HistoryDatabaseError,
+    HistoryEntry,
+    list_history,
+    print_history,
+    record_diff_run,
+    record_run,
+)
 from netcross_report.json_report import generate_json_diff, generate_json_report
 from netcross_report.metric_charts import (
     ComplianceZone,
@@ -84,6 +91,7 @@ __all__ = [
     "CommNode",
     "ComplianceZone",
     "Finding",
+    "HistoryDatabaseError",
     "HistoryEntry",
     "MetricSeries",
     "SecurityDashboard",

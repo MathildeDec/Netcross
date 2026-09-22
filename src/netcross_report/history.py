@@ -100,9 +100,49 @@ def _now_iso() -> str:
     return datetime.datetime.now().astimezone().isoformat()
 
 
+class HistoryDatabaseError(ValueError):
+    """Le chemin --history-db / --db existe mais n'est pas une base netcross.
+
+    Cas reels : chemin confondu avec un PCAP, base tronquee par un disque
+    plein, fichier ecrit par un autre outil. sqlite3 leve alors une
+    DatabaseError technique (« file is not a database ») qui remontait
+    jusqu'a l'utilisateur sous forme de trace Python -- sans nommer le
+    chemin fautif ni dire quoi faire (issue #287).
+
+    Consequence la plus couteuse cote analyzer/diff : l'historique est
+    ecrit a la FIN du run, donc le plantage survenait apres plusieurs
+    minutes de lecture de capture, et tout le travail etait perdu. Une
+    erreur de domaine permet aux trois CLI de rendre un message utilisable.
+    """
+
+
+def _message_base_invalide(db_path, cause) -> str:
+    """Message unique pour les trois CLI : nomme le chemin, la cause lue et la
+    seule action utile. Un message sans le chemin est inexploitable quand
+    plusieurs bases sont suivies en parallele."""
+    return (
+        f"Base d'historique illisible : {db_path} ({cause}). "
+        "Ce fichier existe mais n'est pas une base SQLite netcross -- verifier "
+        "le chemin, ou le supprimer pour qu'une nouvelle base soit creee."
+    )
+
+
+def _executer_schema(conn, db_path) -> None:
+    """Applique le schema en traduisant l'echec sqlite3 en erreur de domaine.
+
+    Le schema est applique a chaque ouverture (tolerant si le fichier est
+    vide/neuf) : c'est donc ici que se detecte un fichier qui n'est pas du
+    SQLite, aussi bien en lecture qu'en ecriture.
+    """
+    try:
+        conn.executescript(_SCHEMA)
+    except sqlite3.DatabaseError as exc:
+        raise HistoryDatabaseError(_message_base_invalide(db_path, exc)) from exc
+
+
 def _connect(db_path) -> sqlite3.Connection:
     conn = sqlite3.connect(db_path)
-    conn.executescript(_SCHEMA)
+    _executer_schema(conn, db_path)
     return conn
 
 
@@ -231,7 +271,7 @@ def list_history(db_path, limit=None, label=None, run_type=None) -> list[History
         return []
     conn = sqlite3.connect(db_path)
     try:
-        conn.executescript(_SCHEMA)  # tolerant si le fichier existe mais est vide/neuf
+        _executer_schema(conn, db_path)  # tolerant si le fichier existe mais est vide/neuf
         query = (
             "SELECT id, recorded_at, run_type, label, points, health_score, "
             "health_label, total_findings, finding_counts, meta FROM runs"

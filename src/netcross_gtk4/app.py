@@ -70,19 +70,29 @@ from netcross_core import (  # noqa: E402
 from netcross_core.baseline_diff import diff_reports, print_diff_report, write_diff_csv  # noqa: E402
 from netcross_core.bpf_filters import PREDEFINED_BPF_FILTERS, available_bpf_filters, upsert_bpf_filter  # noqa: E402
 from netcross_core.forensic import DEFAULT_DUPLICATE_THRESHOLD_MS, detect_cross_capture_duplicates  # noqa: E402
-from netcross_core.models import BPFFilter  # noqa: E402
+from netcross_gtk4 import row_labels  # noqa: E402
+from netcross_gtk4.bpf_panel import (  # noqa: E402
+    doit_desolidariser_le_menu,
+    indice_apres_deplacement,
+    indice_du_filtre_nomme,
+    infobulle_du_menu,
+    noms_du_menu,
+    selection_apres_choix,
+    valider_sauvegarde,
+)
 from netcross_gtk4.dashboard_context import (  # noqa: E402
     DashboardSelection,
     build_dashboard_snapshot,
-    select_bucket,
-    select_endpoint,
-    select_event,
-    select_flow,
-    select_point,
-    select_protocol,
 )
-from netcross_gtk4.duplicate_view import format_duplicate_indicator  # noqa: E402
 from netcross_gtk4.live_capture_points import duplicate_labels, expand_live_points  # noqa: E402
+from netcross_gtk4.panel_state import (  # noqa: E402
+    apply_dashboard_selection,
+    comm_map_filters,
+    panel_visibility,
+    run_button_state,
+    selected_protocol,
+)
+from netcross_gtk4.run_outcome import analysis_outcome, diff_outcome  # noqa: E402
 from netcross_gtk4.stats_view import (  # noqa: E402
     build_events_by_segment,
     build_query,
@@ -119,58 +129,18 @@ def _visible_scroller(vexpand=True):
 # Separes des methodes MainWindow pour rester testables sans instancier GTK.
 
 
-def _timeline_row_label(row):
-    return f"{row['label']} — {row['loss_events']} perte(s)"
+def _nombre_de_lignes(listbox):
+    """Nombre de lignes d'un `Gtk.ListBox`.
 
-
-def _timeline_row_key(row):
-    return row["bucket"]
-
-
-def _segment_row_label(row):
-    lat = f", latence {row['latency_ms']} ms" if row["latency_ms"] is not None else ""
-    return f"{row['pair']} — {row['loss']} perte(s), {row['retrans']} retrans{lat}"
-
-
-def _segment_row_key(row):
-    return row["pair_tuple"][0]
-
-
-def _flow_row_label(row):
-    return f"{row['label']} — {row['packets']} paquets, {row['bytes']} octets"
-
-
-def _flow_row_key(row):
-    return row["flow_key"]
-
-
-def _endpoint_row_label(row):
-    peers = ", ".join(row["peers"]) or "?"
-    return f"{row['endpoint']} <-> {peers} — {row['flows']} flux, {row['packets']} paquets"
-
-
-def _endpoint_row_key(row):
-    return row["endpoint"]
-
-
-def _proto_row_label(row):
-    return f"{row['protocol']} — {row['flows']} flux, {row['packets']} paquets"
-
-
-def _proto_row_key(row):
-    return row["protocol"]
-
-
-def _event_row_label(row):
-    cat = row["category"] or "?"
-    sev = row["severity"] or "?"
-    proto = f" [{row['protocol']}]" if row["protocol"] else ""
-    msg = row["message"] or ""
-    return f"#{row['id']} {cat} ({sev}){proto} — {msg}"
-
-
-def _event_row_key(row):
-    return row["id"]
+    GTK n'expose pas de compteur : on avance jusqu'a ce que
+    `get_row_at_index` renvoie None. Isole ici pour que les bornes de
+    deplacement s'appuient sur le vrai nombre de lignes plutot que sur le
+    comportement d'insertion du conteneur (cf. `indice_apres_deplacement`).
+    """
+    nombre = 0
+    while listbox.get_row_at_index(nombre) is not None:
+        nombre += 1
+    return nombre
 
 
 class CaptureRow(Gtk.Box):
@@ -212,20 +182,26 @@ class CaptureRow(Gtk.Box):
         self.append(remove_btn)
 
     def _on_up(self, _btn):
-        row = self.get_parent()
-        listbox = row.get_parent()
-        idx = row.get_index()
-        if idx > 0:
-            listbox.remove(row)
-            listbox.insert(row, idx - 1)
-            listbox.select_row(row)
+        self._deplacer(vers_le_haut=True)
 
     def _on_down(self, _btn):
+        self._deplacer(vers_le_haut=False)
+
+    def _deplacer(self, *, vers_le_haut):
+        """Deplace la ligne d'un cran, ou ne fait rien si elle est au bord.
+
+        Les deux sens partagent maintenant la meme borne : l'ancien code
+        gardait la montee (`if idx > 0`) mais pas la descente, qui ne restait
+        en place que parce que GTK append quand la position depasse la
+        longueur. Voir `indice_apres_deplacement`.
+        """
         row = self.get_parent()
         listbox = row.get_parent()
-        idx = row.get_index()
+        cible = indice_apres_deplacement(row.get_index(), _nombre_de_lignes(listbox), vers_le_haut)
+        if cible is None:
+            return
         listbox.remove(row)
-        listbox.insert(row, idx + 1)
+        listbox.insert(row, cible)
         listbox.select_row(row)
 
     def _on_remove(self, _btn):
@@ -337,8 +313,8 @@ class LiveCaptureRow(Gtk.Box):
         self._filters = list(filters)
         self._syncing_dropdown = True
         try:
-            names = [_FILTER_PICKER_TITLE] + [flt.name for flt in self._filters]
-            self.filter_dropdown.set_model(Gtk.StringList.new(names))
+            noms = noms_du_menu(self._filters, _FILTER_PICKER_TITLE)
+            self.filter_dropdown.set_model(Gtk.StringList.new(noms))
         finally:
             self._syncing_dropdown = False
         self._select_filter_index(0)
@@ -351,26 +327,21 @@ class LiveCaptureRow(Gtk.Box):
             self.filter_dropdown.set_selected(index)
         finally:
             self._syncing_dropdown = False
-        if 0 < index <= len(self._filters):
-            flt = self._filters[index - 1]
-            self.filter_dropdown.set_tooltip_text(flt.description or flt.name)
-        else:
-            self.filter_dropdown.set_tooltip_text(_FILTER_PICKER_HINT)
+        self.filter_dropdown.set_tooltip_text(infobulle_du_menu(index, self._filters, _FILTER_PICKER_HINT))
 
     def _on_filter_picked(self, dropdown, _pspec):
         if self._syncing_dropdown:
             return
-        index = dropdown.get_selected()
-        if not 0 < index <= len(self._filters):
+        index, expression = selection_apres_choix(dropdown.get_selected(), self._filters)
+        if index is None:
             return
         self._select_filter_index(index)
-        self.filter_entry.set_text(self._filters[index - 1].expression)
+        self.filter_entry.set_text(expression)
 
     def _on_filter_text_changed(self, entry):
         """Le champ a ete edite a la main : le menu ne doit plus annoncer un
         filtre dont le texte n'est plus celui du champ."""
-        index = self.filter_dropdown.get_selected()
-        if 0 < index <= len(self._filters) and entry.get_text().strip() != self._filters[index - 1].expression:
+        if doit_desolidariser_le_menu(self.filter_dropdown.get_selected(), self._filters, entry.get_text()):
             self._select_filter_index(0)
 
     def _build_save_popover(self):
@@ -404,19 +375,18 @@ class LiveCaptureRow(Gtk.Box):
         return self._save_popover
 
     def _on_save_filter_clicked(self, _widget):
-        expression = self.filter_entry.get_text().strip()
         name = self._save_name_entry.get_text().strip()
-        if not expression:
-            self._save_status.set_text("Le champ filtre BPF est vide : rien a enregistrer.")
-            return
-        if not name:
-            self._save_status.set_text("Donnez un nom au filtre.")
-            return
-        if self._on_save_filter is None:
-            self._save_status.set_text("Sauvegarde des filtres indisponible.")
+        demande = valider_sauvegarde(
+            self.filter_entry.get_text(),
+            name,
+            self._save_desc_entry.get_text(),
+            sauvegarde_possible=self._on_save_filter is not None,
+        )
+        if not demande.acceptee:
+            self._save_status.set_text(demande.message)
             return
         try:
-            self._on_save_filter(BPFFilter(name, expression, self._save_desc_entry.get_text().strip()))
+            self._on_save_filter(demande.filtre)
         except (OSError, ValueError) as exc:
             self._save_status.set_text(str(exc))
             return
@@ -426,10 +396,9 @@ class LiveCaptureRow(Gtk.Box):
         self._save_popover.popdown()
         # Le panneau a rafraichi les menus (selection sur le titre) : on
         # repositionne CETTE ligne sur le filtre qu'elle vient d'enregistrer.
-        for i, flt in enumerate(self._filters, start=1):
-            if flt.name.casefold() == name.casefold():
-                self._select_filter_index(i)
-                break
+        indice = indice_du_filtre_nomme(name, self._filters)
+        if indice is not None:
+            self._select_filter_index(indice)
 
     def _on_up(self, _btn):
         row = self.get_parent()
@@ -759,6 +728,42 @@ class MainWindow(Gtk.ApplicationWindow):
         self.live_extra_box.set_visible(False)
         page.append(self.live_extra_box)
 
+        # -- rotation de capture (ring buffer) --
+        # Option de configuration pour les captures longues en mode live
+        # (issue #157 / #264). Purement preparatoire a ce stade : ni la
+        # capture live de cette page ni LiveDiffEngine ne s'appellent l'un
+        # l'autre aujourd'hui -- le cablage reel est laisse a une session
+        # qui raccordera les deux. Meme principe de visibilite que
+        # live_extra_box : masque hors mode capture live.
+        self.ring_buffer_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        self.ring_buffer_check = Gtk.CheckButton(label="Rotation de capture (ring buffer)")
+        self.ring_buffer_check.set_tooltip_text(
+            "Active la rotation des fichiers de capture : ecrit dans des "
+            "fichiers de duree fixe et supprime automatiquement le plus "
+            "ancien au-dela du nombre maximal. Option preparatoire : "
+            "non cablee au moteur de capture pour l'instant."
+        )
+        self.ring_buffer_check.connect("toggled", self._on_ring_buffer_toggled)
+        self.ring_buffer_box.append(self.ring_buffer_check)
+        self.ring_buffer_box.append(Gtk.Label(label="Fichiers max :", halign=Gtk.Align.START))
+        self.ring_max_files_spin = Gtk.SpinButton.new_with_range(1, 1000, 1)
+        self.ring_max_files_spin.set_value(10)
+        self.ring_max_files_spin.set_sensitive(False)
+        self.ring_max_files_spin.set_tooltip_text(
+            "Nombre maximal de fichiers de capture conserves sur disque (defaut : 10)."
+        )
+        self.ring_buffer_box.append(self.ring_max_files_spin)
+        self.ring_buffer_box.append(Gtk.Label(label="Duree/fichier (s) :", halign=Gtk.Align.START))
+        self.ring_max_duration_spin = Gtk.SpinButton.new_with_range(1, 86400, 10)
+        self.ring_max_duration_spin.set_value(60)
+        self.ring_max_duration_spin.set_sensitive(False)
+        self.ring_max_duration_spin.set_tooltip_text(
+            "Duree maximale de chaque fichier de capture en secondes (defaut : 60)."
+        )
+        self.ring_buffer_box.append(self.ring_max_duration_spin)
+        self.ring_buffer_box.set_visible(False)
+        page.append(self.ring_buffer_box)
+
         # -- panneaux mode comparaison (caches par defaut) --
         self.diff_panels_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=16)
         self.baseline_panel = CaptureListPanel("Baseline (avant)", on_change=self._update_run_sensitivity)
@@ -964,50 +969,87 @@ class MainWindow(Gtk.ApplicationWindow):
             if redact:
                 check.set_active(False)
 
+    def _on_ring_buffer_toggled(self, _btn):
+        """Active/desactive les SpinButton de configuration du ring buffer
+        selon l'etat de la case a cocher -- meme schéma que
+        `_on_duplicate_exclusion_toggled` pour les seuils de doublons : un
+        controle reglable alors que la fonctionnalite n'est pas activee
+        est une invitation a perdre du temps."""
+        active = self.ring_buffer_check.get_active()
+        self.ring_max_files_spin.set_sensitive(active)
+        self.ring_max_duration_spin.set_sensitive(active)
+
     def _sync_panel_visibility(self):
         """Point unique qui decide, a partir des deux cases a cocher, quels
         panneaux/options sont visibles -- appele apres tout changement de
         mode pour eviter que diff_check et live_check ne divergent."""
-        diff_mode = self.diff_check.get_active()
-        live_mode = self.live_check.get_active()
-        self.single_panel.set_visible(not diff_mode and not live_mode)
-        self.live_panel.set_visible(live_mode)
-        self.live_extra_box.set_visible(live_mode)
-        self.diff_panels_box.set_visible(diff_mode)
-        # triage/TLS/QUIC restent pertinents (et visibles) en capture live --
-        # seuls TLS/QUIC sont indisponibles dans ce mode, cf. tls_check/quic_check ci-dessous.
-        self.single_options_box.set_visible(not diff_mode)
-        self.diff_options_box.set_visible(diff_mode)
-        self.tls_check.set_sensitive(not live_mode)
-        self.quic_check.set_sensitive(not live_mode)
-        if live_mode:
+        # Les regles sont dans netcross_gtk4.panel_state (issue #285, lot 3) :
+        # cette methode ne fait plus que les appliquer aux widgets. Le
+        # commentaire d'origine -- triage pertinent en live mais pas TLS/QUIC
+        # -- y est documente avec sa raison.
+        vue = panel_visibility(
+            self.diff_check.get_active(),
+            self.live_check.get_active(),
+            self.detect_duplicates_check.get_active(),
+        )
+        self.single_panel.set_visible(vue.single_panel)
+        self.live_panel.set_visible(vue.live_panel)
+        self.live_extra_box.set_visible(vue.live_extra)
+        self.ring_buffer_box.set_visible(vue.live_extra)
+        self.diff_panels_box.set_visible(vue.diff_panels)
+        self.single_options_box.set_visible(vue.single_options)
+        self.diff_options_box.set_visible(vue.diff_options)
+        self.tls_check.set_sensitive(vue.tls_sensitive)
+        self.quic_check.set_sensitive(vue.quic_sensitive)
+        self.parallel_check.set_sensitive(vue.parallel_sensitive)
+        self.detect_duplicates_check.set_sensitive(vue.duplicate_detect_sensitive)
+        self.duplicate_threshold_spin.set_sensitive(vue.duplicate_threshold_sensitive)
+        self.exclude_duplicates_check.set_sensitive(vue.duplicate_exclude_sensitive)
+        if vue.force_tls_off:
             self.tls_check.set_active(False)
+        if vue.force_quic_off:
             self.quic_check.set_active(False)
-        self.parallel_check.set_sensitive(not live_mode)
-        duplicate_controls = not diff_mode
-        self.detect_duplicates_check.set_sensitive(duplicate_controls)
-        self.duplicate_threshold_spin.set_sensitive(duplicate_controls and self.detect_duplicates_check.get_active())
-        self.exclude_duplicates_check.set_sensitive(duplicate_controls and self.detect_duplicates_check.get_active())
-        if diff_mode:
+        if vue.force_duplicate_detect_off:
             self.detect_duplicates_check.set_active(False)
+        if vue.force_duplicate_exclude_off:
             self.exclude_duplicates_check.set_active(False)
+
+    def _run_button_state(self):
+        """Decision d'etat du bouton Lancer, deleguee a panel_state.
+
+        Les compteurs sont lus ici car ils viennent des panneaux GTK ; la
+        regle qui les interprete est dans netcross_gtk4.panel_state (issue
+        #285, lot 3).
+        """
+        return run_button_state(
+            live_capturing=self._live_capturing,
+            diff_mode=self.diff_check.get_active(),
+            live_mode=self.live_check.get_active(),
+            single_rows=len(self.single_panel.rows()),
+            baseline_rows=len(self.baseline_panel.rows()),
+            current_rows=len(self.current_panel.rows()),
+            # points apres eclatement : une seule ligne "eth0, eth1" en donne deux
+            live_points=len(expand_live_points(self.live_panel.captures())),
+            label_actuel=self.run_btn.get_label(),
+        )
 
     def _update_run_button_label(self):
         if self._live_capturing:
             return  # deja gere par _begin_live_capture/_end_live_capture
-        self.run_btn.set_label("Demarrer la capture" if self.live_check.get_active() else "Lancer l'analyse")
+        self.run_btn.set_label(self._run_button_state().label)
 
     def _update_run_sensitivity(self):
         if self._live_capturing:
             return  # bouton deja dans le bon etat pendant une capture en cours
-        if self.diff_check.get_active():
-            ok = len(self.baseline_panel.rows()) >= 2 and len(self.current_panel.rows()) >= 2
-        elif self.live_check.get_active():
-            # points apres eclatement : une seule ligne "eth0, eth1" en donne deux
-            ok = len(expand_live_points(self.live_panel.captures())) >= 2
-        else:
-            ok = len(self.single_panel.rows()) >= 2
-        self.run_btn.set_sensitive(ok)
+        etat = self._run_button_state()
+        self.run_btn.set_sensitive(etat.enabled)
+        # La raison du refus est affichee en infobulle plutot que gardee pour
+        # nous : elle est connue au moment de la decision, et un bouton grise
+        # sans explication oblige l'utilisateur a deviner combien de captures
+        # il manque -- particulierement en mode live, ou le compte porte sur
+        # les points APRES eclatement des interfaces et ne correspond donc pas
+        # au nombre de lignes affichees.
+        self.run_btn.set_tooltip_text(etat.raison)
 
     # ================= compat retro (tests existants) =================
     # Certains appelants (tests) pilotaient directement l'ancienne API a
@@ -1394,6 +1436,7 @@ class MainWindow(Gtk.ApplicationWindow):
 
         self.live_panel.set_sensitive(False)
         self.live_extra_box.set_sensitive(False)
+        self.ring_buffer_box.set_sensitive(False)
         self.run_btn.set_label("Arreter et analyser")
         self.pdf_btn.set_sensitive(False)
         self.csv_btn.set_sensitive(False)
@@ -1553,6 +1596,7 @@ class MainWindow(Gtk.ApplicationWindow):
         self._live_capturing = False
         self.live_panel.set_sensitive(True)
         self.live_extra_box.set_sensitive(True)
+        self.ring_buffer_box.set_sensitive(True)
         self.work_stop_btn.set_visible(False)
         self.work_stop_btn.set_sensitive(True)
         self._update_run_button_label()
@@ -1894,6 +1938,24 @@ class MainWindow(Gtk.ApplicationWindow):
         self.run_btn.set_sensitive(True)
         return False
 
+    def _appliquer_outcome(self, outcome):
+        """Recopie un RunOutcome dans la fenetre (issue #285, lot 2).
+
+        Les quatorze champs d'etat sont recopies EN BOUCLE depuis
+        `outcome.etat()`, pas un par un : un champ ajoute a `RunOutcome`
+        arrive ainsi automatiquement dans les deux modes. C'est le point de
+        l'extraction -- avant, analyse et comparaison reecrivaient chacune
+        sa liste, et un oubli d'un seul cote faisait afficher au run
+        suivant des donnees restees du precedent, sans aucun message.
+        """
+        for nom, valeur in outcome.etat().items():
+            setattr(self, nom, valeur)
+        self.duplicate_indicator.set_text(outcome.duplicate_indicator)
+        self.spinner.stop()
+        self.work_status_label.set_text(outcome.work_status)
+        self.result_view.get_buffer().set_text(outcome.result_text)
+        self.status_label.set_text(outcome.status)
+
     def _on_analysis_done(
         self,
         mode,
@@ -1905,30 +1967,23 @@ class MainWindow(Gtk.ApplicationWindow):
         quic_findings=None,
         wireshark_expert_events=None,
     ):
-        self.last_mode = mode
-        self.last_report = report
-        self.last_flows = flows
-        self.duplicate_indicator.set_text(format_duplicate_indicator(report))
-        self.last_findings = findings
-        self.last_tls_findings = tls_findings
-        self.last_quic_findings = quic_findings
         # Signaux tshark bruts : calcules dans le thread d'analyse, ou les
         # paquets sont encore disponibles (issue #14). On garde le RESULTAT
         # plutot que les paquets : conserver `all_packets` dans la fenetre
         # pour un export JSON eventuel immobiliserait la capture entiere en
         # memoire jusqu'a l'analyse suivante.
-        self.last_wireshark_expert_events = wireshark_expert_events
-        self.last_diff_findings = None
-        self.last_baseline_report = None
-        self.last_current_report = None
-        self.last_diff_tls_findings_baseline = None
-        self.last_diff_tls_findings_current = None
-        self.last_diff_quic_findings_baseline = None
-        self.last_diff_quic_findings_current = None
-        self.spinner.stop()
-        self.work_status_label.set_text("Analyse terminee.")
-        self.result_view.get_buffer().set_text(text)
-        self.status_label.set_text("Analyse terminee.")
+        self._appliquer_outcome(
+            analysis_outcome(
+                mode,
+                report,
+                flows,
+                findings,
+                text,
+                tls_findings=tls_findings,
+                quic_findings=quic_findings,
+                wireshark_expert_events=wireshark_expert_events,
+            )
+        )
         self.run_btn.set_sensitive(True)
         self.pdf_btn.set_sensitive(True)
         self.csv_btn.set_sensitive(True)
@@ -1956,29 +2011,17 @@ class MainWindow(Gtk.ApplicationWindow):
         quic_findings_baseline=None,
         quic_findings_current=None,
     ):
-        self.last_mode = "diff"
-        self.last_report = None
-        self.last_flows = None
-        self.duplicate_indicator.set_text("Doublons inter-captures : non disponible en mode comparaison.")
-        self.last_findings = None
-        self.last_tls_findings = None
-        self.last_quic_findings = None
-        self.last_wireshark_expert_events = None
-        self.last_diff_findings = findings
-        self.last_baseline_report = baseline_report
-        self.last_current_report = current_report
-        self.last_diff_tls_findings_baseline = tls_findings_baseline
-        self.last_diff_tls_findings_current = tls_findings_current
-        self.last_diff_quic_findings_baseline = quic_findings_baseline
-        self.last_diff_quic_findings_current = quic_findings_current
-        self.spinner.stop()
-        self.work_status_label.set_text("Comparaison terminee.")
-        self.result_view.get_buffer().set_text(text)
-        regressions = sum(1 for f in findings if f.severity == "regression")
-        self.status_label.set_text(
-            f"Comparaison terminee -- {regressions} regression(s) detectee(s)."
-            if regressions
-            else "Comparaison terminee -- aucune regression."
+        self._appliquer_outcome(
+            diff_outcome(
+                findings,
+                baseline_report,
+                current_report,
+                text,
+                tls_findings_baseline=tls_findings_baseline,
+                tls_findings_current=tls_findings_current,
+                quic_findings_baseline=quic_findings_baseline,
+                quic_findings_current=quic_findings_current,
+            )
         )
         self.run_btn.set_sensitive(True)
         self.pdf_btn.set_sensitive(True)
@@ -2231,22 +2274,17 @@ class MainWindow(Gtk.ApplicationWindow):
         lies via le contexte partage, puis rafraichit. ``kind`` distingue
         la vue d'origine (timeline/segment/flow/endpoint/protocol/event).
         """
-        sel = self.dashboard_selection
-        if kind == "flow":
-            flow = self._flow_by_key(key)
-            if flow is not None:
-                sel = select_flow(sel, flow)
-        elif kind == "endpoint":
-            sel = select_endpoint(sel, key)
-        elif kind == "protocol":
-            sel = select_protocol(sel, key)
-        elif kind == "point":
-            sel = select_point(sel, key)
-        elif kind == "bucket":
-            sel = select_bucket(sel, key)
-        elif kind == "event":
-            sel = select_event(sel, key, self._dashboard_events())
-        self.dashboard_selection = sel
+        # Un `kind` inconnu leve desormais UnknownViewTypeError au lieu de
+        # traverser une cascade de elif sans rien faire : avant, un type mal
+        # orthographie rendait les clics d'une vue entiere inoperants, sans
+        # message ni trace (issue #285, lot 3).
+        self.dashboard_selection = apply_dashboard_selection(
+            kind,
+            self.dashboard_selection,
+            key,
+            flow_par_cle=self._flow_by_key,
+            evenements=self._dashboard_events(),
+        )
         self._refresh_dashboard()
 
     def _flow_by_key(self, key):
@@ -2307,12 +2345,12 @@ class MainWindow(Gtk.ApplicationWindow):
         self._dashboard_clear_sections()
         box = self.dashboard_sections_box
         sections = [
-            ("Timeline", snap.timeline_rows, "bucket", _timeline_row_label, _timeline_row_key),
-            ("Segments", snap.segment_rows, "point", _segment_row_label, _segment_row_key),
-            ("Flows", snap.flow_rows, "flow", _flow_row_label, _flow_row_key),
-            ("Endpoints", snap.endpoint_rows, "endpoint", _endpoint_row_label, _endpoint_row_key),
-            ("Protocoles", snap.protocol_rows, "protocol", _proto_row_label, _proto_row_key),
-            ("Evenements", snap.event_rows, "event", _event_row_label, _event_row_key),
+            ("Timeline", snap.timeline_rows, "bucket", row_labels.timeline_row_label, row_labels.timeline_row_key),
+            ("Segments", snap.segment_rows, "point", row_labels.segment_row_label, row_labels.segment_row_key),
+            ("Flows", snap.flow_rows, "flow", row_labels.flow_row_label, row_labels.flow_row_key),
+            ("Endpoints", snap.endpoint_rows, "endpoint", row_labels.endpoint_row_label, row_labels.endpoint_row_key),
+            ("Protocoles", snap.protocol_rows, "protocol", row_labels.proto_row_label, row_labels.proto_row_key),
+            ("Evenements", snap.event_rows, "event", row_labels.event_row_label, row_labels.event_row_key),
         ]
         for title, rows, kind, label_fn, key_fn in sections:
             frame = Gtk.Frame(label=f"{title} ({len(rows)})")
@@ -2335,15 +2373,18 @@ class MainWindow(Gtk.ApplicationWindow):
         """Filtres actifs, lus depuis les widgets. Extrait pour que la
         logique de lecture reste verifiable sans piloter l'interface."""
         model = self.comm_proto_drop.get_model()
-        index = self.comm_proto_drop.get_selected()
         protocole = None
-        if model is not None and 0 < index < model.get_n_items():
-            protocole = model.get_string(index)
-        return {
-            "protocols": [protocole] if protocole else None,
-            "top_n": int(self.comm_topn_spin.get_value()),
-            "only_anomalies": self.comm_anomalies_check.get_active(),
-        }
+        if model is not None:
+            protocole = selected_protocol(
+                self.comm_proto_drop.get_selected(),
+                model.get_n_items(),
+                model.get_string,
+            )
+        return comm_map_filters(
+            protocole,
+            self.comm_topn_spin.get_value(),
+            self.comm_anomalies_check.get_active(),
+        )
 
     def _refresh_comm_map(self):
         """Reconstruit la carte et son rendu PNG a partir des filtres

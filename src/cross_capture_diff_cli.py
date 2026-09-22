@@ -90,6 +90,7 @@ from netcross_core import (
     write_redaction_map_csv,
 )
 from netcross_core.baseline_diff import diff_reports, print_diff_report, write_diff_csv
+from pcap_parser.ek_source import TsharkError, TsharkNotFoundError
 
 
 def _parse_capture_args(raw_list, flag_name):
@@ -169,11 +170,30 @@ def _load_packets(scenario_name, captures, parallel, parallel_workers):
             )
         return all_packets
 
+    # Meme correction que sur l'analyzer (issue #287) : cette branche
+    # sequentielle est celle par defaut, et elle avalait les echecs de lecture.
+    # Un fichier introuvable s'affichait "0 paquets charges", indistinguable
+    # d'une capture sans trafic IP, alors que la branche --parallel ci-dessus
+    # rapportait ECHEC et concluait par un ATTENTION. Sur une comparaison
+    # avant/apres, la consequence est pire qu'ailleurs : un cote vide produit
+    # des ecarts spectaculaires qui ne sont que l'ombre du fichier manquant.
     all_packets = []
+    any_error = False
     for label, path in captures:
-        pkts = parse_capture(label, path)
+        try:
+            pkts = parse_capture(label, path, raise_on_error=True)
+        except (TsharkNotFoundError, TsharkError) as exc:
+            any_error = True
+            print(f"[{scenario_name}/{label}] ECHEC sur {path} : {exc}", file=sys.stderr)
+            continue
         print(f"[{scenario_name}/{label}] {len(pkts)} paquets IP/TCP/UDP/ICMP charges depuis {path}")
         all_packets.extend(pkts)
+    if any_error:
+        print(
+            f"\nATTENTION ({scenario_name}) : au moins un fichier n'a pas pu etre lu -- "
+            "l'analyse continue sur les fichiers restants, mais le resultat est incomplet.",
+            file=sys.stderr,
+        )
     return all_packets
 
 
@@ -714,21 +734,28 @@ def main():
         print(f"Rapport JSON ecrit dans {args.json_report}")
 
     if args.history_db:
-        from netcross_report import list_history, print_history, record_diff_run
+        from netcross_report import HistoryDatabaseError, list_history, print_history, record_diff_run
 
-        record_diff_run(
-            findings,
-            baseline_report,
-            current_report,
-            args.history_db,
-            meta={"Anonymisation": "adresses IP/MAC anonymisees (--redact)"} if args.redact else None,
-            label=args.history_label,
-        )
-        label_txt = f" (etiquette: {args.history_label})" if args.history_label else ""
-        print(f"\nResume de ce diff enregistre dans l'historique {args.history_db}{label_txt}.")
-        if args.history_show is not None:
-            entries = list_history(args.history_db, limit=args.history_show, label=args.history_label)
-            print_history(entries)
+        # Meme garde que sur l'analyzer (issue #287) : l'historique est ecrit
+        # apres la comparaison, donc un chemin invalide faisait perdre tout le
+        # travail sur une trace sqlite3 brute.
+        try:
+            record_diff_run(
+                findings,
+                baseline_report,
+                current_report,
+                args.history_db,
+                meta={"Anonymisation": "adresses IP/MAC anonymisees (--redact)"} if args.redact else None,
+                label=args.history_label,
+            )
+            label_txt = f" (etiquette: {args.history_label})" if args.history_label else ""
+            print(f"\nResume de ce diff enregistre dans l'historique {args.history_db}{label_txt}.")
+            if args.history_show is not None:
+                entries = list_history(args.history_db, limit=args.history_show, label=args.history_label)
+                print_history(entries)
+        except HistoryDatabaseError as exc:
+            print(exc, file=sys.stderr)
+            sys.exit(1)
 
     if any(f.severity == "regression" for f in findings):
         sys.exit(1)  # code de sortie non nul : exploitable en CI/script pour detecter une regression
