@@ -11,7 +11,7 @@
 > Il remplace l'ancienne section 3 de `docs/features-backlog.md`, tenue à la main, qui avait dérivé
 > (voir `docs/sessions/session-36.md`, issue #140).
 
-97 modules · 126 classes · 285 fonctions publiques de module.
+97 modules · 126 classes · 288 fonctions publiques de module.
 
 Conventions : `+` public, `-` privé (préfixe `_`) ; `int?` = `int | None` ; `list~str~` = `list[str]` ;
 `<<module>>` regroupe les fonctions publiques d'un module ; `A --> B : champ` = `A` a un champ annoté
@@ -37,6 +37,42 @@ flowchart TD
     netcross_gtk4 -->|"18 imports"| netcross_core
     netcross_report -->|"11 imports"| netcross_core
     netcross_core -->|"14 imports"| pcap_parser
+```
+
+## Relations inter-modules
+
+Associations de classes détectées via les annotations de champs lorsqu'elles franchissent
+une frontière de module (source_module != target_module). Chaque flèche indique la classe
+source, le ou les champs concernés, et la classe cible (dans un autre module). Complément
+du graphe de dépendances ci-dessus (qui ne compte que des `import`).
+
+```mermaid
+flowchart LR
+    CaptureInfo["pcap_parser.capinfos_source.CaptureInfo"]
+    ClientReport["netcross_core.client_diff.ClientReport"]
+    DiffFinding["netcross_core.baseline_diff.DiffFinding"]
+    EvidenceLink["netcross_core.expert_model.EvidenceLink"]
+    ExpertEvent["netcross_core.expert_model.ExpertEvent"]
+    Finding["netcross_report.synthesis.Finding"]
+    FlowView["netcross_core.flow_view.FlowView"]
+    Flow["netcross_core.expert_model.Flow"]
+    InterfaceRecord["pcap_parser.capfile.InterfaceRecord"]
+    LiveDiffState["netcross_core.live_diff.LiveDiffState"]
+    Pkt["netcross_core.models.Pkt"]
+    Report["netcross_core.models.Report"]
+    SegmentScore["netcross_report.triage.SegmentScore"]
+    _Detector["netcross_core.exploit_signatures._Detector"]
+    netcross_core_security_expert_correlation__FlowState["netcross_core.security.expert_correlation._FlowState"]
+    CaptureInfo -->|interfaces| InterfaceRecord
+    ClientReport -->|report| Report
+    DiffFinding -->|evidence| EvidenceLink
+    Finding -->|event| ExpertEvent
+    Finding -->|evidence| EvidenceLink
+    FlowView -->|events| ExpertEvent
+    FlowView -->|flow| Flow
+    LiveDiffState -->|packets_in_window| Pkt
+    SegmentScore -->|findings| Finding
+    _Detector -->|run| netcross_core_security_expert_correlation__FlowState
 ```
 
 ## `pcap_parser`
@@ -156,6 +192,9 @@ classDiagram
         +iter_live_multi(interfaces, stop_event, bpf_filter) Iterator~tuple~str, RawPacket~~
         +export_filtered(path_in, path_out, bpf_filter, time_start, time_end, endpoints) None
         +adjust_timestamps(path_in, path_out, offset_seconds, normalize, align_to) None
+        +convert_capture(path_in, path_out, fmt) None
+        +export_csv(path_in, path_out) None
+        +export_json(path_in, path_out) None
     }
 
     %% ===== pcap_parser.ek_fields =====
