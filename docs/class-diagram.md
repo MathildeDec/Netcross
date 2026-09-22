@@ -11,7 +11,7 @@
 > Il remplace l'ancienne section 3 de `docs/features-backlog.md`, tenue à la main, qui avait dérivé
 > (voir `docs/sessions/session-36.md`, issue #140).
 
-123 modules · 172 classes · 360 fonctions publiques de module.
+123 modules · 172 classes · 361 fonctions publiques de module.
 
 Conventions : `+` public, `-` privé (préfixe `_`) ; `int?` = `int | None` ; `list~str~` = `list[str]` ;
 `<<module>>` regroupe les fonctions publiques d'un module ; `A --> B : champ` = `A` a un champ annoté
@@ -1225,6 +1225,7 @@ classDiagram
         +list~dict~ dga_alerts
         +list~dict~ fast_flux_alerts
         +list~dict~ lateral_movement_events
+        +list~dict~ flow_anomalies
         +list~tuple~str, str, dict~~ topology_edges
         +list~tuple~str, str, str~~ topology_ambiguous
         +list~str~ topology_isolated
@@ -2067,6 +2068,7 @@ classDiagram
         +beaconing_findings(suspicions) list~dict~str, Any~~
         +tls_audit_findings(audit) list~dict~str, Any~~
         +lateral_movement_findings(events) list~dict~str, Any~~
+        +flow_stats_findings(flows) list~dict~str, Any~~
         +cve_findings(fingerprints, conn) list~dict~str, Any~~
         +dga_findings(alerts) list~dict~str, Any~~
         +fast_flux_findings(alerts) list~dict~str, Any~~

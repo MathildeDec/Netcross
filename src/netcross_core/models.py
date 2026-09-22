@@ -612,6 +612,13 @@ class Report:
     # `targets`. Rempli par `security.findings.apply_security_findings` via
     # `security.lateral_movement.detect_lateral_movement`.
     lateral_movement_events: list[dict] = field(default_factory=list)
+    # -- statistiques de flux (FLOW-4, issue #145) : un dict par flux
+    # analyse, cles `src`, `dst`, `packet_count`, `byte_count`, `splt`,
+    # `classification` (interactif/transfert/obfusque/normal), `entropy`,
+    # `median_size`, `upload_ratio`, `regularity_cv`. Rempli par
+    # `security.findings.apply_security_findings` via
+    # `security.flow_stats.analyze_flow_stats`.
+    flow_anomalies: list[dict] = field(default_factory=list)
     # -- topologie deduite (ordre + chemins multiples) --
     topology_edges: list[tuple[str, str, dict]] = field(default_factory=list)
     topology_ambiguous: list[tuple[str, str, str]] = field(default_factory=list)
