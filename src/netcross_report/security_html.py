@@ -127,12 +127,28 @@ document.querySelectorAll('[data-filtre-pour]').forEach(function (champ) {
 
 
 def _e(valeur) -> str:
-    """Echappe pour insertion dans du HTML. `None` devient un tiret plutot
-    qu'une cellule vide : une cellule vide laisse croire a un bug de rendu,
-    un tiret dit « pas de valeur » (regle de tracabilite du projet)."""
+    """Echappe pour insertion dans du CONTENU TEXTUEL HTML.
+
+    `None` devient un tiret plutot qu'une cellule vide : une cellule vide
+    laisse croire a un bug de rendu, un tiret dit « pas de valeur » (regle
+    de tracabilite du projet).
+
+    `quote=False` est volontaire. Toutes les valeurs du rapport sont
+    inserees entre balises, jamais dans un attribut (les seuls attributs
+    dynamiques du document sont des couleurs et des largeurs calculees en
+    interne). Avec `quote=True`, chaque apostrophe francaise devenait
+    `&#x27;` : une source illisible, et surtout une sortie qui ne
+    correspondait plus au rendu texte -- « aucune tentative
+    d&#x27;exploitation detectee » au lieu du message attendu, ce qui
+    casse toute recherche naive dans le fichier. `<`, `>` et `&` restent
+    echappes, ce qui suffit en contenu textuel.
+
+    Si un jour une valeur doit aller dans un attribut, elle passera par un
+    helper dedie -- pas par celui-ci.
+    """
     if valeur is None or valeur == "":
         return "&ndash;"
-    return html.escape(str(valeur), quote=True)
+    return html.escape(str(valeur), quote=False)
 
 
 def _badge(severite: str | None) -> str:

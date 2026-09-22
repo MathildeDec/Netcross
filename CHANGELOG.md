@@ -8,6 +8,15 @@ et le projet adhère au [SemVer](https://semver.org/lang/fr/).
 ## [Unreleased]
 
 ### Ajouté
+- Le rapport de sécurité alimente désormais le JSON (`security_report`), le
+  PDF (section dédiée) et un nouveau rendu HTML autonome `--security-html` —
+  il n'existait qu'en sortie texte (#218)
+- `netcross_report/security_report.py::security_report_to_dict()` — socle de
+  sérialisation unique des quatre rendus (#218)
+- `netcross_report/security_html.py` — fichier HTML unique, sans ressource
+  externe, tableaux filtrables, mode sombre et impression (#218)
+- `--security-report`, `--cve-db` et `--security-html` documentés dans
+  `CLAUDE.md`, avec les modules du pipeline de sécurité (#216)
 - Les empreintes JA4/HASSH sont enfin affichées dans le rapport de sécurité
   (`JA4=…` / `HASSH=…` + forme lisible tronquée) : elles étaient calculées
   puis silencieusement jetées avant l'affichage (#259)
@@ -20,6 +29,11 @@ et le projet adhère au [SemVer](https://semver.org/lang/fr/).
 - `docs/fingerprints-ja4-hassh.md` (#259)
 
 ### Corrigé
+- `CLAUDE.md` annonçait « 1150/1150 tests » et `mypy` intégré à l'outillage :
+  la suite en compte 2958 et `mypy` n'est pas configuré dans le projet (#216)
+- Le JSON écrit `security_report` dans tous les cas, avec le motif de
+  l'absence : « non demandé », « rien trouvé » et « clé non produite par
+  cette version » étaient indistinguables (#218)
 - Journal de `apply_security_findings` : le compteur annoncé comme
   « fingerprints » comptait en réalité les incohérences de protocole (#259)
 - Rapport texte : l'encapsulation au niveau fichier (lue par capinfos) est

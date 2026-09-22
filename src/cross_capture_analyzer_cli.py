@@ -833,6 +833,14 @@ def main():
         "designer un fichier existant (aucune base vide n'est creee).",
     )
     ap.add_argument(
+        "--security-html",
+        help="Avec --security-report : chemin de sortie pour un rendu HTML "
+        "autonome du rapport de securite (tableau de bord, services avec "
+        "leurs empreintes JA4/HASSH, exploits, anomalies, CVE). Fichier "
+        "unique, sans ressource externe ni dependance supplementaire : "
+        "consultable hors ligne et archivable dans un ticket.",
+    )
+    ap.add_argument(
         "--pdf-report",
         help="Chemin de sortie pour un rapport PDF (triage, synthese, graphiques, "
         "detail par module). Necessite reportlab, matplotlib et networkx.",
@@ -1083,6 +1091,12 @@ def main():
     # anonymises par --redact.
     if args.cve_db and not args.security_report:
         print("--cve-db necessite --security-report.", file=sys.stderr)
+        sys.exit(1)
+    # Meme discipline que --cve-db : echouer tot et clairement plutot que
+    # de produire un fichier HTML vide, ou de ne rien ecrire en silence --
+    # l'utilisateur croirait avoir un rapport (issue #218).
+    if args.security_html and not args.security_report:
+        print("--security-html necessite --security-report.", file=sys.stderr)
         sys.exit(1)
     if args.security_report:
         if args.live:
@@ -1550,6 +1564,11 @@ def main():
     # dedie -- voir docs/security-report.md. cve_conn reste None sans --cve-db :
     # les services sont listes sans correlation CVE, et l'absence de base est
     # signalee pour ne pas laisser croire a une absence de vulnerabilite.
+    # Reste None si --security-report n'est pas demande, ou si l'analyse de
+    # securite echoue : les sorties PDF/JSON/HTML s'appuient dessus pour
+    # distinguer "pas d'analyse de securite" de "analyse faite, rien trouve"
+    # (issue #218).
+    security_report_obj = None
     if args.security_report:
         cve_conn = connect_cve_db(args.cve_db) if args.cve_db else None
         if cve_conn is None:
@@ -1561,7 +1580,21 @@ def main():
                 detections=security_detections,
                 cve_conn=cve_conn,
             )
-            print_security_report(build_security_report(r))
+            # Conserve pour les sorties PDF/JSON/HTML (issue #218) :
+            # jusqu'ici l'objet etait construit, imprime, puis perdu -- les
+            # constats de securite n'atteignaient donc aucune sortie
+            # machine, meme quand --json-report etait demande.
+            security_report_obj = build_security_report(r)
+            print_security_report(security_report_obj)
+            if args.security_html:
+                from netcross_report.security_html import generate_security_html
+
+                generate_security_html(
+                    security_report_obj,
+                    args.security_html,
+                    meta={"Anonymisation": "adresses IP/MAC anonymisees (--redact)"} if args.redact else None,
+                )
+                print(f"Rapport de securite HTML ecrit dans {args.security_html}")
         finally:
             # issue #217 (suite PR #212) : close_db() dans un finally pour
             # garantir la fermeture de la connexion SQLite meme si
@@ -1715,6 +1748,7 @@ def main():
             r,
             args.pdf_report,
             findings=findings,
+            security_report=security_report_obj,
             tls_findings=tls_findings,
             quic_findings=quic_findings,
             session_objects=session_objects,
@@ -1733,6 +1767,7 @@ def main():
             r,
             args.json_report,
             findings=findings,
+            security_report=security_report_obj,
             tls_findings=tls_findings,
             quic_findings=quic_findings,
             rule_engine_findings=rule_engine_findings,

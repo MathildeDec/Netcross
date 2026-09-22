@@ -13,10 +13,16 @@ que pour un contexte spécifique, pas systématiquement.
 
 ## État courant
 
-- **1150/1150 tests** (`pytest`), suite complète rejouée à chaque
-  session avant tout nouveau code. Outillage qualité (`ruff`,
-  `import-linter`, `mypy` sur les fichiers modifiés) intégralement
-  vert ; `pre-commit` non exécutable dans cet environnement (zip livré
+- **2957 tests** (`pytest`), suite complète rejouée à chaque
+  session avant tout nouveau code. 6 sautés : `networkx` absent (1) et
+  GTK4 absent (5). Couverture mesurée : **78,9 %** — les manques réels
+  sont `netcross_gtk4/app.py` (0 %, 1493 instructions, soit 47 % de tout
+  le code non couvert), `netcross_report/pdf.py` (32,6 %) et
+  `charts.py` (28,8 %), suivis par #246 et ses sous-issues #285 à #288.
+  Outillage qualité (`ruff`, `import-linter`) intégralement
+  vert ; `mypy` n'est PAS configuré dans le projet (aucune trace dans
+  `pyproject.toml`, `requirements-dev.txt` ni la CI — voir #281, ne pas
+  supposer le contraire) ; `pre-commit` non exécutable dans cet environnement (zip livré
   sans `.git` — voir Commandes qualité ci-dessous).
 - **Job 34 (issue #154)** : fusion de captures PCAP — nouvelle fonction
   `pcap_parser.capture.merge_captures(paths, output_path, dedup=False)`
@@ -1057,6 +1063,50 @@ que pour un contexte spécifique, pas systématiquement.
      extension à d'autres règles du catalogue, et bascule effective de
      `build_findings` vers ce moteur : hors périmètre de ce pilote, voir
      « Prochaine feature ». Détail complet : `docs/sessions/session-55.md`.
+
+### Pipeline de sécurité — `--security-report` (issues #139, #216, #218, #259)
+
+**Flags CLI** :
+
+| Flag | Rôle |
+|---|---|
+| `--security-report` | rapport de sécurité consolidé : services détectés, tentatives d'exploitation, anomalies Expert Info corrélées, CVE confirmées, tableau de bord avec score de risque 0-100. Relit les fichiers `--capture` pour chercher les signatures dans la charge utile BRUTE (même discipline que `--tls`). Incompatible avec `--live` et `--redact`. |
+| `--cve-db CHEMIN` | base CVE SQLite locale (construite par `scripts/import_nvd.py`) pour la corrélation version → CVE. Exige `--security-report`. Doit désigner un fichier existant. Sans elle, les services sont listés et **l'absence de base est annoncée** — jamais présentée comme une absence de vulnérabilité. |
+| `--security-html CHEMIN` | rendu HTML autonome du rapport de sécurité (#218). Fichier unique, aucune ressource externe, aucune dépendance supplémentaire. Exige `--security-report`. |
+
+Les constats de sécurité alimentent aussi `--json-report` (clé
+`security_report`, avec la forme lisible des empreintes NON tronquée) et
+`--pdf-report` (section dédiée). Sans `--security-report`, le JSON écrit
+`"security_report": null` **plus** `security_report_absent` avec le
+motif : un consommateur doit pouvoir distinguer « non demandé » de
+« demandé, rien trouvé ».
+
+**Modules** :
+
+- `netcross_core/security/findings.py` — agrégation CVE-1..4 via
+  `apply_security_findings(report, packets, detections=..., cve_conn=...)`,
+  plus les détecteurs voisins du même paquet (beaconing, DGA, fast flux,
+  exfiltration, mouvement latéral, tunnel DNS, audit TLS, incohérence de
+  protocole).
+- `netcross_core/security/cve_db.py`, `cpe_match.py` — base CVE et
+  correspondance CPE.
+- `netcross_core/fingerprint/` — JA4 (TLS) et HASSH (SSH), **vérifiés
+  identiques à l'implémentation de référence de Wireshark** (#259) ;
+  `known_fingerprints.json` contient 7 empreintes réelles.
+- `netcross_report/security_report.py` — consolidation, rendu texte et
+  `security_report_to_dict()`, **socle unique** des sorties JSON, HTML et
+  PDF : trois rendus divergeraient au premier champ ajouté, ce qui est
+  exactement ce qui a produit #259.
+- `netcross_report/security_html.py` — rendu HTML (#218).
+
+**Documentation** : `docs/security-report.md`,
+`docs/fingerprints-ja4-hassh.md`.
+
+**État du chantier CVE** : CVE-1 à CVE-5 sont **tous livrés et clos**,
+y compris #135 (extraction des bannières de versions, clos le
+2026-09-20). Le corps de l'issue #216 affirmait #135 encore ouvert :
+information périmée, vérifiée le 2026-09-22. `application/banners.py`
+est couvert à 94 %.
 
 ## Prochaine feature
 
