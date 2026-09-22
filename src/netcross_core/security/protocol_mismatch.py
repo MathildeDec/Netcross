@@ -18,7 +18,10 @@ from __future__ import annotations
 
 from typing import Any
 
+from netcross_core.logging_config import get_logger
 from netcross_core.models import Pkt
+
+logger = get_logger(__name__)
 
 # -- Tables de référence ------------------------------------------------------
 
@@ -185,6 +188,7 @@ def detect_protocol_mismatches(packets: list[Pkt]) -> list[dict[str, Any]]:
         "description"}``.
     """
     details: list[dict[str, Any]] = []
+    logger.debug("protocol_mismatch : analyse de {} paquet(s)", len(packets))
     for pkt in packets:
         mismatch = detect_protocol_mismatch(pkt)
         if mismatch is not None:
@@ -199,6 +203,7 @@ def detect_protocol_mismatches(packets: list[Pkt]) -> list[dict[str, Any]]:
                     "description": description,
                 }
             )
+    logger.info("protocol_mismatch : {} mismatch(es) detecte(s) sur {} paquet(s)", len(details), len(packets))
     return details
 
 

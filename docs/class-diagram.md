@@ -32,7 +32,7 @@ flowchart TD
     netcross_core["netcross_core"]
     pcap_parser["pcap_parser"]
     CLI -->|"14 imports"| netcross_report
-    CLI -->|"14 imports"| netcross_core
+    CLI -->|"16 imports"| netcross_core
     CLI -->|"2 imports"| pcap_parser
     netcross_gtk4 -->|"10 imports"| netcross_report
     netcross_gtk4 -->|"18 imports"| netcross_core

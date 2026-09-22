@@ -56,7 +56,10 @@ from collections.abc import Iterable
 from dataclasses import dataclass, field
 from statistics import mean, pstdev
 
+from netcross_core.logging_config import get_logger
 from netcross_core.models import Pkt
+
+logger = get_logger(__name__)
 
 KIND_DOMAIN = "domain"
 KIND_VOLUME = "volume"
@@ -184,6 +187,7 @@ def detect_dns_tunneling(
             state.queries.append((pk.ts, pk.frame_number, name.lower().strip(".")))
 
     result = DnsTunnelResult()
+    logger.debug("dns_tunnel : {} domaine(s) a analyser", len(domains))
     for (point, domain), state in sorted(domains.items()):
         if not state.queries and not state.large_responses:
             continue
@@ -260,4 +264,9 @@ def detect_dns_tunneling(
 
     result.suspicions.sort(key=lambda d: (d["kind"], d["point"], d.get("domain", "")))
     result.domain_entropy.sort(key=lambda d: (-d["mean_entropy"], d["point"], d["domain"]))
+    logger.info(
+        "dns_tunnel : {} suspicion(s) levee(s), {} domaine(s) avec entropie",
+        len(result.suspicions),
+        len(result.domain_entropy),
+    )
     return result

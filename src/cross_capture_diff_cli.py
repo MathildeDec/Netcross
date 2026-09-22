@@ -90,7 +90,10 @@ from netcross_core import (
     write_redaction_map_csv,
 )
 from netcross_core.baseline_diff import diff_reports, print_diff_report, write_diff_csv
+from netcross_core.logging_config import get_logger
 from pcap_parser.ek_source import TsharkError, TsharkNotFoundError
+
+logger = get_logger(__name__)
 
 
 def _parse_capture_args(raw_list, flag_name):
