@@ -115,9 +115,11 @@ import threading
 import time
 
 from netcross_core import (
+    adjust_timestamps,
     analyse,
     compare_clients,
     correlate,
+    export_filtered,
     merge_captures,
     parse_capture,
     parse_captures_parallel,
@@ -125,6 +127,7 @@ from netcross_core import (
     print_client_comparison,
     print_report,
     read_capture_comments,
+    read_capture_infos,
     redact_packets,
     replay_capture,
     split_capture,
@@ -133,9 +136,13 @@ from netcross_core import (
     write_redaction_map_csv,
 )
 from netcross_core.forensic import DEFAULT_DUPLICATE_THRESHOLD_MS, detect_cross_capture_duplicates
+from netcross_core.logging_config import get_logger
 from netcross_core.security import close_db, connect_cve_db
 from netcross_core.security import findings as security_findings
 from netcross_report.security_report import build_security_report, print_security_report
+from pcap_parser.ek_source import TsharkError, TsharkNotFoundError
+
+logger = get_logger(__name__)
 
 
 def _parse_live_spec(spec):
@@ -238,6 +245,47 @@ def _run_merge(capture_specs, output_path, dedup):
     )
 
 
+def _run_export(capture_specs, output_path, bpf_filter, time_start, time_end, endpoints):
+    """--export-pcap : exporte un sous-ensemble filtre de la premiere
+    capture vers un nouveau fichier. Comme --merge/--split, ne lance aucune
+    analyse ensuite."""
+    if not capture_specs:
+        print("--export-pcap necessite --capture (fichier source).", file=sys.stderr)
+        sys.exit(1)
+    # Un seul fichier source : pour exporter plusieurs captures, les fusionner
+    # d'abord avec --merge.
+    if len(capture_specs) > 1:
+        print(
+            f"--export-pcap exporte UN fichier a la fois (recu {len(capture_specs)} spec(s) --capture) -- "
+            "fusionnez d'abord avec --merge si besoin.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    label, paths = _parse_capture_spec(capture_specs[0], "--capture")
+    if len(paths) > 1:
+        print(
+            f"--export-pcap exporte UN fichier a la fois (recu {len(paths)} segments dans {label}) -- "
+            "fusionnez d'abord avec --merge si besoin.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    path = paths[0]
+    try:
+        export_filtered(
+            path,
+            output_path,
+            bpf_filter=bpf_filter,
+            time_start=time_start,
+            time_end=time_end,
+            endpoints=endpoints,
+        )
+    except (TsharkNotFoundError, TsharkError, FileNotFoundError, ValueError) as e:
+        print(f"--export-pcap : {e}", file=sys.stderr)
+        sys.exit(1)
+    print(f"{output_path} cree ({label}).")
+    return 0
+
+
 _SPLIT_DEFAULT_DIR = "captures_split"
 _SIZE_RE = re.compile(r"(\d+(?:[.,]\d+)?)\s*([kmg])?[ob]?", re.IGNORECASE)
 _SIZE_FACTORS = {None: 1, "k": 10**3, "m": 10**6, "g": 10**9}
@@ -318,6 +366,42 @@ def _run_split(capture_specs, split_spec, output_dir):
         ext = os.path.splitext(segments[0])[1]
         print(f'  Pour les analyser comme un seul point : --capture "{label}=$(ls {label_dir}/*{ext} | paste -sd, -)"')
     return status
+
+
+def _run_adjust_time(capture_specs, output_path, offset, normalize, align_to):
+    """--adjust-time : ajuste les timestamps d'une capture (decalage fixe,
+    normalisation ou alignement sur une autre capture). Comme --merge/--split,
+    ne lance aucune analyse ensuite."""
+    if not capture_specs:
+        print("--adjust-time necessite --capture (fichier source).", file=sys.stderr)
+        sys.exit(1)
+    if len(capture_specs) > 1:
+        print(
+            f"--adjust-time ajuste UN fichier a la fois (recu {len(capture_specs)} spec(s) --capture).",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    label, paths = _parse_capture_spec(capture_specs[0], "--capture")
+    if len(paths) > 1:
+        print(
+            f"--adjust-time ajuste UN fichier a la fois (recu {len(paths)} segments dans {label}).",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    path = paths[0]
+    try:
+        adjust_timestamps(
+            path,
+            output_path,
+            offset_seconds=offset,
+            normalize=normalize,
+            align_to=align_to,
+        )
+    except (TsharkNotFoundError, TsharkError, FileNotFoundError, ValueError) as e:
+        print(f"--adjust-time : {e}", file=sys.stderr)
+        sys.exit(1)
+    print(f"{output_path} cree ({label}).")
+    return 0
 
 
 def _run_replay(capture_specs, interface, speed, loop):
@@ -474,6 +558,72 @@ def main():
         metavar="REPERTOIRE",
         help=f"Avec --split : repertoire de sortie (defaut: ./{_SPLIT_DEFAULT_DIR}, "
         "cree si absent). Refuse d'ecraser ou de melanger des segments deja presents.",
+    )
+    ap.add_argument(
+        "--export-pcap",
+        metavar="PATH",
+        help="Exporte un sous-ensemble de la premiere capture de --capture "
+        "vers un nouveau fichier PCAP/pcapng, filtre par --export-bpf, "
+        "--export-time-start/end et/ou --export-endpoints. Comme --merge/--split, "
+        "ne lance aucune analyse. Un seul fichier source a la fois.",
+    )
+    ap.add_argument(
+        "--export-bpf",
+        metavar="FILTRE",
+        help='Avec --export-pcap : filtre BPF (capture filter) a appliquer, ex: "tcp port 80" ou "host 192.168.1.1".',
+    )
+    ap.add_argument(
+        "--export-time-start",
+        type=float,
+        default=None,
+        metavar="SECONDES",
+        help="Avec --export-pcap : debut de la plage temporelle a exporter (secondes relatives au premier paquet).",
+    )
+    ap.add_argument(
+        "--export-time-end",
+        type=float,
+        default=None,
+        metavar="SECONDES",
+        help="Avec --export-pcap : fin de la plage temporelle a exporter (secondes relatives au premier paquet).",
+    )
+    ap.add_argument(
+        "--export-endpoints",
+        metavar="IP1,IP2,...",
+        help="Avec --export-pcap : liste d'adresses IP a inclure (src OU dst), "
+        "separees par des virgules. Un paquet est conserve si l'une de ses "
+        "adresses IP correspond.",
+    )
+    ap.add_argument(
+        "--adjust-time-output",
+        metavar="PATH",
+        help="Ajuste les timestamps de la premiere capture de --capture et "
+        "ecrit le resultat dans ce fichier. Mode utilitaire (comme "
+        "--merge/--split/--export-pcap) : ne lance aucune analyse. "
+        "Choix du mode : --time-offset (decalage fixe), --normalize-time "
+        "(premier paquet a t=0) ou --align-to (alignement sur une autre capture). "
+        "Un seul mode a la fois.",
+    )
+    ap.add_argument(
+        "--time-offset",
+        type=float,
+        default=None,
+        metavar="SECONDES",
+        help="Avec --adjust-time-output : decale tous les timestamps d'un "
+        "montant fixe en secondes (positif ou negatif). Ex: 10.5, -3600.",
+    )
+    ap.add_argument(
+        "--normalize-time",
+        action="store_true",
+        help="Avec --adjust-time-output : aligne le premier paquet sur t=0.0 "
+        "(calcule l'offset = -timestamp du premier paquet).",
+    )
+    ap.add_argument(
+        "--align-to",
+        metavar="PATH",
+        help="Avec --adjust-time-output : aligne le premier paquet de la "
+        "capture source sur le premier paquet de PATH (reference). Utile "
+        "pour comparer deux captures dont les horloges etaient "
+        "desynchronisees.",
     )
     ap.add_argument("--order", help="Ordre physique des points sur le chemin reseau, ex: LAN,WAN,DC")
     ap.add_argument("--detail-csv", help="Chemin de sortie pour le detail par flux (CSV)")
@@ -839,6 +989,24 @@ def main():
             )
             sys.exit(1)
 
+    # --export-pcap est exclusif avec --merge/--split/--replay
+    if args.export_pcap and (args.merge or args.split or args.replay):
+        print(
+            "--export-pcap est exclusif avec --merge/--split/--replay : une seule operation a la fois.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    if (
+        args.export_bpf
+        or args.export_time_start is not None
+        or args.export_time_end is not None
+        or args.export_endpoints
+    ) and not args.export_pcap:
+        print(
+            "--export-bpf/--export-time-start/--export-time-end/--export-endpoints necessitent --export-pcap.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
     if args.merge and args.split:
         print("--merge et --split sont exclusifs : fusionner OU decouper, pas les deux.", file=sys.stderr)
         sys.exit(1)
@@ -852,6 +1020,19 @@ def main():
         sys.exit(1)
     if (args.replay_loop != 1 or args.replay_speed != "1.0") and not args.replay:
         print("--replay-speed/--replay-loop necessitent --replay.", file=sys.stderr)
+        sys.exit(1)
+    # --adjust-time est exclusif avec les autres modes utilitaires
+    if args.adjust_time_output and (args.merge or args.split or args.replay):
+        print(
+            "--adjust-time est exclusif avec --merge/--split/--replay : une seule operation a la fois.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    if (args.time_offset is not None or args.normalize_time or args.align_to) and not args.adjust_time_output:
+        print(
+            "--time-offset/--normalize-time/--align-to necessitent --adjust-time-output.",
+            file=sys.stderr,
+        )
         sys.exit(1)
     if args.merge_dedup and not args.merge:
         print("--merge-dedup necessite --merge.", file=sys.stderr)
@@ -913,6 +1094,47 @@ def main():
             sys.exit(1)
         sys.exit(_run_split(args.capture, args.split, args.split_output_dir or _SPLIT_DEFAULT_DIR))
 
+    if args.export_pcap:
+        if not args.capture:
+            print("--export-pcap necessite --capture (fichier source), pas --live.", file=sys.stderr)
+            sys.exit(1)
+        # --export-pcap est un mode utilitaire comme --merge/--split : toute
+        # option d'analyse serait silencieusement ignoree, on la refuse.
+        ignored = sorted(
+            "--" + dest.replace("_", "-")
+            for dest, value in vars(args).items()
+            if dest
+            not in (
+                "capture",
+                "export_pcap",
+                "export_bpf",
+                "export_time_start",
+                "export_time_end",
+                "export_endpoints",
+            )
+            and value != ap.get_default(dest)
+        )
+        if ignored:
+            print(
+                f"--export-pcap ne lance aucune analyse : option(s) incompatible(s) {', '.join(ignored)}. "
+                "Exporter d'abord, puis analyser le resultat dans une seconde commande.",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        endpoints = None
+        if args.export_endpoints:
+            endpoints = [ip.strip() for ip in args.export_endpoints.split(",") if ip.strip()]
+        sys.exit(
+            _run_export(
+                args.capture,
+                args.export_pcap,
+                args.export_bpf,
+                args.export_time_start,
+                args.export_time_end,
+                endpoints,
+            )
+        )
+
     if args.replay:
         if not args.capture:
             print("--replay necessite --capture (fichier a rejouer), pas --live.", file=sys.stderr)
@@ -946,6 +1168,54 @@ def main():
             sys.exit(1)
         _run_replay(args.capture, args.replay, args.replay_speed, args.replay_loop)
         return
+
+    if args.adjust_time_output:
+        if not args.capture:
+            print("--adjust-time necessite --capture (fichier source), pas --live.", file=sys.stderr)
+            sys.exit(1)
+        # --adjust-time est un mode utilitaire : toute option d'analyse
+        # serait silencieusement ignoree, on la refuse.
+        ignored = sorted(
+            "--" + dest.replace("_", "-")
+            for dest, value in vars(args).items()
+            if dest
+            not in (
+                "capture",
+                "adjust_time_output",
+                "time_offset",
+                "normalize_time",
+                "align_to",
+            )
+            and value != ap.get_default(dest)
+        )
+        if ignored:
+            print(
+                f"--adjust-time ne lance aucune analyse : option(s) incompatible(s) {', '.join(ignored)}. "
+                "Ajuster d'abord, puis analyser le resultat dans une seconde commande.",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        # Verifier qu'un seul mode est fourni
+        modes = [
+            args.time_offset is not None,
+            args.normalize_time,
+            args.align_to is not None,
+        ]
+        if sum(modes) > 1:
+            print(
+                "--time-offset, --normalize-time et --align-to sont mutuellement exclusifs.",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        sys.exit(
+            _run_adjust_time(
+                args.capture,
+                args.adjust_time_output,
+                args.time_offset or 0.0,
+                args.normalize_time,
+                args.align_to,
+            )
+        )
 
     # Table des noms (section 6.15) : optionnelle, chargee une fois pour
     # toutes les sorties (CSV detail + JSON). None si --names absent.
@@ -1142,6 +1412,7 @@ def main():
     # un pcapng sans commentaire de section.
     if captures:
         r.capture_comments = read_capture_comments(captures)
+        r.capture_infos = read_capture_infos(captures)
     print_report(r)
 
     # --security-report (issue #139) : consolidation des quatre detecteurs

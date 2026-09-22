@@ -62,6 +62,8 @@ from netcross_core import (  # noqa: E402
     parse_captures_parallel,
     parse_live,
     print_report,
+    read_capture_comments,
+    read_capture_infos,
     redact_packets,
     write_detail_csv,
 )
@@ -1648,6 +1650,13 @@ class MainWindow(Gtk.ApplicationWindow):
             GLib.idle_add(self._log, "Expertise tshark (signaux bruts)...")
             wireshark_expert_events = build_wireshark_expert_events(all_packets)
             GLib.idle_add(self._log, f"  -> {len(wireshark_expert_events)} signal(aux) d'expertise")
+
+            # Job 38/issue #158 + Job 39/issue #159 -- metadonnees de
+            # fichier (capture_comments, capture_infos) : lues ici, au
+            # dernier moment avant le rendu, meme discipline que la CLI.
+            if captures:
+                report.capture_comments = read_capture_comments(captures)
+                report.capture_infos = read_capture_infos(captures)
 
             GLib.idle_add(self._log, "Mise en forme du rapport...")
             buf = io.StringIO()

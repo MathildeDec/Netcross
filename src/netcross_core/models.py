@@ -551,6 +551,12 @@ class Report:
     duplicates_excluded: bool = False
     # -- objets applicatifs HTTP (Job 25), metadonnees uniquement
     http_objects: list[dict] = field(default_factory=list)
+    # -- fichiers extraits (SCENARIO-4, issue #150) : métadonnées des fichiers
+    # transmis dans les flux réseau (HTTP, email, SMB, FTP). Un dict par
+    # fichier, cles `point`, `proto_source`, `src`, `dst`, `ts`, `uri`,
+    # `content_type`, `size`, `hash_md5`, `hash_sha256`, `type_detected`,
+    # `frame_number`. Rempli par `extract.carver.detect_extracted_files`.
+    extracted_files: list[dict] = field(default_factory=list)
     # -- transactions applicatives (Job 23, §6.9/§6.10)
     application_transactions: list[dict] = field(default_factory=list)
     # -- securite / detection passive de vulnerabilites (CVE-5, issue #139,
@@ -572,6 +578,30 @@ class Report:
     # `version`, `host`, `port`, `point` quand ils sont connus (ils
     # servent a rattacher une CVE a un service detecte).
     security_findings: list[dict] = field(default_factory=list)
+    # -- mismatches de protocole/flux (FLOW-1, issue #142) : un protocole
+    # applicatif detecte sur un port non standard (SSH sur 443, HTTP sur 22,
+    # DNS sur 443, tunneling ICMP). `protocol_mismatches` : compteur par
+    # protocole detecte puis par description ; `protocol_mismatch_details` :
+    # liste des occurrences individuelles (frame, ports, proto).
+    protocol_mismatches: dict[str, dict[str, int]] = field(default_factory=lambda: defaultdict(dict))
+    protocol_mismatch_details: list[dict] = field(default_factory=list)
+    # -- DGA et fast flux (SCENARIO-6, issue #152) : alertes de domaines
+    # malveillants generes algorithmiquement (DGA) et d'infrastructures
+    # a flux rapide (fast flux). `dga_alerts` : un dict par domaine suspect,
+    # cles `domain`, `score`, `reason`, `entropy`, `consonant_ratio`,
+    # `rare_bigram_ratio`, `length`, `nxdomain_ratio`, `point`.
+    # `fast_flux_alerts` : un dict par domaine suspect, cles `domain`,
+    # `alert_type`, `score`, `reason`, `ips`, `nxdomain_ratio`, `point`.
+    # Remplis par `security.findings.apply_security_findings` via
+    # `security.dga.detect_dga` et `security.fast_flux.detect_fast_flux`.
+    dga_alerts: list[dict] = field(default_factory=list)
+    fast_flux_alerts: list[dict] = field(default_factory=list)
+    # -- mouvements lateraux (SCENARIO-3, issue #149) : un dict par evenement
+    # detecte, cles `point`, `source`, `type` (port_scan | host_scan |
+    # brute_force | unusual_protocol | new_connection), `details`, `score`,
+    # `targets`. Rempli par `security.findings.apply_security_findings` via
+    # `security.lateral_movement.detect_lateral_movement`.
+    lateral_movement_events: list[dict] = field(default_factory=list)
     # -- topologie deduite (ordre + chemins multiples) --
     topology_edges: list[tuple[str, str, dict]] = field(default_factory=list)
     topology_ambiguous: list[tuple[str, str, str]] = field(default_factory=list)
@@ -597,6 +627,14 @@ class Report:
     #   a relire, l'information est deja portee par chaque Pkt.
     capture_comments: list[str] = field(default_factory=list)
     packet_comments: list[str] = field(default_factory=list)
+    # -- Metadonnees de capture (Job 38/issue #158) -- qualite de la
+    # capture elle-meme (format, snaplen, paquets perdus...), pas le
+    # contenu du trafic. Meme discipline que capture_comments : metadonnee
+    # de FICHIER, pas de paquet, donc remplie par l'appelant (CLI) via
+    # netcross_core.parsing.read_capture_infos(captures), AVANT
+    # print_report(). Vide si capinfos est absent ou si la capture ne
+    # porte aucune metadonnee (cas le plus frequent).
+    capture_infos: list[dict] = field(default_factory=list)
     # -- Integrite/qualite de capture (Job 43/issue #163) -- voir
     # netcross_core.forensic.validate_checksums().
     checksum_errors: list[ChecksumError] = field(default_factory=list)

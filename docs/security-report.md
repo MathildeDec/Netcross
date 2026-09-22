@@ -9,6 +9,7 @@ qui consolide les modules de détection passive de vulnérabilités (parent #133
 | Tentatives d'exploitation | signatures Log4Shell, Shellshock, Heartbleed, EternalBlue, compression TLS (CVE-2, #136) | `netcross_core.exploit_signatures` |
 | Anomalies | alertes Expert Info corrélées : fuzzing, overflow, dos (CVE-3, #137) | `netcross_core.security.expert_correlation` |
 | Anomalies | tunneling DNS : sous-domaines à haute entropie, labels/noms trop longs, volume DNS anormal (FLOW-3, #144) | `netcross_core.security.dns_tunnel` |
+| Anomalies | beaconing C2 : connexions périodiques, petites et constantes vers une destination externe (SCENARIO-1, #147) | `netcross_core.security.beaconing` |
 | CVE confirmées | version exacte + CVE-ID + score CVSS (CVE-4, #138) | `netcross_core.security` (base SQLite locale) |
 
 Le tout est classé par sévérité (critique / élevée / moyenne / faible) et résumé par un
@@ -39,6 +40,7 @@ python3 src/cross_capture_analyzer_cli.py \
 Pkt.service_banners ──► build_service_fingerprints ──► Report.service_fingerprints ─┐
 RawPacket (charge utile) ► exploit_signatures.detect_exploits ► exploit_findings ──┤
 Report.exploit_suspicion_flows ───────────────────► anomaly_findings ─────────────┤
+Pkt (ts, ports, tcp_len) ► beaconing.detect_beaconing ► beaconing_findings ───────┤
 Pkt (champs dns_*) ► dns_tunnel.detect_dns_tunneling ► dns_tunnel_findings ───────┼► Report.security_findings
 service/version ──► security.correlate_banner ────► cve_findings ─────────────────┘            │
                                                                                                 ▼
@@ -66,6 +68,19 @@ constats (remplacement, pas ajout : deux appels donnent le même résultat).
   déclenche naturellement). Limite : le type d'enregistrement (TXT…) n'est pas décodé par `Pkt`,
   « TXT > 100 octets » est approximé par la taille de la réponse. `detect_dns_tunneling(...).domain_entropy`
   donne le score d'entropie de Shannon de chaque domaine interrogé (suspect ou non).
+- **Beaconing C2** (`beaconing.py`, seuils dans `BeaconingThresholds`) : par point puis par
+  (protocole, source, destination externe, port de destination). Trois signaux *centraux*, tous
+  requis : ≥ 10 check-ins à intervalles réguliers (moyenne ≥ 5 s, coefficient de variation
+  écart-type/moyenne ≤ 0,15), charge utile médiane ≤ 512 octets, tailles de check-in stables
+  (CV ≤ 0,5) → moyenne ; un signal *faible* corroborant (le serveur renvoie > 1,5× ce qu'il
+  reçoit, ou ≥ 80 % des check-ins hors 7 h–19 h UTC) → élevée. Les signaux faibles seuls ne
+  lèvent rien. Chaque suspicion porte un score de confiance 0–1
+  (`detect_beaconing(...).suspicions[*]["score"]`). Ignorés : DNS/NTP/DHCP/NetBIOS/SSDP/mDNS,
+  keepalive TCP (segments de 0 ou 1 octet), destinations privées, multicast ou loopback.
+  Limites : une périodicité est un *indice* (un heartbeat cloud légitime est aussi régulier,
+  petit et constant) ; le CV remplace FFT/autocorrélation (une gigue > ~15 % n'est pas
+  détectée) ; pas de réputation de destination ; les heures de bureau se règlent en UTC
+  (`Pkt.ts` est en epoch).
 - **CVE** : sévérité NVD reprise telle quelle (repli sur les tranches CVSS v3).
 
 ## Aucun faux positif sur trafic normal
@@ -78,7 +93,9 @@ constats (remplacement, pas ajout : deux appels donnent le même résultat).
 - sans détection, sans suspicion et sans CVE applicable, le rapport est vide (score 0).
 
 Voir `tests/test_security_findings.py` (trafic HTTP/TLS/DNS légitime, version corrigée,
-paquet malformé isolé, CLI de bout en bout).
+paquet malformé isolé, CLI de bout en bout), `tests/test_dns_tunnel.py` et
+`tests/test_beaconing.py` (poste de travail légitime : navigation, NTP, DNS, keepalive TCP,
+sauvegarde régulière).
 
 ## Limites connues
 
