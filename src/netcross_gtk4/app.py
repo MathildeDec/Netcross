@@ -70,8 +70,16 @@ from netcross_core import (  # noqa: E402
 from netcross_core.baseline_diff import diff_reports, print_diff_report, write_diff_csv  # noqa: E402
 from netcross_core.bpf_filters import PREDEFINED_BPF_FILTERS, available_bpf_filters, upsert_bpf_filter  # noqa: E402
 from netcross_core.forensic import DEFAULT_DUPLICATE_THRESHOLD_MS, detect_cross_capture_duplicates  # noqa: E402
-from netcross_core.models import BPFFilter  # noqa: E402
 from netcross_gtk4 import row_labels  # noqa: E402
+from netcross_gtk4.bpf_panel import (  # noqa: E402
+    doit_desolidariser_le_menu,
+    indice_apres_deplacement,
+    indice_du_filtre_nomme,
+    infobulle_du_menu,
+    noms_du_menu,
+    selection_apres_choix,
+    valider_sauvegarde,
+)
 from netcross_gtk4.dashboard_context import (  # noqa: E402
     DashboardSelection,
     build_dashboard_snapshot,
@@ -121,6 +129,20 @@ def _visible_scroller(vexpand=True):
 # Separes des methodes MainWindow pour rester testables sans instancier GTK.
 
 
+def _nombre_de_lignes(listbox):
+    """Nombre de lignes d'un `Gtk.ListBox`.
+
+    GTK n'expose pas de compteur : on avance jusqu'a ce que
+    `get_row_at_index` renvoie None. Isole ici pour que les bornes de
+    deplacement s'appuient sur le vrai nombre de lignes plutot que sur le
+    comportement d'insertion du conteneur (cf. `indice_apres_deplacement`).
+    """
+    nombre = 0
+    while listbox.get_row_at_index(nombre) is not None:
+        nombre += 1
+    return nombre
+
+
 class CaptureRow(Gtk.Box):
     """Une ligne = un point de capture (nom + fichier), reordonnable."""
 
@@ -160,20 +182,26 @@ class CaptureRow(Gtk.Box):
         self.append(remove_btn)
 
     def _on_up(self, _btn):
-        row = self.get_parent()
-        listbox = row.get_parent()
-        idx = row.get_index()
-        if idx > 0:
-            listbox.remove(row)
-            listbox.insert(row, idx - 1)
-            listbox.select_row(row)
+        self._deplacer(vers_le_haut=True)
 
     def _on_down(self, _btn):
+        self._deplacer(vers_le_haut=False)
+
+    def _deplacer(self, *, vers_le_haut):
+        """Deplace la ligne d'un cran, ou ne fait rien si elle est au bord.
+
+        Les deux sens partagent maintenant la meme borne : l'ancien code
+        gardait la montee (`if idx > 0`) mais pas la descente, qui ne restait
+        en place que parce que GTK append quand la position depasse la
+        longueur. Voir `indice_apres_deplacement`.
+        """
         row = self.get_parent()
         listbox = row.get_parent()
-        idx = row.get_index()
+        cible = indice_apres_deplacement(row.get_index(), _nombre_de_lignes(listbox), vers_le_haut)
+        if cible is None:
+            return
         listbox.remove(row)
-        listbox.insert(row, idx + 1)
+        listbox.insert(row, cible)
         listbox.select_row(row)
 
     def _on_remove(self, _btn):
@@ -285,8 +313,8 @@ class LiveCaptureRow(Gtk.Box):
         self._filters = list(filters)
         self._syncing_dropdown = True
         try:
-            names = [_FILTER_PICKER_TITLE] + [flt.name for flt in self._filters]
-            self.filter_dropdown.set_model(Gtk.StringList.new(names))
+            noms = noms_du_menu(self._filters, _FILTER_PICKER_TITLE)
+            self.filter_dropdown.set_model(Gtk.StringList.new(noms))
         finally:
             self._syncing_dropdown = False
         self._select_filter_index(0)
@@ -299,26 +327,21 @@ class LiveCaptureRow(Gtk.Box):
             self.filter_dropdown.set_selected(index)
         finally:
             self._syncing_dropdown = False
-        if 0 < index <= len(self._filters):
-            flt = self._filters[index - 1]
-            self.filter_dropdown.set_tooltip_text(flt.description or flt.name)
-        else:
-            self.filter_dropdown.set_tooltip_text(_FILTER_PICKER_HINT)
+        self.filter_dropdown.set_tooltip_text(infobulle_du_menu(index, self._filters, _FILTER_PICKER_HINT))
 
     def _on_filter_picked(self, dropdown, _pspec):
         if self._syncing_dropdown:
             return
-        index = dropdown.get_selected()
-        if not 0 < index <= len(self._filters):
+        index, expression = selection_apres_choix(dropdown.get_selected(), self._filters)
+        if index is None:
             return
         self._select_filter_index(index)
-        self.filter_entry.set_text(self._filters[index - 1].expression)
+        self.filter_entry.set_text(expression)
 
     def _on_filter_text_changed(self, entry):
         """Le champ a ete edite a la main : le menu ne doit plus annoncer un
         filtre dont le texte n'est plus celui du champ."""
-        index = self.filter_dropdown.get_selected()
-        if 0 < index <= len(self._filters) and entry.get_text().strip() != self._filters[index - 1].expression:
+        if doit_desolidariser_le_menu(self.filter_dropdown.get_selected(), self._filters, entry.get_text()):
             self._select_filter_index(0)
 
     def _build_save_popover(self):
@@ -352,19 +375,18 @@ class LiveCaptureRow(Gtk.Box):
         return self._save_popover
 
     def _on_save_filter_clicked(self, _widget):
-        expression = self.filter_entry.get_text().strip()
         name = self._save_name_entry.get_text().strip()
-        if not expression:
-            self._save_status.set_text("Le champ filtre BPF est vide : rien a enregistrer.")
-            return
-        if not name:
-            self._save_status.set_text("Donnez un nom au filtre.")
-            return
-        if self._on_save_filter is None:
-            self._save_status.set_text("Sauvegarde des filtres indisponible.")
+        demande = valider_sauvegarde(
+            self.filter_entry.get_text(),
+            name,
+            self._save_desc_entry.get_text(),
+            sauvegarde_possible=self._on_save_filter is not None,
+        )
+        if not demande.acceptee:
+            self._save_status.set_text(demande.message)
             return
         try:
-            self._on_save_filter(BPFFilter(name, expression, self._save_desc_entry.get_text().strip()))
+            self._on_save_filter(demande.filtre)
         except (OSError, ValueError) as exc:
             self._save_status.set_text(str(exc))
             return
@@ -374,10 +396,9 @@ class LiveCaptureRow(Gtk.Box):
         self._save_popover.popdown()
         # Le panneau a rafraichi les menus (selection sur le titre) : on
         # repositionne CETTE ligne sur le filtre qu'elle vient d'enregistrer.
-        for i, flt in enumerate(self._filters, start=1):
-            if flt.name.casefold() == name.casefold():
-                self._select_filter_index(i)
-                break
+        indice = indice_du_filtre_nomme(name, self._filters)
+        if indice is not None:
+            self._select_filter_index(indice)
 
     def _on_up(self, _btn):
         row = self.get_parent()

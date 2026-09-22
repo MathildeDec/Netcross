@@ -8,6 +8,10 @@ et le projet adhère au [SemVer](https://semver.org/lang/fr/).
 ## [Unreleased]
 
 ### Ajouté
+- `netcross_gtk4/bpf_panel.py` — décisions du panneau de filtres BPF de la
+  capture live extraites de `app.py` et couvertes à **100 %** (62 tests) :
+  conversion indice de menu ↔ filtre, infobulle, désolidarisation du menu sur
+  édition manuelle, validation d'enregistrement, bornes de déplacement (#285)
 - `tests/test_history_cli.py` et `tests/test_cli_entrypoints.py` — première
   couverture des points d'entrée : `cross_history_cli.py` **0 % → 100 %**,
   analyzer 54,5 % → 61,3 %, diff 60,6 % → 62,4 %. Inventaire des codes de
@@ -53,6 +57,10 @@ et le projet adhère au [SemVer](https://semver.org/lang/fr/).
 - `docs/fingerprints-ja4-hassh.md` (#259)
 
 ### Corrigé
+- Le bouton « Descendre » d'une ligne de capture n'avait pas la borne que
+  « Monter » avait : il insérait au-delà de la fin sur la dernière ligne et ne
+  restait en place que parce que GTK ajoute silencieusement en fin de liste.
+  Les deux sens partagent désormais la même borne explicite (#285)
 - Une base d'historique invalide (`--history-db` / `--db` pointant sur un
   fichier qui n'est pas du SQLite) faisait remonter `sqlite3.DatabaseError` en
   trace Python. Sur l'analyzer et le diff, l'historique étant écrit **à la fin**
