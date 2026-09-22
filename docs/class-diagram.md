@@ -48,21 +48,21 @@ du graphe de dépendances ci-dessus (qui ne compte que des `import`).
 
 ```mermaid
 flowchart LR
-    CaptureInfo["CaptureInfo"]
-    ClientReport["ClientReport"]
-    DiffFinding["DiffFinding"]
-    EvidenceLink["EvidenceLink"]
-    ExpertEvent["ExpertEvent"]
-    Finding["Finding"]
-    FlowView["FlowView"]
-    Flow["Flow"]
-    InterfaceRecord["InterfaceRecord"]
-    LiveDiffState["LiveDiffState"]
-    Pkt["Pkt"]
-    Report["Report"]
-    SegmentScore["SegmentScore"]
-    _Detector["_Detector"]
-    netcross_core_security_expert_correlation__FlowState["netcross_core_security_expert_correlation__FlowState"]
+    CaptureInfo["pcap_parser.capinfos_source.CaptureInfo"]
+    ClientReport["netcross_core.client_diff.ClientReport"]
+    DiffFinding["netcross_core.baseline_diff.DiffFinding"]
+    EvidenceLink["netcross_core.expert_model.EvidenceLink"]
+    ExpertEvent["netcross_core.expert_model.ExpertEvent"]
+    Finding["netcross_report.synthesis.Finding"]
+    FlowView["netcross_core.flow_view.FlowView"]
+    Flow["netcross_core.expert_model.Flow"]
+    InterfaceRecord["pcap_parser.capfile.InterfaceRecord"]
+    LiveDiffState["netcross_core.live_diff.LiveDiffState"]
+    Pkt["netcross_core.models.Pkt"]
+    Report["netcross_core.models.Report"]
+    SegmentScore["netcross_report.triage.SegmentScore"]
+    _Detector["netcross_core.exploit_signatures._Detector"]
+    netcross_core_security_expert_correlation__FlowState["netcross_core.security.expert_correlation._FlowState"]
     CaptureInfo -->|interfaces| InterfaceRecord
     ClientReport -->|report| Report
     DiffFinding -->|evidence| EvidenceLink
