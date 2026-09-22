@@ -21,9 +21,12 @@ from netcross_core.content import extract_http_objects
 from netcross_core.correlate import TOPN_DIMENSIONS, compute_throughput, compute_topn_series
 from netcross_core.extract.carver import detect_extracted_files
 from netcross_core.forensic import detect_sequence_gaps
+from netcross_core.logging_config import get_logger
 from netcross_core.models import Pkt, Report
 from netcross_core.parsing import compute_mos
 from netcross_core.security.expert_correlation import apply_expert_correlation
+
+logger = get_logger(__name__)
 
 
 def analyse(
@@ -51,6 +54,7 @@ def analyse(
     if exclude_duplicates:
         all_packets = [pk for pk in all_packets if not pk.is_duplicate]
         flows = _without_duplicates(flows)
+    logger.info("analyse : {} points, {} flux, {} paquets", len(points_order or []), len(flows), len(all_packets))
     points = points_order or sorted({pt for f in flows.values() for pt in f})
 
     topo_edges, topo_ambiguous, topo_isolated, topo_branch, topo_merge = _infer_topology(flows, points)
