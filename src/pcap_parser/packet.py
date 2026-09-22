@@ -181,6 +181,16 @@ class RawPacket:
     tls_cert_not_after: str | None
     tls_cert_san: tuple[str, ...] | None
     tls_cert_serial: str | None
+    # -- certificat TLS (SCENARIO-7, issue #153) -- champs étendus pour
+    # l'audit des certificats (émetteur, sujet, algorithme de signature,
+    # type/taille de clé, SAN IP, longueur de chaîne).
+    tls_cert_issuer: str | None
+    tls_cert_subject: str | None
+    tls_cert_sig_hash: str | None
+    tls_cert_key_type: str | None
+    tls_cert_key_bits: int | None
+    tls_cert_san_ip: tuple[str, ...] | None
+    tls_cert_chain_len: int | None
     # TLS (Session 54) -- PROGRESSION du handshake, concept different du
     # certificat ci-dessus (voir extract_tls_handshake pour le detail
     # complet) : simples booleens NATIFS -- ce paquet porte-t-il (au
@@ -493,6 +503,9 @@ def build_packet(ts_seconds: float, layers: dict) -> RawPacket | None:
     http_content_length = None
     http_is_request = http_is_response = False
     tls_cert_not_before = tls_cert_not_after = tls_cert_san = tls_cert_serial = None
+    tls_cert_issuer = tls_cert_subject = None
+    tls_cert_sig_hash = tls_cert_key_type = None
+    tls_cert_key_bits = tls_cert_san_ip = tls_cert_chain_len = None
     tls_client_hello = tls_server_hello = tls_application_data = False
     payload = b""
     expert_flags: tuple[str, ...] = ()
@@ -656,6 +669,13 @@ def build_packet(ts_seconds: float, layers: dict) -> RawPacket | None:
             tls_cert_not_after = tls_cert["not_after"]
             tls_cert_san = tls_cert["san"]
             tls_cert_serial = _intern(tls_cert["serial"])
+            tls_cert_issuer = _intern(tls_cert.get("issuer"))
+            tls_cert_subject = _intern(tls_cert.get("subject"))
+            tls_cert_sig_hash = _intern(tls_cert.get("sig_hash"))
+            tls_cert_key_type = _intern(tls_cert.get("key_type"))
+            tls_cert_key_bits = tls_cert.get("key_bits")
+            tls_cert_san_ip = tls_cert.get("san_ip")
+            tls_cert_chain_len = tls_cert.get("chain_len")
 
         # Session 54 -- fonction separee (voir sa docstring), meme garde
         # d'entree (TCP requis mais pas suffisant, extract_tls_handshake
@@ -760,6 +780,13 @@ def build_packet(ts_seconds: float, layers: dict) -> RawPacket | None:
         tls_cert_not_after=tls_cert_not_after,
         tls_cert_san=tls_cert_san,
         tls_cert_serial=tls_cert_serial,
+        tls_cert_issuer=tls_cert_issuer,
+        tls_cert_subject=tls_cert_subject,
+        tls_cert_sig_hash=tls_cert_sig_hash,
+        tls_cert_key_type=tls_cert_key_type,
+        tls_cert_key_bits=tls_cert_key_bits,
+        tls_cert_san_ip=tls_cert_san_ip,
+        tls_cert_chain_len=tls_cert_chain_len,
         tls_client_hello=tls_client_hello,
         tls_server_hello=tls_server_hello,
         tls_application_data=tls_application_data,

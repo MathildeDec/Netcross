@@ -11,7 +11,7 @@
 > Il remplace l'ancienne section 3 de `docs/features-backlog.md`, tenue à la main, qui avait dérivé
 > (voir `docs/sessions/session-36.md`, issue #140).
 
-108 modules · 147 classes · 310 fonctions publiques de module.
+109 modules · 150 classes · 314 fonctions publiques de module.
 
 Conventions : `+` public, `-` privé (préfixe `_`) ; `int?` = `int | None` ; `list~str~` = `list[str]` ;
 `<<module>>` regroupe les fonctions publiques d'un module ; `A --> B : champ` = `A` a un champ annoté
@@ -36,7 +36,7 @@ flowchart TD
     netcross_gtk4 -->|"10 imports"| netcross_report
     netcross_gtk4 -->|"18 imports"| netcross_core
     netcross_report -->|"11 imports"| netcross_core
-    netcross_core -->|"14 imports"| pcap_parser
+    netcross_core -->|"15 imports"| pcap_parser
 ```
 
 ## Relations inter-modules
@@ -279,6 +279,13 @@ classDiagram
         +str? tls_cert_not_after
         +tuple~str, ...~? tls_cert_san
         +str? tls_cert_serial
+        +str? tls_cert_issuer
+        +str? tls_cert_subject
+        +str? tls_cert_sig_hash
+        +str? tls_cert_key_type
+        +int? tls_cert_key_bits
+        +tuple~str, ...~? tls_cert_san_ip
+        +int? tls_cert_chain_len
         +bool tls_client_hello
         +bool tls_server_hello
         +bool tls_application_data
@@ -971,6 +978,13 @@ classDiagram
         +str? tls_cert_not_after
         +tuple~str, ...~? tls_cert_san
         +str? tls_cert_serial
+        +str? tls_cert_issuer
+        +str? tls_cert_subject
+        +str? tls_cert_sig_hash
+        +str? tls_cert_key_type
+        +int? tls_cert_key_bits
+        +tuple~str, ...~? tls_cert_san_ip
+        +int? tls_cert_chain_len
         +bool tls_client_hello
         +bool tls_server_hello
         +bool tls_application_data
@@ -1732,6 +1746,7 @@ classDiagram
 | `netcross_core.security.flow_stats` | issue #145 (FLOW-4, parent #141) : analyse statistique des flux pour detecter les comportements anormaux. |
 | `netcross_core.security.lateral_movement` | issue #149 (SCENARIO-3, parent #141) : detection de mouvements latéraux internes (scans réseau, propagation, brute force, protocoles inhabituels, nouvelles connexions). |
 | `netcross_core.security.protocol_mismatch` | issue #142 (FLOW-1, parent #141) : detection des flux cachés où un protocole utilise un port non standard (SSH sur 443, DNS sur 443, HTTP sur 22, etc.). |
+| `netcross_core.security.tls_audit` | issue #153 (SCENARIO-7, parent #141) : audit des certificats TLS presentes par les serveurs (expires, auto-signes, algorithmes faibles, validite excessive, noms suspects, chaine incomplete). |
 
 ### Diagramme
 
@@ -2005,11 +2020,12 @@ classDiagram
         +anomaly_findings(suspicions) list~dict~str, Any~~
         +dns_tunnel_findings(suspicions) list~dict~str, Any~~
         +beaconing_findings(suspicions) list~dict~str, Any~~
+        +tls_audit_findings(audit) list~dict~str, Any~~
         +lateral_movement_findings(events) list~dict~str, Any~~
         +cve_findings(fingerprints, conn) list~dict~str, Any~~
         +dga_findings(alerts) list~dict~str, Any~~
         +fast_flux_findings(alerts) list~dict~str, Any~~
-        +apply_security_findings(report, all_packets, detections, cve_conn) None
+        +apply_security_findings(report, all_packets, detections, cve_conn, tls_policy) None
     }
 
     %% ===== netcross_core.security.flow_stats =====
@@ -2093,6 +2109,41 @@ classDiagram
         +detect_protocol_mismatches(packets) list~dict~str, Any~~
         +count_protocol_mismatches(packets) dict~str, dict~str, int~~
         +protocol_mismatch_findings(mismatches) list~dict~str, Any~~
+    }
+
+    %% ===== netcross_core.security.tls_audit =====
+    class TlsAuditPolicy {
+        <<dataclass, frozen>>
+        +int? max_validity_days
+        +int min_rsa_bits
+        +int min_dsa_bits
+        +int min_ec_bits
+        +frozenset~str~ broken_hashes
+        +frozenset~str~ deprecated_hashes
+        +int max_name_len
+        +int random_min_label_len
+        +float random_min_entropy_bits
+        +Mapping~str, str~ severities
+        +frozenset~str~ disabled
+        +severity(code) str
+        +enabled(code) bool
+    }
+    class TlsIssue {
+        <<dataclass, frozen>>
+        +str code
+        +str severity
+        +str detail
+    }
+    class TlsAuditResult {
+        <<dataclass>>
+        +list~dict~ certificates
+        +list~dict~ servers
+    }
+    class mod_netcross_core_security_tls_audit["netcross_core.security.tls_audit"] {
+        <<module>>
+        +parse_cert_date(value) datetime?
+        +audit_certificate(pk, policy) list~TlsIssue~
+        +audit_tls_certificates(packets, policy) TlsAuditResult
     }
 
     %% ===== relations =====
