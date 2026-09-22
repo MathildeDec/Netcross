@@ -184,6 +184,35 @@ def test_ja4_alpn_code_premiere_valeur_seulement():
     assert ja4[8:10] == "h2"  # premiere valeur ALPN = "h2"
 
 
+def test_ja4_sans_signature_algorithms_pas_de_underscore_final():
+    # Regression (issue #259) : trouve par comparaison avec ja4plus (implementation
+    # tierce validee contre les vecteurs de test officiels FoxIO) -- sans extension
+    # signature_algorithms, JA4_c hache la liste d'extensions SEULE, sans "_" final.
+    hello = _client_hello_record([0x1301, 0xC02F], _supported_versions_ext([0x0303]))
+    ch = tls_ja4.parse_client_hello(hello)
+    ja4 = tls_ja4.compute_ja4(ch)
+    assert ja4 == "t12i020100_c1929292aa6b_b9a491fefe05"
+
+
+def test_ja4_sans_extension_ni_sigalgs_sentinelle_zero():
+    # Regression (issue #259) : quand il ne reste rien a hacher pour JA4_c
+    # (aucune extension hors SNI/ALPN/GREASE, pas de signature_algorithms),
+    # la reference n'utilise PAS le SHA256 d'une chaine vide mais la
+    # sentinelle "000000000000".
+    hello = _client_hello_record([0x1301], b"")
+    ch = tls_ja4.parse_client_hello(hello)
+    ja4 = tls_ja4.compute_ja4(ch)
+    assert ja4.endswith("_000000000000")
+
+
+def test_ja4_sans_ciphers_sentinelle_zero():
+    hello = _client_hello_record([], _sni_ext())
+    ch = tls_ja4.parse_client_hello(hello)
+    ja4 = tls_ja4.compute_ja4(ch)
+    parts = ja4.split("_")
+    assert parts[1] == "000000000000"
+
+
 def test_identify_sur_client_hello_renvoie_ja4_et_forme_lisible():
     result = tls_ja4.identify(_CURL_LIKE_HELLO)
     assert result is not None
