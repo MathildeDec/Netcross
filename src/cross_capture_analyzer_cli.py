@@ -113,6 +113,7 @@ import signal
 import sys
 import threading
 import time
+from datetime import datetime, timezone
 
 from netcross_core import (
     adjust_timestamps,
@@ -139,6 +140,17 @@ from netcross_core.forensic import DEFAULT_DUPLICATE_THRESHOLD_MS, detect_cross_
 from netcross_core.logging_config import get_logger
 from netcross_core.security import close_db, connect_cve_db
 from netcross_core.security import findings as security_findings
+from netcross_core.support import (
+    SCOPES as SUPPORT_SCOPES,
+)
+from netcross_core.support import (
+    Consent,
+    TextScrubber,
+    build_ticket,
+    install_crash_handler,
+    write_support_map_csv,
+    write_ticket,
+)
 from netcross_report.security_report import build_security_report, print_security_report
 from pcap_parser.ek_source import TsharkError, TsharkNotFoundError
 
@@ -510,6 +522,71 @@ def _run_live_captures(live_specs, duration):
     for label, _iface, _bpf in points:
         all_packets.extend(packets_by_point[label])
     return all_packets
+
+
+def _build_support_consent(args) -> Consent:
+    """Traduit les drapeaux --support-* en un objet Consent (issue #269).
+
+    Sort en erreur si --support-ticket est demande sans --support-consent :
+    mieux vaut un refus bruyant en debut de run qu'un ticket silencieusement
+    non ecrit a la fin, apres une analyse de plusieurs minutes.
+    """
+    if not args.support_ticket:
+        if args.support_consent or args.support_scope or args.support_map or args.support_marker:
+            print(
+                "--support-consent/--support-scope/--support-map/--support-marker necessitent --support-ticket.",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        return Consent(granted=False)
+
+    if not args.support_consent:
+        print(
+            "--support-ticket necessite --support-consent : la remontee d'un ticket "
+            "exige une autorisation explicite (issue #269). Le ticket est anonymise "
+            "(voir netcross_core.support.scrubber) mais reste votre decision.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+
+    if args.support_map and not args.support_ticket:
+        print("--support-map necessite --support-ticket.", file=sys.stderr)
+        sys.exit(1)
+
+    scopes = SUPPORT_SCOPES
+    if args.support_scope:
+        demandees = tuple(s.strip() for s in args.support_scope.split(",") if s.strip())
+        inconnues = [s for s in demandees if s not in SUPPORT_SCOPES]
+        if inconnues:
+            print(
+                f"--support-scope : portee(s) inconnue(s) {', '.join(inconnues)} "
+                f"(attendu parmi : {', '.join(SUPPORT_SCOPES)}).",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        scopes = demandees
+
+    return Consent(
+        granted=True,
+        scopes=scopes,
+        granted_at=datetime.now(timezone.utc).isoformat(timespec="seconds"),
+        source="cli",
+    )
+
+
+def _parse_support_markers(specs) -> dict[str, str]:
+    """``["trace_id=T-042"]`` -> ``{"trace_id": "T-042"}``."""
+    markers: dict[str, str] = {}
+    for spec in specs or []:
+        if "=" not in spec:
+            print(
+                f"--support-marker : format attendu CLE=VALEUR, recu {spec!r}.",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        cle, valeur = spec.split("=", 1)
+        markers[cle.strip()] = valeur.strip()
+    return markers
 
 
 def main():
@@ -912,6 +989,51 @@ def main():
         "par un tiers).",
     )
     ap.add_argument(
+        "--support-ticket",
+        metavar="CHEMIN",
+        help="Ecrit un ticket de support ANONYMISE (JSON) : contexte technique, "
+        "erreurs de traitement, et trace d'appels en cas de crash. Tout le "
+        "texte libre passe par netcross_core.support.scrubber (IP, MAC, "
+        "emails, URL, FQDN, noms de capture, repertoires personnels, "
+        "secrets). NECESSITE --support-consent : sans accord explicite, rien "
+        "n'est ecrit. Un ticket est produit meme quand tout s'est bien passe "
+        "(nature 'diagnostic') -- voir docs/quality/traceability-rule.md.",
+    )
+    ap.add_argument(
+        "--support-consent",
+        action="store_true",
+        help="Autorisation explicite de produire le ticket demande par "
+        "--support-ticket (issue #269). Sans ce drapeau, --support-ticket "
+        "refuse d'ecrire.",
+    )
+    ap.add_argument(
+        "--support-scope",
+        metavar="PORTEES",
+        help="Restreint le contenu du ticket a une liste de portees separees "
+        "par des virgules parmi : environnement, journal, trace_appels, "
+        "marqueurs (defaut : toutes). Ce qui n'est pas autorise est absent "
+        "du ticket, et son absence y est tracee explicitement.",
+    )
+    ap.add_argument(
+        "--support-map",
+        metavar="CHEMIN",
+        help="Avec --support-ticket : ecrit la correspondance valeur reelle "
+        "<-> pseudonyme du ticket dans un CSV local. Meme discipline que "
+        "--redact-map : a conserver en prive, ne JAMAIS le transmettre avec "
+        "le ticket, sinon l'anonymisation est annulee.",
+    )
+    ap.add_argument(
+        "--support-marker",
+        metavar="CLE=VALEUR",
+        action="append",
+        help="Marqueur de correlation a joindre au ticket, repetable "
+        "(ex: --support-marker trace_id=T-042 --support-marker "
+        "capture_id=C-7). Sert a relier un ticket a une trace precise de la "
+        "campagne de tests sans exposer son nom reel (voir "
+        "docs/quality/anonymization-plan.md). Un run_id est genere "
+        "automatiquement s'il n'est pas fourni.",
+    )
+    ap.add_argument(
         "--history-db",
         metavar="CHEMIN",
         help="Enregistre un resume de ce run (score de sante, nombre de "
@@ -1261,6 +1383,14 @@ def main():
     if (args.history_label or args.history_show is not None) and not args.history_db:
         print("--history-label/--history-show necessitent --history-db.", file=sys.stderr)
         sys.exit(1)
+
+    # --support-ticket (issue #269) : le consentement est une PRECONDITION,
+    # pas un avertissement -- sans --support-consent, on ne construit meme
+    # pas le ticket, donc rien ne peut fuiter par accident.
+    support_consent = _build_support_consent(args)
+    support_markers = _parse_support_markers(args.support_marker)
+    if args.support_ticket:
+        install_crash_handler(args.support_ticket, support_consent, markers=support_markers)
 
     client_group = None
     if args.client_group:
@@ -1629,6 +1759,35 @@ def main():
         if args.history_show is not None:
             entries = list_history(args.history_db, limit=args.history_show, label=args.history_label)
             print_history(entries)
+
+    # --support-ticket (issue #269) : le run s'est termine SANS crash (le
+    # gestionnaire installe plus haut aurait pris la main sinon), donc le
+    # ticket produit ici est de nature "diagnostic". Il est ecrit meme
+    # lorsque tout va bien : c'est precisement la regle de tracabilite du
+    # projet -- attester explicitement du bon fonctionnement plutot que de
+    # n'ecrire que lorsque ca casse (docs/quality/traceability-rule.md).
+    if args.support_ticket:
+        scrubber = TextScrubber()
+        ticket = build_ticket(
+            consent=support_consent,
+            kind="diagnostic",
+            markers=support_markers,
+            log_lines=[
+                f"captures analysees : {len(args.capture or [])}",
+                f"interfaces live : {len(args.live or [])}",
+                f"anonymisation des adresses (--redact) : {'oui' if args.redact else 'non'}",
+            ],
+            scrubber=scrubber,
+        )
+        write_ticket(ticket, args.support_ticket)
+        print(f"\nTicket de support anonymise ecrit : {args.support_ticket}")
+        print(
+            "  nature : diagnostic (aucun incident) -- "
+            f"{ticket.anonymization['total_occurrences']} occurrence(s) redigee(s)"
+        )
+        if args.support_map:
+            write_support_map_csv(scrubber, args.support_map)
+            print(f"  correspondance privee : {args.support_map} (a NE PAS transmettre avec le ticket)")
 
 
 if __name__ == "__main__":
