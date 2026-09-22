@@ -13,6 +13,38 @@ que pour un contexte spécifique, pas systématiquement.
 
 ## État courant
 
+- **Rapport de sécurité consolidé (`--security-report`/`--cve-db`, issue
+  #139/CVE-5, parent #133)** : câblé, testé sur de vrais PCAPs tshark et
+  documenté dans `README.md` (PR #214) et `docs/security-report.md`,
+  mais jusqu'ici jamais mentionné dans ce fichier — corrigé (issue
+  #216). `--security-report` (+ `--cve-db chemin.db` optionnel, base
+  SQLite locale construite par `scripts/import_nvd.py`, pour la
+  corrélation version -> CVE) relit les fichiers `--capture` pour
+  produire un rapport consolidé : services/versions détectés sur le fil
+  (CVE-1 #135, `netcross_core.application.banners`), tentatives
+  d'exploitation connues — Log4Shell, Shellshock, Heartbleed,
+  EternalBlue, compression TLS (CVE-2 #136,
+  `netcross_core.exploit_signatures`), anomalies Expert Info corrélées
+  — fuzzing/overflow/dos (CVE-3 #137,
+  `netcross_core.security.expert_correlation`), tunneling DNS (FLOW-3
+  #144, `netcross_core.security.dns_tunnel`), beaconing C2 (SCENARIO-1
+  #147, `netcross_core.security.beaconing`) et CVE confirmées par
+  version exacte + score CVSS (CVE-4 #138, corrélation contre la base
+  SQLite locale). L'agrégation vit dans
+  `netcross_core.security.findings.apply_security_findings()`, qui
+  peuple `Report.service_fingerprints`/`Report.security_findings` à
+  partir de ces détecteurs (le rendu, lui, ne détecte rien :
+  `netcross_report.security_report` lit ces deux listes à plat) — voir
+  `docs/security-report.md` pour l'architecture complète et le tableau
+  de bord par sévérité. Incompatible avec `--live`/`--redact` (les
+  signatures d'exploits sont cherchées dans la charge utile brute des
+  fichiers `--capture`, jamais depuis du trafic anonymisé ou capturé en
+  direct) et avec les modes utilitaires `--merge`/`--split`/`--replay`.
+  **CVE-1 (#135) est désormais clôturée** — contrairement à ce
+  qu'affirmait encore la version précédente de cette note : les quatre
+  détecteurs CVE-1..4 du parent #133 sont tous livrés, en plus du
+  rapport consolidé CVE-5 (#139) lui-même et des deux détections
+  d'anomalies FLOW-3/SCENARIO-1 qui s'y sont greffées depuis.
 - **1150/1150 tests** (`pytest`), suite complète rejouée à chaque
   session avant tout nouveau code. Outillage qualité (`ruff`,
   `import-linter`, `mypy` sur les fichiers modifiés) intégralement
