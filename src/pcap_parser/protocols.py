@@ -15,6 +15,17 @@ from __future__ import annotations
 
 from pcap_parser.ek_fields import as_bool, as_float, g, hex_or_dec_to_int, innermost
 
+try:  # cryptography est une dependance du projet ; son absence degrade l'extraction, ne la casse pas
+    from cryptography import x509 as _x509
+    from cryptography.exceptions import UnsupportedAlgorithm as _UnsupportedAlgorithm
+    from cryptography.hazmat.primitives.asymmetric import dsa as _dsa
+    from cryptography.hazmat.primitives.asymmetric import ec as _ec
+    from cryptography.hazmat.primitives.asymmetric import ed448 as _ed448
+    from cryptography.hazmat.primitives.asymmetric import ed25519 as _ed25519
+    from cryptography.hazmat.primitives.asymmetric import rsa as _rsa
+except ImportError:  # pragma: no cover - exercee seulement sans cryptography
+    _x509 = None  # type: ignore[assignment]
+
 # Table de correspondance code -> nom, cf. RFC 2132 section 9.6 (option
 # 53, DHCP Message Type). Wireshark ne rend que le code numerique en EK
 # (dhcp_dhcp_type), le nommage etait auparavant fait a la main.
@@ -271,6 +282,85 @@ def extract_http(layers: dict) -> dict | None:
     }
 
 
+# OID de signature que `cryptography` ne sait pas mapper vers un hash (il leve
+# UnsupportedAlgorithm) mais qui doivent quand meme etre reconnus comme faibles.
+_UNMAPPED_SIGNATURE_HASHES = {
+    "1.2.840.113549.1.1.2": "md2",  # md2WithRSAEncryption
+    "1.2.840.113549.1.1.3": "md4",  # md4WithRSAEncryption
+}
+
+
+def _public_key_summary(cert) -> tuple[str | None, int | None]:
+    """(type, taille en bits) de la cle publique d'un certificat : "RSA"/"EC"/
+    "DSA"/"Ed25519"/"Ed448". La taille d'une courbe elliptique est celle de la
+    courbe (256 pour P-256), celle d'une cle EdDSA n'est pas significative
+    (None). (None, None) si la cle n'est pas decodable."""
+    try:
+        key = cert.public_key()
+    except (ValueError, _UnsupportedAlgorithm):
+        return None, None
+    if isinstance(key, _rsa.RSAPublicKey):
+        return "RSA", key.key_size
+    if isinstance(key, _ec.EllipticCurvePublicKey):
+        return "EC", key.curve.key_size
+    if isinstance(key, _dsa.DSAPublicKey):
+        return "DSA", key.key_size
+    if isinstance(key, _ed25519.Ed25519PublicKey):
+        return "Ed25519", None
+    if isinstance(key, _ed448.Ed448PublicKey):
+        return "Ed448", None
+    return type(key).__name__, None
+
+
+def _signature_hash(cert) -> str | None:
+    """Nom du hash de la signature du certificat ("sha256", "sha1", "md5"...),
+    None pour une signature sans hash separe (EdDSA) ou inconnue."""
+    try:
+        algo = cert.signature_hash_algorithm
+    except _UnsupportedAlgorithm:
+        return _UNMAPPED_SIGNATURE_HASHES.get(cert.signature_algorithm_oid.dotted_string)
+    return algo.name if algo is not None else None
+
+
+def _certificate_details(tls: dict) -> dict:
+    """Details X.509 du certificat FEUILLE, lus dans le DER brut que tshark
+    expose en EK (`tls.handshake.certificate`, une valeur hexadecimale par
+    certificat de la chaine, feuille en premier -- RFC 5246 7.4.2).
+
+    Complete `extract_tls_certificate` la ou le flux EK aplati est ambigu
+    (Subject/Issuer, algorithmes, cle) : le DER de CHAQUE certificat est
+    parse individuellement, il n'y a donc plus de tableau positionnel partage
+    entre certificats. Verifie empiriquement sur des captures TLS 1.2
+    reelles (tshark 4.2.2) : chaine complete, feuille seule, auto-signe.
+
+    Renvoie un dict vide si le DER est absent ou illisible (ancienne version
+    de tshark, `cryptography` absent) -- l'appelant conserve alors les champs
+    historiques, jamais une valeur devinee."""
+    raw = g(tls, "tls_tls_handshake_certificate")
+    blobs = raw if isinstance(raw, list) else ([raw] if raw else [])
+    if not blobs or _x509 is None:
+        return {}
+    try:
+        leaf = _x509.load_der_x509_certificate(bytes.fromhex(str(blobs[0]).replace(":", "")))
+    except ValueError:
+        return {}
+    key_type, key_bits = _public_key_summary(leaf)
+    try:
+        san = leaf.extensions.get_extension_for_class(_x509.SubjectAlternativeName).value
+        san_ip = tuple(str(ip) for ip in san.get_values_for_type(_x509.IPAddress))
+    except (_x509.ExtensionNotFound, ValueError):
+        san_ip = ()
+    return {
+        "issuer": leaf.issuer.rfc4514_string(),
+        "subject": leaf.subject.rfc4514_string(),
+        "sig_hash": _signature_hash(leaf),
+        "key_type": key_type,
+        "key_bits": key_bits,
+        "san_ip": san_ip,
+        "chain_len": len(blobs),
+    }
+
+
 def extract_tls_certificate(layers: dict) -> dict | None:
     """
     Lit la dissection X.509 native de tshark au sein d'un message TLS
@@ -295,7 +385,17 @@ def extract_tls_certificate(layers: dict) -> dict | None:
     (hors de portee d'une capture reseau passive de toute facon, qui n'a
     pas acces au magasin de confiance du client).
 
-    N'extrait PAS Sujet/Emetteur (Subject/Issuer Distinguished Name) :
+    Depuis l'issue #153 (audit des certificats TLS), les champs Sujet/Emetteur,
+    algorithme de signature, cle publique, IP du SAN et longueur de chaine
+    sont ajoutes (cles "issuer", "subject", "sig_hash", "key_type",
+    "key_bits", "san_ip", "chain_len") en parsant le DER brut de chaque
+    certificat plutot que les tableaux EK aplatis -- voir
+    _certificate_details. Ces cles sont ABSENTES si le DER n'est pas
+    disponible. La justification ci-dessous reste vraie pour les champs EK
+    aplatis eux-memes, qui restent inutilises pour Subject/Issuer.
+
+    N'extrait PAS Sujet/Emetteur (Subject/Issuer Distinguished Name) via ces
+    champs EK aplatis :
     tshark les aplatit en EK dans des tableaux positionnels PARTAGES
     entre TOUTES les RDN de TOUS les certificats de la chaine
     (x509if.oid / x509sat.uTF8String / x509sat.CountryName...), sans
@@ -341,6 +441,7 @@ def extract_tls_certificate(layers: dict) -> dict | None:
         "not_after": dates[1],
         "san": san,
         "serial": serial,
+        **_certificate_details(tls),
     }
 
 
