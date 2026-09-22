@@ -18,6 +18,47 @@ from netcross_core.models import (
     SequenceGap,
 )
 
+# -- link type lisible (issue #263) -------------------------------------------
+
+# Codes DLT (Data Link Type) les plus courants, tels que numerotes par
+# libpcap. capinfos donne l'encapsulation sous forme de nom ("ether"),
+# le cadrage binaire du fichier donne le code numerique (1) : les deux
+# sources coexistent dans le rapport, et un lecteur n'a aucune raison de
+# connaitre la table par coeur. Liste volontairement courte -- libpcap en
+# definit plus de 250, seuls ceux qu'on rencontre reellement dans des
+# captures reseau d'entreprise sont traduits.
+_DLT_NAMES = {
+    0: "BSD loopback",
+    1: "Ethernet",
+    6: "IEEE 802.5 Token Ring",
+    9: "PPP",
+    105: "IEEE 802.11 (WiFi)",
+    113: "Linux cooked (SLL)",
+    127: "IEEE 802.11 radiotap",
+    141: "MTP2",
+    143: "DOCSIS",
+    147: "usage prive",
+    201: "Bluetooth HCI H4",
+    228: "IPv4 brut",
+    229: "IPv6 brut",
+    239: "Netlink NFLOG",
+    276: "Linux cooked v2 (SLL2)",
+}
+
+
+def _linktype_lisible(code) -> str:
+    """Rend un code DLT affichable : "1 (Ethernet)" si connu, "1" sinon.
+
+    Un code inconnu est affiche tel quel plutot que masque : mieux vaut un
+    nombre brut que rien du tout, et sa presence dans un rapport est
+    precisement ce qui permettra d'enrichir la table le jour ou un
+    utilisateur remonte une encapsulation exotique.
+    """
+    if code is None:
+        return "?"
+    nom = _DLT_NAMES.get(code)
+    return f"{code} ({nom})" if nom else str(code)
+
 
 def print_report(r: Report):
     print("=" * 70)
@@ -65,7 +106,20 @@ def print_report(r: Report):
             ftype = info.get("file_type") or "?"
             version = info.get("version") or "?"
             pkts = info.get("packet_count")
-            print(f"  {label} : {ftype} v{version}" + (f", {pkts} paquets" if pkts is not None else ""))
+            # encapsulation : link type au niveau FICHIER, tel que lu par
+            # capinfos ("ether"). Il etait extrait et propage jusqu'ici
+            # depuis le Job 38 mais jamais affiche (issue #263) -- or c'est
+            # la seule source de link type quand le cadrage binaire du
+            # fichier n'a pas pu etre lu (cas d'une capture compressee),
+            # auquel cas "interfaces" est vide et le detail par interface
+            # ci-dessous n'affiche rien du tout.
+            encap = info.get("encapsulation")
+            resume = f"  {label} : {ftype} v{version}"
+            if encap:
+                resume += f", encapsulation {encap}"
+            if pkts is not None:
+                resume += f", {pkts} paquets"
+            print(resume)
             snaplen = info.get("snaplen")
             if snaplen is not None:
                 print(f"      snaplen : {snaplen}")
@@ -90,9 +144,17 @@ def print_report(r: Report):
                 if dropped_os is not None:
                     parts.append(f"OS : {dropped_os}")
                 print(f"      paquets perdus ({', '.join(parts)})")
-            for iface in info.get("interfaces", []):
+            interfaces = info.get("interfaces", [])
+            if not encap and not interfaces:
+                # Regle de tracabilite du projet : une information absente
+                # est signalee, pas omise. Sans cette ligne, un rapport sur
+                # une capture dont ni capinfos ni le cadrage binaire n'ont
+                # livre le link type serait indistinguable d'un rapport ou
+                # la question ne se pose pas.
+                print("      link type : non renseigne (ni capinfos, ni cadrage du fichier)")
+            for iface in interfaces:
                 iface_name = iface.get("name") or f"iface{iface.get('index', '?')}"
-                iface_parts = [f"linktype {iface.get('linktype', '?')}"]
+                iface_parts = [f"linktype {_linktype_lisible(iface.get('linktype'))}"]
                 if iface.get("snaplen") is not None:
                     iface_parts.append(f"snaplen {iface['snaplen']}")
                 recv = iface.get("received")
