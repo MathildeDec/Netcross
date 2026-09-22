@@ -18,7 +18,10 @@ detecteurs dans le format de constat documente sur `Report` :
 - FLOW-3 (#144) `dns_tunnel.detect_dns_tunneling` -> constats `anomalie`
   (tunneling DNS : suspicion par domaine, ou volume DNS anormal) ;
 - SCENARIO-1 (#147) `beaconing.detect_beaconing` -> constats `anomalie`
-  (beaconing C2 : communications periodiques vers une destination externe).
+  (beaconing C2 : communications periodiques vers une destination externe) ;
+- SCENARIO-6 (#152) `dga.detect_dga` -> constats `anomalie` (domaines
+  generes algorithmiquement, DGA) et `fast_flux.detect_fast_flux` ->
+  constats `anomalie` (infrastructure a flux rapide, fast flux).
 
 Trois principes, pour respecter le critere d'acceptation « aucun faux
 positif sur trafic normal » :
@@ -51,7 +54,9 @@ from netcross_core.fingerprint.report import build_fingerprint_records
 from netcross_core.models import Pkt, Report
 from netcross_core.security import correlate_banner
 from netcross_core.security.beaconing import detect_beaconing
+from netcross_core.security.dga import detect_dga
 from netcross_core.security.dns_tunnel import detect_dns_tunneling
+from netcross_core.security.fast_flux import detect_fast_flux
 from netcross_core.security.protocol_mismatch import (
     count_protocol_mismatches,
     detect_protocol_mismatches,
@@ -203,6 +208,81 @@ def dns_tunnel_findings(suspicions: Iterable[dict]) -> list[dict[str, Any]]:
     return findings
 
 
+# -- SCENARIO-6 : DGA et fast flux -----------------------------------------
+
+_DGA_SIGNAL_LABELS = {
+    "high_entropy": "entropie elevee",
+    "unusual_ngrams": "bigrammes de caracteres inhabituels",
+    "long_label": "nom long",
+}
+
+
+def dga_findings(suspicions: Iterable[dict]) -> list[dict[str, Any]]:
+    """Un constat `anomalie` par suspicion de `dga.detect_dga` -- un
+    domaine dont au moins deux signaux (entropie, n-grams, longueur --
+    voir `dga.MIN_SIGNALS_FOR_SUSPICION`) convergent reste un INDICE a
+    confirmer (aucune liste de domaines DGA connus, aucune liste blanche
+    de domaines legitimes ne sont consultees)."""
+    findings = []
+    for s in suspicions:
+        signals = ", ".join(_DGA_SIGNAL_LABELS.get(sig, sig) for sig in s.get("signals") or [])
+        detail = (
+            f"suspicion de domaine DGA {s.get('domain', '?')} : {signals} "
+            f"-- longueur {s.get('length', 0)}, entropie {s.get('entropy', 0.0)} bits/car., "
+            f"score n-grams {s.get('ngram_score', 0.0)} bits/bigramme"
+        )
+        frames = ", ".join(str(f) for f in s.get("frames") or [])
+        if frames:
+            detail += f" -- trames {frames}"
+        findings.append(
+            {
+                "severity": s.get("severity") or "faible",
+                "category": "anomalie",
+                "detail": detail,
+                "point": s.get("point") or None,
+            }
+        )
+    return findings
+
+
+_FAST_FLUX_SIGNAL_LABELS = {
+    "ip_fanout": "nombreuses IP distinctes en peu de temps",
+    "short_ttl": "TTL DNS court",
+}
+
+
+def fast_flux_findings(suspicions: Iterable[dict]) -> list[dict[str, Any]]:
+    """Un constat `anomalie` par suspicion de
+    `fast_flux.detect_fast_flux` -- un domaine resolvant vers de
+    nombreuses adresses IP distinctes dans une fenetre courte, TTL court
+    corroborant ou non. Comme `dns_tunnel_findings`, un INDICE a
+    confirmer : du round-robin DNS legitime peut, sur une capture longue,
+    s'en approcher (voir les limites documentees dans `fast_flux.py`)."""
+    findings = []
+    for s in suspicions:
+        signals = ", ".join(_FAST_FLUX_SIGNAL_LABELS.get(sig, sig) for sig in s.get("signals") or [])
+        detail = (
+            f"suspicion de fast flux sur {s.get('domain', '?')} : {signals} "
+            f"-- {s.get('distinct_ips', 0)} adresse(s) distincte(s) "
+            f"({s.get('max_ips_in_window', 0)} dans la fenetre la plus dense), "
+            f"{s.get('responses', 0)} reponse(s)"
+        )
+        if s.get("min_ttl") is not None:
+            detail += f", TTL minimal {s['min_ttl']}s"
+        frames = ", ".join(str(f) for f in s.get("frames") or [])
+        if frames:
+            detail += f" -- trames {frames}"
+        findings.append(
+            {
+                "severity": s.get("severity") or "faible",
+                "category": "anomalie",
+                "detail": detail,
+                "point": s.get("point") or None,
+            }
+        )
+    return findings
+
+
 # -- SCENARIO-1 : beaconing C2 ---------------------------------------------
 
 _BEACON_SIGNAL_LABELS = {
@@ -300,8 +380,9 @@ def apply_security_findings(
     connexion a la base CVE locale (CVE-4) ; None = pas de correlation CVE
     (les services restent listes, sans criticite). Les suspicions Expert
     Info (CVE-3) sont lues sur `report.exploit_suspicion_flows`, deja
-    calcule par `analyse()` ; le tunneling DNS (FLOW-3) et le beaconing C2
-    (SCENARIO-1) sont calcules ici depuis `all_packets`.
+    calcule par `analyse()` ; le tunneling DNS (FLOW-3), le beaconing C2
+    (SCENARIO-1) et les domaines DGA/le fast flux (SCENARIO-6) sont
+    calcules ici depuis `all_packets`.
 
     `service_fingerprints` contient aussi les empreintes JA4/HASSH
     (issue #143, FLOW-2) -- integration demandee avec CVE-1 (#135) : ce
@@ -322,6 +403,8 @@ def apply_security_findings(
         + dns_tunnel_findings(detect_dns_tunneling(all_packets).suspicions)
         + beaconing_findings(detect_beaconing(all_packets).suspicions)
         + protocol_mismatch_findings(protocol_mismatch_details)
+        + dga_findings(detect_dga(all_packets).suspicions)
+        + fast_flux_findings(detect_fast_flux(all_packets).suspicions)
     )
     if cve_conn is not None:
         findings += cve_findings(report.service_fingerprints, cve_conn)
