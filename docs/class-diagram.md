@@ -11,7 +11,7 @@
 > Il remplace l'ancienne section 3 de `docs/features-backlog.md`, tenue à la main, qui avait dérivé
 > (voir `docs/sessions/session-36.md`, issue #140).
 
-100 modules · 132 classes · 292 fonctions publiques de module.
+101 modules · 135 classes · 299 fonctions publiques de module.
 
 Conventions : `+` public, `-` privé (préfixe `_`) ; `int?` = `int | None` ; `list~str~` = `list[str]` ;
 `<<module>>` regroupe les fonctions publiques d'un module ; `A --> B : champ` = `A` a un champ annoté
@@ -1163,6 +1163,7 @@ classDiagram
         +list~dict~ security_findings
         +dict~str, dict~str, int~~ protocol_mismatches
         +list~dict~ protocol_mismatch_details
+        +list~dict~ lateral_movement_events
         +list~tuple~str, str, dict~~ topology_edges
         +list~tuple~str, str, str~~ topology_ambiguous
         +list~str~ topology_isolated
@@ -1604,6 +1605,7 @@ classDiagram
 | `netcross_core.security.expert_correlation` | issue #137 (CVE-3) : exploitation des alertes Expert Info de tshark pour DETECTER des tentatives d'exploitation (fuzzing, depassement de tampon, deni de service) a partir de paquets malformes et de… |
 | `netcross_core.security.findings` | alimentation de `Report.service_fingerprints` et `Report.security_findings` a partir des modules de detection CVE-1 a CVE-4 (issue #139, CVE-5, parent #133). |
 | `netcross_core.security.flow_stats` | issue #145 (FLOW-4, parent #141) : analyse statistique des flux pour detecter les comportements anormaux. |
+| `netcross_core.security.lateral_movement` | issue #149 (SCENARIO-3, parent #141) : detection de mouvements latéraux internes (scans réseau, propagation, brute force, protocoles inhabituels, nouvelles connexions). |
 | `netcross_core.security.protocol_mismatch` | issue #142 (FLOW-1, parent #141) : detection des flux cachés où un protocole utilise un port non standard (SSH sur 443, DNS sur 443, HTTP sur 22, etc.). |
 
 ### Diagramme
@@ -1815,6 +1817,7 @@ classDiagram
         +anomaly_findings(suspicions) list~dict~str, Any~~
         +dns_tunnel_findings(suspicions) list~dict~str, Any~~
         +beaconing_findings(suspicions) list~dict~str, Any~~
+        +lateral_movement_findings(events) list~dict~str, Any~~
         +cve_findings(fingerprints, conn) list~dict~str, Any~~
         +apply_security_findings(report, all_packets, detections, cve_conn) None
     }
@@ -1855,6 +1858,44 @@ classDiagram
         +analyze_flow_stats(packets, thresholds) FlowStatsResult
     }
 
+    %% ===== netcross_core.security.lateral_movement =====
+    class LateralMovementThresholds {
+        <<dataclass>>
+        +int port_scan_min_ports
+        +int port_scan_min_hosts
+        +bool scan_syn_only
+        +int host_scan_min_hosts
+        +int host_scan_consecutive_min
+        +int brute_force_min_attempts
+        +int brute_force_min_hosts
+        +float brute_force_window_seconds
+        +frozenset~tuple~str, str~~ new_connection_baseline_pairs
+    }
+    class LateralMovementEvent {
+        <<dataclass>>
+        +str point
+        +str source
+        +str event_type
+        +str details
+        +float score
+        +list~str~ targets
+    }
+    class LateralMovementResult {
+        <<dataclass>>
+        +list~LateralMovementEvent~ events
+        +bool suspicious
+        +events_by_type() dict~str, list~LateralMovementEvent~~
+    }
+    class mod_netcross_core_security_lateral_movement["netcross_core.security.lateral_movement"] {
+        <<module>>
+        +detect_port_scans(packets, thresholds) list~LateralMovementEvent~
+        +detect_host_scans(packets, thresholds) list~LateralMovementEvent~
+        +detect_brute_force(packets, thresholds) list~LateralMovementEvent~
+        +detect_unusual_protocols(packets, thresholds) list~LateralMovementEvent~
+        +detect_new_connections(packets, thresholds) list~LateralMovementEvent~
+        +detect_lateral_movement(packets, thresholds) LateralMovementResult
+    }
+
     %% ===== netcross_core.security.protocol_mismatch =====
     class mod_netcross_core_security_protocol_mismatch["netcross_core.security.protocol_mismatch"] {
         <<module>>
@@ -1867,6 +1908,7 @@ classDiagram
     %% ===== relations =====
     CveEntry --> AffectedProduct : affected
     FlowStatsResult --> FlowStat : flows
+    LateralMovementResult --> LateralMovementEvent : events
 ```
 
 ## `netcross_core.tshark_stats`
