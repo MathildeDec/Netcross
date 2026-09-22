@@ -188,7 +188,7 @@ class NameTable:
 
 def _load_yaml(text: str):
     try:
-        import yaml  # type: ignore[import-untyped]
+        import yaml
     except ImportError as exc:  # pragma: no cover - branche dependante de l'env
         raise ImportError(
             "lecture YAML requiert pyyaml (pip install pyyaml) ; utilisez un fichier .json pour eviter cette dependance"
@@ -198,7 +198,7 @@ def _load_yaml(text: str):
 
 def _dump_yaml(items: list[dict]) -> str:
     try:
-        import yaml  # type: ignore[import-untyped]
+        import yaml
     except ImportError as exc:  # pragma: no cover - branche dependante de l'env
         raise ImportError(
             "ecriture YAML requiert pyyaml (pip install pyyaml) ; "

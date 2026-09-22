@@ -49,7 +49,7 @@ jobs:
           enable-cache: true
 
       - name: Installation de Python
-        run: uv python install
+        run: uv python install 3.14
 
       - name: Installation des dépendances (extras dev + api)
         run: uv sync --extra dev --extra api
@@ -128,3 +128,30 @@ jobs:
           path: coverage.xml
           retention-days: 14
           if-no-files-found: warn
+
+  types:
+    # Verification statique des types (issue #281).
+    # NON BLOQUANT pour l instant : continue-on-error = true.
+    # Deviendra bloquant des que la baseline atteint 0 sur les modules
+    # stricts (bascule : retirer continue-on-error + ajouter les modules
+    # dans [[tool.mypy.overrides]] de pyproject.toml).
+    name: Types (mypy)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout du dépôt
+        uses: actions/checkout@v7
+
+      - name: Installation de uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        with:
+          enable-cache: true
+
+      - name: Installation de Python
+        run: uv python install 3.14
+
+      - name: Installation des dépendances (extras dev)
+        run: uv sync --extra dev
+
+      - name: Vérification des types (mypy)
+        run: uv run mypy

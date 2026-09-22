@@ -146,7 +146,8 @@ def detect_port_scans(
             continue
         if thresholds.scan_syn_only and not _is_syn_only(pkt.flags):
             continue
-        scan_map[pkt.point][pkt.src].add((pkt.dst, pkt.dport))
+        if pkt.dport is not None:
+            scan_map[pkt.point][pkt.src].add((pkt.dst, pkt.dport))
 
     events: list[LateralMovementEvent] = []
     for point, sources in scan_map.items():

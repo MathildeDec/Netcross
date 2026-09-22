@@ -31,6 +31,7 @@ dev = [
     "ruff==0.16.4",
     "import-linter>=2.13",
     "pre-commit>=4.0",
+    "mypy>=1.10",
 ]
 # API REST (issue #209) : jamais obligatoire pour le cœur ou les rapports.
 # Installé avec : pip install -e ".[api]" ou uv sync --extra api
@@ -91,6 +92,33 @@ layers = [
     "netcross_core",
     "pcap_parser",
 ]
+
+[tool.mypy]
+# Configuration permissive de base (issue #281) : le code est largement
+# annote mais rien ne le verifiait. On active mypy en CI de facon NON
+# BLOQUANTE d abord, avec une baseline progressive par module.
+# Les modules migres en strict sont listes ci-dessous -- la liste ne
+# recule jamais.
+python_version = "3.14"
+files = ["src"]
+ignore_missing_imports = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+# Exclut les stubs numpy (incompatibles avec certaines versions Python).
+exclude = [".venv/"]
+
+# Etat de reference (22/09/2026, Python 3.14) : 13 erreurs sur 7 fichiers.
+#   netcross_core : 12 erreurs (analysis, application/dns, application/http,
+#     fingerprint/report, naming, security/lateral_movement)
+#   pcap_parser : 1 erreur (capfile, no-redef)
+# Objectif : migrer module par module, du plus stable au plus mouvant.
+
+[[tool.mypy.overrides]]
+# Aucun module en strict pour l instant -- cette section grandira
+# au fur et a mesure des migrations.
+module = []
+disallow_untyped_defs = true
+strict_optional = true
 
 [tool.coverage.run]
 # Mesure la couverture du code source uniquement (pas des tests eux-memes).

@@ -38,3 +38,7 @@ import-linter>=2.13
 # Gestionnaire des hooks .pre-commit-config.yaml (ruff, ruff-format,
 # import-linter). Installer les hooks une fois par clone : `pre-commit install`.
 pre-commit>=4.0
+
+# mypy : verification statique des types (issue #281). Config permissive
+# dans pyproject.toml ([tool.mypy]), CI non bloquante pour l instant.
+mypy>=1.10
