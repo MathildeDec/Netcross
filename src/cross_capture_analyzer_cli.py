@@ -567,7 +567,10 @@ def main():
     ap.add_argument(
         "--export-bpf",
         metavar="FILTRE",
-        help='Avec --export-pcap : filtre BPF (capture filter) a appliquer, ex: "tcp port 80" ou "host 192.168.1.1".',
+        help="Avec --export-pcap : MALGRE SON NOM, PAS une expression BPF/tcpdump "
+        '("tcp port 80") mais un filtre d\'AFFICHAGE Wireshark, ex: "tcp.port == 80" '
+        'ou "ip.addr == 192.168.1.1" (tshark ne peut appliquer un vrai BPF qu\'en '
+        "capture live, jamais en relecture de fichier -- voir issue #261).",
     )
     ap.add_argument(
         "--export-time-start",
