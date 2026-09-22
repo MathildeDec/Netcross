@@ -32,6 +32,13 @@ Utilisation typique :
     for pkt in iter_live("eth0"):                    # capture en direct
         ...
 
+    # capture distante (Job 46, #166) : rpcap, SSH (extcap sshdump) ou
+    # pipe -- meme fonction, la source est detectee depuis l'URL
+    for pkt in iter_live("rpcap://192.168.1.10:2002/eth0"):
+        ...
+    for pkt in iter_live("ssh://admin:motdepasse@192.168.1.20/eth1"):
+        ...
+
     from pcap_parser import split_capture
 
     segments = split_capture("gros.pcapng", "segments/", by="time", value=60.0)
@@ -59,7 +66,7 @@ from pcap_parser.capture import (
     replay_capture,
     split_capture,
 )
-from pcap_parser.ek_source import TsharkError, TsharkNotFoundError
+from pcap_parser.ek_source import InvalidCaptureSourceError, TsharkError, TsharkNotFoundError
 from pcap_parser.packet import RawPacket
 from pcap_parser.protocols import (
     compute_mos,
@@ -74,6 +81,7 @@ from pcap_parser.tunnels import detect_encapsulation, is_tunnel, select_innermos
 __all__ = [
     "CaptureInfo",
     "CaptureRingBuffer",
+    "InvalidCaptureSourceError",
     "RawPacket",
     "TcpreplayError",
     "TcpreplayNotFoundError",
