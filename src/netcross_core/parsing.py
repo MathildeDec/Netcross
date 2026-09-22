@@ -120,6 +120,8 @@ def _to_pkt(label: str, raw: RawPacket) -> Pkt:
         dns_is_response=raw.dns_is_response,
         dns_qry_name=raw.dns_qry_name,
         dns_rcode=raw.dns_rcode,
+        dns_answer_addrs=raw.dns_answer_addrs,
+        dns_answer_ttl=raw.dns_answer_ttl,
         http_is_request=raw.http_is_request,
         http_is_response=raw.http_is_response,
         http_method=raw.http_method,
