@@ -40,6 +40,13 @@ api = [
     "python-multipart>=0.0.6",
     "httpx>=0.24",  # pour TestClient dans les tests
 ]
+# Documentation navigable (issue #282) : MkDocs Material + extensions.
+# Installe avec : uv sync --extra docs
+docs = [
+    "mkdocs>=1.6",
+    "mkdocs-material>=9.5",
+    "pymdown-extensions>=10.7",
+]
 
 [tool.uv]
 # `package = false` : netcross est une application lancee via
