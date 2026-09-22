@@ -71,6 +71,54 @@ def synthetic_packets(count: int, step_us: int = 100_000, start_us: int = 1_700_
     return [(start_us + i * step_us, frame(i, size)) for i in range(count)]
 
 
+def eth_ip_tcp_frame(
+    sport: int,
+    dport: int,
+    *,
+    src: str = "10.0.0.1",
+    dst: str = "10.0.0.2",
+    payload: bytes = b"",
+) -> bytes:
+    """Trame Ethernet/IPv4/TCP MINIMALE (pas d'options, checksums a 0 --
+    tshark dissecte quand meme ip.addr/tcp.port sans les valider) : pour
+    les tests qui EXERCENT un vrai filtre BPF/affichage sur un critere
+    reseau reel (issue #261), contrairement a `frame()` ci-dessus qui ne
+    porte aucun protocole reconnaissable (suffisant pour les tests de
+    decoupage, pas pour un filtre `tcp.port`/`ip.addr`)."""
+    eth = bytes(6) + bytes(6) + struct.pack(">H", 0x0800)  # dst/src MAC nuls, ethertype IPv4
+    ip_total_len = 20 + 20 + len(payload)
+    ip_header = struct.pack(
+        ">BBHHHBBH4s4s",
+        0x45,  # version 4, IHL 5 (20 octets, pas d'options)
+        0,  # DSCP/ECN
+        ip_total_len,
+        0,  # identification
+        0,  # flags/fragment offset
+        64,  # TTL
+        6,  # protocole = TCP
+        0,  # checksum (non valide, non verifie par le filtre de port)
+        _ipv4_to_bytes(src),
+        _ipv4_to_bytes(dst),
+    )
+    tcp_header = struct.pack(
+        ">HHIIBBHHH",
+        sport,
+        dport,
+        0,  # seq
+        0,  # ack
+        5 << 4,  # data offset = 5 (pas d'options), reserve
+        0x10,  # flags = ACK
+        65535,  # window
+        0,  # checksum (non valide)
+        0,  # urgent pointer
+    )
+    return eth + ip_header + tcp_header + payload
+
+
+def _ipv4_to_bytes(addr: str) -> bytes:
+    return bytes(int(octet) for octet in addr.split("."))
+
+
 # -- pcapng -------------------------------------------------------------------
 
 SHB, IDB, EPB, DSB = 0x0A0D0D0A, 0x1, 0x6, 0xA
