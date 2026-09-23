@@ -53,6 +53,8 @@ cp -r netcross_gtk4 %{buildroot}%{_datadir}/netcross/
 cp cross_capture_analyzer_cli.py %{buildroot}%{_datadir}/netcross/
 cp cross_capture_diff_cli.py %{buildroot}%{_datadir}/netcross/
 cp cross_history_cli.py %{buildroot}%{_datadir}/netcross/
+mkdir -p %{buildroot}%{_datadir}/locale
+cp -r locale/* %{buildroot}%{_datadir}/locale/
 
 install -m 755 netcross-wrapper %{buildroot}%{_bindir}/netcross
 install -m 755 netcross-gui-wrapper %{buildroot}%{_bindir}/netcross-gui
@@ -65,6 +67,7 @@ install -m 755 netcross-history-wrapper %{buildroot}%{_bindir}/netcross-history
 %{_bindir}/netcross-gui
 %{_bindir}/netcross-diff
 %{_bindir}/netcross-history
+%{_datadir}/locale/*/LC_MESSAGES/netcross.mo
 
 %changelog
 * Mon Aug 17 2026 Mathilde Deuscher <149895843+MathildeDec@users.noreply.github.com> - 1.0.0-1

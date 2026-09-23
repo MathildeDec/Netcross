@@ -8,3 +8,4 @@ wrappers/netcross usr/bin/
 wrappers/netcross-gui usr/bin/
 wrappers/netcross-diff usr/bin/
 wrappers/netcross-history usr/bin/
+locale/* usr/share/locale/

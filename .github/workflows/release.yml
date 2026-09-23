@@ -37,7 +37,7 @@ jobs:
       - name: Installation des dependances de build
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq debhelper dpkg-dev
+          sudo apt-get install -y -qq debhelper dpkg-dev gettext
 
       - name: Construction du paquet .deb
         run: ./build-deb/build.sh
@@ -66,7 +66,7 @@ jobs:
       - name: Installation des dependances de build
         run: |
           sudo apt-get update -qq
-          sudo apt-get install -y -qq rpm
+          sudo apt-get install -y -qq rpm gettext
 
       - name: Construction du paquet .rpm
         run: ./build-rpm/build.sh

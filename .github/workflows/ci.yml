@@ -30,7 +30,7 @@ jobs:
           echo "wireshark-common wireshark-common/install-setuid boolean false" \
             | sudo debconf-set-selections
           sudo DEBIAN_FRONTEND=noninteractive apt-get update -qq
-          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq tshark poppler-utils
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq tshark poppler-utils gettext
           tshark --version | head -1
           editcap --version | head -1
           # poppler-utils fournit pdftotext, utilise par tests/test_security_outputs.py

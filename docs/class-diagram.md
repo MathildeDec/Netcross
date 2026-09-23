@@ -422,6 +422,7 @@ classDiagram
 | `netcross_core.flow_view` | vue enrichie d'un flux (FlowView), sixieme objet de contrat de la Session 0 (Job 9/issue #6, section 6.4 et 6.14 de FEATURES.md). |
 | `netcross_core.forensic` | index de correlation bidirectionnel evenement ↔ flow ↔ paquet (Job 8/issue #5, §6.3 et §6.14 de FEATURES.md). |
 | `netcross_core.forensic_search` | moteur de recherche analytique post-capture transversal (Job 17 / issue #16, section 6.13 de FEATURES.md). |
+| `netcross_core.i18n` | internationalisation par GNU gettext (issue #299). |
 | `netcross_core.live_diff` | Capture en continu + diff en direct (Job 33, issue #33). |
 | `netcross_core.live_report` | issue #274 : export / rapport temps reel du mode ``--live``. |
 | `netcross_core.logging_config` | configuration centrale du logging (issue #245). |
@@ -1044,6 +1045,18 @@ classDiagram
     }
     class ForensicSearchIndex {
         +search(query) list~ForensicSearchResult~
+    }
+
+    %% ===== netcross_core.i18n =====
+    class mod_netcross_core_i18n["netcross_core.i18n"] {
+        <<module>>
+        +locale_dirs() list~Path~
+        +requested_languages(language) list~str~?
+        +setup(language) gettext.NullTranslations
+        +active_language() str?
+        +available_languages(localedir) list~str~
+        +ngettext(singular, plural, n) str
+        +N_(message) str
     }
 
     %% ===== netcross_core.live_diff =====

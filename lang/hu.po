@@ -1,0 +1,136 @@
+# Hungarian translations for netcross package.
+# Copyright (C) 2026 Netcross
+# This file is distributed under the same license as the netcross package.
+# Automatically generated, 2026.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: netcross\n"
+"Report-Msgid-Bugs-To: https://github.com/MathildeDec/Netcross/issues\n"
+"POT-Creation-Date: 2026-09-23 07:01+0000\n"
+"PO-Revision-Date: 2026-09-23 07:01+0000\n"
+"Last-Translator: Automatically generated\n"
+"Language-Team: none\n"
+"Language: hu\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+#: src/netcross_gtk4/run_outcome.py
+msgid "Analyse terminee."
+msgstr ""
+
+#: src/netcross_gtk4/run_outcome.py
+msgid "Comparaison terminee -- aucune regression."
+msgstr ""
+
+#: src/netcross_gtk4/run_outcome.py
+#, python-brace-format
+msgid "Comparaison terminee -- {n} regression detectee."
+msgid_plural "Comparaison terminee -- {n} regressions detectees."
+msgstr[0] ""
+msgstr[1] ""
+
+#: src/netcross_gtk4/run_outcome.py
+msgid "Comparaison terminee."
+msgstr ""
+
+#: src/netcross_gtk4/run_outcome.py
+msgid "Doublons inter-captures : non disponible en mode comparaison."
+msgstr ""
+
+#: src/netcross_gtk4/stats_view.py
+msgid "Debit (bps)"
+msgstr ""
+
+#: src/netcross_gtk4/stats_view.py
+msgid "Duree (ms)"
+msgstr ""
+
+#: src/netcross_gtk4/stats_view.py
+msgid "Endpoint"
+msgstr ""
+
+#: src/netcross_gtk4/stats_view.py
+msgid "Evenements"
+msgstr ""
+
+#: src/netcross_gtk4/stats_view.py
+msgid "Flux"
+msgstr ""
+
+#: src/netcross_gtk4/stats_view.py
+msgid "Latence (ms)"
+msgstr ""
+
+#: src/netcross_gtk4/stats_view.py
+msgid "Octets"
+msgstr ""
+
+#: src/netcross_gtk4/stats_view.py
+msgid "Paquets"
+msgstr ""
+
+#: src/netcross_gtk4/stats_view.py
+msgid "Protocole"
+msgstr ""
+
+#: src/netcross_gtk4/stats_view.py
+msgid "Segment"
+msgstr ""
+
+#: src/netcross_gtk4/stats_view.py
+#, python-brace-format
+msgid "debit={v}"
+msgstr ""
+
+#: src/netcross_gtk4/stats_view.py
+#, python-brace-format
+msgid "duree={v:.0f}ms"
+msgstr ""
+
+#: src/netcross_gtk4/stats_view.py
+#, python-brace-format
+msgid "evenements={n}"
+msgstr ""
+
+#: src/netcross_gtk4/stats_view.py
+#, python-brace-format
+msgid "latence={v:.1f}ms"
+msgstr ""
+
+#: src/netcross_gtk4/stats_view.py
+#, python-brace-format
+msgid "octets={v}"
+msgstr ""
+
+#: src/netcross_gtk4/stats_view.py
+#, python-brace-format
+msgid "paquets={n}"
+msgstr ""
+
+#: src/netcross_gtk4/stats_view.py
+#, python-brace-format
+msgid "{n} o"
+msgstr ""
+
+#: src/netcross_gtk4/stats_view.py
+#, python-brace-format
+msgid "{points} | {endpoints} | {packets} pkts | {size}"
+msgstr ""
+
+#: src/netcross_gtk4/stats_view.py
+#, python-brace-format
+msgid "{v:.1f} Go"
+msgstr ""
+
+#: src/netcross_gtk4/stats_view.py
+#, python-brace-format
+msgid "{v:.1f} Ko"
+msgstr ""
+
+#: src/netcross_gtk4/stats_view.py
+#, python-brace-format
+msgid "{v:.1f} Mo"
+msgstr ""

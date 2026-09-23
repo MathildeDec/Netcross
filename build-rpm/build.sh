@@ -33,6 +33,8 @@ cp -r "$REPO_ROOT/src/netcross_gtk4" "$STAGE_DIR/"
 cp "$REPO_ROOT/src/cross_capture_analyzer_cli.py" "$STAGE_DIR/"
 cp "$REPO_ROOT/src/cross_capture_diff_cli.py" "$STAGE_DIR/"
 cp "$REPO_ROOT/src/cross_history_cli.py" "$STAGE_DIR/"
+# catalogues de traduction (issue #299), toutes les locales de lang/LINGUAS
+"$REPO_ROOT/scripts/i18n-update.sh" --compile "$STAGE_DIR/locale"
 cp "$SCRIPT_DIR/wrappers/netcross-wrapper" "$STAGE_DIR/"
 cp "$SCRIPT_DIR/wrappers/netcross-gui-wrapper" "$STAGE_DIR/"
 cp "$SCRIPT_DIR/wrappers/netcross-diff-wrapper" "$STAGE_DIR/"

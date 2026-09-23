@@ -10,7 +10,14 @@ test porte sur pcap_parser lui-meme.
 
 from __future__ import annotations
 
-from netcross_core.models import Pkt
+import os
+
+# Issue #299 : les tests comparent les chaines source (francais). Un poste de
+# developpement avec des catalogues compiles et LANG=en_US ne doit pas les
+# traduire ; "C" desactive gettext. tests/test_i18n.py choisit sa langue.
+os.environ["NETCROSS_LANG"] = "C"
+
+from netcross_core.models import Pkt  # noqa: E402
 
 
 def make_pkt(**overrides) -> Pkt:

@@ -198,7 +198,7 @@ def test_le_garde_fou_de_completude_se_declenche_vraiment(monkeypatch):
 
 def test_le_resume_de_comparaison_compte_les_regressions():
     findings = [_Constat("regression"), _Constat("amelioration"), _Constat("regression")]
-    assert diff_status_text(findings) == "Comparaison terminee -- 2 regression(s) detectee(s)."
+    assert diff_status_text(findings) == "Comparaison terminee -- 2 regressions detectees."
 
 
 def test_le_resume_de_comparaison_annonce_l_absence_de_regression():
@@ -220,7 +220,7 @@ def test_le_resume_de_comparaison_ignore_un_constat_sans_severite():
         pass
 
     assert diff_status_text([_SansSeverite(), _Constat("regression")]) == (
-        "Comparaison terminee -- 1 regression(s) detectee(s)."
+        "Comparaison terminee -- 1 regression detectee."
     )
 
 
