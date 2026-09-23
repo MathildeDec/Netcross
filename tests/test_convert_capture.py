@@ -241,3 +241,30 @@ def test_export_csv_options_de_quotage(pcap_file, tmp_path, monkeypatch):
     monkeypatch.setattr(capture_mod.shutil, "which", lambda name: "/usr/bin/" + name)
     export_csv(pcap_file, str(tmp_path / "o.csv"))
     assert "quote=d" in calls[0] and "occurrence=f" in calls[0] and "ipv6.src" in calls[0]
+
+
+def test_cli_convert_lit_la_spec_capture(tmp_path, monkeypatch, capsys):
+    """Regression : --convert recoit les specs --capture brutes (NOM=fichier),
+    pas des dicts -- la spec doit etre decodee comme pour --merge."""
+    import cross_capture_analyzer_cli as analyzer_cli
+
+    src = tmp_path / "in.pcap"
+    src.write_bytes(b"\xd4\xc3\xb2\xa1")
+    calls = []
+    monkeypatch.setattr(analyzer_cli, "convert_capture", lambda i, o, fmt=None: calls.append((i, o, fmt)))
+    out = tmp_path / "out.pcapng"
+    monkeypatch.setattr(sys, "argv", ["cli", "--capture", f"A={src}", "--convert", str(out)])
+    analyzer_cli.main()
+    assert calls and calls[0][0] == str(src) and calls[0][1] == str(out)
+
+
+def test_cli_convert_refuse_plusieurs_fichiers(tmp_path, monkeypatch, capsys):
+    import cross_capture_analyzer_cli as analyzer_cli
+
+    a, b = tmp_path / "a.pcap", tmp_path / "b.pcap"
+    a.write_bytes(b"x")
+    b.write_bytes(b"x")
+    monkeypatch.setattr(sys, "argv", ["cli", "--capture", f"A={a}", "--capture", f"B={b}", "--convert", "o.pcapng"])
+    with pytest.raises(SystemExit):
+        analyzer_cli.main()
+    assert "UN fichier a la fois" in capsys.readouterr().err
