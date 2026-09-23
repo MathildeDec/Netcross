@@ -1,212 +1,719 @@
-# Netcross netcross-report -- English translation (issue #299)
-# Copyright (C) 2026 MathildeDec
+# English translations for Netcross package.
+# Copyright (C) 2026 THE Netcross'S COPYRIGHT HOLDER
+# This file is distributed under the same license as the Netcross package.
+# Automatically generated, 2026.
 #
 msgid ""
 msgstr ""
 "Project-Id-Version: Netcross 1.0\n"
 "Report-Msgid-Bugs-To: bugs@netcross.invalid\n"
-"POT-Creation-Date: 2026-09-23 20:00+0200\n"
-"PO-Revision-Date: 2026-09-23 20:00+0200\n"
-"Last-Translator: MathildeDec\n"
-"Language-Team: en\n"
+"POT-Creation-Date: 2026-09-23 21:13+0000\n"
+"PO-Revision-Date: 2026-09-23 21:13+0000\n"
+"Last-Translator: Automatically generated\n"
+"Language-Team: none\n"
 "Language: en_US\n"
 "MIME-Version: 1.0\n"
-"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Type: text/plain; charset=ASCII\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=(n != 1);\n"
 
-
-msgid "Rapport de securite"
-msgstr "Security report"
-
-msgid "Tableau de bord"
-msgstr "Dashboard"
-
-msgid "Services detectes"
-msgstr "Detected services"
-
-msgid "Chemin observe"
-msgstr "Observed path"
-
-msgid "Sequence des echanges"
-msgstr "Exchange sequence"
-
-msgid "Expertise -- objets enrichis"
-msgstr "Expertise -- enriched objects"
-
-msgid "Evenements d'expertise"
-msgstr "Expertise events"
-
-msgid "Diagnostics par segment"
-msgstr "Per-segment diagnostics"
-
-msgid "Conformite aux referentiels"
-msgstr "Compliance with reference standards"
-
-msgid "Flux correles"
-msgstr "Correlated flows"
-
-msgid "Expertise tshark (signaux bruts)"
-msgstr "tshark expertise (raw signals)"
-
-msgid "Par ou commencer"
-msgstr "Where to start"
-
-msgid "Synthese"
-msgstr "Summary"
-
-msgid "Vue d'ensemble"
-msgstr "Overview"
-
-msgid "Topologie deduite"
-msgstr "Inferred topology"
-
-msgid "Evolution temporelle (top-N)"
-msgstr "Temporal evolution (top-N)"
-
-msgid "Detail par module"
-msgstr "Per-module detail"
-
-msgid "Sauts de routeur (delta TTL)"
-msgstr "Router hops (TTL delta)"
-
-msgid "QoS (DSCP)"
-msgstr "QoS (DSCP)"
-
-msgid "Fragmentation / MTU"
-msgstr "Fragmentation / MTU"
-
-msgid "Segment"
-msgstr "Segment"
-
-msgid "Score"
-msgstr "Score"
-
-msgid "Categories touchees"
-msgstr "Affected categories"
-
-msgid "Constats"
-msgstr "Findings"
-
-msgid "Trame"
-msgstr "Frame"
-
-msgid "t (ms)"
-msgstr "t (ms)"
-
-msgid "Delta (ms)"
-msgstr "Delta (ms)"
-
-msgid "Source -> Destination"
-msgstr "Source -> Destination"
-
-msgid "Point"
-msgstr "Point"
-
-msgid "Octets"
-msgstr "Bytes"
-
-msgid "Detail"
-msgstr "Detail"
-
-msgid "Gravite"
-msgstr "Severity"
-
-msgid "CVE"
-msgstr "CVE"
-
-msgid "CVSS"
-msgstr "CVSS"
-
-msgid "Service"
-msgstr "Service"
-
-msgid "Cible"
-msgstr "Target"
-
-msgid "Empreinte JA4/HASSH"
-msgstr "JA4/HASSH fingerprint"
-
-msgid "Criticite"
-msgstr "Criticality"
-
-msgid "Points"
-msgstr "Points"
-
+#: src/netcross_report/pdf.py:102
 msgid "Aucun constat notable."
 msgstr "No notable finding."
 
-msgid "Aucun evenement d'expertise."
-msgstr "No expertise event."
+#: src/netcross_report/pdf.py:103 src/netcross_report/pdf.py:253
+#: src/netcross_report/pdf.py:627
+msgid "Gravite"
+msgstr "Severity"
 
-msgid "Aucun diagnostic par segment."
-msgstr "No per-segment diagnosis."
+#: src/netcross_report/pdf.py:103 src/netcross_report/pdf.py:253
+msgid "Categorie"
+msgstr "Category"
 
-msgid "Aucun referentiel evalue."
-msgstr "No reference standard evaluated."
+#: src/netcross_report/pdf.py:103 src/netcross_report/pdf.py:148
+#: src/netcross_report/pdf.py:253 src/netcross_report/pdf.py:277
+#: src/netcross_report/pdf.py:391
+msgid "Segment"
+msgstr "Segment"
 
-msgid "Aucun flux correle."
-msgstr "No correlated flow."
+#: src/netcross_report/pdf.py:103 src/netcross_report/pdf.py:253
+msgid "Constat"
+msgstr "Finding"
 
-msgid "Aucun segment exploitable : ni topologie deduite, ni couple de points fourni."
-msgstr "No usable segment: no inferred topology, no point pair provided."
+#: src/netcross_report/pdf.py:148
+msgid "Score"
+msgstr "Score"
 
-msgid "Score de risque"
-msgstr "Risk score"
+#: src/netcross_report/pdf.py:148
+msgid "Categories touchees"
+msgstr "Affected categories"
 
-msgid "Tentatives d'exploitation"
-msgstr "Exploitation attempts"
+#: src/netcross_report/pdf.py:148
+msgid "Constats"
+msgstr "Findings"
 
-msgid "Anomalies (Expert Info)"
-msgstr "Anomalies (Expert Info)"
-
-msgid "CVE confirmees"
-msgstr "Confirmed CVEs"
-
+#: src/netcross_report/pdf.py:199 src/netcross_report/triage.py:303
 msgid "Score de sante"
 msgstr "Health score"
 
-msgid "RAPPORT DE SECURITE"
-msgstr "SECURITY REPORT"
+#: src/netcross_report/pdf.py:252
+msgid "Aucun evenement d'expertise."
+msgstr "No expertise event."
 
-msgid "exploits detectes"
-msgstr "exploits detected"
+#: src/netcross_report/pdf.py:253
+msgid "Cause probable / impact"
+msgstr "Probable cause / impact"
 
-msgid "anomalies (Expert Info)"
-msgstr "anomalies (Expert Info)"
+#: src/netcross_report/pdf.py:276
+msgid "Aucun diagnostic par segment."
+msgstr "No per-segment diagnosis."
 
+#: src/netcross_report/pdf.py:277
+msgid "Evenements"
+msgstr "Events"
+
+#: src/netcross_report/pdf.py:277 src/netcross_report/session_objects.py:204
+#: src/netcross_report/session_objects.py:218
+msgid "Cause probable"
+msgstr "Probable cause"
+
+#: src/netcross_report/pdf.py:277 src/netcross_report/session_objects.py:206
+#: src/netcross_report/session_objects.py:220
+msgid "Impact"
+msgstr "Impact"
+
+#: src/netcross_report/pdf.py:296
+msgid "Aucun referentiel evalue."
+msgstr "No reference standard evaluated."
+
+#: src/netcross_report/pdf.py:336
+msgid "Aucun flux correle."
+msgstr "No correlated flow."
+
+#: src/netcross_report/pdf.py:388
+msgid ""
+"Aucun segment exploitable : ni topologie deduite, ni couple de points "
+"fourni."
+msgstr ""
+"Aucun segment exploitable : ni topologie deduite, ni couple de points "
+"fourni."
+
+#: src/netcross_report/pdf.py:391
+msgid "Delai moy / P95 / P99 (ms)"
+msgstr "Delay avg / P95 / P99 (ms)"
+
+#: src/netcross_report/pdf.py:391
+msgid "Gigue"
+msgstr "Jitter"
+
+#: src/netcross_report/pdf.py:391
+msgid "Perte aval"
+msgstr "Downstream loss"
+
+#: src/netcross_report/pdf.py:391
+msgid "Debit aval"
+msgstr "Downstream throughput"
+
+#: src/netcross_report/pdf.py:391
+msgid "DSCP / frag"
+msgstr "DSCP / frag"
+
+#: src/netcross_report/pdf.py:391
+msgid "Sauts"
+msgstr "Hops"
+
+#: src/netcross_report/pdf.py:568 src/netcross_report/session_objects.py:237
+msgid "Conformite aux referentiels"
+msgstr "Compliance with reference standards"
+
+#: src/netcross_report/pdf.py:627 src/netcross_report/pdf.py:711
+#: src/netcross_report/security_html.py:285
+#: src/netcross_report/security_html.py:306
+msgid "CVE"
+msgstr "CVE"
+
+#: src/netcross_report/pdf.py:627 src/netcross_report/security_html.py:306
+msgid "CVSS"
+msgstr "CVSS"
+
+#: src/netcross_report/pdf.py:627 src/netcross_report/security_html.py:292
+#: src/netcross_report/security_html.py:299
+#: src/netcross_report/security_html.py:306
+msgid "Detail"
+msgstr "Detail"
+
+#: src/netcross_report/pdf.py:627 src/netcross_report/pdf.py:711
+#: src/netcross_report/security_html.py:285
+#: src/netcross_report/security_html.py:292
+#: src/netcross_report/security_html.py:299
+#: src/netcross_report/security_html.py:306
+msgid "Service"
+msgstr "Service"
+
+#: src/netcross_report/pdf.py:627 src/netcross_report/pdf.py:711
+#: src/netcross_report/security_html.py:285
+#: src/netcross_report/security_html.py:292
+#: src/netcross_report/security_html.py:299
+#: src/netcross_report/security_html.py:306
+msgid "Cible"
+msgstr "Target"
+
+#: src/netcross_report/pdf.py:627 src/netcross_report/security_html.py:292
+#: src/netcross_report/security_html.py:299
+#: src/netcross_report/security_html.py:306
+msgid "Point"
+msgstr "Point"
+
+#: src/netcross_report/pdf.py:678
+msgid "Rapport de securite"
+msgstr "Security report"
+
+#: src/netcross_report/pdf.py:691 src/netcross_report/security_html.py:280
+msgid "Tableau de bord"
+msgstr "Dashboard"
+
+#: src/netcross_report/pdf.py:695
+msgid "Score de risque"
+msgstr "Risk score"
+
+#: src/netcross_report/pdf.py:697
+msgid "Tentatives d'exploitation"
+msgstr "Exploitation attempts"
+
+#: src/netcross_report/pdf.py:698
+msgid "Anomalies (Expert Info)"
+msgstr "Anomalies (Expert Info)"
+
+#: src/netcross_report/pdf.py:699 src/netcross_report/security_report.py:425
+#: src/netcross_report/security_html.py:244
+#: src/netcross_report/security_html.py:303
+msgid "CVE confirmees"
+msgstr "Confirmed CVEs"
+
+#: src/netcross_report/pdf.py:709 src/netcross_report/security_html.py:282
+msgid "Services detectes"
+msgstr "Detected services"
+
+#: src/netcross_report/pdf.py:711 src/netcross_report/security_html.py:285
+msgid "Criticite"
+msgstr "Criticality"
+
+#: src/netcross_report/pdf.py:711 src/netcross_report/security_html.py:285
+msgid "Empreinte JA4/HASSH"
+msgstr "JA4/HASSH fingerprint"
+
+#: src/netcross_report/pdf.py:711 src/netcross_report/security_html.py:285
+msgid "Points"
+msgstr "Points"
+
+#: src/netcross_report/pdf.py:845 src/netcross_report/pdf.py:1169
+msgid "Par ou commencer"
+msgstr "Where to start"
+
+#: src/netcross_report/pdf.py:861
+msgid "Synthese"
+msgstr "Summary"
+
+#: src/netcross_report/pdf.py:880
+msgid "Vue d'ensemble"
+msgstr "Overview"
+
+#: src/netcross_report/pdf.py:882
+msgid "Topologie deduite"
+msgstr "Inferred topology"
+
+#: src/netcross_report/pdf.py:924
+msgid "Evolution temporelle (top-N)"
+msgstr "Temporal evolution (top-N)"
+
+#: src/netcross_report/pdf.py:949
+msgid "Detail par module"
+msgstr "Per-module detail"
+
+#: src/netcross_report/pdf.py:951
+msgid "Sauts de routeur (delta TTL)"
+msgstr "Router hops (TTL delta)"
+
+#: src/netcross_report/security_report.py:417
+msgid "RAPPORT DE SECURITE (detection passive de vulnerabilites)"
+msgstr "SECURITY REPORT (passive vulnerability detection)"
+
+#: src/netcross_report/security_report.py:419
+msgid "-- Tableau de bord securite --"
+msgstr "-- Security dashboard --"
+
+#: src/netcross_report/security_report.py:420
+#: src/netcross_report/security_html.py:231
+msgid "aucun constat"
+msgstr "no finding"
+
+#: src/netcross_report/security_report.py:421
 msgid "score de risque global"
 msgstr "global risk score"
 
-msgid "critique"
-msgstr "critical"
+#: src/netcross_report/security_report.py:421
+msgid "niveau"
+msgstr "level"
 
-msgid "elevee"
-msgstr "high"
+#: src/netcross_report/security_report.py:422
+#: src/netcross_report/security_html.py:239
+msgid "services detectes"
+msgstr "services detectes"
 
-msgid "moyenne"
-msgstr "medium"
+#: src/netcross_report/security_report.py:422
+#: src/netcross_report/security_html.py:239
+msgid "dont"
+msgstr "including"
 
-msgid "faible"
-msgstr "low"
+#: src/netcross_report/security_report.py:422
+#: src/netcross_report/security_html.py:239
+msgid "vulnerable(s)"
+msgstr "vulnerable(s)"
 
-msgid "TRIAGE -- top segments a regarder en premier"
-msgstr "TRIAGE -- top segments to review first"
+#: src/netcross_report/security_report.py:423
+msgid "exploits detectes"
+msgstr "exploits detected"
 
+#: src/netcross_report/security_report.py:424
+#: src/netcross_report/security_html.py:243
+msgid "anomalies (Expert Info)"
+msgstr "anomalies (Expert Info)"
+
+#: src/netcross_report/security_report.py:426
+msgid "repartition par severite"
+msgstr "breakdown by severity"
+
+#: src/netcross_report/security_report.py:429
+msgid "Services detectes (classes par criticite)"
+msgstr "Detected services (by criticality)"
+
+#: src/netcross_report/security_report.py:431
+msgid "aucun service identifie"
+msgstr "no service identified"
+
+#: src/netcross_report/security_report.py:434
+#: src/netcross_report/security_html.py:289
+msgid "Tentatives d'exploitation detectees"
+msgstr "Exploitation attempts detected"
+
+#: src/netcross_report/security_report.py:436
+#: src/netcross_report/security_html.py:294
+msgid "aucune tentative d'exploitation detectee"
+msgstr "no exploitation attempt detected"
+
+#: src/netcross_report/security_report.py:439
+msgid "Anomalies (alertes Expert Info correlees)"
+msgstr "Anomalies (correlated Expert Info alerts)"
+
+#: src/netcross_report/security_report.py:441
+#: src/netcross_report/security_html.py:301
+msgid "aucune anomalie correlee"
+msgstr "no correlated anomaly"
+
+#: src/netcross_report/security_report.py:444
+msgid "CVE confirmees (version + CVE-ID + score CVSS)"
+msgstr "Confirmed CVEs (version + CVE-ID + CVSS score)"
+
+#: src/netcross_report/security_report.py:446
+#: src/netcross_report/security_html.py:308
+msgid "aucune CVE confirmee"
+msgstr "no confirmed CVE"
+
+#: src/netcross_report/security_html.py:163
+msgid "aucune CVE connue"
+msgstr "no known CVE"
+
+#: src/netcross_report/security_html.py:235
+msgid "score de risque"
+msgstr "risk score"
+
+#: src/netcross_report/security_html.py:241
+msgid "tentatives d'exploitation"
+msgstr "exploitation attempts"
+
+#: src/netcross_report/security_html.py:287
+msgid "aucun service identifie dans cette capture"
+msgstr "no service identified in this capture"
+
+#: src/netcross_report/security_html.py:292
+#: src/netcross_report/security_html.py:299
+#: src/netcross_report/security_html.py:306
+msgid "Severite"
+msgstr "Severity"
+
+#: src/netcross_report/security_html.py:296
+msgid "Anomalies correlees (Expert Info)"
+msgstr "Correlated anomalies (Expert Info)"
+
+#: src/netcross_report/triage.py:194
 msgid "Aucun segment avec un score de preuve suffisant."
 msgstr "No segment with sufficient evidence score."
 
-msgid "Sain"
+#: src/netcross_report/triage.py:269
+msgid "Bon"
 msgstr "Healthy"
 
+#: src/netcross_report/triage.py:270
+msgid "A surveiller"
+msgstr "Watch"
+
+#: src/netcross_report/triage.py:271
 msgid "Degrade"
 msgstr "Degraded"
 
+#: src/netcross_report/triage.py:272
 msgid "Critique"
 msgstr "Critical"
 
-msgid "Saturation"
-msgstr "Saturation"
+#: src/netcross_report/session_objects.py:174
+msgid "Flux correles"
+msgstr "Correlated flows"
 
-msgid "Bufferbloat"
-msgstr "Bufferbloat"
+#: src/netcross_report/session_objects.py:174
+msgid "conversation(s)"
+msgstr "conversation(s)"
+
+#: src/netcross_report/session_objects.py:185
+msgid "paquet(s)"
+msgstr "packet(s)"
+
+#: src/netcross_report/session_objects.py:186
+msgid "octet(s)"
+msgstr "byte(s)"
+
+#: src/netcross_report/session_objects.py:186
+msgid "vu a"
+msgstr "seen at"
+
+#: src/netcross_report/session_objects.py:189
+#: src/netcross_report/session_objects.py:208
+#: src/netcross_report/session_objects.py:222
+#: src/netcross_report/session_objects.py:255
+msgid "et"
+msgstr "and"
+
+#: src/netcross_report/session_objects.py:189
+msgid "autre(s) flux"
+msgstr "other flow(s)"
+
+#: src/netcross_report/session_objects.py:189
+#: src/netcross_report/session_objects.py:208
+#: src/netcross_report/session_objects.py:222
+#: src/netcross_report/session_objects.py:255
+msgid "voir --json-report"
+msgstr "see --json-report"
+
+#: src/netcross_report/session_objects.py:208
+msgid "autre(s) evenement(s)"
+msgstr "other event(s)"
+
+#: src/netcross_report/session_objects.py:213
+msgid "Diagnostics par segment"
+msgstr "Per-segment diagnostics"
+
+#: src/netcross_report/session_objects.py:216
+msgid "evenement(s)"
+msgstr "event(s)"
+
+#: src/netcross_report/session_objects.py:222
+msgid "autre(s) segment(s)"
+msgstr "other segment(s)"
+
+#: src/netcross_report/session_objects.py:237
+msgid "evaluee(s)"
+msgstr "evaluated"
+
+#: src/netcross_report/session_objects.py:255
+msgid "autre(s) referentiel(s)"
+msgstr "other reference standard(s)"
+
+#: src/netcross_report/session_objects.py:270
+msgid "EXPERTISE -- OBJETS ENRICHIS"
+msgstr "EXPERTISE -- ENRICHED OBJECTS"
+
+#: src/netcross_report/session_objects.py:273
+msgid "Evenements d'expertise (netcross)"
+msgstr "Expertise events (netcross)"
+
+#: src/netcross_report/session_objects.py:279
+msgid "Expertise tshark (signaux bruts)"
+msgstr "tshark expertise (raw signals)"
+
+#: src/netcross_report/path_metrics.py:220
+msgid ""
+"Aucun segment exploitable : la topologie n'a pas pu etre deduite de ces "
+"captures."
+msgstr ""
+"Aucun segment exploitable : la topologie n'a pas pu etre deduite de ces "
+"captures."
+
+#: src/netcross_report/path_metrics.py:223
+msgid "Aucune metrique de qualite mesurable sur les segments observes "
+msgstr "No measurable quality metric on observed segments "
+
+#: src/netcross_report/path_metrics.py:224
+msgid "(ni delai, ni perte, ni remarquage) -- horloges non synchronisees "
+msgstr "(no delay, no loss, no remarking) -- unsynchronized clocks "
+
+#: src/netcross_report/path_metrics.py:225
+msgid "ou trafic commun insuffisant entre les points."
+msgstr "or insufficient common traffic between points."
+
+#: src/netcross_report/path_metrics.py:230
+msgid "paquet(s) perdu(s)"
+msgstr "packet(s) lost"
+
+#: src/netcross_report/path_metrics.py:232
+msgid "delai P95"
+msgstr "P95 delay"
+
+#: src/netcross_report/path_metrics.py:234
+msgid "gigue"
+msgstr "jitter"
+
+#: src/netcross_report/path_metrics.py:236
+msgid "aucune metrique chiffree"
+msgstr "no quantified metric"
+
+#: src/netcross_report/path_metrics.py:237
+msgid "Segment le plus degrade"
+msgstr "Most degraded segment"
+
+#: src/netcross_core/baseline_diff.py:887
+msgid "COMPARAISON AVANT / APRES (baseline vs courant)"
+msgstr "BEFORE / AFTER COMPARISON (baseline vs current)"
+
+#: src/netcross_core/baseline_diff.py:891
+msgid "Aucun ecart significatif detecte entre les deux runs."
+msgstr "No significant difference detected between the two runs."
+
+#: src/netcross_core/baseline_diff.py:896
+msgid "regression(s)"
+msgstr "regression(s)"
+
+#: src/netcross_core/baseline_diff.py:896
+msgid "amelioration(s)"
+msgstr "improvement(s)"
+
+#: src/netcross_core/baseline_diff.py:897
+msgid "point(s) a verifier"
+msgstr "point(s) to verify"
+
+#: src/netcross_core/baseline_diff.py:905
+msgid "-- REGRESSIONS (ca allait mieux avant) --"
+msgstr "-- REGRESSIONS (it was better before) --"
+
+#: src/netcross_core/baseline_diff.py:906
+msgid "-- A VERIFIER (changement sans verdict clair) --"
+msgstr "-- TO VERIFY (change without clear verdict) --"
+
+#: src/netcross_core/baseline_diff.py:907
+msgid "-- AMELIORATIONS --"
+msgstr "-- IMPROVEMENTS --"
+
+#: src/netcross_core/baseline_diff.py:908
+msgid "-- STABLE --"
+msgstr "-- STABLE --"
+
+#: src/netcross_core/baseline_diff.py:917
+msgid "severite"
+msgstr "severity"
+
+#: src/netcross_core/baseline_diff.py:917
+msgid "categorie"
+msgstr "category"
+
+#: src/netcross_core/baseline_diff.py:917
+msgid "segment"
+msgstr "segment"
+
+#: src/netcross_core/baseline_diff.py:917
+msgid "message"
+msgstr "message"
+
+#: src/netcross_core/baseline_diff.py:917
+msgid "avant"
+msgstr "before"
+
+#: src/netcross_core/baseline_diff.py:917
+msgid "apres"
+msgstr "after"
+
+#: src/netcross_core/report_text.py:72
+msgid "ANALYSE CROISEE DE CAPTURES"
+msgstr "CROSS-CAPTURE ANALYSIS"
+
+#: src/netcross_core/report_text.py:75
+msgid "Paquets/flux identifies par point"
+msgstr "Packets/flows identified per point"
+
+#: src/netcross_core/report_text.py:82
+msgid ""
+"Doublons inter-captures (meme payload vu a deux points quasi simultanement)"
+msgstr ""
+"Cross-capture duplicates (same payload seen at two points nearly "
+"simultaneously)"
+
+#: src/netcross_core/report_text.py:86
+msgid ""
+"ces doublons sont EXCLUS des compteurs, debits et de la correlation de ce "
+"rapport"
+msgstr ""
+"these duplicates are EXCLUDED from counters, throughput and correlation in "
+"this report"
+
+#: src/netcross_core/report_text.py:99
+msgid "Commentaires pcapng"
+msgstr "pcapng comments"
+
+#: src/netcross_core/report_text.py:110
+msgid "Metadonnees de capture"
+msgstr "Capture metadata"
+
+#: src/netcross_core/report_text.py:178
+msgid "Topologie deduite (delta TTL + recouvrement de flux entre points)"
+msgstr "Inferred topology (TTL delta + flow overlap between points)"
+
+#: src/netcross_core/report_text.py:208
+msgid "Relations ambigues entre points (chemins multiples possibles)"
+msgstr "Ambiguous relations between points (multiple possible paths)"
+
+#: src/netcross_core/report_text.py:220
+msgid "ATTENTION : --order fourni contredit la topologie deduite"
+msgstr "WARNING: provided --order contradicts the inferred topology"
+
+#: src/netcross_core/report_text.py:225
+msgid "Pertes potentielles (paquet vu en amont, absent a ce point)"
+msgstr "Potential losses (packet seen upstream, absent at this point)"
+
+#: src/netcross_core/report_text.py:230
+msgid "Pertes : aucune detectee (ou aucun ordre/topologie exploitable)"
+msgstr "Losses: none detected (or no usable order/topology)"
+
+#: src/netcross_core/report_text.py:232
+msgid "Latence / gigue entre points (necessite horloges synchronisees)"
+msgstr "Latency / jitter between points (requires synchronized clocks)"
+
+#: src/netcross_core/report_text.py:254
+msgid "Decalage d'horloge estime entre points (via handshakes TCP)"
+msgstr "Estimated clock offset between points (via TCP handshakes)"
+
+#: src/netcross_core/report_text.py:262
+msgid "Sauts de routeur (delta TTL) entre points"
+msgstr "Router hops (TTL delta) between points"
+
+#: src/netcross_core/report_text.py:290
+msgid "Instabilite de route intra-flux (TTL variable pour un meme flux)"
+msgstr "Intra-flow route instability (variable TTL for same flow)"
+
+#: src/netcross_core/report_text.py:298
+msgid "Changements de marquage QoS (DSCP) entre points"
+msgstr "QoS (DSCP) marking changes between points"
+
+#: src/netcross_core/report_text.py:314
+msgid "VLAN 802.1Q"
+msgstr "VLAN 802.1Q"
+
+#: src/netcross_core/report_text.py:349
+msgid "Encapsulation / tunnels (MPLS, GRE, VXLAN, GTP-U, ERSPAN)"
+msgstr "Encapsulation / tunnels (MPLS, GRE, VXLAN, GTP-U, ERSPAN)"
+
+#: src/netcross_core/report_text.py:375
+msgid "Fragmentation / MTU"
+msgstr "Fragmentation / MTU"
+
+#: src/netcross_core/report_text.py:409
+msgid "PMTUD (Path MTU Discovery) : noirs detectes"
+msgstr "PMTUD (Path MTU Discovery): black holes detected"
+
+#: src/netcross_core/report_text.py:429
+msgid "Timeout d'inactivite / coupure NAT-FW silencieuse"
+msgstr "Inactivity timeout / silent NAT-FW cutoff"
+
+#: src/netcross_core/report_text.py:448
+msgid "Conflits d'adresse IP (ARP)"
+msgstr "IP address conflicts (ARP)"
+
+#: src/netcross_core/report_text.py:463
+msgid "Instabilite STP"
+msgstr "STP instability"
+
+#: src/netcross_core/report_text.py:476
+msgid "Certificats TLS"
+msgstr "TLS certificates"
+
+#: src/netcross_core/report_text.py:498
+msgid "Negociations TLS incompletes"
+msgstr "Incomplete TLS negotiations"
+
+#: src/netcross_core/report_text.py:522
+msgid "Correlation debit / pertes (saturation, policing, ou sans lien)"
+msgstr "Throughput / loss correlation (saturation, policing, or unrelated)"
+
+#: src/netcross_core/report_text.py:529
+msgid "Indice de bufferbloat (latence qui augmente avec la charge)"
+msgstr "Bufferbloat indicator (latency increasing with load)"
+
+#: src/netcross_core/report_text.py:540
+msgid "Fenetre TCP a zero (recepteur/equipement sature)"
+msgstr "TCP zero window (receiver/equipment saturated)"
+
+#: src/netcross_core/report_text.py:548
+msgid "ACK dupliques (indice de perte/reordonnancement en aval)"
+msgstr "Duplicate ACKs (indication of downstream loss/reordering)"
+
+#: src/netcross_core/report_text.py:556
+msgid "Retransmissions TCP par cause (classification native tshark)"
+msgstr "TCP retransmissions by cause (native tshark classification)"
+
+#: src/netcross_core/report_text.py:571
+msgid "Signaux d'expertise TCP natifs (tcp.analysis.*)"
+msgstr "Native TCP expertise signals (tcp.analysis.*)"
+
+#: src/netcross_core/report_text.py:587
+msgid "Options TCP negociees au handshake (MSS/Window Scale/SACK)"
+msgstr "TCP options negotiated at handshake (MSS/Window Scale/SACK)"
+
+#: src/netcross_core/report_text.py:613
+msgid "RST TCP"
+msgstr "TCP RST"
+
+#: src/netcross_core/report_text.py:628
+msgid "Handshakes TCP (SYN sans reponse = filtrage actif probable)"
+msgstr "TCP handshakes (SYN without response = probable active filtering)"
+
+#: src/netcross_core/report_text.py:646
+msgid "Retransmissions TCP detectees par point"
+msgstr "TCP retransmissions detected per point"
+
+#: src/netcross_core/report_text.py:655
+msgid "Integrite de capture : trous de sequence TCP"
+msgstr "Capture integrity: TCP sequence gaps"
+
+#: src/netcross_core/report_text.py:719
+msgid "DHCP (attribution d'adresses IP)"
+msgstr "DHCP (IP address assignment)"
+
+#: src/netcross_core/report_text.py:753
+msgid "SIP (signalisation voix/visio)"
+msgstr "SIP (voice/video signaling)"
+
+#: src/netcross_core/report_text.py:783
+msgid "VoIP orientee appel (SIP + RTP)"
+msgstr "Call-oriented VoIP (SIP + RTP)"
+
+#: src/netcross_core/report_text.py:799
+msgid "DNS (resolution de noms)"
+msgstr "DNS (name resolution)"
+
+#: src/netcross_core/report_text.py:831
+msgid "HTTP (codes de statut, HTTP/1.x uniquement)"
+msgstr "HTTP (status codes, HTTP/1.x only)"
+
+#: src/netcross_core/report_text.py:866
+msgid "Objets HTTP transferes (metadonnees, sans corps)"
+msgstr "HTTP objects transferred (metadata, no body)"
+
+#: src/netcross_core/report_text.py:934
+msgid "Annotations (etiquettes et signets sur paquets)"
+msgstr "Annotations (labels and bookmarks on packets)"

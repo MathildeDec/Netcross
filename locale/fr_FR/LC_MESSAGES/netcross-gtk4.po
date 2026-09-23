@@ -1,137 +1,114 @@
-# Netcross netcross-gtk4 -- traduction française (référence, issue #299)
-# Copyright (C) 2026 MathildeDec
+# French translations for Netcross package.
+# Copyright (C) 2026 THE Netcross'S COPYRIGHT HOLDER
+# This file is distributed under the same license as the Netcross package.
+# Automatically generated, 2026.
 #
 msgid ""
 msgstr ""
 "Project-Id-Version: Netcross 1.0\n"
 "Report-Msgid-Bugs-To: bugs@netcross.invalid\n"
-"POT-Creation-Date: 2026-09-23 20:00+0200\n"
-"PO-Revision-Date: 2026-09-23 20:00+0200\n"
-"Last-Translator: MathildeDec\n"
-"Language-Team: fr\n"
-"Language: fr_FR\n"
+"POT-Creation-Date: 2026-09-23 21:13+0000\n"
+"PO-Revision-Date: 2026-09-23 21:13+0000\n"
+"Last-Translator: Automatically generated\n"
+"Language-Team: none\n"
+"Language: fr\n"
 "MIME-Version: 1.0\n"
-"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Type: text/plain; charset=ASCII\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=(n > 1);\n"
 
-
-msgid "Enregistrer le filtre"
-msgstr "Enregistrer le filtre"
-
-msgid "Ajouter une capture"
-msgstr "Ajouter une capture"
-
-msgid "Ajouter un point de capture"
-msgstr "Ajouter un point de capture"
-
-msgid "Lancer l'analyse"
-msgstr "Lancer l'analyse"
-
-msgid "Arreter et analyser"
-msgstr "Arreter et analyser"
-
-msgid "Reinitialiser la selection"
-msgstr "Reinitialiser la selection"
-
-msgid "Exporter CSV"
-msgstr "Exporter CSV"
-
-msgid "Exporter JSON"
-msgstr "Exporter JSON"
-
-msgid "Fichiers max :"
-msgstr "Fichiers max :"
-
-msgid "Duree/fichier (s) :"
-msgstr "Duree/fichier (s) :"
-
-msgid "Options d'analyse"
-msgstr "Options d'analyse"
-
-msgid "Fenetre temporelle (ms):"
-msgstr "Fenetre temporelle (ms):"
-
-msgid "Cadence RTP (Hz):"
-msgstr "Cadence RTP (Hz):"
-
-msgid "Seuil doublons (ms):"
-msgstr "Seuil doublons (ms):"
-
-msgid "Top"
-msgstr "Top"
-
-msgid "Top-N graphiques"
-msgstr "Top-N graphiques"
-
-msgid "Seuil pertes (points de %):"
-msgstr "Seuil pertes (points de %):"
-
-msgid "Seuil latence (ms):"
-msgstr "Seuil latence (ms):"
-
-msgid "Avancement"
-msgstr "Avancement"
-
-msgid "Resultats"
-msgstr "Resultats"
-
-msgid "Protocole"
-msgstr "Protocole"
-
-msgid "Top-N aretes"
-msgstr "Top-N aretes"
-
-msgid "Grouper par"
-msgstr "Grouper par"
-
-msgid "Trier par"
-msgstr "Trier par"
-
-msgid "Top-N"
-msgstr "Top-N"
-
-msgid "(lancer une analyse pour voir les statistiques)"
-msgstr "(lancer une analyse pour voir les statistiques)"
-
+#: src/netcross_gtk4/app.py:167 src/netcross_gtk4/app.py:260
 msgid "Nom du point de capture (ex: LAN, WAN, DC)"
 msgstr "Nom du point de capture (ex: LAN, WAN, DC)"
 
+#: src/netcross_gtk4/app.py:177 src/netcross_gtk4/app.py:303
 msgid "Monter (ordre = chemin physique reseau)"
 msgstr "Monter (ordre = chemin physique reseau)"
 
+#: src/netcross_gtk4/app.py:182 src/netcross_gtk4/app.py:308
 msgid "Descendre"
 msgstr "Descendre"
 
+#: src/netcross_gtk4/app.py:187
 msgid "Retirer cette capture"
 msgstr "Retirer cette capture"
 
-msgid "Retirer ce point de capture"
-msgstr "Retirer ce point de capture"
-
+#: src/netcross_gtk4/app.py:298
 msgid "Enregistrer le filtre BPF courant sous un nom"
 msgstr "Enregistrer le filtre BPF courant sous un nom"
 
+#: src/netcross_gtk4/app.py:313
+msgid "Retirer ce point de capture"
+msgstr "Retirer ce point de capture"
+
+#: src/netcross_gtk4/app.py:884
 msgid "Necessite cryptography. Relit les memes fichiers."
 msgstr "Necessite cryptography. Relit les memes fichiers."
 
+#: src/netcross_gtk4/app.py:927
 msgid "Necessite cryptography. Idem TLS, baseline et courant separement."
 msgstr "Necessite cryptography. Idem TLS, baseline et courant separement."
 
+#: src/netcross_gtk4/app.py:1206
+msgid "Contexte selectionne : aucun"
+msgstr "Contexte selectionne : aucun"
+
+#: src/netcross_gtk4/app.py:1210
+msgid "Reinitialiser la selection"
+msgstr "Reinitialiser la selection"
+
+#: src/netcross_gtk4/app.py:1275
+msgid "Nouvelle analyse"
+msgstr "Nouvelle analyse"
+
+#: src/netcross_gtk4/app.py:1327
+msgid ""
+"--redact n'est pas disponible avec Diagnostic TLS/QUIC (voir "
+"netcross_core.redact)."
+msgstr ""
+"--redact n'est pas disponible avec Diagnostic TLS/QUIC (voir "
+"netcross_core.redact)."
+
+#: src/netcross_gtk4/app.py:1335
+msgid "Analyse en cours..."
+msgstr "Analyse en cours..."
+
+#: src/netcross_gtk4/app.py:1477
 msgid "Duree maximale atteinte -- arret automatique de la capture."
 msgstr "Duree maximale atteinte -- arret automatique de la capture."
 
-msgid "--redact n'est pas disponible avec Diagnostic TLS/QUIC (voir netcross_core.redact)."
-msgstr "--redact n'est pas disponible avec Diagnostic TLS/QUIC (voir netcross_core.redact)."
+#: src/netcross_gtk4/app.py:1502
+msgid "paquets..."
+msgstr "paquets..."
 
+#: src/netcross_gtk4/app.py:1509
+msgid "paquet(s) au total."
+msgstr "paquet(s) au total."
+
+#: src/netcross_gtk4/app.py:1519
+msgid "Arret de la capture en cours (peut prendre quelques secondes)..."
+msgstr "Arret de la capture en cours (peut prendre quelques secondes)..."
+
+#: src/netcross_gtk4/app.py:1542
 msgid "Correlation des flux entre points de capture..."
 msgstr "Correlation des flux entre points de capture..."
 
+#: src/netcross_gtk4/app.py:1561
 msgid "Mise en forme du rapport..."
 msgstr "Mise en forme du rapport..."
 
+#: src/netcross_gtk4/app.py:1568
 msgid "Triage des segments..."
 msgstr "Triage des segments..."
 
+#: src/netcross_gtk4/app.py:1593 src/netcross_gtk4/app.py:1687
 msgid "Analyse terminee."
 msgstr "Analyse terminee."
+
+#: src/netcross_gtk4/app.py:1738
+msgid "Comparaison terminee."
+msgstr "Comparaison terminee."
+
+#: src/netcross_gtk4/app.py:1902
+msgid "Generation du PDF..."
+msgstr "Generation du PDF..."

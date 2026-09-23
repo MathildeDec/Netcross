@@ -1,67 +1,47 @@
-# Netcross CLI — template de traduction (issue #299)
-# Copyright (C) 2026 MathildeDec
-# Ce fichier est distribué sous la même licence que le paquet Netcross.
+# SOME DESCRIPTIVE TITLE.
+# Copyright (C) YEAR THE PACKAGE'S COPYRIGHT HOLDER
+# This file is distributed under the same license as the Netcross package.
+# FIRST AUTHOR <EMAIL@ADDRESS>, YEAR.
 #
+#, fuzzy
 msgid ""
 msgstr ""
 "Project-Id-Version: Netcross 1.0\n"
 "Report-Msgid-Bugs-To: bugs@netcross.invalid\n"
-"POT-Creation-Date: 2026-09-23 20:00+0200\n"
-"PO-Revision-Date: 2026-09-23 20:00+0200\n"
-"Last-Translator: MathildeDec\n"
-"Language-Team: fr\n"
-"Language: fr\n"
+"POT-Creation-Date: 2026-09-23 21:13+0000\n"
+"PO-Revision-Date: YEAR-MO-DA HO:MI+ZONE\n"
+"Last-Translator: FULL NAME <EMAIL@ADDRESS>\n"
+"Language-Team: LANGUAGE <LL@li.org>\n"
+"Language: \n"
 "MIME-Version: 1.0\n"
-"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Type: text/plain; charset=CHARSET\n"
 "Content-Transfer-Encoding: 8bit\n"
-"Plural-Forms: nplurals=2; plural=(n > 1);\n"
 
-# --- Messages d'erreur ---
-msgid "ECHEC du decoupage"
+#: src/cross_capture_analyzer_cli.py:1126
+msgid ""
+"--security-report n'est pas disponible avec --live : les signatures "
+"d'exploits cherchent la charge utile brute, relue depuis les fichiers --"
+"capture (comme --tls)."
 msgstr ""
 
-msgid "ERREUR sur"
+#: src/cross_capture_analyzer_cli.py:1134
+msgid ""
+"--security-report n'est pas disponible avec --redact : les signatures "
+"d'exploits cherchent la charge utile brute, jamais des paquets anonymises."
 msgstr ""
 
-msgid "--quic necessite cryptography"
-msgstr ""
-
-msgid "--export-pcap"
-msgstr ""
-
-msgid "--adjust-time"
-msgstr ""
-
+#: src/cross_capture_analyzer_cli.py:1143
 msgid "base CVE introuvable"
 msgstr ""
 
-msgid "--cve-db necessite --security-report"
+#: src/cross_capture_analyzer_cli.py:1144
+msgid ""
+"aucune base vide n'est creee -- construire la base avec scripts/import_nvd.py"
 msgstr ""
 
-msgid "--security-report n'est pas disponible avec --live"
-msgstr ""
-
-msgid "--security-report n'est pas disponible avec --redact"
-msgstr ""
-
-msgid "--security-report n'est pas disponible avec --merge"
-msgstr ""
-
-# --- Messages de progression ---
-msgid "signature(s) d'exploit detectee(s) dans"
-msgstr ""
-
-msgid "RAPPORT DE SECURITE"
-msgstr ""
-
-msgid "Aucune base CVE fournie (--cve-db)"
-msgstr ""
-
-msgid "aucun constat"
-msgstr ""
-
-msgid "aucune tentative d'exploitation detectee"
-msgstr ""
-
-msgid "aucune CVE confirmee"
+#: src/cross_capture_analyzer_cli.py:1735 src/cross_capture_diff_cli.py:669
+msgid ""
+"\n"
+"--quic necessite cryptography : pip install cryptography --break-system-"
+"packages"
 msgstr ""
