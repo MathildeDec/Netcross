@@ -309,6 +309,28 @@ def generate_json_report(
             "excluded": bool(getattr(r, "duplicates_excluded", False)),
             "by_pair": [{"points": list(pair), "count": count} for pair, count in sorted(r.duplicate_count.items())],
         }
+    # issue #329 : chaque détection doit apparaître dans le rapport JSON.
+    # Cles dedicatées pour les consommateurs machine (en plus de security_findings).
+    if getattr(r, "exfiltration_alerts", None):
+        doc["exfiltration_alerts"] = list(r.exfiltration_alerts)
+    if getattr(r, "sequence_gaps", None):
+        doc["sequence_gaps"] = [
+            {
+                "point": g.point,
+                "src": g.src,
+                "sport": g.sport,
+                "dst": g.dst,
+                "dport": g.dport,
+                "start_seq": g.start_seq,
+                "end_seq": g.end_seq,
+                "missing_bytes": g.missing_bytes,
+                "ts": g.ts,
+                "frame_number": g.frame_number,
+                "cause": g.cause,
+                "evidence": g.evidence,
+            }
+            for g in r.sequence_gaps
+        ]
     if getattr(r, "voip_calls", None):
         doc["voip_calls"] = list(r.voip_calls)
         doc["voip_quality_distribution"] = dict(r.voip_quality_distribution)
