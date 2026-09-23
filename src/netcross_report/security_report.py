@@ -33,7 +33,10 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 
+from netcross_core.i18n import setup_gettext
 from netcross_core.logging_config import get_logger
+
+_ = setup_gettext("netcross-report")
 
 logger = get_logger(__name__)
 # Du plus grave au moins grave : l'indice sert de rang de tri.
@@ -411,36 +414,36 @@ def format_security_report(sr: SecurityReport) -> list[str]:
     """Rendu texte du rapport, une chaine par ligne (jamais de `print()`
     ici, meme separation que `netcross_report.session_objects`)."""
     d = sr.dashboard
-    lines = ["=" * 70, "RAPPORT DE SECURITE (detection passive de vulnerabilites)", "=" * 70]
+    lines = ["=" * 70, _("RAPPORT DE SECURITE (detection passive de vulnerabilites)"), "=" * 70]
 
-    lines += ["", "-- Tableau de bord securite --"]
-    level = d.level or "aucun constat"
-    lines.append(f"  score de risque global : {d.score}/100 [{_bar(d.score)}] (niveau : {level})")
-    lines.append(f"  services detectes : {d.services_total} (dont {d.services_vulnerable} vulnerable(s))")
-    lines.append(f"  exploits detectes : {d.exploits}")
-    lines.append(f"  anomalies (Expert Info) : {d.anomalies}")
-    lines.append(f"  CVE confirmees : {d.cves}")
-    lines.append("  repartition par severite : " + ", ".join(f"{sev}={d.by_severity[sev]}" for sev in SEVERITIES))
+    lines += ["", _("-- Tableau de bord securite --")]
+    level = d.level or _("aucun constat")
+    lines.append(f"  {_('score de risque global')} : {d.score}/100 [{_bar(d.score)}] ({_('niveau')} : {level})")
+    lines.append(f"  {_('services detectes')} : {d.services_total} ({_('dont')} {d.services_vulnerable} {_('vulnerable(s)')})")
+    lines.append(f"  {_('exploits detectes')} : {d.exploits}")
+    lines.append(f"  {_('anomalies (Expert Info)')} : {d.anomalies}")
+    lines.append(f"  {_('CVE confirmees')} : {d.cves}")
+    lines.append(f"  {_('repartition par severite')} : " + ", ".join(f"{sev}={d.by_severity[sev]}" for sev in SEVERITIES))
 
     lines += _section(
-        "Services detectes (classes par criticite)",
+        _("Services detectes (classes par criticite)"),
         [_format_service(s) for s in sr.services],
-        "aucun service identifie",
+        _("aucun service identifie"),
     )
     lines += _section(
-        "Tentatives d'exploitation detectees",
+        _("Tentatives d'exploitation detectees"),
         [_format_item(i) for i in sr.exploits],
-        "aucune tentative d'exploitation detectee",
+        _("aucune tentative d'exploitation detectee"),
     )
     lines += _section(
-        "Anomalies (alertes Expert Info correlees)",
+        _("Anomalies (alertes Expert Info correlees)"),
         [_format_item(i) for i in sr.anomalies],
-        "aucune anomalie correlee",
+        _("aucune anomalie correlee"),
     )
     lines += _section(
-        "CVE confirmees (version + CVE-ID + score CVSS)",
+        _("CVE confirmees (version + CVE-ID + score CVSS)"),
         [_format_item(i) for i in sr.cves],
-        "aucune CVE confirmee",
+        _("aucune CVE confirmee"),
     )
     return lines
 

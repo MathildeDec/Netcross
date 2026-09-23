@@ -61,7 +61,10 @@ from dataclasses import dataclass, field
 from netcross_report.synthesis import Finding
 
 
+from netcross_core.i18n import setup_gettext
 from netcross_core.logging_config import get_logger
+
+_ = setup_gettext("netcross-report")
 
 logger = get_logger(__name__)
 # Poids par defaut : couvre a la fois le vocabulaire de synthesis.Finding
@@ -188,7 +191,7 @@ def print_triage(ranked: list[SegmentScore], top_n: int = 5) -> None:
     print("=" * 70)
 
     if not ranked:
-        print("\nAucun segment avec un score de preuve suffisant.")
+        print("\n" + _("Aucun segment avec un score de preuve suffisant."))
         return
 
     for rank, s in enumerate(ranked[:top_n], start=1):
@@ -263,10 +266,10 @@ HEALTH_LABEL_THRESHOLDS: list[tuple[float, str]] = [
 ]
 
 HEALTH_LABELS: dict[str, str] = {
-    "bon": "Bon",
-    "a_surveiller": "A surveiller",
-    "degrade": "Degrade",
-    "critique": "Critique",
+    "bon": _("Bon"),
+    "a_surveiller": _("A surveiller"),
+    "degrade": _("Degrade"),
+    "critique": _("Critique"),
 }
 
 
@@ -297,4 +300,4 @@ def health_label(score: int) -> str:
 def format_health_line(score: int) -> str:
     """Rendu texte commun (CLI console + GUI GTK4) -- une seule source pour
     le libelle exact, pour eviter que les deux divergent legerement."""
-    return f"Score de sante : {score}/100 ({HEALTH_LABELS[health_label(score)]})"
+    return f"{_('Score de sante')} : {score}/100 ({HEALTH_LABELS[health_label(score)]})"
