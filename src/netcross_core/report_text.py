@@ -19,7 +19,10 @@ from netcross_core.models import (
 )
 
 
+from netcross_core.i18n import setup_gettext
 from netcross_core.logging_config import get_logger
+
+_ = setup_gettext("netcross-report")
 
 logger = get_logger(__name__)
 # -- link type lisible (issue #263) -------------------------------------------
@@ -66,21 +69,21 @@ def _linktype_lisible(code) -> str:
 
 def print_report(r: Report):
     print("=" * 70)
-    print("ANALYSE CROISEE DE CAPTURES")
+    print(_("ANALYSE CROISEE DE CAPTURES"))
     print("=" * 70)
 
-    print("\n-- Paquets/flux identifies par point --")
+    print("\n-- " + _("Paquets/flux identifies par point") + " --")
     for p in r.points:
         print(f"  {p:15s} : {r.seen_count[p]}")
 
     if r.duplicate_count:
         # Job 41/issue #161 -- section absente si la detection n'a pas ete
         # demandee ou n'a rien trouve : la sortie historique reste inchangee.
-        print("\n-- Doublons inter-captures (meme payload vu a deux points quasi simultanement) --")
+        print("\n-- " + _("Doublons inter-captures (meme payload vu a deux points quasi simultanement)") + " --")
         for (a, b), n in sorted(r.duplicate_count.items()):
             print(f"  {a} <-> {b} : {n} paquet(s) duplique(s)")
         if r.duplicates_excluded:
-            print("  (ces doublons sont EXCLUS des compteurs, debits et de la correlation de ce rapport)")
+            print("  (" + _("ces doublons sont EXCLUS des compteurs, debits et de la correlation de ce rapport") + ")")
         else:
             print(
                 "  ATTENTION : ces doublons sont ENCORE COMPTES dans les statistiques "
@@ -93,7 +96,7 @@ def print_report(r: Report):
         # commentaire pcapng (cas le plus frequent) : la sortie historique
         # reste inchangee. Deux sous-parties, deux origines distinctes (voir
         # Report.capture_comments/packet_comments dans models.py).
-        print("\n-- Commentaires pcapng --")
+        print("\n-- " + _("Commentaires pcapng") + " --")
         for c in r.capture_comments:
             print(f"  [section] {c}")
         for c in r.packet_comments:
@@ -104,7 +107,7 @@ def print_report(r: Report):
         # paquets perdus...). Section absente si capinfos est absent ou si
         # aucune metadonnee n'a pu etre lue : la sortie historique reste
         # inchangee.
-        print("\n-- Metadonnees de capture --")
+        print("\n-- " + _("Metadonnees de capture") + " --")
         for info in r.capture_infos:
             label = info["label"]
             ftype = info.get("file_type") or "?"
@@ -172,7 +175,7 @@ def print_report(r: Report):
                     iface_parts.append(f"perdus(os) {drop_os}")
                 print(f"      [{iface_name}] {', '.join(iface_parts)}")
 
-    print("\n-- Topologie deduite (delta TTL + recouvrement de flux entre points) --")
+    print("\n-- " + _("Topologie deduite (delta TTL + recouvrement de flux entre points)") + " --")
     if r.topology_edges:
         for u, d, info in r.topology_edges:
             print(
@@ -202,7 +205,7 @@ def print_report(r: Report):
         )
 
     if r.topology_ambiguous:
-        print("\n-- Relations ambigues entre points (chemins multiples possibles) --")
+        print("\n-- " + _("Relations ambigues entre points (chemins multiples possibles)") + " --")
         for x, y, reason in r.topology_ambiguous:
             print(f"  {x} <-> {y} : {reason}")
 
@@ -214,19 +217,19 @@ def print_report(r: Report):
         )
 
     if r.topology_order_conflicts:
-        print("\n-- ATTENTION : --order fourni contredit la topologie deduite --")
+        print("\n-- " + _("ATTENTION : --order fourni contredit la topologie deduite") + " --")
         for c in r.topology_order_conflicts:
             print(f"  {c}")
 
     if r.loss_count:
-        print("\n-- Pertes potentielles (paquet vu en amont, absent a ce point) --")
+        print("\n-- " + _("Pertes potentielles (paquet vu en amont, absent a ce point)") + " --")
         for p in r.points:
             if r.loss_count[p]:
                 print(f"  {p:15s} : {r.loss_count[p]} paquets manquants")
     else:
-        print("\n-- Pertes : aucune detectee (ou aucun ordre/topologie exploitable) --")
+        print("\n-- " + _("Pertes : aucune detectee (ou aucun ordre/topologie exploitable)") + " --")
 
-    print("\n-- Latence / gigue entre points (necessite horloges synchronisees) --")
+    print("\n-- " + _("Latence / gigue entre points (necessite horloges synchronisees)") + " --")
     for a, b in r.pairs:
         vals = r.latency.get((a, b), [])
         if not vals:
@@ -248,7 +251,7 @@ def print_report(r: Report):
             )
 
     if r.clock_offset_estimate:
-        print("\n-- Decalage d'horloge estime entre points (via handshakes TCP) --")
+        print("\n-- " + _("Decalage d'horloge estime entre points (via handshakes TCP)") + " --")
         print("   Hypothese : chemin reseau symetrique (delai aller = delai retour).")
         print("   Un decalage important et instable indique une horloge non synchronisee")
         print("   (NTP absent/casse) ou un chemin reellement asymetrique -> a prendre comme")
@@ -256,7 +259,7 @@ def print_report(r: Report):
         for (a, b), (mean_off, stdev_off, n_off) in r.clock_offset_estimate.items():
             print(f"  {a} <-> {b} : {mean_off:+.2f}ms (ecart-type {stdev_off:.2f}ms, n={n_off} handshake(s))")
 
-    print("\n-- Sauts de routeur (delta TTL) entre points --")
+    print("\n-- " + _("Sauts de routeur (delta TTL) entre points") + " --")
     for a, b in r.pairs:
         deltas = r.hop_delta.get((a, b), [])
         if not deltas:
@@ -284,7 +287,7 @@ def print_report(r: Report):
         print("  " + " ".join(chain_parts) + f"  (total: {total_hops} saut(s))")
 
     if any(r.ttl_unstable.values()):
-        print("\n-- Instabilite de route intra-flux (TTL variable pour un meme flux) --")
+        print("\n-- " + _("Instabilite de route intra-flux (TTL variable pour un meme flux)") + " --")
         for p in r.points:
             if r.ttl_unstable[p]:
                 print(
@@ -292,7 +295,7 @@ def print_report(r: Report):
                     f"(routage asymetrique / load-balancing par paquet possible)"
                 )
 
-    print("\n-- Changements de marquage QoS (DSCP) entre points --")
+    print("\n-- " + _("Changements de marquage QoS (DSCP) entre points") + " --")
     any_qos = False
     for a, b in r.pairs:
         n = r.qos_change.get((a, b), 0)
@@ -308,7 +311,7 @@ def print_report(r: Report):
     if not any_qos:
         print("  aucun changement detecte")
 
-    print("\n-- VLAN 802.1Q --")
+    print("\n-- " + _("VLAN 802.1Q") + " --")
     any_vlan = any(r.vlan_seen.values())
     if any_vlan:
         for p in r.points:
@@ -343,7 +346,7 @@ def print_report(r: Report):
     else:
         print("  aucun tag VLAN 802.1Q detecte dans les captures")
 
-    print("\n-- Encapsulation / tunnels (MPLS, GRE, VXLAN, GTP-U, ERSPAN) --")
+    print("\n-- " + _("Encapsulation / tunnels (MPLS, GRE, VXLAN, GTP-U, ERSPAN)") + " --")
     any_encap = any(r.encap_seen.values())
     if any_encap:
         for p in r.points:
@@ -369,7 +372,7 @@ def print_report(r: Report):
     else:
         print("  aucun tunnel MPLS/GRE/VXLAN/GTP-U/ERSPAN/CAPWAP detecte")
 
-    print("\n-- Fragmentation / MTU --")
+    print("\n-- " + _("Fragmentation / MTU") + " --")
     any_frag = False
     for p in r.points:
         if r.frag_count[p]:
@@ -403,7 +406,7 @@ def print_report(r: Report):
     if not any_frag:
         print("  aucune fragmentation ni message ICMP(v6) de MTU insuffisant detecte")
 
-    print("\n-- PMTUD (Path MTU Discovery) : noirs detectes --")
+    print("\n-- " + _("PMTUD (Path MTU Discovery) : noirs detectes") + " --")
     if any(r.pmtud_blackhole.values()):
         for a, b in r.pairs:
             n = r.pmtud_blackhole.get((a, b), 0)
@@ -423,7 +426,7 @@ def print_report(r: Report):
             "cote IPv4 uniquement, voir README)"
         )
 
-    print("\n-- Timeout d'inactivite / coupure NAT-FW silencieuse --")
+    print("\n-- " + _("Timeout d'inactivite / coupure NAT-FW silencieuse") + " --")
     if any(r.idle_timeout_dropped.values()):
         for a, b in r.pairs:
             n = r.idle_timeout_dropped.get((a, b), 0)
@@ -442,7 +445,7 @@ def print_report(r: Report):
             "+ trafic repris jamais revu en aval)"
         )
 
-    print("\n-- Conflits d'adresse IP (ARP) --")
+    print("\n-- " + _("Conflits d'adresse IP (ARP)") + " --")
     if any(r.arp_ip_conflict.values()):
         for p in r.points:
             n = r.arp_ip_conflict.get(p, 0)
@@ -457,7 +460,7 @@ def print_report(r: Report):
     else:
         print("  aucun conflit d'adresse IP detecte (trafic ARP observe ou non)")
 
-    print("\n-- Instabilite STP --")
+    print("\n-- " + _("Instabilite STP") + " --")
     if any(r.stp_topology_change.values()) or any(r.stp_root_change.values()):
         for p in r.points:
             tc = r.stp_topology_change.get(p, 0)
@@ -470,7 +473,7 @@ def print_report(r: Report):
     else:
         print("  aucune instabilite STP detectee (trafic STP observe ou non)")
 
-    print("\n-- Certificats TLS --")
+    print("\n-- " + _("Certificats TLS") + " --")
     if any(r.tls_cert_invalid_dates.values()) or any(r.tls_cert_mismatch.values()):
         for p in r.points:
             n = r.tls_cert_invalid_dates.get(p, 0)
@@ -492,7 +495,7 @@ def print_report(r: Report):
     else:
         print("  aucune anomalie de certificat detectee (trafic TLS observe ou non)")
 
-    print("\n-- Negociations TLS incompletes --")
+    print("\n-- " + _("Negociations TLS incompletes") + " --")
     if any(r.tls_handshake_no_reply.values()) or any(r.tls_handshake_incomplete.values()):
         for p in r.points:
             no_reply = r.tls_handshake_no_reply.get(p, 0)
@@ -516,14 +519,14 @@ def print_report(r: Report):
         max_kbps = max(vals) * 8 / 1000 / r.bucket_seconds
         print(f"  {p:15s} : moy={avg_kbps:.1f} kbps  max={max_kbps:.1f} kbps")
 
-    print("\n-- Correlation debit / pertes (saturation, policing, ou sans lien) --")
+    print("\n-- " + _("Correlation debit / pertes (saturation, policing, ou sans lien)") + " --")
     if r.saturation_verdict:
         for (a, b), verdict in r.saturation_verdict.items():
             print(f"  {a} -> {b} : {verdict}")
     else:
         print("  aucune perte a corréler avec le debit (ou --order non fourni)")
 
-    print("\n-- Indice de bufferbloat (latence qui augmente avec la charge) --")
+    print("\n-- " + _("Indice de bufferbloat (latence qui augmente avec la charge)") + " --")
     if r.bufferbloat_hint:
         for (a, b), (low_lat, high_lat) in r.bufferbloat_hint.items():
             print(
@@ -534,7 +537,7 @@ def print_report(r: Report):
     else:
         print("  aucun indice de bufferbloat detecte")
 
-    print("\n-- Fenetre TCP a zero (recepteur/equipement sature) --")
+    print("\n-- " + _("Fenetre TCP a zero (recepteur/equipement sature)") + " --")
     if any(r.zero_window.values()):
         for p in r.points:
             if r.zero_window[p]:
@@ -542,7 +545,7 @@ def print_report(r: Report):
     else:
         print("  aucune fenetre a zero observee")
 
-    print("\n-- ACK dupliques (indice de perte/reordonnancement en aval) --")
+    print("\n-- " + _("ACK dupliques (indice de perte/reordonnancement en aval)") + " --")
     if any(r.dup_ack.values()):
         for p in r.points:
             if r.dup_ack[p]:
@@ -550,7 +553,7 @@ def print_report(r: Report):
     else:
         print("  aucun ACK duplique detecte")
 
-    print("\n-- Retransmissions TCP par cause (classification native tshark) --")
+    print("\n-- " + _("Retransmissions TCP par cause (classification native tshark)") + " --")
     if any(r.retrans_fast.values()) or any(r.retrans_rto.values()) or any(r.retrans_spurious.values()):
         for p in r.points:
             fast, rto, spur = r.retrans_fast[p], r.retrans_rto[p], r.retrans_spurious[p]
@@ -565,7 +568,7 @@ def print_report(r: Report):
     else:
         print("  aucune retransmission classifiee par tshark sur cette capture")
 
-    print("\n-- Signaux d'expertise TCP natifs (tcp.analysis.*) --")
+    print("\n-- " + _("Signaux d'expertise TCP natifs (tcp.analysis.*)") + " --")
     print("  (issue #21) distingue perte reelle / reordonnancement / RTO")
     any_tcp_sig = any(r.out_of_order.values()) or any(r.lost_segment.values()) or any(r.window_update.values())
     if any_tcp_sig:
@@ -581,7 +584,7 @@ def print_report(r: Report):
     else:
         print("  aucun signal d'expertise TCP supplementaire detecte")
 
-    print("\n-- Options TCP negociees au handshake (MSS/Window Scale/SACK) --")
+    print("\n-- " + _("Options TCP negociees au handshake (MSS/Window Scale/SACK)") + " --")
     any_tcp_opts = any(r.mss_clamped.values()) or any(r.wscale_stripped.values()) or any(r.sack_stripped.values())
     if any_tcp_opts:
         for a, b in r.pairs:
@@ -607,7 +610,7 @@ def print_report(r: Report):
     else:
         print("  aucune modification d'option detectee entre les points de capture")
 
-    print("\n-- RST TCP --")
+    print("\n-- " + _("RST TCP") + " --")
     if any(r.rst_count.values()):
         for p in r.points:
             if r.rst_count[p]:
@@ -622,7 +625,7 @@ def print_report(r: Report):
     else:
         print("  aucun RST detecte")
 
-    print("\n-- Handshakes TCP (SYN sans reponse = filtrage actif probable) --")
+    print("\n-- " + _("Handshakes TCP (SYN sans reponse = filtrage actif probable)") + " --")
     if r.syn_no_synack or r.syn_reply_missing:
         for p in r.points:
             if r.syn_no_synack[p]:
@@ -640,7 +643,7 @@ def print_report(r: Report):
     else:
         print("  aucune anomalie de handshake detectee (necessite --order et exclut --nat-tolerant)")
 
-    print("\n-- Retransmissions TCP detectees par point --")
+    print("\n-- " + _("Retransmissions TCP detectees par point") + " --")
     any_retrans = False
     for p in r.points:
         if r.retrans[p]:
@@ -649,7 +652,7 @@ def print_report(r: Report):
     if not any_retrans:
         print("  aucune detectee")
 
-    print("\n-- Integrite de capture : trous de sequence TCP --")
+    print("\n-- " + _("Integrite de capture : trous de sequence TCP") + " --")
     if r.sequence_gaps:
         print_sequence_gaps(r)
     else:
@@ -713,7 +716,7 @@ def print_report(r: Report):
             "pour identifier avec certitude qui est le client)"
         )
 
-    print("\n-- DHCP (attribution d'adresses IP) --")
+    print("\n-- " + _("DHCP (attribution d'adresses IP)") + " --")
     if r.dhcp_msg_count:
         for p in r.points:
             counts = r.dhcp_msg_count.get(p, {})
@@ -747,7 +750,7 @@ def print_report(r: Report):
     else:
         print("  aucun trafic DHCP detecte dans les captures")
 
-    print("\n-- SIP (signalisation voix/visio) --")
+    print("\n-- " + _("SIP (signalisation voix/visio)") + " --")
     if r.sip_msg_count:
         for p in r.points:
             counts = r.sip_msg_count.get(p, {})
@@ -777,7 +780,7 @@ def print_report(r: Report):
     else:
         print("  aucun trafic SIP detecte dans les captures")
 
-    print("\n-- VoIP orientee appel (SIP + RTP) --")
+    print("\n-- " + _("VoIP orientee appel (SIP + RTP)") + " --")
     if r.voip_calls:
         for call in r.voip_calls[:50]:
             print(
@@ -793,7 +796,7 @@ def print_report(r: Report):
     else:
         print("  aucun appel SIP consolide")
 
-    print("\n-- DNS (resolution de noms) --")
+    print("\n-- " + _("DNS (resolution de noms)") + " --")
     if r.dns_query_count or r.dns_response_count:
         for p in r.points:
             q = r.dns_query_count.get(p, 0)
@@ -825,7 +828,7 @@ def print_report(r: Report):
     else:
         print("  aucun trafic DNS detecte dans les captures")
 
-    print("\n-- HTTP (codes de statut, HTTP/1.x uniquement) --")
+    print("\n-- " + _("HTTP (codes de statut, HTTP/1.x uniquement)") + " --")
     if r.http_request_count or r.http_response_count:
         for p in r.points:
             q = r.http_request_count.get(p, 0)
@@ -860,7 +863,7 @@ def print_report(r: Report):
     else:
         print("  aucun trafic HTTP detecte dans les captures")
 
-    print("\n-- Objets HTTP transferes (metadonnees, sans corps) --")
+    print("\n-- " + _("Objets HTTP transferes (metadonnees, sans corps)") + " --")
     if r.http_objects:
         for obj in r.http_objects[:50]:
             print(
@@ -928,7 +931,7 @@ def print_annotations(annotations: list[PacketAnnotation]):
     de la passer ici, symetrique de `write_detail_csv` ci-dessous qui
     prend `flows`/`points` directement plutot que de deduire un chemin
     de capture."""
-    print("\n-- Annotations (etiquettes et signets sur paquets) --")
+    print("\n-- " + _("Annotations (etiquettes et signets sur paquets)") + " --")
     if not annotations:
         print("  aucune annotation (pas de sidecar, ou sidecar vide)")
         return
