@@ -616,6 +616,11 @@ class Report:
     # `targets`. Rempli par `security.findings.apply_security_findings` via
     # `security.lateral_movement.detect_lateral_movement`.
     lateral_movement_events: list[dict] = field(default_factory=list)
+    # SCENARIO-2 (#148) : exfiltration de donnees -- un dict par alerte
+    # (transfert volumineux vers l'exterieur). Cles : `point`, `src`, `dst`,
+    # `signals`, `upload_bytes`, `download_bytes`, `score`, `reason`.
+    # Rempli par `analysis.analyse()` via `security.exfiltration.detect_exfiltration`.
+    exfiltration_alerts: list[dict] = field(default_factory=list)
     # -- topologie deduite (ordre + chemins multiples) --
     topology_edges: list[tuple[str, str, dict]] = field(default_factory=list)
     topology_ambiguous: list[tuple[str, str, str]] = field(default_factory=list)
