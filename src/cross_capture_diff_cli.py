@@ -370,8 +370,8 @@ def main():
         metavar="LABEL:INTERFACE[:FILTRE_BPF]",
         help="Capture en direct le run COURANT au lieu de le lire depuis des "
         "fichiers (repetable pour plusieurs points simultanes, un thread "
-        "par point -- meme mecanique que --live sur, sources distantes "
-        "rpcap:// sshdump:// pipe:// comprises, "
+        "par point, sources distantes rpcap:// sshdump:// pipe:// "
+        "comprises -- meme mecanique que --live sur "
         "cross_capture_analyzer_cli.py). S'arrete sur Ctrl+C ou "
         "--live-duration. Le BASELINE reste toujours un ou plusieurs "
         "fichiers via --baseline : une reference de comparaison est par "
