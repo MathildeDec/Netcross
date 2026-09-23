@@ -54,15 +54,18 @@ flowchart LR
     CaptureInfo["pcap_parser.capinfos_source.CaptureInfo"]
     ClientReport["netcross_core.client_diff.ClientReport"]
     DemandeSauvegarde["netcross_gtk4.bpf_panel.DemandeSauvegarde"]
+    Detector["netcross_core.plugins.api.Detector"]
     DiffFinding["netcross_core.baseline_diff.DiffFinding"]
     EvidenceLink["netcross_core.expert_model.EvidenceLink"]
     ExpertEvent["netcross_core.expert_model.ExpertEvent"]
+    Exporter["netcross_core.plugins.api.Exporter"]
     Finding["netcross_report.synthesis.Finding"]
     FlowView["netcross_core.flow_view.FlowView"]
     Flow["netcross_core.expert_model.Flow"]
     HostAsset["netcross_core.discovery.assets.HostAsset"]
     InterfaceRecord["pcap_parser.capfile.InterfaceRecord"]
     LiveDiffState["netcross_core.live_diff.LiveDiffState"]
+    LoadedPlugins["netcross_core.plugins.loader.LoadedPlugins"]
     OsGuess["netcross_core.discovery.os_detect.OsGuess"]
     Pkt["netcross_core.models.Pkt"]
     Report["netcross_core.models.Report"]
@@ -79,6 +82,8 @@ flowchart LR
     FlowView -->|flow| Flow
     HostAsset -->|os_guess| OsGuess
     LiveDiffState -->|packets_in_window| Pkt
+    LoadedPlugins -->|detectors| Detector
+    LoadedPlugins -->|exporters| Exporter
     SegmentScore -->|findings| Finding
     _Detector -->|run| netcross_core_security_expert_correlation__FlowState
 ```
@@ -1306,6 +1311,7 @@ classDiagram
         +list~dict~ dga_alerts
         +list~dict~ fast_flux_alerts
         +list~dict~ lateral_movement_events
+        +list~dict~ plugin_runs
         +list~dict~ flow_anomalies
         +list~tuple~str, str, dict~~ topology_edges
         +list~tuple~str, str, str~~ topology_ambiguous
@@ -2883,6 +2889,7 @@ classDiagram
         +str? host
         +int? port
         +str? point
+        +str? plugin
     }
     class ServiceEntry {
         <<dataclass, slots>>

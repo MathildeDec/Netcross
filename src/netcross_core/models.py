@@ -635,6 +635,11 @@ class Report:
     # `targets`. Rempli par `security.findings.apply_security_findings` via
     # `security.lateral_movement.detect_lateral_movement`.
     lateral_movement_events: list[dict] = field(default_factory=list)
+    # -- plugins (issue #284) : une ligne de tracabilite par plugin demande
+    # (detecteur/exporteur ; ok, aucun constat, erreur, refuse...), cles
+    # `plugin`, `kind`, `status`, `reason`, `line`. Rempli par
+    # `plugins.runner.run_detectors` / `run_exporters`.
+    plugin_runs: list[dict] = field(default_factory=list)
     # -- statistiques de flux (FLOW-4, issue #145) : un dict par flux
     # analyse, cles `src`, `dst`, `packet_count`, `byte_count`, `splt`,
     # `classification` (interactif/transfert/obfusque/normal), `entropy`,

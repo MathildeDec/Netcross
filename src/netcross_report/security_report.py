@@ -86,6 +86,9 @@ class SecurityItem:
     host: str | None = None
     port: int | None = None
     point: str | None = None
+    # nom du detecteur tiers qui a produit le constat (issue #284) ; None
+    # pour un constat du coeur
+    plugin: str | None = None
 
 
 @dataclass(slots=True)
@@ -143,6 +146,9 @@ class SecurityReport:
     # canal -- envoyee / echec + motif / non configuree. Vide = aucune
     # notification demandee (pas de --notify-on).
     notifications: list[dict] = field(default_factory=list)
+    # tracabilite des plugins (issue #284) : une ligne par plugin demande
+    # (« detecteur x : erreur, constats absents »). Vide = aucun plugin.
+    plugins: list[dict] = field(default_factory=list)
 
 
 # -- normalisation -------------------------------------------------------
@@ -208,6 +214,7 @@ def _to_item(raw) -> SecurityItem | None:
         host=_opt_str(raw.get("host")),
         port=_opt_int(raw.get("port")),
         point=_opt_str(raw.get("point")),
+        plugin=_opt_str(raw.get("plugin")),
     )
 
 
@@ -306,7 +313,14 @@ def build_security_report(report) -> SecurityReport:
         dash.by_severity[item.severity] += 1
     dash.score = min(100, sum(SEVERITY_WEIGHTS[sev] * n for sev, n in dash.by_severity.items()))
     dash.level = next((sev for sev in SEVERITIES if dash.by_severity[sev]), None)
-    return SecurityReport(services=services, exploits=exploits, anomalies=anomalies, cves=cves, dashboard=dash)
+    return SecurityReport(
+        services=services,
+        exploits=exploits,
+        anomalies=anomalies,
+        cves=cves,
+        dashboard=dash,
+        plugins=[dict(r) for r in (getattr(report, "plugin_runs", None) or [])],
+    )
 
 
 # -- rendu texte -----------------------------------------------------------
@@ -339,6 +353,8 @@ def _format_item(item: SecurityItem) -> str:
         line += f" -- {item.detail}"
     if item.point:
         line += f" (point {item.point})"
+    if item.plugin:
+        line += f" [plugin {item.plugin}]"
     return "  " + line
 
 
@@ -442,6 +458,8 @@ def format_security_report(sr: SecurityReport) -> list[str]:
     )
     if sr.notifications:
         lines += _section("Notifications", [f"  {n.get('line', '')}" for n in sr.notifications], "")
+    if sr.plugins:
+        lines += _section("Plugins", [f"  {p.get('line', '')}" for p in sr.plugins], "")
     return lines
 
 
@@ -511,10 +529,12 @@ def security_report_to_dict(sr: SecurityReport) -> dict:
                     "host": i.host,
                     "port": i.port,
                     "point": i.point,
+                    "plugin": i.plugin,
                 }
                 for i in items
             ]
             for cle, items in (("exploits", sr.exploits), ("anomalies", sr.anomalies), ("cves", sr.cves))
         },
         "notifications": [dict(n) for n in sr.notifications],
+        "plugins": [dict(p) for p in sr.plugins],
     }

@@ -809,6 +809,39 @@ def _send_notifications(args, report, security_report_obj) -> list[dict]:
         silence_hours=args.notify_silence,
     )
     return [res.to_dict() for res in results]
+def _list_plugins(authorized: list[str], plugin_paths: list[str]) -> int:
+    """--list-plugins : installes ET locaux, en disant lesquels sont
+    autorises -- un plugin installe n'est pas un plugin autorise."""
+    from netcross_core.plugins import list_plugins
+
+    rows = list_plugins(authorized, plugin_paths)
+    if not rows:
+        print("Aucun plugin installe (entry points netcross.detectors / netcross.exporters) ni --plugin-path.")
+        return 0
+    print(f"{'NOM':<24} {'TYPE':<10} {'AUTORISE':<9} ORIGINE")
+    for row in rows:
+        allowed = "oui" if row["authorized"] else "non"
+        print(f"{row['name']:<24} {row['kind']:<10} {allowed:<9} {row['origin']}")
+        if row["error"]:
+            print(f"  !! {row['error']}")
+    unknown = [n for n in authorized if n not in {r["name"] for r in rows}]
+    if unknown:
+        print(f"Demande(s) dans --plugins mais introuvable(s) : {', '.join(unknown)}")
+    return 0
+
+
+def _parse_plugin_exports(specs: list[str], authorized: list[str]) -> list[tuple[str, str]]:
+    targets = []
+    for spec in specs:
+        name, sep, path = spec.partition("=")
+        if not sep or not name.strip() or not path.strip():
+            print(f"--plugin-export : format attendu NOM=FICHIER, recu {spec!r}.", file=sys.stderr)
+            sys.exit(1)
+        if name.strip() not in authorized:
+            print(f"--plugin-export {name.strip()} : exporteur absent de --plugins.", file=sys.stderr)
+            sys.exit(1)
+        targets.append((name.strip(), path.strip()))
+    return targets
 
 
 def main():
@@ -1133,6 +1166,36 @@ def main():
         "--siem-output",
         metavar="FICHIER",
         help="Fichier de sortie de --siem-export.",
+    plug = ap.add_argument_group(
+        "plugins (issue #284)",
+        "Detecteurs et sorties tierces. Chargement EXPLICITE : un plugin installe n'est execute que "
+        "s'il est nomme dans --plugins. Code tiers execute dans le processus : voir docs/plugins.md.",
+    )
+    plug.add_argument(
+        "--plugins",
+        metavar="NOM[,NOM...]",
+        help="Plugins autorises a s'executer (entry points netcross.detectors / netcross.exporters "
+        "ou definis dans un --plugin-path). Les detecteurs necessitent --security-report.",
+    )
+    plug.add_argument(
+        "--plugin-path",
+        action="append",
+        default=[],
+        metavar="FICHIER.py",
+        help="Fichier plugin local (DETECTORS = [...] / EXPORTERS = [...]). Repetable. Le fichier est "
+        "importe, mais ses plugins ne s'executent que s'ils sont nommes dans --plugins.",
+    )
+    plug.add_argument(
+        "--plugin-export",
+        action="append",
+        default=[],
+        metavar="NOM=FICHIER",
+        help="Execute l'exporteur NOM (autorise par --plugins) vers FICHIER. Repetable.",
+    )
+    plug.add_argument(
+        "--list-plugins",
+        action="store_true",
+        help="Liste les plugins installes et locaux, autorises ou NON par --plugins, puis quitte.",
     )
     ap.add_argument(
         "--security-html",
@@ -1396,6 +1459,10 @@ def main():
     )
     args = ap.parse_args()
 
+    plugin_names = [n.strip() for n in (args.plugins or "").split(",") if n.strip()]
+    if args.list_plugins:
+        sys.exit(_list_plugins(plugin_names, args.plugin_path))
+
     if not args.capture and not args.live:
         print("Il faut fournir au moins un --capture ou un --live.", file=sys.stderr)
         sys.exit(1)
@@ -1468,6 +1535,19 @@ def main():
     if args.notify_silence is not None and args.notify_silence < 0:
         print("--notify-silence doit etre >= 0.", file=sys.stderr)
         sys.exit(1)
+    plugin_targets = _parse_plugin_exports(args.plugin_export, plugin_names)
+    if args.plugin_path and not plugin_names:
+        print("--plugin-path sans --plugins : aucun plugin autorise, rien ne s'executerait.", file=sys.stderr)
+        sys.exit(1)
+    loaded_plugins = None
+    if plugin_names:
+        from netcross_core.plugins import load_plugins
+
+        loaded_plugins = load_plugins(plugin_names, args.plugin_path)
+        if loaded_plugins.detectors and not args.security_report:
+            names = ", ".join(d.name for d in loaded_plugins.detectors)
+            print(f"detecteur(s) de plugin {names} : --security-report requis.", file=sys.stderr)
+            sys.exit(1)
     if args.security_html and not args.security_report:
         print("--security-html necessite --security-report.", file=sys.stderr)
         sys.exit(1)
@@ -2064,6 +2144,11 @@ def main():
             # jusqu'ici l'objet etait construit, imprime, puis perdu -- les
             # constats de securite n'atteignaient donc aucune sortie
             # machine, meme quand --json-report etait demande.
+            if loaded_plugins is not None:
+                from netcross_core.plugins import load_error_runs, run_detectors
+
+                r.plugin_runs += load_error_runs(loaded_plugins.errors)
+                r.plugin_runs += run_detectors(loaded_plugins.detectors, all_packets, r)
             security_report_obj = build_security_report(r)
             if args.notify_on:
                 security_report_obj.notifications = _send_notifications(args, r, security_report_obj)
@@ -2256,6 +2341,18 @@ def main():
             meta={"Anonymisation": "adresses IP/MAC anonymisees (--redact)"} if args.redact else None,
         )
         print(f"Rapport PDF ecrit dans {args.pdf_report}")
+
+    if loaded_plugins is not None:
+        from netcross_core.plugins import load_error_runs, run_exporters
+
+        if not args.security_report:
+            # sinon deja traces dans le rapport de securite
+            r.plugin_runs += load_error_runs(loaded_plugins.errors)
+            for run in r.plugin_runs:
+                print(f"Plugins : {run['line']}")
+        for run in run_exporters(loaded_plugins.exporters, plugin_targets, r):
+            r.plugin_runs.append(run)
+            print(f"Plugins : {run['line']}")
 
     if args.json_report:
         from netcross_report import generate_json_report
