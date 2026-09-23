@@ -173,6 +173,10 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 
+
+from netcross_core.logging_config import get_logger
+
+logger = get_logger(__name__)
 @dataclass
 class PacketEvidence:
     """Reference minimale vers UN paquet precis au sein de la capture d'un

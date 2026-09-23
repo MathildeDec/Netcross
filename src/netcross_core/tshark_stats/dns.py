@@ -18,6 +18,10 @@ from netcross_core.tshark_stats.parse_utils import (
     parse_int,
 )
 
+
+from netcross_core.logging_config import get_logger
+
+logger = get_logger(__name__)
 _LABELED_RE = re.compile(r"^\s*(.+?)\s{2,}(\d[\d,]*)\s*$")
 
 

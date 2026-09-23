@@ -22,6 +22,10 @@ from netcross_core.fingerprint.known import identify_tool, load_known_fingerprin
 from netcross_core.models import ROLE_CLIENT, ROLE_SERVER, Pkt
 
 
+
+from netcross_core.logging_config import get_logger
+
+logger = get_logger(__name__)
 def build_fingerprint_records(packets: Iterable[Pkt], known: dict | None = None) -> list[dict]:
     """Liste dedupliquee des empreintes JA4/HASSH, une entree par
     (point, hote, type d'empreinte, valeur). `known` : base de

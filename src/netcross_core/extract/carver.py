@@ -35,6 +35,10 @@ from dataclasses import dataclass, field
 
 from netcross_core.models import Pkt
 
+
+from netcross_core.logging_config import get_logger
+
+logger = get_logger(__name__)
 # Magic bytes pour la détection de type de fichier.
 _MAGIC_BYTES: list[tuple[bytes, str]] = [
     (b"\x50\x4b\x03\x04", "zip"),  # PK\x03\x04 (ZIP)

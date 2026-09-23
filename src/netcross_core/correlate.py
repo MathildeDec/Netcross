@@ -10,6 +10,10 @@ from netcross_core.expert_model import Conversation, Flow
 from netcross_core.models import Pkt
 
 
+
+from netcross_core.logging_config import get_logger
+
+logger = get_logger(__name__)
 def flow_key(pk: Pkt, nat_tolerant=False, nat_window_ms=200):
     """
     Cle de correlation entre points de capture.

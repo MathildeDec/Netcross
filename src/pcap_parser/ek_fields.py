@@ -18,6 +18,17 @@ from __future__ import annotations
 from typing import Any
 
 
+_logger = None
+
+
+def _get_logger():
+    """Logger lazy (évite l'import circulaire netcross_core -> pcap_parser)."""
+    global _logger
+    if _logger is None:
+        from netcross_core.logging_config import get_logger
+        _logger = get_logger(__name__)
+    return _logger
+
 def layer(layers: dict, key: str) -> dict | None:
     """Couche unique (premiere/seule occurrence). None si absente."""
     val = layers.get(key)

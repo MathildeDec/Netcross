@@ -33,6 +33,10 @@ from dataclasses import dataclass, field
 from netcross_core.models import Pkt
 from netcross_core.security.dns_tunnel import _is_ignored, shannon_entropy, split_domain
 
+
+from netcross_core.logging_config import get_logger
+
+logger = get_logger(__name__)
 # Bigrammes frequents en anglais (noms de domaine legitimes).
 # Un domaine legitime a une proportion elevee de ces bigrammes.
 _COMMON_BIGRAMS: frozenset[str] = frozenset(

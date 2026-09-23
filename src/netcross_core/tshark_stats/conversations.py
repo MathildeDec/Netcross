@@ -26,6 +26,10 @@ from netcross_core.tshark_stats.parse_utils import (
 )
 
 
+
+from netcross_core.logging_config import get_logger
+
+logger = get_logger(__name__)
 def _split_endpoints(field: str) -> tuple[str, str]:
     """Separe le premier champ (adresses A et B combinees) en deux."""
     tokens = field.split()

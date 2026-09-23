@@ -33,6 +33,18 @@ from collections.abc import Iterator
 from dataclasses import dataclass, replace
 from typing import BinaryIO
 
+
+_logger = None
+
+
+def _get_logger():
+    """Logger lazy (évite l'import circulaire netcross_core -> pcap_parser)."""
+    global _logger
+    if _logger is None:
+        from netcross_core.logging_config import get_logger
+        _logger = get_logger(__name__)
+    return _logger
+
 FORMAT_PCAP = "pcap"
 FORMAT_NSECPCAP = "nsecpcap"
 FORMAT_PCAPNG = "pcapng"

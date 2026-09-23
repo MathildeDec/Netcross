@@ -93,6 +93,19 @@ from netcross_core.baseline_diff import diff_reports, print_diff_report, write_d
 from pcap_parser.ek_source import TsharkError, TsharkNotFoundError
 
 
+
+
+_logger = None
+
+
+def _get_logger():
+    """Logger lazy (évite l'import circulaire netcross_core -> pcap_parser)."""
+    global _logger
+    if _logger is None:
+        from netcross_core.logging_config import get_logger
+        _logger = get_logger(__name__)
+    return _logger
+
 def _parse_capture_args(raw_list, flag_name):
     """NOM=chemin1[,chemin2,...] par entree -> liste plate de (label, chemin).
 

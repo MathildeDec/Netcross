@@ -17,6 +17,10 @@ from netcross_gtk4.stats_view import (
 )
 
 
+
+from netcross_core.logging_config import get_logger
+
+logger = get_logger(__name__)
 def flow_by_key(flows: list, key: Any) -> Any | None:
     """Recherche un flux par sa clé.
 

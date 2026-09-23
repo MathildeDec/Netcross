@@ -18,6 +18,10 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 
+
+from netcross_core.logging_config import get_logger
+
+logger = get_logger(__name__)
 @dataclass(frozen=True, slots=True)
 class MetricPoint:
     """Un point d'une serie temporelle (ex: intervalle I/O)."""

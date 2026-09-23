@@ -39,6 +39,10 @@ from netcross_core.correlate import build_conversations, build_flows
 from netcross_core.wireshark_expert import build_wireshark_expert_events
 from netcross_report.expert_events import build_diagnoses, build_expert_events
 
+
+from netcross_core.logging_config import get_logger
+
+logger = get_logger(__name__)
 # Plafond par defaut du rendu console : au-dela, seules les premieres
 # entrees sont listees et une ligne "... et N autres" resume le reste.
 # Meme ordre de grandeur que le top_n du triage (print_triage) -- la

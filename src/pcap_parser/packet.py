@@ -41,6 +41,7 @@ from pcap_parser.protocols import (
 from pcap_parser.tunnels import detect_encapsulation, select_innermost_layers
 
 
+
 def _intern(value: str | None) -> str | None:
     """sys.intern() tolerant a None -- chaque ligne NDJSON `tshark -T ek`
     est parsee independamment (un objet json.loads() par paquet), donc

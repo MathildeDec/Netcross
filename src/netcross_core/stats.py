@@ -20,6 +20,10 @@ from dataclasses import asdict, dataclass, field
 from netcross_core.expert_model import Flow
 from netcross_core.models import Pkt, Report
 
+
+from netcross_core.logging_config import get_logger
+
+logger = get_logger(__name__)
 # -- Types d'enumeration (chaines pour serialisation simple) -----------------
 
 SORT_BY: tuple[str, ...] = (

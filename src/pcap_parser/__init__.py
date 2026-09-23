@@ -71,6 +71,7 @@ from pcap_parser.protocols import (
 )
 from pcap_parser.tunnels import detect_encapsulation, is_tunnel, select_innermost_layers
 
+
 __all__ = [
     "CaptureInfo",
     "CaptureRingBuffer",

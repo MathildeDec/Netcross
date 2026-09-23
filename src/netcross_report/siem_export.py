@@ -27,6 +27,10 @@ from pathlib import Path
 
 from netcross_core.models import Report
 
+
+from netcross_core.logging_config import get_logger
+
+logger = get_logger(__name__)
 # Constantes CEF
 _DEVICE_VENDOR = "Netcross"
 _DEVICE_PRODUCT = "Netcross"

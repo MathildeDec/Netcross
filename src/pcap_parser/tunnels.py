@@ -17,6 +17,7 @@ from __future__ import annotations
 
 from pcap_parser.ek_fields import all_occurrences, g, hex_or_dec_to_int, innermost, layer
 
+
 # Cles de couches EK qui signalent un vrai tunnel (l'IP/TCP/UDP le plus
 # interne doit etre utilise pour l'analyse, pas le premier trouve).
 # MPLS et VLAN ne sont PAS ici : ils ne re-encapsulent pas une nouvelle

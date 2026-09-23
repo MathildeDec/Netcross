@@ -77,6 +77,10 @@ from netcross_report.triage import (
     rank_segments,
 )
 
+
+from netcross_core.logging_config import get_logger
+
+logger = get_logger(__name__)
 try:
     from netcross_report.pdf import generate_diff_pdf, generate_pdf
 except ImportError:

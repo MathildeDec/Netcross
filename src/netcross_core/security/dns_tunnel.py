@@ -58,6 +58,10 @@ from statistics import mean, pstdev
 
 from netcross_core.models import Pkt
 
+
+from netcross_core.logging_config import get_logger
+
+logger = get_logger(__name__)
 KIND_DOMAIN = "domain"
 KIND_VOLUME = "volume"
 

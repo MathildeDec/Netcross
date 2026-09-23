@@ -49,6 +49,18 @@ from dataclasses import dataclass
 
 from pcap_parser.capfile import CaptureStructure, InterfaceRecord, read_structure
 
+
+_logger = None
+
+
+def _get_logger():
+    """Logger lazy (évite l'import circulaire netcross_core -> pcap_parser)."""
+    global _logger
+    if _logger is None:
+        from netcross_core.logging_config import get_logger
+        _logger = get_logger(__name__)
+    return _logger
+
 # Prefixe de la ligne portant le commentaire de section dans la sortie
 # "long report" (par defaut) de `capinfos -k`. Verifie empiriquement
 # (capinfos 4.2.2, pcapng synthetique commente via `editcap

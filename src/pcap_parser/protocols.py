@@ -15,6 +15,19 @@ from __future__ import annotations
 
 from pcap_parser.ek_fields import as_bool, as_float, g, hex_or_dec_to_int, innermost
 
+
+
+_logger = None
+
+
+def _get_logger():
+    """Logger lazy (évite l'import circulaire netcross_core -> pcap_parser)."""
+    global _logger
+    if _logger is None:
+        from netcross_core.logging_config import get_logger
+        _logger = get_logger(__name__)
+    return _logger
+
 try:  # cryptography est une dependance du projet ; son absence degrade l'extraction, ne la casse pas
     from cryptography import x509 as _x509
     from cryptography.exceptions import UnsupportedAlgorithm as _UnsupportedAlgorithm
@@ -23,6 +36,7 @@ try:  # cryptography est une dependance du projet ; son absence degrade l'extrac
     from cryptography.hazmat.primitives.asymmetric import ed448 as _ed448
     from cryptography.hazmat.primitives.asymmetric import ed25519 as _ed25519
     from cryptography.hazmat.primitives.asymmetric import rsa as _rsa
+
 except ImportError:  # pragma: no cover - exercee seulement sans cryptography
     _x509 = None  # type: ignore[assignment]
 

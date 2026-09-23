@@ -39,6 +39,10 @@ import json
 from functools import lru_cache
 from pathlib import Path
 
+
+from netcross_core.logging_config import get_logger
+
+logger = get_logger(__name__)
 _DEFAULT_PATH = Path(__file__).with_name("known_fingerprints.json")
 
 

@@ -113,6 +113,10 @@ from netcross_report.comm_map import (  # noqa: E402
 )
 
 
+
+from netcross_core.logging_config import get_logger
+
+logger = get_logger(__name__)
 def _visible_scroller(vexpand=True):
     """ScrolledWindow avec scrollbar classique toujours visible (pas d'overlay
     qui disparait au survol) -- pour que le defilement reste decouvrable."""

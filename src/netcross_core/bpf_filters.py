@@ -39,6 +39,10 @@ from pathlib import Path
 
 from netcross_core.models import BPFFilter
 
+
+from netcross_core.logging_config import get_logger
+
+logger = get_logger(__name__)
 #: Version du format du fichier de sauvegarde (cle ``version``). Incrementee
 #: si la structure change de facon incompatible ; le chargeur actuel ignore
 #: la valeur (un fichier sans ``version``, ou une simple liste, est accepte).

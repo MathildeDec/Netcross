@@ -33,6 +33,10 @@ from collections.abc import Iterator
 
 from netcross_core.netflow.models import FlowRecord
 
+
+from netcross_core.logging_config import get_logger
+
+logger = get_logger(__name__)
 _HEADER = struct.Struct("!HHIIIIBBH")
 _RECORD = struct.Struct("!IIIHHIIIIHHBBBBHHBBH")
 

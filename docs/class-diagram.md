@@ -32,13 +32,14 @@ flowchart TD
     netcross_core["netcross_core"]
     pcap_parser["pcap_parser"]
     CLI -->|"14 imports"| netcross_report
-    CLI -->|"14 imports"| netcross_core
+    CLI -->|"17 imports"| netcross_core
     CLI -->|"2 imports"| pcap_parser
     netcross_gtk4 -->|"10 imports"| netcross_report
-    netcross_gtk4 -->|"21 imports"| netcross_core
-    netcross_api -->|"3 imports"| netcross_core
-    netcross_report -->|"12 imports"| netcross_core
+    netcross_gtk4 -->|"33 imports"| netcross_core
+    netcross_api -->|"7 imports"| netcross_core
+    netcross_report -->|"29 imports"| netcross_core
     netcross_core -->|"15 imports"| pcap_parser
+    pcap_parser -->|"4 imports"| netcross_core
 ```
 
 ## Relations inter-modules

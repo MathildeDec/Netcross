@@ -43,6 +43,10 @@ from dataclasses import dataclass
 from netcross_core.baseline_profile import build_baseline_profile
 
 
+
+from netcross_core.logging_config import get_logger
+
+logger = get_logger(__name__)
 @dataclass
 class SegmentMetrics:
     """Qualite observee sur UN segment (couple de points de capture

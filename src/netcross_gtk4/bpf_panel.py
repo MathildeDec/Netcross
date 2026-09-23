@@ -29,6 +29,10 @@ from dataclasses import dataclass
 
 from netcross_core.bpf_filters import BPFFilter
 
+
+from netcross_core.logging_config import get_logger
+
+logger = get_logger(__name__)
 # Position du titre dans le menu deroulant : le i-eme filtre est donc a
 # l'indice i + 1. Nomme une fois plutot que reecrit en "index - 1".
 DECALAGE_TITRE = 1

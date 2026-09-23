@@ -15,6 +15,10 @@ from netcross_core.application.models import ApplicationTransaction
 from netcross_core.models import Pkt
 
 
+
+from netcross_core.logging_config import get_logger
+
+logger = get_logger(__name__)
 def _flow_key(pkt: Pkt) -> tuple[str, str, int, int]:
     """Clé directionnelle client -> serveur pour apparier HTTP."""
     return (pkt.src, pkt.dst, pkt.sport, pkt.dport)

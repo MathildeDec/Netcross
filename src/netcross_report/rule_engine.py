@@ -649,6 +649,10 @@ from netcross_core.models import Report
 from netcross_report.synthesis import Finding
 
 
+
+from netcross_core.logging_config import get_logger
+
+logger = get_logger(__name__)
 def _pct(n: int, d: int) -> float:
     """Copie volontaire de `synthesis._pct` (fonction PRIVEE de ce module
     -- jamais importee telle quelle a travers une frontiere de module,

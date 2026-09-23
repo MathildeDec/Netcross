@@ -45,6 +45,10 @@ from dataclasses import dataclass
 
 import pcap_parser
 
+
+from netcross_core.logging_config import get_logger
+
+logger = get_logger(__name__)
 TLS_CONTENT_TYPES = {
     20: "change_cipher_spec",
     21: "alert",

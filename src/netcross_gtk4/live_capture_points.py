@@ -19,6 +19,10 @@ from __future__ import annotations
 from collections.abc import Sequence
 
 
+
+from netcross_core.logging_config import get_logger
+
+logger = get_logger(__name__)
 def split_interfaces(text: str) -> list[str]:
     """Decoupe le champ interface d'une ligne en noms d'interface.
 

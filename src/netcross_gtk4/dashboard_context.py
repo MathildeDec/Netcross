@@ -29,6 +29,10 @@ from typing import Any
 from netcross_core.expert_model import Conversation, Flow
 from netcross_core.models import Report
 
+
+from netcross_core.logging_config import get_logger
+
+logger = get_logger(__name__)
 # ---------------------------------------------------------------------------
 # Contexte de selection partage
 # ---------------------------------------------------------------------------

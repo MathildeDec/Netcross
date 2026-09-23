@@ -37,6 +37,10 @@ from datetime import datetime, timezone
 
 from netcross_core.models import Pkt
 
+
+from netcross_core.logging_config import get_logger
+
+logger = get_logger(__name__)
 # -- Constantes ---------------------------------------------------------------
 
 SIGNAL_HIGH_VOLUME = "high_volume"

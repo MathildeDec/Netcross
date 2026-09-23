@@ -10,6 +10,10 @@ from collections.abc import Mapping
 from typing import Any
 
 
+
+from netcross_core.logging_config import get_logger
+
+logger = get_logger(__name__)
 def format_duplicate_indicator(report: Any) -> str:
     """Return the compact duplicate status shown by the GTK4 results page.
 

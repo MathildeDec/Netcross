@@ -41,6 +41,10 @@ from typing import Any
 
 from netcross_gtk4.duplicate_view import format_duplicate_indicator
 
+
+from netcross_core.logging_config import get_logger
+
+logger = get_logger(__name__)
 #: Indicateur de doublons en mode comparaison. La detection de doublons
 #: inter-captures compare deux points d'une meme capture ; elle n'a pas de
 #: sens entre une baseline et un courant. Le message le dit au lieu de

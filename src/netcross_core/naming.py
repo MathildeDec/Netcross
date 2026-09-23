@@ -24,6 +24,10 @@ import json
 from dataclasses import asdict, dataclass
 from pathlib import Path
 
+
+from netcross_core.logging_config import get_logger
+
+logger = get_logger(__name__)
 #: Types d'equipement reconnus (non exhaustif -- tout type est accepte en
 #: entree, la table ne valide pas le vocabulaire).
 KNOWN_TYPES = ("client", "serveur", "routeur", "firewall", "ap", "autre")

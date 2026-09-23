@@ -27,6 +27,10 @@ from dataclasses import dataclass, field
 from netcross_core.expert_model import EvidenceLink, PacketEvidence
 from netcross_core.models import Report
 
+
+from netcross_core.logging_config import get_logger
+
+logger = get_logger(__name__)
 SEVERITY_ORDER = {"regression": 0, "a_verifier": 1, "amelioration": 2, "stable": 3}
 
 

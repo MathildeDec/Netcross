@@ -43,6 +43,10 @@ from netcross_core.security.dga import _WHITELIST_DOMAINS
 from netcross_core.security.dns_tunnel import _is_ignored, split_domain
 
 
+
+from netcross_core.logging_config import get_logger
+
+logger = get_logger(__name__)
 @dataclass
 class FastFluxThresholds:
     """Seuils de detection fast flux (tous configurables)."""

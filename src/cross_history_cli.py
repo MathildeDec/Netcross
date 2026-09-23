@@ -41,6 +41,10 @@ import sys
 from netcross_report import HistoryDatabaseError, list_history, print_history
 
 
+
+from netcross_core.logging_config import get_logger
+
+logger = get_logger(__name__)
 def main():
     ap = argparse.ArgumentParser(description="Interroge un historique netcross (--history-db) sans relancer d'analyse.")
     ap.add_argument(

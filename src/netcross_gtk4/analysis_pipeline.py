@@ -42,6 +42,10 @@ from netcross_core.forensic import detect_cross_capture_duplicates
 from netcross_gtk4.run_outcome import analysis_outcome, diff_outcome
 
 
+
+from netcross_core.logging_config import get_logger
+
+logger = get_logger(__name__)
 class AnalysisResult(NamedTuple):
     """Résultat d'une analyse simple — transmis au thread GTK via idle_add."""
 

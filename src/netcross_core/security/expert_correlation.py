@@ -45,6 +45,10 @@ from dataclasses import dataclass, field
 
 from netcross_core.models import Pkt, Report
 
+
+from netcross_core.logging_config import get_logger
+
+logger = get_logger(__name__)
 KIND_FUZZING = "fuzzing"
 KIND_OVERFLOW = "overflow"
 KIND_DOS = "dos"

@@ -44,6 +44,10 @@ from dataclasses import dataclass
 import pcap_parser
 from netcross_core.tls_diagnostics import parse_client_hello
 
+
+from netcross_core.logging_config import get_logger
+
+logger = get_logger(__name__)
 try:
     from cryptography.exceptions import InvalidTag
     from cryptography.hazmat.primitives import hashes, hmac

@@ -17,6 +17,10 @@ from __future__ import annotations
 
 import re
 
+
+from netcross_core.logging_config import get_logger
+
+logger = get_logger(__name__)
 #: Caracteres consideres comme separateurs de tableau (lignes ``====``).
 _SEP_CHARS = frozenset("=-")
 

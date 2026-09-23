@@ -71,6 +71,10 @@ import csv
 import ipaddress
 import re
 
+
+from netcross_core.logging_config import get_logger
+
+logger = get_logger(__name__)
 _IPV4_DOC_BLOCKS = (
     (192, 0, 2),  # RFC 5737 TEST-NET-1
     (198, 51, 100),  # RFC 5737 TEST-NET-2

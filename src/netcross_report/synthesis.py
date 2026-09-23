@@ -165,6 +165,10 @@ from dataclasses import dataclass, field
 
 from netcross_core.expert_model import EvidenceLink, ExpertEvent, PacketEvidence
 
+
+from netcross_core.logging_config import get_logger
+
+logger = get_logger(__name__)
 SEVERITY_ORDER = {"anomalie": 0, "a_surveiller": 1, "info": 2}
 
 

@@ -19,6 +19,10 @@ from __future__ import annotations
 from netcross_core.models import Pkt
 from netcross_core.netflow.models import FlowRecord
 
+
+from netcross_core.logging_config import get_logger
+
+logger = get_logger(__name__)
 # Numeros de protocole IP (IANA) vers le nom utilise par Pkt.proto
 # ailleurs dans netcross_core (pcap_parser.packet produit les memes
 # chaines pour TCP/UDP/ICMP -- voir netcross_core.models.Pkt.proto).

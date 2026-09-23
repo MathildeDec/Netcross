@@ -18,6 +18,10 @@ from netcross_core.tshark_stats.parse_utils import (
     parse_int,
 )
 
+
+from netcross_core.logging_config import get_logger
+
+logger = get_logger(__name__)
 #: Indentation par niveau dans la sortie io,phs (espaces).
 _INDENT = 4
 

@@ -9,6 +9,10 @@ from netcross_core.extract.carver import (
     detect_file_type,
 )
 
+
+from netcross_core.logging_config import get_logger
+
+logger = get_logger(__name__)
 __all__ = [
     "ExtractedFile",
     "ExtractionResult",

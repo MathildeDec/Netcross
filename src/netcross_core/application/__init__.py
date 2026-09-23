@@ -24,6 +24,10 @@ from netcross_core.application.models import (
     TransactionClassification,
 )
 
+
+from netcross_core.logging_config import get_logger
+
+logger = get_logger(__name__)
 __all__ = [
     "ApplicationTransaction",
     "TransactionClassification",

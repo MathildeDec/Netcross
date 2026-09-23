@@ -38,6 +38,10 @@ from statistics import mean, median, pstdev
 
 from netcross_core.models import Pkt
 
+
+from netcross_core.logging_config import get_logger
+
+logger = get_logger(__name__)
 # -- Constantes ---------------------------------------------------------------
 
 # Nombre de paquets conserves dans le SPLT.

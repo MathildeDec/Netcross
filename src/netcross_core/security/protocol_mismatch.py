@@ -20,6 +20,10 @@ from typing import Any
 
 from netcross_core.models import Pkt
 
+
+from netcross_core.logging_config import get_logger
+
+logger = get_logger(__name__)
 # -- Tables de référence ------------------------------------------------------
 
 # Ports standards et protocole attendu (nom interne, pas le proto L3/L4)

@@ -51,6 +51,10 @@ from dataclasses import dataclass, field
 
 from netcross_core.models import Pkt
 
+
+from netcross_core.logging_config import get_logger
+
+logger = get_logger(__name__)
 # Ports d'authentification surveilles pour le brute force.
 _AUTH_PORTS: frozenset[int] = frozenset({22, 3389, 5985, 5986})
 
