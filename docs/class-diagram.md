@@ -11,7 +11,7 @@
 > Il remplace l'ancienne section 3 de `docs/features-backlog.md`, tenue à la main, qui avait dérivé
 > (voir `docs/sessions/session-36.md`, issue #140).
 
-123 modules · 172 classes · 360 fonctions publiques de module.
+124 modules · 174 classes · 362 fonctions publiques de module.
 
 Conventions : `+` public, `-` privé (préfixe `_`) ; `int?` = `int | None` ; `list~str~` = `list[str]` ;
 `<<module>>` regroupe les fonctions publiques d'un module ; `A --> B : champ` = `A` a un champ annoté
@@ -35,7 +35,7 @@ flowchart TD
     CLI -->|"14 imports"| netcross_core
     CLI -->|"2 imports"| pcap_parser
     netcross_gtk4 -->|"10 imports"| netcross_report
-    netcross_gtk4 -->|"18 imports"| netcross_core
+    netcross_gtk4 -->|"21 imports"| netcross_core
     netcross_api -->|"3 imports"| netcross_core
     netcross_report -->|"12 imports"| netcross_core
     netcross_core -->|"15 imports"| pcap_parser
@@ -2900,6 +2900,7 @@ classDiagram
 | Module | Rôle |
 |---|---|
 | `netcross_gtk4` | — |
+| `netcross_gtk4.analysis_pipeline` | extraction de l'orchestration analyse/diff. |
 | `netcross_gtk4.annotations_view` | logique de presentation pour l'etiquetage/signets sur paquets (Job 40 / issue #160, section "Metadonnees et annotation"). |
 | `netcross_gtk4.app` | interface GTK4 pour netcross_core / netcross_report. |
 | `netcross_gtk4.bpf_panel` | Decisions du panneau de filtres BPF de la capture live, sorties de ``netcross_gtk4/app.py`` (issue #285, quatrieme lot). |
@@ -2916,6 +2917,36 @@ classDiagram
 ```mermaid
 classDiagram
     direction LR
+
+    %% ===== netcross_gtk4.analysis_pipeline =====
+    class AnalysisResult {
+        <<NamedTuple>>
+        +object outcome
+        +object report
+        +list flows
+        +object? findings
+        +str text
+        +object? tls_findings
+        +object? quic_findings
+        +object? wireshark_expert_events
+    }
+    class DiffResult {
+        <<NamedTuple>>
+        +object outcome
+        +object findings
+        +object baseline_report
+        +object current_report
+        +str text
+        +object? tls_findings_baseline
+        +object? tls_findings_current
+        +object? quic_findings_baseline
+        +object? quic_findings_current
+    }
+    class mod_netcross_gtk4_analysis_pipeline["netcross_gtk4.analysis_pipeline"] {
+        <<module>>
+        +run_single_analysis(captures, bucket_ms, rtp_rate, nat_tolerant, parallel, auto_topology, triage, triage_topn, tls, quic, redact, topn, detect_duplicates, exclude_duplicates, duplicate_threshold_ms, log) AnalysisResult
+        +run_diff_analysis(baseline_captures, current_captures, bucket_ms, rtp_rate, nat_tolerant, parallel, auto_topology, loss_min_pp, latency_min_ms, redact, tls, quic, log) DiffResult
+    }
 
     %% ===== netcross_gtk4.annotations_view =====
     class mod_netcross_gtk4_annotations_view["netcross_gtk4.annotations_view"] {
