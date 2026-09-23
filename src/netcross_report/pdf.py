@@ -31,8 +31,10 @@ from netcross_report.path_metrics import build_path_metrics, degradation_summary
 from netcross_report.synthesis import build_findings
 from netcross_report.triage import HEALTH_LABELS, health_label, health_score, rank_segments
 
-
+from netcross_core.i18n import setup_gettext
 from netcross_core.logging_config import get_logger
+
+_ = setup_gettext("netcross-report")
 
 logger = get_logger(__name__)
 SEVERITY_LABELS = {
@@ -97,8 +99,8 @@ def _styles():
 
 def _finding_table(findings, styles):
     if not findings:
-        return Paragraph("Aucun constat notable.", styles["Normal"])
-    data = [["Gravite", "Categorie", "Segment", "Constat"]]
+        return Paragraph(_("Aucun constat notable."), styles["Normal"])
+    data = [[_("Gravite"), _("Categorie"), _("Segment"), _("Constat")]]
     data.extend(
         [
             SEVERITY_LABELS[f.severity],
@@ -143,7 +145,7 @@ def _triage_table(ranked, styles, top_n=10):
             "ci-dessous pour le detail exhaustif.",
             styles["Normal"],
         )
-    data = [["Segment", "Score", "Categories touchees", "Constats"]]
+    data = [[_("Segment"), _("Score"), _("Categories touchees"), _("Constats")]]
     data.extend(
         [
             Paragraph(
@@ -194,7 +196,7 @@ def _health_badge(ranked, styles):
         textColor=HEALTH_BADGE_COLORS[label],
         spaceAfter=6,
     )
-    return Paragraph(f"Score de sante : {score}/100 -- {HEALTH_LABELS[label]}", style)
+    return Paragraph(f"{_('Score de sante')} : {score}/100 -- {HEALTH_LABELS[label]}", style)
 
 
 # Couleurs des statuts de conformite (netcross_core.compliance) -- meme
@@ -247,8 +249,8 @@ def _expert_event_table(events, styles, top_n=EXPERT_TABLE_TOP_N):
     netcross_core.causality : seuls les rule_id participant a un pattern
     recoivent cause/impact)."""
     if not events:
-        return Paragraph("Aucun evenement d'expertise.", styles["Normal"])
-    data = [["Gravite", "Categorie", "Segment", "Constat", "Cause probable / impact"]]
+        return Paragraph(_("Aucun evenement d'expertise."), styles["Normal"])
+    data = [[_("Gravite"), _("Categorie"), _("Segment"), _("Constat"), _("Cause probable / impact")]]
     shown = events[:top_n]
     for ev in shown:
         cause = " -- ".join(x for x in (ev.cause, ev.impact) if x)
@@ -271,8 +273,8 @@ def _diagnosis_table(diagnoses, styles, top_n=EXPERT_TABLE_TOP_N):
     """diagnoses : liste de Diagnosis -- un par segment, cause/impact
     derives des ExpertEvent deja enrichis (netcross_core.causality)."""
     if not diagnoses:
-        return Paragraph("Aucun diagnostic par segment.", styles["Normal"])
-    data = [["Segment", "Evenements", "Cause probable", "Impact"]]
+        return Paragraph(_("Aucun diagnostic par segment."), styles["Normal"])
+    data = [[_("Segment"), _("Evenements"), _("Cause probable"), _("Impact")]]
     data.extend(
         [
             Paragraph(d.segment, styles["Normal"]),
@@ -291,7 +293,7 @@ def _compliance_table(results, styles, top_n=EXPERT_TABLE_TOP_N):
     triage "par ou commencer", l'operateur doit voir ce qui ne passe pas
     sans derouler la table entiere."""
     if not results:
-        return Paragraph("Aucun referentiel evalue.", styles["Normal"])
+        return Paragraph(_("Aucun referentiel evalue."), styles["Normal"])
     order = ["VIOLATION", "DEVIATION", "CONFORME", "INDETERMINE"]
     ranked = sorted(
         results,
@@ -331,7 +333,7 @@ def _flow_table(flows, styles, top_n=EXPERT_TABLE_TOP_N):
     d'une execution a l'autre -- meme regle que le rendu console
     (netcross_report.session_objects)."""
     if not flows:
-        return Paragraph("Aucun flux correle.", styles["Normal"])
+        return Paragraph(_("Aucun flux correle."), styles["Normal"])
 
     def _label(flow):
         if flow.endpoints:
@@ -383,10 +385,10 @@ def _path_table(metrics, styles):
     designant sans ambiguite ou regarder d'abord."""
     if not metrics:
         return Paragraph(
-            "Aucun segment exploitable : ni topologie deduite, ni couple de points fourni.",
+            _("Aucun segment exploitable : ni topologie deduite, ni couple de points fourni."),
             styles["Normal"],
         )
-    data = [["Segment", "Delai moy / P95 / P99 (ms)", "Gigue", "Perte aval", "Debit aval", "DSCP / frag", "Sauts"]]
+    data = [[_("Segment"), _("Delai moy / P95 / P99 (ms)"), _("Gigue"), _("Perte aval"), _("Debit aval"), _("DSCP / frag"), _("Sauts")]]
     ranked = rank_path_segments(metrics)
     pire = ranked[0].label if ranked else None
     for seg in metrics:
@@ -563,7 +565,7 @@ def expert_section_story(session_objects, styles, top_n=EXPERT_TABLE_TOP_N):
         Paragraph("Diagnostics par segment", styles["H2b"]),
         _diagnosis_table(session_objects.diagnoses, styles, top_n),
         Spacer(1, 0.3 * cm),
-        Paragraph("Conformite aux referentiels", styles["H2b"]),
+        Paragraph(_("Conformite aux referentiels"), styles["H2b"]),
         _compliance_table(session_objects.compliance, styles, top_n),
     ]
     # Les flux ne sont construits que si l'appelant a passe le dict brut
@@ -622,7 +624,7 @@ def _securite_table_constats(items, styles, avec_cve: bool, message_vide: str):
     qu'il n'y en a pas -- jamais une section muette (issue #218)."""
     if not items:
         return Paragraph(message_vide, styles["Normal"])
-    entetes = ["Gravite"] + (["CVE", "CVSS"] if avec_cve else []) + ["Detail", "Service", "Cible", "Point"]
+    entetes = [_("Gravite")] + ([_("CVE"), _("CVSS")] if avec_cve else []) + [_("Detail"), _("Service"), _("Cible"), _("Point")]
     data = [[Paragraph(f"<b>{h}</b>", styles["Cell"]) for h in entetes]]
     highlight = []
     for rang, i in enumerate(items[:MAX_SECURITY_ROWS], start=1):
@@ -673,7 +675,7 @@ def security_section_story(security_report, styles):
 
     data = security_report_to_dict(security_report)
     d = data["dashboard"]
-    story = [PageBreak(), Paragraph("Rapport de securite", styles["H1b"])]
+    story = [PageBreak(), Paragraph(_("Rapport de securite"), styles["H1b"])]
     story.append(
         Paragraph(
             "Detection passive : aucun paquet n'a ete emis vers les hotes listes. "
@@ -686,15 +688,15 @@ def security_section_story(security_report, styles):
     story.append(Spacer(1, 0.3 * cm))
 
     niveau = d["level"] or "aucun constat"
-    story.append(Paragraph("Tableau de bord", styles["H2b"]))
+    story.append(Paragraph(_("Tableau de bord"), styles["H2b"]))
     story.append(
         _kv_table(
             [
-                ("Score de risque", f"{d['score']}/100 (niveau : {niveau})"),
+                (_("Score de risque"), f"{d['score']}/100 (niveau : {niveau})"),
                 ("Services detectes", f"{d['services_total']} (dont {d['services_vulnerable']} vulnerable(s))"),
-                ("Tentatives d'exploitation", str(d["exploits"])),
-                ("Anomalies (Expert Info)", str(d["anomalies"])),
-                ("CVE confirmees", str(d["cves"])),
+                (_("Tentatives d'exploitation"), str(d["exploits"])),
+                (_("Anomalies (Expert Info)"), str(d["anomalies"])),
+                (_("CVE confirmees"), str(d["cves"])),
                 (
                     "Repartition par severite",
                     ", ".join(f"{sev}={d['by_severity'].get(sev, 0)}" for sev in SEVERITIES),
@@ -704,9 +706,9 @@ def security_section_story(security_report, styles):
         )
     )
 
-    story.append(Paragraph("Services detectes", styles["H2b"]))
+    story.append(Paragraph(_("Services detectes"), styles["H2b"]))
     if data["services"]:
-        entetes = ["Criticite", "Service", "Cible", "Empreinte JA4/HASSH", "CVE", "Points"]
+        entetes = [_("Criticite"), _("Service"), _("Cible"), _("Empreinte JA4/HASSH"), _("CVE"), _("Points")]
         rows = [[Paragraph(f"<b>{h}</b>", styles["Cell"]) for h in entetes]]
         highlight = []
         for rang, s in enumerate(data["services"][:MAX_SECURITY_ROWS], start=1):
@@ -840,7 +842,7 @@ def generate_pdf(
         story.append(PageBreak())
 
         # -- par ou commencer (triage) --
-        story.append(Paragraph("Par ou commencer", styles["H1b"]))
+        story.append(Paragraph(_("Par ou commencer"), styles["H1b"]))
         story.append(
             Paragraph(
                 "Segments touches par au moins 2 categories de constats differentes en "
@@ -856,7 +858,7 @@ def generate_pdf(
         story.append(PageBreak())
 
         # -- synthese --
-        story.append(Paragraph("Synthese", styles["H1b"]))
+        story.append(Paragraph(_("Synthese"), styles["H1b"]))
         n_anom = sum(1 for f in findings if f.severity == "anomalie")
         n_surv = sum(1 for f in findings if f.severity == "a_surveiller")
         story.append(
@@ -875,9 +877,9 @@ def generate_pdf(
         story.append(PageBreak())
 
         # -- vue d'ensemble graphique --
-        story.append(Paragraph("Vue d'ensemble", styles["H1b"]))
+        story.append(Paragraph(_("Vue d'ensemble"), styles["H1b"]))
         if "topology" in charts:
-            story.append(Paragraph("Topologie deduite", styles["H2b"]))
+            story.append(Paragraph(_("Topologie deduite"), styles["H2b"]))
             story.append(_scaled_image(charts["topology"], 16 * cm, 13 * cm))
             story.append(Spacer(1, 0.3 * cm))
         for key, caption in [
@@ -919,7 +921,7 @@ def generate_pdf(
         topn_keys = [k for k in charts if k.startswith("topn_")]
         if topn_keys:
             topn_point = r.points[0] if r.points else "?"
-            story.append(Paragraph("Evolution temporelle (top-N)", styles["H1b"]))
+            story.append(Paragraph(_("Evolution temporelle (top-N)"), styles["H1b"]))
             story.append(
                 Paragraph(
                     f"Debit ventile par categorie au fil du temps, point {topn_point} uniquement "
@@ -944,9 +946,9 @@ def generate_pdf(
             story.append(PageBreak())
 
         # -- detail par module --
-        story.append(Paragraph("Detail par module", styles["H1b"]))
+        story.append(Paragraph(_("Detail par module"), styles["H1b"]))
 
-        story.append(Paragraph("Sauts de routeur (delta TTL)", styles["H2b"]))
+        story.append(Paragraph(_("Sauts de routeur (delta TTL)"), styles["H2b"]))
         rows = []
         for a, b in r.pairs:
             deltas = r.hop_delta.get((a, b))
@@ -1164,7 +1166,7 @@ def generate_diff_pdf(
         story.append(PageBreak())
 
         # -- par ou commencer (triage) --
-        story.append(Paragraph("Par ou commencer", styles["H1b"]))
+        story.append(Paragraph(_("Par ou commencer"), styles["H1b"]))
         story.append(
             Paragraph(
                 "Segments cumulant le plus d'ecarts (regressions et points a verifier "
