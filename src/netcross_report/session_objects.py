@@ -41,6 +41,7 @@ from netcross_report.expert_events import build_diagnoses, build_expert_events
 
 from netcross_core.logging_config import get_logger
 logger = get_logger(__name__)
+from netcross_core.i18n import _
 
 
 # Plafond par defaut du rendu console : au-dela, seules les premieres
@@ -244,7 +245,7 @@ def _format_compliance(results, top_n) -> list[str]:
     shown, remaining = _truncated(sorted(results, key=_rank), top_n)
     for res in shown:
         ref = res.reference
-        observed = "non mesure" if res.observed is None else f"{res.observed:g} {ref.unit}"
+        observed = _("non mesure") if res.observed is None else f"{res.observed:g} {ref.unit}"
         lines.append(
             f"  [{res.status}] {ref.id} -- {ref.metric} : observe {observed}, "
             f"seuil {ref.operator} {ref.threshold:g} {ref.unit} ({ref.source})"
@@ -265,16 +266,16 @@ def format_session_objects(objs, top_n=DEFAULT_TOP_N) -> list[str]:
     "Flux correles : 0" n'apparait que parce que l'appelant n'a pas
     passe `flows`.
     """
-    lines = [_SEPARATOR, "EXPERTISE -- OBJETS ENRICHIS", _SEPARATOR, ""]
+    lines = [_SEPARATOR, _("EXPERTISE -- OBJETS ENRICHIS"), _SEPARATOR, ""]
     if objs.flows:
         lines += [*_format_flows(objs, top_n), ""]
-    lines += [*_format_events(objs.expert_events, "Evenements d'expertise (netcross)", top_n), ""]
+    lines += [*_format_events(objs.expert_events, _("Evenements d'expertise (netcross)"), top_n), ""]
     if objs.diagnoses:
         lines += [*_format_diagnoses(objs.diagnoses, top_n), ""]
     if objs.compliance:
         lines += [*_format_compliance(objs.compliance, top_n), ""]
     if objs.wireshark_expert_events:
-        lines += [*_format_events(objs.wireshark_expert_events, "Expertise tshark (signaux bruts)", top_n), ""]
+        lines += [*_format_events(objs.wireshark_expert_events, _("Expertise tshark (signaux bruts)"), top_n), ""]
     return lines
 
 

@@ -62,6 +62,7 @@ from netcross_report.synthesis import Finding
 
 from netcross_core.logging_config import get_logger
 logger = get_logger(__name__)
+from netcross_core.i18n import _
 
 
 # Poids par defaut : couvre a la fois le vocabulaire de synthesis.Finding
@@ -192,8 +193,8 @@ def print_triage(ranked: list[SegmentScore], top_n: int = 5) -> None:
         return
 
     for rank, s in enumerate(ranked[:top_n], start=1):
-        tag = " [CONVERGENT]" if s.convergent else ""
-        tag += " [ECHANTILLON FAIBLE]" if s.low_confidence else ""
+        tag = _(" [CONVERGENT]") if s.convergent else ""
+        tag += _(" [ECHANTILLON FAIBLE]") if s.low_confidence else ""
         print(f"\n{rank}. {s.segment}  -- score {s.score:.1f}{tag}")
         print(f"   categories impliquees : {', '.join(s.categories)}")
         for f in s.findings:
@@ -264,7 +265,7 @@ HEALTH_LABEL_THRESHOLDS: list[tuple[float, str]] = [
 
 HEALTH_LABELS: dict[str, str] = {
     "bon": "Bon",
-    "a_surveiller": "A surveiller",
+    "a_surveiller": _("A surveiller"),
     "degrade": "Degrade",
     "critique": "Critique",
 }

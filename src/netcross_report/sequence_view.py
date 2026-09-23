@@ -27,6 +27,7 @@ from dataclasses import dataclass, field
 
 from netcross_core.logging_config import get_logger
 logger = get_logger(__name__)
+from netcross_core.i18n import _
 
 
 DEFAULT_MAX_STEPS = 30
@@ -81,7 +82,7 @@ class SequenceStep:
         if self.flags:
             parts.append(f"[{self.flags}]")
         if self.is_retransmission:
-            parts.append("retr.")
+            parts.append(_("retr."))
         return " ".join(parts)
 
 

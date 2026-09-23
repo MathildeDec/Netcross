@@ -193,14 +193,14 @@ def _summary(sel: DashboardSelection) -> str:
     if sel.protocol is not None:
         parts.append(f"proto={sel.protocol}")
     if sel.flow_key is not None:
-        parts.append("flow=selectionne")
+        parts.append(_("flow=selectionne"))
     if sel.pair is not None:
         parts.append(f"segment={' -> '.join(sel.pair)}")
     if sel.bucket is not None:
         parts.append(f"bucket={sel.bucket}")
     if sel.event_id is not None:
         parts.append(f"evenement=#{sel.event_id}")
-    return " | ".join(parts) if parts else "aucune selection active"
+    return " | ".join(parts) if parts else _("aucune selection active")
 
 
 def build_dashboard_snapshot(
@@ -440,4 +440,5 @@ __all__ = [
 
 from netcross_core.logging_config import get_logger
 logger = get_logger(__name__)
+from netcross_core.i18n import _
 

@@ -32,6 +32,7 @@ from dataclasses import dataclass, field
 
 from netcross_core.logging_config import get_logger
 logger = get_logger(__name__)
+from netcross_core.i18n import _
 
 
 DEFAULT_TOP_N = 15
@@ -196,7 +197,7 @@ def format_comm_map(cmap, top_n=DEFAULT_TOP_N) -> str:
     le graphe (et lisible sans interface graphique, ce qui rend la vue
     verifiable en console pendant le developpement)."""
     if not cmap.edges:
-        return "Aucune communication a afficher avec ces filtres."
+        return _("Aucune communication a afficher avec ces filtres.")
     lignes = [f"{len(cmap.edges)} arete(s) affichee(s) sur {cmap.total_edges}, {len(cmap.nodes)} hote(s)."]
     for edge in cmap.edges[:top_n]:
         protos = ",".join(sorted(edge.protocols)) or "?"

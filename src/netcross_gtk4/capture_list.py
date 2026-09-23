@@ -132,4 +132,5 @@ __all__ = [
 
 from netcross_core.logging_config import get_logger
 logger = get_logger(__name__)
+from netcross_core.i18n import _
 

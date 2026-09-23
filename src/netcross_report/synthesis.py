@@ -167,6 +167,7 @@ from netcross_core.expert_model import EvidenceLink, ExpertEvent, PacketEvidence
 
 from netcross_core.logging_config import get_logger
 logger = get_logger(__name__)
+from netcross_core.i18n import _
 
 
 SEVERITY_ORDER = {"anomalie": 0, "a_surveiller": 1, "info": 2}
@@ -274,7 +275,7 @@ def build_findings(r) -> list[Finding]:
 
     # -- saturation / policing / bufferbloat --
     for (a, b), verdict in r.saturation_verdict.items():
-        if "NON correlees" in verdict:
+        if _("NON correlees") in verdict:
             continue
         sev = (
             "anomalie"
@@ -438,7 +439,7 @@ def build_findings(r) -> list[Finding]:
         findings.append(
             Finding(
                 "anomalie",
-                "NAT/Pare-feu",
+                _("NAT/Pare-feu"),
                 seg,
                 f"{n} flux TCP deja etabli(s) entre {a} et {b} ne reprennent jamais en {b} "
                 f"apres un long silence en {a} -> coupure NAT/pare-feu silencieuse probable "
@@ -737,11 +738,11 @@ def build_findings(r) -> list[Finding]:
             sev = "a_surveiller"
         else:
             continue
-        short_label = s["label"].split(" (SSRC=")[0]  # retire le SSRC, garde src:port -> dst:port
+        short_label = s["label"].split(_(" (SSRC="))[0]  # retire le SSRC, garde src:port -> dst:port
         findings.append(
             Finding(
                 sev,
-                "RTP/Voix",
+                _("RTP/Voix"),
                 short_label,
                 f"MOS estime {mos:.2f} (R-factor {s['r_factor']:.0f})",
                 sample_size=s.get("sample_count"),
@@ -764,7 +765,7 @@ def build_findings(r) -> list[Finding]:
                     findings.append(
                         Finding(
                             "a_surveiller",
-                            "Reseau/Serveur",
+                            _("Reseau/Serveur"),
                             "global",
                             f"temps de traitement serveur moyen {avg_server:.0f}ms >> temps "
                             f"reseau {avg_net:.1f}ms -> ralentissement probablement applicatif",

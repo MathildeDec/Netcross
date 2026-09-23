@@ -62,6 +62,7 @@ from netcross_report.triage import HEALTH_LABELS, health_label, health_score, ra
 
 from netcross_core.logging_config import get_logger
 logger = get_logger(__name__)
+from netcross_core.i18n import _
 
 
 _SCHEMA = """
@@ -284,16 +285,16 @@ def list_history(db_path, limit=None, label=None, run_type=None) -> list[History
         conditions = []
         params: list = []
         if label is not None:
-            conditions.append("label = ?")
+            conditions.append(_("label = ?"))
             params.append(label)
         if run_type is not None:
-            conditions.append("run_type = ?")
+            conditions.append(_("run_type = ?"))
             params.append(run_type)
         if conditions:
-            query += " WHERE " + " AND ".join(conditions)
-        query += " ORDER BY id DESC"
+            query += _(" WHERE ") + _(" AND ").join(conditions)
+        query += _(" ORDER BY id DESC")
         if limit is not None:
-            query += " LIMIT ?"
+            query += _(" LIMIT ?")
             params.append(limit)
         rows = conn.execute(query, params).fetchall()
     finally:
@@ -321,7 +322,7 @@ def print_history(entries: list[HistoryEntry]) -> None:
     d'abord si issues de list_history) ; le nombre affiche se regle en
     amont via l'argument `limit` de list_history, pas ici."""
     print("=" * 70)
-    print("HISTORIQUE DES RUNS ENREGISTRES")
+    print(_("HISTORIQUE DES RUNS ENREGISTRES"))
     print("=" * 70)
 
     if not entries:

@@ -35,6 +35,7 @@ from netcross_core.models import Report
 
 from netcross_core.logging_config import get_logger
 logger = get_logger(__name__)
+from netcross_core.i18n import _
 
 
 # Constantes CEF
@@ -166,7 +167,7 @@ def export_cef(report: Report) -> list[str]:
 # (LEEF 2.0 accepte `xHH`) -- c'est le separateur par defaut de QRadar.
 LEEF_DELIMITER = "\t"
 _LEEF_DELIMITER_HEADER = "x09"
-_LEEF_TIME_FORMAT = "MMM dd yyyy HH:mm:ss.SSS z"
+_LEEF_TIME_FORMAT = _("MMM dd yyyy HH:mm:ss.SSS z")
 _LEEF_MAX_MSG = 1000
 
 
@@ -190,7 +191,7 @@ def _escape_leef_value(value: Any) -> str:
 
 def _leef_time(timestamp_ms: int) -> str:
     when = _dt.datetime.fromtimestamp(timestamp_ms / 1000, tz=_dt.UTC)
-    return when.strftime("%b %d %Y %H:%M:%S.") + f"{when.microsecond // 1000:03d} UTC"
+    return when.strftime(_("%b %d %Y %H:%M:%S.")) + f"{when.microsecond // 1000:03d} UTC"
 
 
 def to_leef(records: list[SiemRecord]) -> list[str]:
@@ -222,7 +223,7 @@ def to_leef(records: list[SiemRecord]) -> list[str]:
         attrs.append(("msg", rec.detail[:_LEEF_MAX_MSG]))
         header = "|".join(
             _escape_leef_header(v)
-            for v in ("LEEF:2.0", _DEVICE_VENDOR, _DEVICE_PRODUCT, _DEVICE_VERSION, str(rec.sig_id))
+            for v in (_("LEEF:2.0"), _DEVICE_VENDOR, _DEVICE_PRODUCT, _DEVICE_VERSION, str(rec.sig_id))
         )
         body = LEEF_DELIMITER.join(f"{k}={_escape_leef_value(v)}" for k, v in attrs)
         lines.append(f"{header}|{_LEEF_DELIMITER_HEADER}|{body}")

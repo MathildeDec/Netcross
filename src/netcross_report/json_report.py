@@ -23,6 +23,7 @@ from netcross_report.triage import health_label, health_score, rank_segments
 
 from netcross_core.logging_config import get_logger
 logger = get_logger(__name__)
+from netcross_core.i18n import _
 
 
 
@@ -236,7 +237,7 @@ def _write(doc: dict, output_path) -> str:
 def generate_json_report(
     r,
     output_path,
-    title="Analyse croisee de captures reseau",
+    title=_("Analyse croisee de captures reseau"),
     meta=None,
     findings=None,
     tls_findings=None,
@@ -342,7 +343,7 @@ def generate_json_report(
         doc["security_report"] = security_report_to_dict(security_report)
     else:
         doc["security_report"] = None
-        doc["security_report_absent"] = "non demande (--security-report absent de l'appel)"
+        doc["security_report_absent"] = _("non demande (--security-report absent de l'appel)")
     if rule_engine_findings is not None:
         doc["rule_engine"] = {
             rule_id: [_finding_dict(f) for f in rule_list]
@@ -358,7 +359,7 @@ def generate_json_diff(
     baseline,
     current,
     output_path,
-    title="Comparaison avant / apres",
+    title=_("Comparaison avant / apres"),
     meta=None,
     tls_findings_baseline=None,
     tls_findings_current=None,

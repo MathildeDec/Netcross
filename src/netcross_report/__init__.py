@@ -77,6 +77,7 @@ from netcross_report.triage import (
     rank_segments,
 )
 
+from netcross_core.i18n import _
 try:
     from netcross_report.pdf import generate_diff_pdf, generate_pdf
 except ImportError:

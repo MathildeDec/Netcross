@@ -13,6 +13,7 @@ from netcross_report.path_metrics import build_path_metrics
 
 from netcross_core.logging_config import get_logger
 logger = get_logger(__name__)
+from netcross_core.i18n import _
 
 
 
@@ -81,7 +82,7 @@ def chart_topology(r, path):
         arrowsize=18,
         arrowstyle="-|>",
         node_size=1600,
-        connectionstyle="arc3,rad=0.08",
+        connectionstyle=_("arc3,rad=0.08"),
         edge_color="#475569",
         width=1.4,
     )
@@ -93,22 +94,22 @@ def chart_topology(r, path):
         edge_labels=edge_labels,
         ax=ax,
         font_size=7,
-        bbox={"boxstyle": "round,pad=0.1", "fc": "white", "ec": "none", "alpha": 0.8},
+        bbox={"boxstyle": _("round,pad=0.1"), "fc": "white", "ec": "none", "alpha": 0.8},
     )
 
-    ax.set_title("Topologie deduite (delta TTL + recouvrement de flux)")
+    ax.set_title(_("Topologie deduite (delta TTL + recouvrement de flux)"))
     ax.axis("off")
     ax.margins(0.15, 0.25)
 
     legend_elems = [
-        Patch(facecolor="#3b82f6", label="Point normal"),
+        Patch(facecolor="#3b82f6", label=_("Point normal")),
         Patch(facecolor="#f59e0b", label="Branchement"),
         Patch(facecolor="#8b5cf6", label="Convergence"),
-        Patch(facecolor="#94a3b8", label="Isole (peu/pas de trafic commun)"),
+        Patch(facecolor="#94a3b8", label=_("Isole (peu/pas de trafic commun)")),
     ]
     ax.legend(
         handles=legend_elems,
-        loc="upper center",
+        loc=_("upper center"),
         bbox_to_anchor=(0.5, -0.02),
         ncol=4,
         fontsize=7,
@@ -140,7 +141,7 @@ def chart_throughput(r, path):
     ax.set_xticks(list(x))
     ax.set_xticklabels(points)
     ax.set_ylabel("kbps")
-    ax.set_title("Debit par point")
+    ax.set_title(_("Debit par point"))
     ax.legend()
     _save(fig, path)
     return path
@@ -160,7 +161,7 @@ def chart_latency(r, path):
     ax.set_xticks(list(x))
     ax.set_xticklabels(labels)
     ax.set_ylabel("ms")
-    ax.set_title("Latence moyenne par segment (barre d'erreur = gigue)")
+    ax.set_title(_("Latence moyenne par segment (barre d'erreur = gigue)"))
     _save(fig, path)
     return path
 
@@ -172,17 +173,17 @@ def chart_loss(r, path):
     values = [r.loss_count[p] for p in points]
     fig, ax = plt.subplots(figsize=(6, 3))
     ax.bar(points, values, color="#ef4444")
-    ax.set_ylabel("paquets manquants")
-    ax.set_title("Pertes par point")
+    ax.set_ylabel(_("paquets manquants"))
+    ax.set_title(_("Pertes par point"))
     _save(fig, path)
     return path
 
 
 TOPN_DIMENSION_TITLES = {
     "protocol": "Protocole",
-    "port": "Port de destination",
-    "ip": "IP de destination",
-    "dscp": "Marquage DSCP",
+    "port": _("Port de destination"),
+    "ip": _("IP de destination"),
+    "dscp": _("Marquage DSCP"),
 }
 
 # Palette qualitative (pas de degrade, categories sans ordre naturel) --
@@ -235,10 +236,10 @@ def chart_topn_timeseries(r, point, dimension, path):
 
     fig, ax = plt.subplots(figsize=(9, 3.2))
     ax.stackplot(x, series, labels=cats, colors=colors)
-    ax.set_xlabel("secondes depuis le debut de la capture")
+    ax.set_xlabel(_("secondes depuis le debut de la capture"))
     ax.set_ylabel("kbps")
     ax.set_title(f"{TOPN_DIMENSION_TITLES.get(dimension, dimension)} au fil du temps -- point {point}")
-    ax.legend(loc="upper center", bbox_to_anchor=(0.5, -0.22), ncol=min(len(cats), 4), fontsize=7, framealpha=0.9)
+    ax.legend(loc=_("upper center"), bbox_to_anchor=(0.5, -0.22), ncol=min(len(cats), 4), fontsize=7, framealpha=0.9)
     _save(fig, path)
     return path
 
@@ -270,7 +271,7 @@ def generate_topn_charts(r, tmpdir, point=None):
 
 DEFAULT_SEVERITY_SCHEME = [
     ("anomalie", "Anomalies", "#ef4444"),
-    ("a_surveiller", "A surveiller", "#f59e0b"),
+    ("a_surveiller", _("A surveiller"), "#f59e0b"),
     ("info", "Info", "#94a3b8"),
 ]
 
@@ -278,7 +279,7 @@ DEFAULT_SEVERITY_SCHEME = [
 # pour le rapport PDF de comparaison avant/apres (voir pdf.generate_diff_pdf)
 DIFF_SEVERITY_SCHEME = [
     ("regression", "Regressions", "#ef4444"),
-    ("a_verifier", "A verifier", "#f59e0b"),
+    ("a_verifier", _("A verifier"), "#f59e0b"),
     ("amelioration", "Ameliorations", "#22c55e"),
 ]
 
@@ -296,7 +297,7 @@ def chart_severity_summary(findings, path, scheme=None):
     bar_colors = [color for _, _, color in scheme]
     fig, ax = plt.subplots(figsize=(4, 3))
     ax.bar(labels, values, color=bar_colors)
-    ax.set_title("Constats par gravite")
+    ax.set_title(_("Constats par gravite"))
     for i, v in enumerate(values):
         if v:
             ax.text(i, v, str(v), ha="center", va="bottom")
@@ -330,35 +331,35 @@ def chart_path_quality(metrics, path):
 
     fig, ax = plt.subplots(figsize=(9, max(3.2, 0.8 * len(labels) + 2.0)))
     x = range(len(labels))
-    ax.bar(x, p95, color="#3b82f6", width=0.45, label="Delai P95 (ms)")
-    ax.set_ylabel("Delai P95 (ms)", color="#1d4ed8")
+    ax.bar(x, p95, color="#3b82f6", width=0.45, label=_("Delai P95 (ms)"))
+    ax.set_ylabel(_("Delai P95 (ms)"), color="#1d4ed8")
     ax.tick_params(axis="y", labelcolor="#1d4ed8")
     ax.set_xlim(-0.6, len(labels) - 0.4)
     ax.set_xticks(list(x))
     ax.set_xticklabels(labels, rotation=30, ha="right", fontsize=8)
 
     ax2 = ax.twinx()
-    ax2.plot(list(x), loss, color="#ef4444", marker="o", linewidth=1.6, label="Perte (%)")
-    ax2.set_ylabel("Perte au point aval (%)", color="#b91c1c")
+    ax2.plot(list(x), loss, color="#ef4444", marker="o", linewidth=1.6, label=_("Perte (%)"))
+    ax2.set_ylabel(_("Perte au point aval (%)"), color="#b91c1c")
     ax2.tick_params(axis="y", labelcolor="#b91c1c")
     ax2.set_ylim(bottom=0)
 
     for i, seg in enumerate(metrics):
         if seg.delay_p95_ms is None and seg.loss_pct is None:
             ax.annotate(
-                "non mesure",
+                _("non mesure"),
                 (i, 0),
-                textcoords="offset points",
+                textcoords=_("offset points"),
                 xytext=(0, 6),
                 ha="center",
                 fontsize=7,
                 color="#64748b",
             )
 
-    ax.set_title("Qualite par segment du chemin (amont -> aval)")
+    ax.set_title(_("Qualite par segment du chemin (amont -> aval)"))
     ax.grid(axis="y", linestyle=":", alpha=0.4)
     handles = ax.get_legend_handles_labels()[0] + ax2.get_legend_handles_labels()[0]
-    ax.legend(handles=handles, loc="upper left", fontsize=7, framealpha=0.9)
+    ax.legend(handles=handles, loc=_("upper left"), fontsize=7, framealpha=0.9)
     _save(fig, path)
     return path
 
@@ -434,12 +435,12 @@ def chart_sequence_diagram(view, path):
 
     ax.set_xlim(-1.35, len(view.hosts) - 0.4)
     ax.set_ylim(-n + 0.5, 1.6)
-    ax.set_title(f"Sequence des echanges -- {view.title}" if view.title else "Sequence des echanges")
+    ax.set_title(f"Sequence des echanges -- {view.title}" if view.title else _("Sequence des echanges"))
     ax.axis("off")
     handles = [Line2D([0], [0], color=colors_by_point[p], linewidth=2, label=f"Vu a {p}") for p in view.points]
     if view.truncated:
         handles.append(Line2D([0], [0], color="none", label=f"{view.truncated} paquet(s) non represente(s)"))
-    ax.legend(handles=handles, loc="upper center", bbox_to_anchor=(0.5, -0.01), ncol=2, fontsize=7, framealpha=0.9)
+    ax.legend(handles=handles, loc=_("upper center"), bbox_to_anchor=(0.5, -0.01), ncol=2, fontsize=7, framealpha=0.9)
     fig.savefig(path, dpi=150, bbox_inches="tight")
     plt.close(fig)
     return path
@@ -498,7 +499,7 @@ def chart_comm_map(cmap, path):
         labels_pos,
         ax=ax,
         font_size=7,
-        bbox={"boxstyle": "round,pad=0.15", "fc": "white", "ec": "#cbd5e1", "alpha": 0.9},
+        bbox={"boxstyle": _("round,pad=0.15"), "fc": "white", "ec": "#cbd5e1", "alpha": 0.9},
     )
 
     max_edge = max((e.bytes for e in cmap.edges), default=1) or 1
@@ -512,7 +513,7 @@ def chart_comm_map(cmap, path):
             edge_color="#ef4444" if edge.anomalies else "#475569",
             arrowsize=14,
             arrowstyle="-|>",
-            connectionstyle="arc3,rad=0.12",
+            connectionstyle=_("arc3,rad=0.12"),
             node_size=1200,
         )
     edge_labels = {(e.src, e.dst): ",".join(sorted(e.protocols)) or "?" for e in cmap.edges}
@@ -523,7 +524,7 @@ def chart_comm_map(cmap, path):
         ax=ax,
         font_size=6,
         rotate=False,
-        bbox={"boxstyle": "round,pad=0.1", "fc": "white", "ec": "none", "alpha": 0.75},
+        bbox={"boxstyle": _("round,pad=0.1"), "fc": "white", "ec": "none", "alpha": 0.75},
     )
 
     ax.set_title(f"Communications observees ({len(cmap.edges)} arete(s) sur {cmap.total_edges})")
@@ -531,10 +532,10 @@ def chart_comm_map(cmap, path):
     ax.margins(0.12)
     ax.legend(
         handles=[
-            Patch(facecolor="#3b82f6", label="Hote sans signal d'expertise"),
-            Patch(facecolor="#ef4444", label="Signal d'expertise (retransmission, flag tshark)"),
+            Patch(facecolor="#3b82f6", label=_("Hote sans signal d'expertise")),
+            Patch(facecolor="#ef4444", label=_("Signal d'expertise (retransmission, flag tshark)")),
         ],
-        loc="upper center",
+        loc=_("upper center"),
         bbox_to_anchor=(0.5, -0.01),
         ncol=2,
         fontsize=7,

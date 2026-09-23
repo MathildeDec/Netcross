@@ -31,21 +31,22 @@ from netcross_core.bpf_filters import BPFFilter
 
 from netcross_core.logging_config import get_logger
 logger = get_logger(__name__)
+from netcross_core.i18n import _
 
 
 # Position du titre dans le menu deroulant : le i-eme filtre est donc a
 # l'indice i + 1. Nomme une fois plutot que reecrit en "index - 1".
 DECALAGE_TITRE = 1
 
-TITRE_MENU_FILTRES = "Choisir un filtre..."
+TITRE_MENU_FILTRES = _("Choisir un filtre...")
 INDICE_AUCUNE_SELECTION = 0
 
 # Messages de refus d'enregistrement. Ils sont affiches tels quels a
 # l'utilisateur, donc verifies par les tests : un message change par
 # inadvertance est une regression fonctionnelle, pas un detail de forme.
-MSG_EXPRESSION_VIDE = "Le champ filtre BPF est vide : rien a enregistrer."
-MSG_NOM_MANQUANT = "Donnez un nom au filtre."
-MSG_SAUVEGARDE_INDISPONIBLE = "Sauvegarde des filtres indisponible."
+MSG_EXPRESSION_VIDE = _("Le champ filtre BPF est vide : rien a enregistrer.")
+MSG_NOM_MANQUANT = _("Donnez un nom au filtre.")
+MSG_SAUVEGARDE_INDISPONIBLE = _("Sauvegarde des filtres indisponible.")
 
 
 def filtre_a_l_indice(index, filtres):

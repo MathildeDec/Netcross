@@ -7,7 +7,7 @@ msgid ""
 msgstr ""
 "Project-Id-Version: netcross\n"
 "Report-Msgid-Bugs-To: https://github.com/MathildeDec/Netcross/issues\n"
-"POT-Creation-Date: 2026-09-23 07:01+0000\n"
+"POT-Creation-Date: 2026-09-23 14:05+0000\n"
 "PO-Revision-Date: 2026-09-23 07:01+0000\n"
 "Last-Translator: Automatically generated\n"
 "Language-Team: none\n"
@@ -18,8 +18,568 @@ msgstr ""
 "Plural-Forms: nplurals=6; plural=(n==0 ? 0 : n==1 ? 1 : n==2 ? 2 : n%100>=3 "
 "&& n%100<=10 ? 3 : n%100>=11 ? 4 : 5);\n"
 
-#: src/netcross_gtk4/run_outcome.py
+#: src/netcross_gtk4/annotations_view.py
+msgid "le tag d'une annotation ne peut pas etre vide"
+msgstr ""
+
+#: src/netcross_gtk4/app.py
+msgid "(aucun flux)"
+msgstr ""
+
+#: src/netcross_gtk4/app.py
+msgid "(lancer une analyse pour voir les statistiques)"
+msgstr ""
+
+#: src/netcross_gtk4/app.py
+msgid "(vide)"
+msgstr ""
+
+#: src/netcross_gtk4/app.py
+msgid "*.csv"
+msgstr ""
+
+#: src/netcross_gtk4/app.py
+msgid "*.json"
+msgstr ""
+
+#: src/netcross_gtk4/app.py
+msgid "*.pcap"
+msgstr ""
+
+#: src/netcross_gtk4/app.py
+msgid "*.pcapng"
+msgstr ""
+
+#: src/netcross_gtk4/app.py
+msgid ""
+"--redact n'est pas disponible avec Diagnostic TLS/QUIC (voir "
+"netcross_core.redact)."
+msgstr ""
+
+#: src/netcross_gtk4/app.py
+msgid ".png"
+msgstr ""
+
+#: src/netcross_gtk4/app.py
+msgid "<-- Retour aux statistiques"
+msgstr ""
+
+#: src/netcross_gtk4/app.py
+msgid "=== CHARGEMENT DU BASELINE ==="
+msgstr ""
+
+#: src/netcross_gtk4/app.py
+msgid "=== CHARGEMENT DU RUN COURANT ==="
+msgstr ""
+
+#: src/netcross_gtk4/app.py
+msgid ""
+"Active automatiquement la détection et retire les paquets marqués des "
+"compteurs et de la corrélation."
+msgstr ""
+
+#: src/netcross_gtk4/app.py
+msgid "Ajouter un point de capture"
+msgstr ""
+
+#: src/netcross_gtk4/app.py
+msgid "Ajouter une capture"
+msgstr ""
+
+#: src/netcross_gtk4/app.py
+msgid ""
+"Analyse (pertes, latence, TTL, QoS, fragmentation, debit, TCP, VLAN, RTP, "
+"DHCP, SIP...)..."
+msgstr ""
+
+#: src/netcross_gtk4/app.py src/netcross_report/json_report.py
+#: src/netcross_report/pdf.py
+msgid "Analyse croisee de captures reseau"
+msgstr ""
+
+#: src/netcross_gtk4/app.py
+msgid "Analyse en cours..."
+msgstr ""
+
+#: src/netcross_gtk4/app.py src/netcross_gtk4/run_outcome.py
 msgid "Analyse terminee."
+msgstr ""
+
+#: src/netcross_gtk4/app.py
+msgid "Anomalies seulement"
+msgstr ""
+
+#: src/netcross_gtk4/app.py
+msgid "Anonymisation des adresses IP/MAC (--redact)..."
+msgstr ""
+
+#: src/netcross_gtk4/app.py
+msgid "Anonymiser les adresses IP/MAC (--redact)"
+msgstr ""
+
+#: src/netcross_gtk4/app.py
+msgid "Arret de la capture en cours (peut prendre quelques secondes)..."
+msgstr ""
+
+#: src/netcross_gtk4/app.py
+msgid "Arret de la capture..."
+msgstr ""
+
+#: src/netcross_gtk4/app.py
+msgid "Arreter et analyser"
+msgstr ""
+
+#: src/netcross_gtk4/app.py
+msgid "Baseline (avant)"
+msgstr ""
+
+#: src/netcross_gtk4/app.py
+msgid "Cadence RTP (Hz):"
+msgstr ""
+
+#: src/netcross_gtk4/app.py
+msgid "Capture en direct (interfaces reseau, au lieu de fichiers)"
+msgstr ""
+
+#: src/netcross_gtk4/app.py
+msgid ""
+"Capture en direct en cours -- cliquez sur \"Arreter et analyser\" quand vous "
+"avez assez de trafic capture."
+msgstr ""
+
+#: src/netcross_gtk4/app.py
+msgid "Captures Wireshark (*.pcap, *.pcapng)"
+msgstr ""
+
+#: src/netcross_gtk4/app.py
+msgid "Cartographie des communications"
+msgstr ""
+
+#: src/netcross_gtk4/app.py
+msgid "Cartographie disponible apres une analyse simple."
+msgstr ""
+
+#: src/netcross_gtk4/app.py
+msgid "Charger un filtre BPF predefini ou sauvegarde"
+msgstr ""
+
+#: src/netcross_gtk4/app.py
+msgid "Comparaison baseline / courant..."
+msgstr ""
+
+#: src/netcross_gtk4/app.py src/netcross_gtk4/run_outcome.py
+msgid "Comparaison terminee."
+msgstr ""
+
+#: src/netcross_gtk4/app.py
+msgid "Contexte selectionne : aucun"
+msgstr ""
+
+#: src/netcross_gtk4/app.py
+msgid "Correlation des flux entre points de capture..."
+msgstr ""
+
+#: src/netcross_gtk4/app.py
+msgid "Correlation tolérante au NAT"
+msgstr ""
+
+#: src/netcross_gtk4/app.py
+msgid "Courant (apres)"
+msgstr ""
+
+#: src/netcross_gtk4/app.py
+msgid "DIAGNOSTIC QUIC/HTTP3"
+msgstr ""
+
+#: src/netcross_gtk4/app.py
+msgid "DIAGNOSTIC QUIC/HTTP3 -- BASELINE"
+msgstr ""
+
+#: src/netcross_gtk4/app.py
+msgid "DIAGNOSTIC QUIC/HTTP3 -- COURANT"
+msgstr ""
+
+#: src/netcross_gtk4/app.py
+msgid "DIAGNOSTIC TLS"
+msgstr ""
+
+#: src/netcross_gtk4/app.py
+msgid "DIAGNOSTIC TLS -- BASELINE"
+msgstr ""
+
+#: src/netcross_gtk4/app.py
+msgid "DIAGNOSTIC TLS -- COURANT"
+msgstr ""
+
+#: src/netcross_gtk4/app.py
+msgid "Dashboard analytique"
+msgstr ""
+
+#: src/netcross_gtk4/app.py
+msgid "Deduire la topologie automatiquement (ignore l'ordre de la liste)"
+msgstr ""
+
+#: src/netcross_gtk4/app.py
+msgid "Description (optionnelle)"
+msgstr ""
+
+#: src/netcross_gtk4/app.py
+msgid "Diagnostic QUIC (relecture des captures via tshark)..."
+msgstr ""
+
+#: src/netcross_gtk4/app.py
+msgid "Diagnostic QUIC/HTTP3"
+msgstr ""
+
+#: src/netcross_gtk4/app.py
+msgid "Diagnostic TLS"
+msgstr ""
+
+#: src/netcross_gtk4/app.py
+msgid "Diagnostic TLS (relecture des captures via tshark)..."
+msgstr ""
+
+#: src/netcross_gtk4/app.py
+msgid "Doublons inter-captures : non analysés."
+msgstr ""
+
+#: src/netcross_gtk4/app.py
+msgid "Duree max (s, 0 = illimitee -- arret manuel):"
+msgstr ""
+
+#: src/netcross_gtk4/app.py
+msgid "Duree maximale atteinte -- arret automatique de la capture."
+msgstr ""
+
+#: src/netcross_gtk4/app.py
+msgid "Duree maximale de chaque fichier de capture en secondes (defaut : 60)."
+msgstr ""
+
+#: src/netcross_gtk4/app.py
+msgid "Duree/fichier (s) :"
+msgstr ""
+
+#: src/netcross_gtk4/app.py
+msgid "Détecter les doublons inter-captures"
+msgstr ""
+
+#: src/netcross_gtk4/app.py
+msgid "En attente du lancement de l'analyse..."
+msgstr ""
+
+#: src/netcross_gtk4/app.py
+msgid "Enregistrer le filtre"
+msgstr ""
+
+#: src/netcross_gtk4/app.py
+msgid "Enregistrer le filtre BPF courant sous un nom"
+msgstr ""
+
+#: src/netcross_gtk4/app.py
+msgid "Exclure les doublons des statistiques"
+msgstr ""
+
+#: src/netcross_gtk4/app.py
+msgid "Expertise tshark (signaux bruts)..."
+msgstr ""
+
+#: src/netcross_gtk4/app.py
+msgid "Exploration statistique"
+msgstr ""
+
+#: src/netcross_gtk4/app.py
+msgid "Exporter CSV"
+msgstr ""
+
+#: src/netcross_gtk4/app.py
+msgid "Exporter JSON"
+msgstr ""
+
+#: src/netcross_gtk4/app.py
+msgid "Exporter en CSV"
+msgstr ""
+
+#: src/netcross_gtk4/app.py
+msgid "Exporter en JSON"
+msgstr ""
+
+#: src/netcross_gtk4/app.py
+msgid "Exporter en PDF"
+msgstr ""
+
+#: src/netcross_gtk4/app.py
+msgid "Exporter les statistiques en CSV"
+msgstr ""
+
+#: src/netcross_gtk4/app.py
+msgid "Exporter les statistiques en JSON"
+msgstr ""
+
+#: src/netcross_gtk4/app.py
+msgid "Fenetre temporelle (ms):"
+msgstr ""
+
+#: src/netcross_gtk4/app.py
+msgid "Fichiers max :"
+msgstr ""
+
+#: src/netcross_gtk4/app.py
+msgid "Filtres..."
+msgstr ""
+
+#: src/netcross_gtk4/app.py
+msgid "Generation du JSON..."
+msgstr ""
+
+#: src/netcross_gtk4/app.py
+msgid "Generation du PDF..."
+msgstr ""
+
+#: src/netcross_gtk4/app.py
+msgid "Grouper par"
+msgstr ""
+
+#: src/netcross_gtk4/app.py src/netcross_gtk4/panel_state.py
+msgid "Lancer l'analyse"
+msgstr ""
+
+#: src/netcross_gtk4/app.py
+msgid "Lecture parallele des captures"
+msgstr ""
+
+#: src/netcross_gtk4/app.py
+msgid ""
+"Marque comme doublons les mêmes payloads vus à des points différents dans la "
+"fenêtre temporelle choisie."
+msgstr ""
+
+#: src/netcross_gtk4/app.py
+msgid "Mise en forme du rapport..."
+msgstr ""
+
+#: src/netcross_gtk4/app.py
+msgid ""
+"Mode comparaison (baseline / courant) -- equivalent de "
+"cross_capture_diff_cli.py"
+msgstr ""
+
+#: src/netcross_gtk4/app.py
+msgid "Monter (ordre = chemin physique reseau)"
+msgstr ""
+
+#: src/netcross_gtk4/app.py
+msgid "Necessite cryptography. Idem TLS, baseline et courant separement."
+msgstr ""
+
+#: src/netcross_gtk4/app.py
+msgid "Necessite cryptography. Relit les memes fichiers."
+msgstr ""
+
+#: src/netcross_gtk4/app.py
+msgid "Nom du filtre (ex: web interne)"
+msgstr ""
+
+#: src/netcross_gtk4/app.py
+msgid "Nom du point de capture (ex: LAN, WAN, DC)"
+msgstr ""
+
+#: src/netcross_gtk4/app.py
+msgid ""
+"Nombre de segments affiches par le triage (equivalent --triage-top-n sur la "
+"CLI, defaut : 5)"
+msgstr ""
+
+#: src/netcross_gtk4/app.py
+msgid ""
+"Nombre maximal de fichiers de capture conserves sur disque (defaut : 10)."
+msgstr ""
+
+#: src/netcross_gtk4/app.py
+msgid "Nouvelle analyse"
+msgstr ""
+
+#: src/netcross_gtk4/app.py
+msgid "OSError|ValueError"
+msgstr ""
+
+#: src/netcross_gtk4/app.py
+msgid "Options d'analyse"
+msgstr ""
+
+#: src/netcross_gtk4/app.py
+msgid "Points de capture (ordre = chemin physique reseau)"
+msgstr ""
+
+#: src/netcross_gtk4/app.py
+msgid "Points de capture en direct (ordre = chemin physique reseau)"
+msgstr ""
+
+#: src/netcross_gtk4/app.py
+msgid "Reinitialiser la selection"
+msgstr ""
+
+#: src/netcross_gtk4/app.py
+msgid ""
+"Relit les memes fichiers avec un pipeline de decodage independant (via "
+"tshark)."
+msgstr ""
+
+#: src/netcross_gtk4/app.py
+msgid "Retirer ce point de capture"
+msgstr ""
+
+#: src/netcross_gtk4/app.py
+msgid "Retirer cette capture"
+msgstr ""
+
+#: src/netcross_gtk4/app.py
+msgid "Rotation de capture (ring buffer)"
+msgstr ""
+
+#: src/netcross_gtk4/app.py
+msgid "Seuil doublons (ms):"
+msgstr ""
+
+#: src/netcross_gtk4/app.py
+msgid "Seuil latence (ms):"
+msgstr ""
+
+#: src/netcross_gtk4/app.py
+msgid "Seuil pertes (points de %):"
+msgstr ""
+
+#: src/netcross_gtk4/app.py
+msgid "TRIAGE -- PAR OU COMMENCER"
+msgstr ""
+
+#: src/netcross_gtk4/app.py
+msgid ""
+"Termine la capture en direct sur tous les points et lance l'analyse sur les "
+"paquets accumules jusqu'ici."
+msgstr ""
+
+#: src/netcross_gtk4/app.py
+msgid "Top-N"
+msgstr ""
+
+#: src/netcross_gtk4/app.py
+msgid "Top-N aretes"
+msgstr ""
+
+#: src/netcross_gtk4/app.py
+msgid "Top-N graphiques"
+msgstr ""
+
+#: src/netcross_gtk4/app.py
+msgid "Triage (classement des segments)"
+msgstr ""
+
+#: src/netcross_gtk4/app.py
+msgid "Triage des segments..."
+msgstr ""
+
+#: src/netcross_gtk4/app.py
+msgid "Trier par"
+msgstr ""
+
+#: src/netcross_gtk4/app.py
+msgid "details_flux.csv"
+msgstr ""
+
+#: src/netcross_gtk4/app.py
+msgid "ecarts.csv"
+msgstr ""
+
+#: src/netcross_gtk4/app.py
+msgid "eth0, eth0, eth1 ou rpcap://hote/eth0"
+msgstr ""
+
+#: src/netcross_gtk4/app.py
+msgid "filtre BPF optionnel, ex: tcp port 443"
+msgstr ""
+
+#: src/netcross_gtk4/app.py
+msgid "netcross_stats.csv"
+msgstr ""
+
+#: src/netcross_gtk4/app.py
+msgid "netcross_stats.json"
+msgstr ""
+
+#: src/netcross_gtk4/app.py
+msgid "notify::selected"
+msgstr ""
+
+#: src/netcross_gtk4/app.py
+msgid "org.netcross.analyzer"
+msgstr ""
+
+#: src/netcross_gtk4/app.py
+msgid "rapport_analyse.json"
+msgstr ""
+
+#: src/netcross_gtk4/app.py
+msgid "rapport_analyse.pdf"
+msgstr ""
+
+#: src/netcross_gtk4/app.py
+msgid "rapport_comparaison.json"
+msgstr ""
+
+#: src/netcross_gtk4/app.py
+msgid "rapport_comparaison.pdf"
+msgstr ""
+
+#: src/netcross_gtk4/app.py
+msgid "reportlab/matplotlib/networkx requis pour l'export PDF"
+msgstr ""
+
+#: src/netcross_gtk4/bpf_panel.py
+msgid "Choisir un filtre..."
+msgstr ""
+
+#: src/netcross_gtk4/bpf_panel.py
+msgid "Donnez un nom au filtre."
+msgstr ""
+
+#: src/netcross_gtk4/bpf_panel.py
+msgid "Le champ filtre BPF est vide : rien a enregistrer."
+msgstr ""
+
+#: src/netcross_gtk4/bpf_panel.py
+msgid "Sauvegarde des filtres indisponible."
+msgstr ""
+
+#: src/netcross_gtk4/dashboard_context.py
+msgid "aucune selection active"
+msgstr ""
+
+#: src/netcross_gtk4/dashboard_context.py
+msgid "flow=selectionne"
+msgstr ""
+
+#: src/netcross_gtk4/duplicate_view.py
+msgid " — exclus des statistiques et de la corrélation"
+msgstr ""
+
+#: src/netcross_gtk4/duplicate_view.py
+msgid " — inclus dans les statistiques"
+msgstr ""
+
+#: src/netcross_gtk4/duplicate_view.py
+msgid "Doublons inter-captures : aucun détecté."
+msgstr ""
+
+#: src/netcross_gtk4/panel_state.py
+msgid "Demarrer la capture"
+msgstr ""
+
+#: src/netcross_gtk4/panel_state.py
+msgid "capture en cours : bouton pilote par le cycle de capture"
+msgstr ""
+
+#: src/netcross_gtk4/panel_state.py
+msgid "selection de type 'flow' sans resolveur de cle"
 msgstr ""
 
 #: src/netcross_gtk4/run_outcome.py
@@ -32,10 +592,10 @@ msgid "Comparaison terminee -- {n} regression detectee."
 msgid_plural "Comparaison terminee -- {n} regressions detectees."
 msgstr[0] ""
 msgstr[1] ""
-
-#: src/netcross_gtk4/run_outcome.py
-msgid "Comparaison terminee."
-msgstr ""
+msgstr[2] ""
+msgstr[3] ""
+msgstr[4] ""
+msgstr[5] ""
 
 #: src/netcross_gtk4/run_outcome.py
 msgid "Doublons inter-captures : non disponible en mode comparaison."
@@ -134,4 +694,691 @@ msgstr ""
 #: src/netcross_gtk4/stats_view.py
 #, python-brace-format
 msgid "{v:.1f} Mo"
+msgstr ""
+
+#: src/netcross_report/charts.py src/netcross_report/pdf.py
+#: src/netcross_report/triage.py
+msgid "A surveiller"
+msgstr ""
+
+#: src/netcross_report/charts.py src/netcross_report/pdf.py
+msgid "A verifier"
+msgstr ""
+
+#: src/netcross_report/charts.py
+msgid "Constats par gravite"
+msgstr ""
+
+#: src/netcross_report/charts.py src/netcross_report/pdf.py
+msgid "Debit par point"
+msgstr ""
+
+#: src/netcross_report/charts.py
+msgid "Delai P95 (ms)"
+msgstr ""
+
+#: src/netcross_report/charts.py
+msgid "Hote sans signal d'expertise"
+msgstr ""
+
+#: src/netcross_report/charts.py
+msgid "IP de destination"
+msgstr ""
+
+#: src/netcross_report/charts.py
+msgid "Isole (peu/pas de trafic commun)"
+msgstr ""
+
+#: src/netcross_report/charts.py
+msgid "Latence moyenne par segment (barre d'erreur = gigue)"
+msgstr ""
+
+#: src/netcross_report/charts.py
+msgid "Marquage DSCP"
+msgstr ""
+
+#: src/netcross_report/charts.py
+msgid "Perte (%)"
+msgstr ""
+
+#: src/netcross_report/charts.py
+msgid "Perte au point aval (%)"
+msgstr ""
+
+#: src/netcross_report/charts.py src/netcross_report/pdf.py
+msgid "Pertes par point"
+msgstr ""
+
+#: src/netcross_report/charts.py
+msgid "Point normal"
+msgstr ""
+
+#: src/netcross_report/charts.py
+msgid "Port de destination"
+msgstr ""
+
+#: src/netcross_report/charts.py
+msgid "Qualite par segment du chemin (amont -> aval)"
+msgstr ""
+
+#: src/netcross_report/charts.py src/netcross_report/pdf.py
+msgid "Sequence des echanges"
+msgstr ""
+
+#: src/netcross_report/charts.py
+msgid "Signal d'expertise (retransmission, flag tshark)"
+msgstr ""
+
+#: src/netcross_report/charts.py
+msgid "Topologie deduite (delta TTL + recouvrement de flux)"
+msgstr ""
+
+#: src/netcross_report/charts.py
+msgid "arc3,rad=0.08"
+msgstr ""
+
+#: src/netcross_report/charts.py
+msgid "arc3,rad=0.12"
+msgstr ""
+
+#: src/netcross_report/charts.py src/netcross_report/pdf.py
+#: src/netcross_report/session_objects.py
+msgid "non mesure"
+msgstr ""
+
+#: src/netcross_report/charts.py
+msgid "offset points"
+msgstr ""
+
+#: src/netcross_report/charts.py
+msgid "paquets manquants"
+msgstr ""
+
+#: src/netcross_report/charts.py
+msgid "round,pad=0.1"
+msgstr ""
+
+#: src/netcross_report/charts.py
+msgid "round,pad=0.15"
+msgstr ""
+
+#: src/netcross_report/charts.py
+msgid "secondes depuis le debut de la capture"
+msgstr ""
+
+#: src/netcross_report/charts.py
+msgid "upper center"
+msgstr ""
+
+#: src/netcross_report/charts.py
+msgid "upper left"
+msgstr ""
+
+#: src/netcross_report/comm_map.py
+msgid "Aucune communication a afficher avec ces filtres."
+msgstr ""
+
+#: src/netcross_report/history.py src/netcross_report/stix_export.py
+msgid " AND "
+msgstr ""
+
+#: src/netcross_report/history.py
+msgid " LIMIT ?"
+msgstr ""
+
+#: src/netcross_report/history.py
+msgid " ORDER BY id DESC"
+msgstr ""
+
+#: src/netcross_report/history.py
+msgid " WHERE "
+msgstr ""
+
+#: src/netcross_report/history.py
+msgid "HISTORIQUE DES RUNS ENREGISTRES"
+msgstr ""
+
+#: src/netcross_report/history.py
+msgid "label = ?"
+msgstr ""
+
+#: src/netcross_report/history.py
+msgid "run_type = ?"
+msgstr ""
+
+#: src/netcross_report/json_report.py src/netcross_report/pdf.py
+msgid "Comparaison avant / apres"
+msgstr ""
+
+#: src/netcross_report/json_report.py
+msgid "non demande (--security-report absent de l'appel)"
+msgstr ""
+
+#: src/netcross_report/metric_charts.py
+msgid "MetricSeries.values ne doit pas etre vide"
+msgstr ""
+
+#: src/netcross_report/path_metrics.py
+msgid ""
+"Aucun segment exploitable : la topologie n'a pas pu etre deduite de ces "
+"captures."
+msgstr ""
+
+#: src/netcross_report/path_metrics.py
+msgid "aucune metrique chiffree"
+msgstr ""
+
+#: src/netcross_report/pdf.py src/netcross_report/rule_engine.py
+#: src/netcross_report/synthesis.py
+msgid " (SSRC="
+msgstr ""
+
+#: src/netcross_report/pdf.py
+msgid " (echantillon faible)"
+msgstr ""
+
+#: src/netcross_report/pdf.py
+msgid "%d/%m/%Y %H:%M"
+msgstr ""
+
+#: src/netcross_report/pdf.py
+msgid "Anomalies (Expert Info)"
+msgstr ""
+
+#: src/netcross_report/pdf.py
+msgid "Anomalies correlees (Expert Info)"
+msgstr ""
+
+#: src/netcross_report/pdf.py
+msgid "Aucun changement."
+msgstr ""
+
+#: src/netcross_report/pdf.py
+msgid "Aucun constat notable."
+msgstr ""
+
+#: src/netcross_report/pdf.py
+msgid "Aucun diagnostic par segment."
+msgstr ""
+
+#: src/netcross_report/pdf.py
+msgid "Aucun evenement d'expertise."
+msgstr ""
+
+#: src/netcross_report/pdf.py
+msgid "Aucun flux correle."
+msgstr ""
+
+#: src/netcross_report/pdf.py
+msgid "Aucun referentiel evalue."
+msgstr ""
+
+#: src/netcross_report/pdf.py
+msgid ""
+"Aucun segment exploitable : ni topologie deduite, ni couple de points fourni."
+msgstr ""
+
+#: src/netcross_report/pdf.py
+msgid "Aucun service identifie dans cette capture."
+msgstr ""
+
+#: src/netcross_report/pdf.py
+msgid "Aucun tunnel detecte."
+msgstr ""
+
+#: src/netcross_report/pdf.py
+msgid "Aucune CVE confirmee."
+msgstr ""
+
+#: src/netcross_report/pdf.py
+msgid "Aucune anomalie correlee."
+msgstr ""
+
+#: src/netcross_report/pdf.py
+msgid "Aucune donnee."
+msgstr ""
+
+#: src/netcross_report/pdf.py
+msgid "Aucune fragmentation."
+msgstr ""
+
+#: src/netcross_report/pdf.py
+msgid "Aucune tentative d'exploitation detectee."
+msgstr ""
+
+#: src/netcross_report/pdf.py
+msgid "CVE confirmees"
+msgstr ""
+
+#: src/netcross_report/pdf.py
+msgid "Categories touchees"
+msgstr ""
+
+#: src/netcross_report/pdf.py
+msgid "Cause probable"
+msgstr ""
+
+#: src/netcross_report/pdf.py
+msgid "Cause probable / impact"
+msgstr ""
+
+#: src/netcross_report/pdf.py
+msgid "Chemin observe"
+msgstr ""
+
+#: src/netcross_report/pdf.py
+msgid "Conformite aux referentiels"
+msgstr ""
+
+#: src/netcross_report/pdf.py
+msgid "DSCP / frag"
+msgstr ""
+
+#: src/netcross_report/pdf.py
+msgid "Debit aval"
+msgstr ""
+
+#: src/netcross_report/pdf.py
+msgid "Delai moy / P95 / P99 (ms)"
+msgstr ""
+
+#: src/netcross_report/pdf.py
+msgid "Delta (ms)"
+msgstr ""
+
+#: src/netcross_report/pdf.py
+msgid "Detail par module"
+msgstr ""
+
+#: src/netcross_report/pdf.py
+msgid "Diagnostics TLS / QUIC"
+msgstr ""
+
+#: src/netcross_report/pdf.py
+msgid "Diagnostics TLS / QUIC -- baseline vs courant"
+msgstr ""
+
+#: src/netcross_report/pdf.py
+msgid "Diagnostics par segment"
+msgstr ""
+
+#: src/netcross_report/pdf.py src/netcross_report/security_html.py
+msgid "Empreinte JA4/HASSH"
+msgstr ""
+
+#: src/netcross_report/pdf.py
+msgid "Encapsulation / tunnels"
+msgstr ""
+
+#: src/netcross_report/pdf.py
+msgid "Evenements d'expertise"
+msgstr ""
+
+#: src/netcross_report/pdf.py
+msgid "Evolution temporelle (top-N)"
+msgstr ""
+
+#: src/netcross_report/pdf.py
+msgid "Expertise -- objets enrichis"
+msgstr ""
+
+#: src/netcross_report/pdf.py src/netcross_report/session_objects.py
+msgid "Expertise tshark (signaux bruts)"
+msgstr ""
+
+#: src/netcross_report/pdf.py
+msgid "Flux RTP (voix/visio)"
+msgstr ""
+
+#: src/netcross_report/pdf.py
+msgid "Flux correles"
+msgstr ""
+
+#: src/netcross_report/pdf.py
+msgid "Fragmentation / MTU"
+msgstr ""
+
+#: src/netcross_report/pdf.py
+msgid "Gbit/s"
+msgstr ""
+
+#: src/netcross_report/pdf.py
+msgid "Genere le"
+msgstr ""
+
+#: src/netcross_report/pdf.py
+msgid "Helvetica-Bold"
+msgstr ""
+
+#: src/netcross_report/pdf.py
+msgid "Latence par segment"
+msgstr ""
+
+#: src/netcross_report/pdf.py
+msgid "Mbit/s"
+msgstr ""
+
+#: src/netcross_report/pdf.py
+msgid "Par IP de destination"
+msgstr ""
+
+#: src/netcross_report/pdf.py
+msgid "Par marquage DSCP"
+msgstr ""
+
+#: src/netcross_report/pdf.py
+msgid "Par ou commencer"
+msgstr ""
+
+#: src/netcross_report/pdf.py
+msgid "Par port de destination"
+msgstr ""
+
+#: src/netcross_report/pdf.py
+msgid "Par protocole"
+msgstr ""
+
+#: src/netcross_report/pdf.py
+msgid "Perte aval"
+msgstr ""
+
+#: src/netcross_report/pdf.py
+msgid "Points baseline"
+msgstr ""
+
+#: src/netcross_report/pdf.py
+msgid "Points courant"
+msgstr ""
+
+#: src/netcross_report/pdf.py
+msgid "Points de capture"
+msgstr ""
+
+#: src/netcross_report/pdf.py
+msgid "QUIC / HTTP3"
+msgstr ""
+
+#: src/netcross_report/pdf.py
+msgid "QUIC/HTTP3 -- Baseline"
+msgstr ""
+
+#: src/netcross_report/pdf.py
+msgid "QUIC/HTTP3 -- Courant"
+msgstr ""
+
+#: src/netcross_report/pdf.py
+msgid "QoS (DSCP)"
+msgstr ""
+
+#: src/netcross_report/pdf.py
+msgid "Rapport de securite"
+msgstr ""
+
+#: src/netcross_report/pdf.py
+msgid "Repartition par severite"
+msgstr ""
+
+#: src/netcross_report/pdf.py
+msgid "Rien de notable."
+msgstr ""
+
+#: src/netcross_report/pdf.py
+msgid "Rien."
+msgstr ""
+
+#: src/netcross_report/pdf.py
+msgid "Sauts de routeur (delta TTL)"
+msgstr ""
+
+#: src/netcross_report/pdf.py
+msgid "Score de risque"
+msgstr ""
+
+#: src/netcross_report/pdf.py
+msgid "Services detectes"
+msgstr ""
+
+#: src/netcross_report/pdf.py
+msgid "Source -> Destination"
+msgstr ""
+
+#: src/netcross_report/pdf.py
+msgid "TCP avance"
+msgstr ""
+
+#: src/netcross_report/pdf.py
+msgid "TLS -- Baseline"
+msgstr ""
+
+#: src/netcross_report/pdf.py
+msgid "TLS -- Courant"
+msgstr ""
+
+#: src/netcross_report/pdf.py
+msgid "Tableau de bord"
+msgstr ""
+
+#: src/netcross_report/pdf.py
+msgid "Tentatives d'exploitation"
+msgstr ""
+
+#: src/netcross_report/pdf.py src/netcross_report/security_report.py
+msgid "Tentatives d'exploitation detectees"
+msgstr ""
+
+#: src/netcross_report/pdf.py
+msgid "Topologie deduite"
+msgstr ""
+
+#: src/netcross_report/pdf.py
+msgid "Vue d'ensemble"
+msgstr ""
+
+#: src/netcross_report/pdf.py src/netcross_report/security_html.py
+#: src/netcross_report/security_report.py
+msgid "aucun constat"
+msgstr ""
+
+#: src/netcross_report/pdf.py
+msgid "aucune CVE connue"
+msgstr ""
+
+#: src/netcross_report/pdf.py
+msgid "kbit/s"
+msgstr ""
+
+#: src/netcross_report/pdf.py
+msgid "t (ms)"
+msgstr ""
+
+#: src/netcross_report/rule_engine.py src/netcross_report/synthesis.py
+msgid "NON correlees"
+msgstr ""
+
+#: src/netcross_report/security_html.py
+msgid " &middot; "
+msgstr ""
+
+#: src/netcross_report/security_html.py
+msgid "%Y-%m-%d %H:%M:%S"
+msgstr ""
+
+#: src/netcross_report/security_html.py
+msgid "&ndash;"
+msgstr ""
+
+#: src/netcross_report/security_html.py
+msgid "<h2>Anomalies correlees (Expert Info)</h2>"
+msgstr ""
+
+#: src/netcross_report/security_html.py
+msgid "<h2>CVE confirmees</h2>"
+msgstr ""
+
+#: src/netcross_report/security_html.py
+msgid "<h2>Services detectes</h2>"
+msgstr ""
+
+#: src/netcross_report/security_html.py
+msgid "<h2>Tableau de bord</h2>"
+msgstr ""
+
+#: src/netcross_report/security_html.py
+msgid "<h2>Tentatives d'exploitation detectees</h2>"
+msgstr ""
+
+#: src/netcross_report/security_html.py
+msgid "<span class=\"lisible\">&ndash;</span>"
+msgstr ""
+
+#: src/netcross_report/security_html.py
+msgid "Rapport de securite Netcross"
+msgstr ""
+
+#: src/netcross_report/security_html.py
+msgid "aucun service identifie dans cette capture"
+msgstr ""
+
+#: src/netcross_report/security_html.py src/netcross_report/security_report.py
+msgid "aucune CVE confirmee"
+msgstr ""
+
+#: src/netcross_report/security_html.py src/netcross_report/security_report.py
+msgid "aucune anomalie correlee"
+msgstr ""
+
+#: src/netcross_report/security_html.py src/netcross_report/security_report.py
+msgid "aucune tentative d'exploitation detectee"
+msgstr ""
+
+#: src/netcross_report/security_report.py
+msgid "  repartition par severite : "
+msgstr ""
+
+#: src/netcross_report/security_report.py
+msgid " -- CVE non identifiee"
+msgstr ""
+
+#: src/netcross_report/security_report.py
+msgid " -- aucune vulnerabilite connue"
+msgstr ""
+
+#: src/netcross_report/security_report.py
+msgid "-- Tableau de bord securite --"
+msgstr ""
+
+#: src/netcross_report/security_report.py
+msgid "Anomalies (alertes Expert Info correlees)"
+msgstr ""
+
+#: src/netcross_report/security_report.py
+msgid "CVE confirmees (version + CVE-ID + score CVSS)"
+msgstr ""
+
+#: src/netcross_report/security_report.py
+msgid "RAPPORT DE SECURITE (detection passive de vulnerabilites)"
+msgstr ""
+
+#: src/netcross_report/security_report.py
+msgid "Services detectes (classes par criticite)"
+msgstr ""
+
+#: src/netcross_report/security_report.py
+msgid "TypeError|ValueError"
+msgstr ""
+
+#: src/netcross_report/security_report.py
+msgid "[ok]"
+msgstr ""
+
+#: src/netcross_report/security_report.py
+msgid "aucun service identifie"
+msgstr ""
+
+#: src/netcross_report/security_report.py
+msgid "ssh/hassh"
+msgstr ""
+
+#: src/netcross_report/security_report.py
+msgid "tls/ja4"
+msgstr ""
+
+#: src/netcross_report/sequence_view.py
+msgid "retr."
+msgstr ""
+
+#: src/netcross_report/session_objects.py
+msgid "EXPERTISE -- OBJETS ENRICHIS"
+msgstr ""
+
+#: src/netcross_report/session_objects.py
+msgid "Evenements d'expertise (netcross)"
+msgstr ""
+
+#: src/netcross_report/siem_export.py
+msgid "%b %d %Y %H:%M:%S."
+msgstr ""
+
+#: src/netcross_report/siem_export.py
+msgid "LEEF:2.0"
+msgstr ""
+
+#: src/netcross_report/siem_export.py
+msgid "MMM dd yyyy HH:mm:ss.SSS z"
+msgstr ""
+
+#: src/netcross_report/stix_export.py
+msgid "%Y-%m-%dT%H:%M:%S."
+msgstr ""
+
+#: src/netcross_report/stix_export.py
+msgid "00abedb4-aa42-4ca2-8a3c-1ad8e8b8f48d"
+msgstr ""
+
+#: src/netcross_report/stix_export.py
+msgid "2026-01-01T00:00:00.000Z"
+msgstr ""
+
+#: src/netcross_report/stix_export.py
+msgid "Netcross -- constats de securite"
+msgstr ""
+
+#: src/netcross_report/stix_export.py
+msgid "cve sans identifiant"
+msgstr ""
+
+#: src/netcross_report/stix_export.py
+msgid "exploit sans adresse"
+msgstr ""
+
+#: src/netcross_report/stix_export.py
+msgid "https://github.com/MathildeDec/Netcross/stix"
+msgstr ""
+
+#: src/netcross_report/stix_export.py
+msgid "service sans nom"
+msgstr ""
+
+#: src/netcross_report/stix_export.py
+msgid "signature d'exploit"
+msgstr ""
+
+#: src/netcross_report/synthesis.py
+msgid "NAT/Pare-feu"
+msgstr ""
+
+#: src/netcross_report/synthesis.py
+msgid "RTP/Voix"
+msgstr ""
+
+#: src/netcross_report/synthesis.py
+msgid "Reseau/Serveur"
+msgstr ""
+
+#: src/netcross_report/triage.py
+msgid " [CONVERGENT]"
+msgstr ""
+
+#: src/netcross_report/triage.py
+msgid " [ECHANTILLON FAIBLE]"
 msgstr ""

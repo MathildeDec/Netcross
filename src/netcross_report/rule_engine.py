@@ -650,6 +650,7 @@ from netcross_report.synthesis import Finding
 
 from netcross_core.logging_config import get_logger
 logger = get_logger(__name__)
+from netcross_core.i18n import _
 
 
 
@@ -1959,7 +1960,7 @@ def _evaluate_saturation(rule: Rule, report: Report) -> list[Finding]:
     `saturation_verdict` dans `models.py`)."""
     findings: list[Finding] = []
     for (a, b), verdict in report.saturation_verdict.items():
-        if "NON correlees" in verdict:
+        if _("NON correlees") in verdict:
             continue
         sev = (
             "anomalie"
@@ -2107,7 +2108,7 @@ def _evaluate_rtp_quality_mos(rule: Rule, report: Report) -> list[Finding]:
             sev = "a_surveiller"
         else:
             continue
-        short_label = s["label"].split(" (SSRC=")[0]
+        short_label = s["label"].split(_(" (SSRC="))[0]
         findings.append(
             Finding(
                 sev,

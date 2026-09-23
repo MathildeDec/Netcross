@@ -47,6 +47,7 @@ from netcross_gtk4.dashboard_context import (
 
 from netcross_core.logging_config import get_logger
 logger = get_logger(__name__)
+from netcross_core.i18n import _
 
 
 #: Nombre minimal de points de capture pour lancer une analyse croisee.
@@ -55,8 +56,8 @@ logger = get_logger(__name__)
 #: raison du seuil disparait.
 POINTS_MINIMUM = 2
 
-LABEL_LANCER_ANALYSE = "Lancer l'analyse"
-LABEL_DEMARRER_CAPTURE = "Demarrer la capture"
+LABEL_LANCER_ANALYSE = _("Lancer l'analyse")
+LABEL_DEMARRER_CAPTURE = _("Demarrer la capture")
 
 
 @dataclass(frozen=True)
@@ -193,7 +194,7 @@ def run_button_state(
     if live_capturing:
         return RunButtonState(
             enabled=True,
-            raison="capture en cours : bouton pilote par le cycle de capture",
+            raison=_("capture en cours : bouton pilote par le cycle de capture"),
             label=label_actuel,
         )
 
@@ -307,7 +308,7 @@ def apply_dashboard_selection(
     """
     if kind == "flow":
         if flow_par_cle is None:
-            raise UnknownViewTypeError("selection de type 'flow' sans resolveur de cle")
+            raise UnknownViewTypeError(_("selection de type 'flow' sans resolveur de cle"))
         flow = flow_par_cle(key)
         if flow is None:
             return selection

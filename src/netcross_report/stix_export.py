@@ -58,18 +58,19 @@ from netcross_core.models import Report
 
 from netcross_core.logging_config import get_logger
 logger = get_logger(__name__)
+from netcross_core.i18n import _
 
 
 SPEC_VERSION = "2.1"
 
 # Espace de noms impose par STIX 2.1 (§2.9) pour les identifiants de SCO.
-STIX_SCO_NAMESPACE = uuid.UUID("00abedb4-aa42-4ca2-8a3c-1ad8e8b8f48d")
+STIX_SCO_NAMESPACE = uuid.UUID(_("00abedb4-aa42-4ca2-8a3c-1ad8e8b8f48d"))
 # Espace de noms Netcross pour les SDO/SRO (arbitraire mais FIGE : le changer
 # casserait la deduplication entre deux exports).
-NETCROSS_NAMESPACE = uuid.uuid5(uuid.NAMESPACE_URL, "https://github.com/MathildeDec/Netcross/stix")
+NETCROSS_NAMESPACE = uuid.uuid5(uuid.NAMESPACE_URL, _("https://github.com/MathildeDec/Netcross/stix"))
 
 # Horodatage fixe de l'identite « Netcross » (constante d'un export a l'autre).
-_IDENTITY_CREATED = "2026-01-01T00:00:00.000Z"
+_IDENTITY_CREATED = _("2026-01-01T00:00:00.000Z")
 _EPOCH = _dt.datetime(1970, 1, 1, tzinfo=_dt.UTC)
 
 # Confiance (0-100, echelle STIX) -- une confiance, pas une severite :
@@ -112,7 +113,7 @@ def format_timestamp(when: _dt.datetime) -> str:
     if when.tzinfo is None:
         when = when.replace(tzinfo=_dt.UTC)
     when = when.astimezone(_dt.UTC)
-    return when.strftime("%Y-%m-%dT%H:%M:%S.") + f"{when.microsecond // 1000:03d}Z"
+    return when.strftime(_("%Y-%m-%dT%H:%M:%S.")) + f"{when.microsecond // 1000:03d}Z"
 
 
 def identity_object() -> dict[str, Any]:
@@ -224,7 +225,7 @@ def _service_refs(b: _Builder, fp: Mapping[str, Any]) -> list[str]:
 def _add_services(b: _Builder, fingerprints: Iterable[Mapping[str, Any]]) -> None:
     for fp in fingerprints:
         if not fp.get("service"):
-            b.skip("service sans nom")
+            b.skip(_("service sans nom"))
             continue
         b.observed(_service_refs(b, fp), fp.get("point"))
 
@@ -232,7 +233,7 @@ def _add_services(b: _Builder, fingerprints: Iterable[Mapping[str, Any]]) -> Non
 def _add_cve(b: _Builder, f: Mapping[str, Any]) -> None:
     cve_id = f.get("cve_id")
     if not cve_id:
-        b.skip("cve sans identifiant")
+        b.skip(_("cve sans identifiant"))
         return
     content: dict[str, Any] = {
         "name": str(cve_id),
@@ -271,15 +272,15 @@ def exploit_pattern(f: Mapping[str, Any]) -> str | None:
     port = f.get("port")
     if isinstance(port, int) and 0 <= port <= 65535:
         parts.append(f"network-traffic:dst_port = {port}")
-    return "[" + " AND ".join(parts) + "]"
+    return "[" + _(" AND ").join(parts) + "]"
 
 
 def _add_exploit(b: _Builder, f: Mapping[str, Any]) -> None:
     pattern = exploit_pattern(f)
     if pattern is None:
-        b.skip("exploit sans adresse")
+        b.skip(_("exploit sans adresse"))
         return
-    detail = str(f.get("detail") or "signature d'exploit")
+    detail = str(f.get("detail") or _("signature d'exploit"))
     content: dict[str, Any] = {
         "name": str(f.get("signature_id") or detail)[:250],
         "description": detail,
@@ -348,7 +349,7 @@ def to_stix_bundle(
 
     if len(b.objects) > 1 or orphan_notes or b.skipped:
         report_content: dict[str, Any] = {
-            "name": "Netcross -- constats de securite",
+            "name": _("Netcross -- constats de securite"),
             "report_types": ["observed-data"],
             "published": last,
             "object_refs": sorted(oid for oid in b.objects if oid != b.identity["id"]) or [b.identity["id"]],

@@ -44,6 +44,7 @@ from netcross_core.baseline_profile import build_baseline_profile
 
 from netcross_core.logging_config import get_logger
 logger = get_logger(__name__)
+from netcross_core.i18n import _
 
 
 
@@ -216,7 +217,7 @@ def degradation_summary(metrics) -> str:
     restent du ressort des Finding/ExpertEvent."""
     ranked = rank_path_segments(metrics)
     if not metrics:
-        return "Aucun segment exploitable : la topologie n'a pas pu etre deduite de ces captures."
+        return _("Aucun segment exploitable : la topologie n'a pas pu etre deduite de ces captures.")
     if not ranked:
         return (
             "Aucune metrique de qualite mesurable sur les segments observes "
@@ -232,5 +233,5 @@ def degradation_summary(metrics) -> str:
     if pire.jitter_ms:
         details.append(f"gigue {pire.jitter_ms:.1f} ms")
     if not details:
-        details.append("aucune metrique chiffree")
+        details.append(_("aucune metrique chiffree"))
     return f"Segment le plus degrade : {pire.label} -- " + ", ".join(details) + "."

@@ -33,17 +33,18 @@ from netcross_report.triage import HEALTH_LABELS, health_label, health_score, ra
 
 from netcross_core.logging_config import get_logger
 logger = get_logger(__name__)
+from netcross_core.i18n import _
 
 
 SEVERITY_LABELS = {
     "anomalie": "Anomalie",
-    "a_surveiller": "A surveiller",
+    "a_surveiller": _("A surveiller"),
     "info": "Info",
     # vocabulaire de baseline_diff.DiffFinding -- meme table de rendu
     # (_finding_table) reutilisee pour le rapport PDF de diff, voir
     # generate_diff_pdf() plus bas
     "regression": "Regression",
-    "a_verifier": "A verifier",
+    "a_verifier": _("A verifier"),
     "amelioration": "Amelioration",
     "stable": "Stable",
 }
@@ -97,7 +98,7 @@ def _styles():
 
 def _finding_table(findings, styles):
     if not findings:
-        return Paragraph("Aucun constat notable.", styles["Normal"])
+        return Paragraph(_("Aucun constat notable."), styles["Normal"])
     data = [["Gravite", "Categorie", "Segment", "Constat"]]
     data.extend(
         [
@@ -124,7 +125,7 @@ def _finding_table(findings, styles):
     ]
     for i, f in enumerate(findings, start=1):
         style.append(("TEXTCOLOR", (0, i), (0, i), SEVERITY_COLORS[f.severity]))
-        style.append(("FONTNAME", (0, i), (0, i), "Helvetica-Bold"))
+        style.append(("FONTNAME", (0, i), (0, i), _("Helvetica-Bold")))
     t.setStyle(TableStyle(style))
     return t
 
@@ -143,11 +144,11 @@ def _triage_table(ranked, styles, top_n=10):
             "ci-dessous pour le detail exhaustif.",
             styles["Normal"],
         )
-    data = [["Segment", "Score", "Categories touchees", "Constats"]]
+    data = [["Segment", "Score", _("Categories touchees"), "Constats"]]
     data.extend(
         [
             Paragraph(
-                s.segment + (" (echantillon faible)" if s.low_confidence else ""),
+                s.segment + (_(" (echantillon faible)") if s.low_confidence else ""),
                 styles["Normal"],
             ),
             f"{s.score:.1f}",
@@ -190,7 +191,7 @@ def _health_badge(ranked, styles):
         "HealthBadge",
         parent=styles["Normal"],
         fontSize=13,
-        fontName="Helvetica-Bold",
+        fontName=_("Helvetica-Bold"),
         textColor=HEALTH_BADGE_COLORS[label],
         spaceAfter=6,
     )
@@ -234,7 +235,7 @@ def _grid_table(data, col_widths, highlight=None):
     ]
     for row, color in highlight or []:
         style.append(("TEXTCOLOR", (0, row), (0, row), color))
-        style.append(("FONTNAME", (0, row), (0, row), "Helvetica-Bold"))
+        style.append(("FONTNAME", (0, row), (0, row), _("Helvetica-Bold")))
     t.setStyle(TableStyle(style))
     return t
 
@@ -247,8 +248,8 @@ def _expert_event_table(events, styles, top_n=EXPERT_TABLE_TOP_N):
     netcross_core.causality : seuls les rule_id participant a un pattern
     recoivent cause/impact)."""
     if not events:
-        return Paragraph("Aucun evenement d'expertise.", styles["Normal"])
-    data = [["Gravite", "Categorie", "Segment", "Constat", "Cause probable / impact"]]
+        return Paragraph(_("Aucun evenement d'expertise."), styles["Normal"])
+    data = [["Gravite", "Categorie", "Segment", "Constat", _("Cause probable / impact")]]
     shown = events[:top_n]
     for ev in shown:
         cause = " -- ".join(x for x in (ev.cause, ev.impact) if x)
@@ -271,8 +272,8 @@ def _diagnosis_table(diagnoses, styles, top_n=EXPERT_TABLE_TOP_N):
     """diagnoses : liste de Diagnosis -- un par segment, cause/impact
     derives des ExpertEvent deja enrichis (netcross_core.causality)."""
     if not diagnoses:
-        return Paragraph("Aucun diagnostic par segment.", styles["Normal"])
-    data = [["Segment", "Evenements", "Cause probable", "Impact"]]
+        return Paragraph(_("Aucun diagnostic par segment."), styles["Normal"])
+    data = [["Segment", "Evenements", _("Cause probable"), "Impact"]]
     data.extend(
         [
             Paragraph(d.segment, styles["Normal"]),
@@ -291,7 +292,7 @@ def _compliance_table(results, styles, top_n=EXPERT_TABLE_TOP_N):
     triage "par ou commencer", l'operateur doit voir ce qui ne passe pas
     sans derouler la table entiere."""
     if not results:
-        return Paragraph("Aucun referentiel evalue.", styles["Normal"])
+        return Paragraph(_("Aucun referentiel evalue."), styles["Normal"])
     order = ["VIOLATION", "DEVIATION", "CONFORME", "INDETERMINE"]
     ranked = sorted(
         results,
@@ -304,7 +305,7 @@ def _compliance_table(results, styles, top_n=EXPERT_TABLE_TOP_N):
     shown = ranked[:top_n]
     for res in shown:
         ref = res.reference
-        observed = "non mesure" if res.observed is None else f"{res.observed:g} {ref.unit}"
+        observed = _("non mesure") if res.observed is None else f"{res.observed:g} {ref.unit}"
         data.append(
             [
                 res.status,
@@ -331,7 +332,7 @@ def _flow_table(flows, styles, top_n=EXPERT_TABLE_TOP_N):
     d'une execution a l'autre -- meme regle que le rendu console
     (netcross_report.session_objects)."""
     if not flows:
-        return Paragraph("Aucun flux correle.", styles["Normal"])
+        return Paragraph(_("Aucun flux correle."), styles["Normal"])
 
     def _label(flow):
         if flow.endpoints:
@@ -339,7 +340,7 @@ def _flow_table(flows, styles, top_n=EXPERT_TABLE_TOP_N):
         return str(flow.key)
 
     ordered = sorted(flows, key=lambda f: (-sum(f.packet_count.values()), _label(f)))
-    data = [["Flux", "Points de capture", "Paquets", "Octets"]]
+    data = [["Flux", _("Points de capture"), "Paquets", "Octets"]]
     data.extend(
         [
             Paragraph(_label(f), styles["Normal"]),
@@ -366,7 +367,7 @@ def _fmt_bps(value):
     echelle decimale (1000) que les debits reseau usuels."""
     if value is None:
         return "\u2014"
-    for unit, factor in (("Gbit/s", 1e9), ("Mbit/s", 1e6), ("kbit/s", 1e3)):
+    for unit, factor in ((_("Gbit/s"), 1e9), (_("Mbit/s"), 1e6), (_("kbit/s"), 1e3)):
         if value >= factor:
             return f"{value / factor:.2f} {unit}"
     return f"{value:.0f} bit/s"
@@ -383,10 +384,10 @@ def _path_table(metrics, styles):
     designant sans ambiguite ou regarder d'abord."""
     if not metrics:
         return Paragraph(
-            "Aucun segment exploitable : ni topologie deduite, ni couple de points fourni.",
+            _("Aucun segment exploitable : ni topologie deduite, ni couple de points fourni."),
             styles["Normal"],
         )
-    data = [["Segment", "Delai moy / P95 / P99 (ms)", "Gigue", "Perte aval", "Debit aval", "DSCP / frag", "Sauts"]]
+    data = [["Segment", _("Delai moy / P95 / P99 (ms)"), "Gigue", _("Perte aval"), _("Debit aval"), _("DSCP / frag"), "Sauts"]]
     ranked = rank_path_segments(metrics)
     pire = ranked[0].label if ranked else None
     for seg in metrics:
@@ -425,7 +426,7 @@ def path_section_story(metrics, styles, chart_path=None):
     if not metrics:
         return []
     story = [
-        Paragraph("Chemin observe", styles["H1b"]),
+        Paragraph(_("Chemin observe"), styles["H1b"]),
         Paragraph(
             "Qualite mesuree segment par segment, de l'amont vers l'aval du chemin deduit. "
             "Les pertes sont comptees au point AVAL de chaque segment (paquet vu en amont, "
@@ -466,7 +467,7 @@ def _sequence_table(view, styles):
     dessin donne la forme de l'echange, cette table donne les references
     verifiables (numero de trame, point, taille) qu'on reporte dans
     Wireshark."""
-    data = [["Trame", "t (ms)", "Delta (ms)", "Source -> Destination", "Point", "Octets", "Detail"]]
+    data = [["Trame", _("t (ms)"), _("Delta (ms)"), _("Source -> Destination"), "Point", "Octets", "Detail"]]
     data.extend(
         [
             Paragraph("\u2014" if step.frame_number is None else str(step.frame_number), styles["Cell"]),
@@ -499,7 +500,7 @@ def sequence_section_story(views, styles, chart_paths=None):
         return []
     chart_paths = list(chart_paths or [])
     story = [
-        Paragraph("Sequence des echanges", styles["H1b"]),
+        Paragraph(_("Sequence des echanges"), styles["H1b"]),
         Paragraph(
             "Chronologie des paquets d'un flux, hote par hote. Une ligne = un paquet vu a "
             "UN point de capture : le meme paquet traversant deux points apparait donc deux "
@@ -547,7 +548,7 @@ def expert_section_story(session_objects, styles, top_n=EXPERT_TABLE_TOP_N):
     if session_objects is None:
         return []
     story = [
-        Paragraph("Expertise -- objets enrichis", styles["H1b"]),
+        Paragraph(_("Expertise -- objets enrichis"), styles["H1b"]),
         Paragraph(
             "Evenements d'expertise, diagnostics par segment, conformite aux referentiels "
             "et flux correles. Ces objets etaient jusqu'ici reserves a l'export JSON "
@@ -557,13 +558,13 @@ def expert_section_story(session_objects, styles, top_n=EXPERT_TABLE_TOP_N):
             styles["Normal"],
         ),
         Spacer(1, 0.3 * cm),
-        Paragraph("Evenements d'expertise", styles["H2b"]),
+        Paragraph(_("Evenements d'expertise"), styles["H2b"]),
         _expert_event_table(session_objects.expert_events, styles, top_n),
         Spacer(1, 0.3 * cm),
-        Paragraph("Diagnostics par segment", styles["H2b"]),
+        Paragraph(_("Diagnostics par segment"), styles["H2b"]),
         _diagnosis_table(session_objects.diagnoses, styles, top_n),
         Spacer(1, 0.3 * cm),
-        Paragraph("Conformite aux referentiels", styles["H2b"]),
+        Paragraph(_("Conformite aux referentiels"), styles["H2b"]),
         _compliance_table(session_objects.compliance, styles, top_n),
     ]
     # Les flux ne sont construits que si l'appelant a passe le dict brut
@@ -572,7 +573,7 @@ def expert_section_story(session_objects, styles, top_n=EXPERT_TABLE_TOP_N):
     if session_objects.flows:
         story += [
             Spacer(1, 0.3 * cm),
-            Paragraph("Flux correles", styles["H2b"]),
+            Paragraph(_("Flux correles"), styles["H2b"]),
             _flow_table(session_objects.flows, styles, top_n),
         ]
     # Signaux tshark BRUTS, jamais fondus dans les evenements netcross
@@ -581,7 +582,7 @@ def expert_section_story(session_objects, styles, top_n=EXPERT_TABLE_TOP_N):
     if session_objects.wireshark_expert_events:
         story += [
             Spacer(1, 0.3 * cm),
-            Paragraph("Expertise tshark (signaux bruts)", styles["H2b"]),
+            Paragraph(_("Expertise tshark (signaux bruts)"), styles["H2b"]),
             _expert_event_table(session_objects.wireshark_expert_events, styles, top_n),
         ]
     return story
@@ -673,7 +674,7 @@ def security_section_story(security_report, styles):
 
     data = security_report_to_dict(security_report)
     d = data["dashboard"]
-    story = [PageBreak(), Paragraph("Rapport de securite", styles["H1b"])]
+    story = [PageBreak(), Paragraph(_("Rapport de securite"), styles["H1b"])]
     story.append(
         Paragraph(
             "Detection passive : aucun paquet n'a ete emis vers les hotes listes. "
@@ -685,18 +686,18 @@ def security_section_story(security_report, styles):
     )
     story.append(Spacer(1, 0.3 * cm))
 
-    niveau = d["level"] or "aucun constat"
-    story.append(Paragraph("Tableau de bord", styles["H2b"]))
+    niveau = d["level"] or _("aucun constat")
+    story.append(Paragraph(_("Tableau de bord"), styles["H2b"]))
     story.append(
         _kv_table(
             [
-                ("Score de risque", f"{d['score']}/100 (niveau : {niveau})"),
-                ("Services detectes", f"{d['services_total']} (dont {d['services_vulnerable']} vulnerable(s))"),
-                ("Tentatives d'exploitation", str(d["exploits"])),
-                ("Anomalies (Expert Info)", str(d["anomalies"])),
-                ("CVE confirmees", str(d["cves"])),
+                (_("Score de risque"), f"{d['score']}/100 (niveau : {niveau})"),
+                (_("Services detectes"), f"{d['services_total']} (dont {d['services_vulnerable']} vulnerable(s))"),
+                (_("Tentatives d'exploitation"), str(d["exploits"])),
+                (_("Anomalies (Expert Info)"), str(d["anomalies"])),
+                (_("CVE confirmees"), str(d["cves"])),
                 (
-                    "Repartition par severite",
+                    _("Repartition par severite"),
                     ", ".join(f"{sev}={d['by_severity'].get(sev, 0)}" for sev in SEVERITIES),
                 ),
             ],
@@ -704,9 +705,9 @@ def security_section_story(security_report, styles):
         )
     )
 
-    story.append(Paragraph("Services detectes", styles["H2b"]))
+    story.append(Paragraph(_("Services detectes"), styles["H2b"]))
     if data["services"]:
-        entetes = ["Criticite", "Service", "Cible", "Empreinte JA4/HASSH", "CVE", "Points"]
+        entetes = ["Criticite", "Service", "Cible", _("Empreinte JA4/HASSH"), "CVE", "Points"]
         rows = [[Paragraph(f"<b>{h}</b>", styles["Cell"]) for h in entetes]]
         highlight = []
         for rang, s in enumerate(data["services"][:MAX_SECURITY_ROWS], start=1):
@@ -722,7 +723,7 @@ def security_section_story(security_report, styles):
                 empreinte = f"{empreinte}<br/><font size=6.5 color=#6b7280>{lisible}</font>"
             rows.append(
                 [
-                    Paragraph(s.get("severity") or "aucune CVE connue", styles["Cell"]),
+                    Paragraph(s.get("severity") or _("aucune CVE connue"), styles["Cell"]),
                     Paragraph(f"{s['service']} {s.get('version') or ''}".strip(), styles["Cell"]),
                     Paragraph(_securite_cible(s.get("host"), s.get("port")), styles["Cell"]),
                     Paragraph(empreinte, styles["Cell"]),
@@ -741,12 +742,12 @@ def security_section_story(security_report, styles):
             )
         )
     else:
-        story.append(Paragraph("Aucun service identifie dans cette capture.", styles["Normal"]))
+        story.append(Paragraph(_("Aucun service identifie dans cette capture."), styles["Normal"]))
 
     for titre, cle, avec_cve, vide in (
-        ("Tentatives d'exploitation detectees", "exploits", False, "Aucune tentative d'exploitation detectee."),
-        ("Anomalies correlees (Expert Info)", "anomalies", False, "Aucune anomalie correlee."),
-        ("CVE confirmees", "cves", True, "Aucune CVE confirmee."),
+        (_("Tentatives d'exploitation detectees"), "exploits", False, _("Aucune tentative d'exploitation detectee.")),
+        (_("Anomalies correlees (Expert Info)"), "anomalies", False, _("Aucune anomalie correlee.")),
+        (_("CVE confirmees"), "cves", True, _("Aucune CVE confirmee.")),
     ):
         story.append(Paragraph(titre, styles["H2b"]))
         story.append(_securite_table_constats(data[cle], styles, avec_cve, vide))
@@ -774,7 +775,7 @@ def security_section_story(security_report, styles):
 def generate_pdf(
     r,
     output_path,
-    title="Analyse croisee de captures reseau",
+    title=_("Analyse croisee de captures reseau"),
     meta=None,
     findings=None,
     tls_findings=None,
@@ -831,8 +832,8 @@ def generate_pdf(
         story.append(Spacer(1, 3 * cm))
         story.append(Paragraph(title, styles["Title"]))
         story.append(Spacer(1, 0.5 * cm))
-        now = datetime.datetime.now().astimezone().strftime("%d/%m/%Y %H:%M")
-        info_rows = [("Genere le", now), ("Points de capture", ", ".join(r.points))]
+        now = datetime.datetime.now().astimezone().strftime(_("%d/%m/%Y %H:%M"))
+        info_rows = [(_("Genere le"), now), (_("Points de capture"), ", ".join(r.points))]
         if meta:
             seen_keys = {k for k, _ in info_rows}
             info_rows += [(k, v) for k, v in meta.items() if k not in seen_keys]
@@ -840,7 +841,7 @@ def generate_pdf(
         story.append(PageBreak())
 
         # -- par ou commencer (triage) --
-        story.append(Paragraph("Par ou commencer", styles["H1b"]))
+        story.append(Paragraph(_("Par ou commencer"), styles["H1b"]))
         story.append(
             Paragraph(
                 "Segments touches par au moins 2 categories de constats differentes en "
@@ -875,15 +876,15 @@ def generate_pdf(
         story.append(PageBreak())
 
         # -- vue d'ensemble graphique --
-        story.append(Paragraph("Vue d'ensemble", styles["H1b"]))
+        story.append(Paragraph(_("Vue d'ensemble"), styles["H1b"]))
         if "topology" in charts:
-            story.append(Paragraph("Topologie deduite", styles["H2b"]))
+            story.append(Paragraph(_("Topologie deduite"), styles["H2b"]))
             story.append(_scaled_image(charts["topology"], 16 * cm, 13 * cm))
             story.append(Spacer(1, 0.3 * cm))
         for key, caption in [
-            ("throughput", "Debit par point"),
-            ("latency", "Latence par segment"),
-            ("loss", "Pertes par point"),
+            ("throughput", _("Debit par point")),
+            ("latency", _("Latence par segment")),
+            ("loss", _("Pertes par point")),
         ]:
             if key in charts:
                 story.append(Paragraph(caption, styles["H2b"]))
@@ -919,7 +920,7 @@ def generate_pdf(
         topn_keys = [k for k in charts if k.startswith("topn_")]
         if topn_keys:
             topn_point = r.points[0] if r.points else "?"
-            story.append(Paragraph("Evolution temporelle (top-N)", styles["H1b"]))
+            story.append(Paragraph(_("Evolution temporelle (top-N)"), styles["H1b"]))
             story.append(
                 Paragraph(
                     f"Debit ventile par categorie au fil du temps, point {topn_point} uniquement "
@@ -931,10 +932,10 @@ def generate_pdf(
             )
             story.append(Spacer(1, 0.3 * cm))
             for dimension, caption in [
-                ("protocol", "Par protocole"),
-                ("port", "Par port de destination"),
-                ("ip", "Par IP de destination"),
-                ("dscp", "Par marquage DSCP"),
+                ("protocol", _("Par protocole")),
+                ("port", _("Par port de destination")),
+                ("ip", _("Par IP de destination")),
+                ("dscp", _("Par marquage DSCP")),
             ]:
                 key = f"topn_{dimension}"
                 if key in charts:
@@ -944,9 +945,9 @@ def generate_pdf(
             story.append(PageBreak())
 
         # -- detail par module --
-        story.append(Paragraph("Detail par module", styles["H1b"]))
+        story.append(Paragraph(_("Detail par module"), styles["H1b"]))
 
-        story.append(Paragraph("Sauts de routeur (delta TTL)", styles["H2b"]))
+        story.append(Paragraph(_("Sauts de routeur (delta TTL)"), styles["H2b"]))
         rows = []
         for a, b in r.pairs:
             deltas = r.hop_delta.get((a, b))
@@ -964,31 +965,31 @@ def generate_pdf(
         if rows:
             story.append(_kv_table(rows, styles))
         else:
-            story.append(Paragraph("Aucune donnee.", styles["Normal"]))
+            story.append(Paragraph(_("Aucune donnee."), styles["Normal"]))
         story.append(Spacer(1, 0.3 * cm))
 
-        story.append(Paragraph("QoS (DSCP)", styles["H2b"]))
+        story.append(Paragraph(_("QoS (DSCP)"), styles["H2b"]))
         rows = [(f"{a} -> {b}", f"{n} paquet(s) remarque(s)") for (a, b), n in r.qos_change.items() if n]
-        story.append(_kv_table(rows, styles) if rows else Paragraph("Aucun changement.", styles["Normal"]))
+        story.append(_kv_table(rows, styles) if rows else Paragraph(_("Aucun changement."), styles["Normal"]))
         story.append(Spacer(1, 0.3 * cm))
 
-        story.append(Paragraph("Fragmentation / MTU", styles["H2b"]))
+        story.append(Paragraph(_("Fragmentation / MTU"), styles["H2b"]))
         rows = [
             (f"{a} -> {b}", f"{n} datagramme(s) nouvellement fragmente(s)") for (a, b), n in r.frag_new.items() if n
         ]
-        story.append(_kv_table(rows, styles) if rows else Paragraph("Aucune fragmentation.", styles["Normal"]))
+        story.append(_kv_table(rows, styles) if rows else Paragraph(_("Aucune fragmentation."), styles["Normal"]))
         story.append(Spacer(1, 0.3 * cm))
 
-        story.append(Paragraph("Encapsulation / tunnels", styles["H2b"]))
+        story.append(Paragraph(_("Encapsulation / tunnels"), styles["H2b"]))
         rows = []
         for p in r.points:
             stacks = sorted(r.encap_seen.get(p, []))
             if stacks:
                 rows.append((p, ", ".join(stacks)))
-        story.append(_kv_table(rows, styles) if rows else Paragraph("Aucun tunnel detecte.", styles["Normal"]))
+        story.append(_kv_table(rows, styles) if rows else Paragraph(_("Aucun tunnel detecte."), styles["Normal"]))
         story.append(Spacer(1, 0.3 * cm))
 
-        story.append(Paragraph("TCP avance", styles["H2b"]))
+        story.append(Paragraph(_("TCP avance"), styles["H2b"]))
         rows = []
         for p in r.points:
             if r.zero_window.get(p):
@@ -999,16 +1000,16 @@ def generate_pdf(
                 rows.append((f"{p} : RST", r.rst_count[p]))
             if r.retrans.get(p):
                 rows.append((f"{p} : retransmissions", r.retrans[p]))
-        story.append(_kv_table(rows, styles) if rows else Paragraph("Rien de notable.", styles["Normal"]))
+        story.append(_kv_table(rows, styles) if rows else Paragraph(_("Rien de notable."), styles["Normal"]))
         story.append(Spacer(1, 0.3 * cm))
 
         if r.rtp_streams:
-            story.append(Paragraph("Flux RTP (voix/visio)", styles["H2b"]))
+            story.append(Paragraph(_("Flux RTP (voix/visio)"), styles["H2b"]))
             data = [["Flux", "Perte", "Delai", "MOS"]]
             for s in r.rtp_streams[:30]:
                 last_point = r.points[-1] if r.points else None
                 loss = s["loss_pct"].get(last_point, 0.0) if last_point else 0.0
-                short_label = s["label"].split(" (SSRC=")[0]
+                short_label = s["label"].split(_(" (SSRC="))[0]
                 data.append(
                     [
                         Paragraph(short_label, styles["Normal"]),
@@ -1038,7 +1039,7 @@ def generate_pdf(
                 counts = r.dhcp_msg_count.get(p, {})
                 if counts:
                     rows.append((p, ", ".join(f"{k}={v}" for k, v in sorted(counts.items()))))
-            story.append(_kv_table(rows, styles) if rows else Paragraph("Rien.", styles["Normal"]))
+            story.append(_kv_table(rows, styles) if rows else Paragraph(_("Rien."), styles["Normal"]))
             story.append(Spacer(1, 0.3 * cm))
 
         if r.sip_msg_count:
@@ -1048,11 +1049,11 @@ def generate_pdf(
                 counts = r.sip_msg_count.get(p, {})
                 if counts:
                     rows.append((p, ", ".join(f"{k}={v}" for k, v in sorted(counts.items()))))
-            story.append(_kv_table(rows, styles) if rows else Paragraph("Rien.", styles["Normal"]))
+            story.append(_kv_table(rows, styles) if rows else Paragraph(_("Rien."), styles["Normal"]))
 
         if tls_findings or quic_findings:
             story.append(Spacer(1, 0.3 * cm))
-            story.append(Paragraph("Diagnostics TLS / QUIC", styles["H2b"]))
+            story.append(Paragraph(_("Diagnostics TLS / QUIC"), styles["H2b"]))
             story.append(
                 Paragraph(
                     "Pipeline de decodage independant qui relit les memes captures "
@@ -1067,7 +1068,7 @@ def generate_pdf(
                 story.append(_finding_table(tls_findings, styles))
                 story.append(Spacer(1, 0.3 * cm))
             if quic_findings:
-                story.append(Paragraph("QUIC / HTTP3", styles["Heading3"]))
+                story.append(Paragraph(_("QUIC / HTTP3"), styles["Heading3"]))
                 story.append(_finding_table(quic_findings, styles))
 
         # -- rapport de securite (issue #218) --
@@ -1108,7 +1109,7 @@ def generate_diff_pdf(
     baseline,
     current,
     output_path,
-    title="Comparaison avant / apres",
+    title=_("Comparaison avant / apres"),
     meta=None,
     tls_findings_baseline=None,
     tls_findings_current=None,
@@ -1151,11 +1152,11 @@ def generate_diff_pdf(
         story.append(Spacer(1, 3 * cm))
         story.append(Paragraph(title, styles["Title"]))
         story.append(Spacer(1, 0.5 * cm))
-        now = datetime.datetime.now().astimezone().strftime("%d/%m/%Y %H:%M")
+        now = datetime.datetime.now().astimezone().strftime(_("%d/%m/%Y %H:%M"))
         info_rows = [
-            ("Genere le", now),
-            ("Points baseline", ", ".join(baseline.points)),
-            ("Points courant", ", ".join(current.points)),
+            (_("Genere le"), now),
+            (_("Points baseline"), ", ".join(baseline.points)),
+            (_("Points courant"), ", ".join(current.points)),
         ]
         if meta:
             seen_keys = {k for k, _ in info_rows}
@@ -1164,7 +1165,7 @@ def generate_diff_pdf(
         story.append(PageBreak())
 
         # -- par ou commencer (triage) --
-        story.append(Paragraph("Par ou commencer", styles["H1b"]))
+        story.append(Paragraph(_("Par ou commencer"), styles["H1b"]))
         story.append(
             Paragraph(
                 "Segments cumulant le plus d'ecarts (regressions et points a verifier "
@@ -1199,7 +1200,7 @@ def generate_diff_pdf(
 
         if tls_findings_baseline or tls_findings_current or quic_findings_baseline or quic_findings_current:
             story.append(PageBreak())
-            story.append(Paragraph("Diagnostics TLS / QUIC -- baseline vs courant", styles["H1b"]))
+            story.append(Paragraph(_("Diagnostics TLS / QUIC -- baseline vs courant"), styles["H1b"]))
             story.append(
                 Paragraph(
                     "Pipeline de decodage independant, execute separement sur le baseline "
@@ -1212,17 +1213,17 @@ def generate_diff_pdf(
             )
             story.append(Spacer(1, 0.3 * cm))
             if tls_findings_baseline or tls_findings_current:
-                story.append(Paragraph("TLS -- Baseline", styles["Heading3"]))
+                story.append(Paragraph(_("TLS -- Baseline"), styles["Heading3"]))
                 story.append(_finding_table(tls_findings_baseline or [], styles))
                 story.append(Spacer(1, 0.2 * cm))
-                story.append(Paragraph("TLS -- Courant", styles["Heading3"]))
+                story.append(Paragraph(_("TLS -- Courant"), styles["Heading3"]))
                 story.append(_finding_table(tls_findings_current or [], styles))
                 story.append(Spacer(1, 0.3 * cm))
             if quic_findings_baseline or quic_findings_current:
-                story.append(Paragraph("QUIC/HTTP3 -- Baseline", styles["Heading3"]))
+                story.append(Paragraph(_("QUIC/HTTP3 -- Baseline"), styles["Heading3"]))
                 story.append(_finding_table(quic_findings_baseline or [], styles))
                 story.append(Spacer(1, 0.2 * cm))
-                story.append(Paragraph("QUIC/HTTP3 -- Courant", styles["Heading3"]))
+                story.append(Paragraph(_("QUIC/HTTP3 -- Courant"), styles["Heading3"]))
                 story.append(_finding_table(quic_findings_current or [], styles))
 
         story.append(Spacer(1, 1 * cm))

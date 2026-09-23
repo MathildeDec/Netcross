@@ -34,6 +34,7 @@ from dataclasses import dataclass, field
 
 from netcross_core.logging_config import get_logger
 logger = get_logger(__name__)
+from netcross_core.i18n import _
 
 
 # Du plus grave au moins grave : l'indice sert de rang de tri.
@@ -169,7 +170,7 @@ def _opt_int(value) -> int | None:
     try:
         return int(value)
     except (TypeError, ValueError):
-        logger.exception("TypeError|ValueError")
+        logger.exception(_("TypeError|ValueError"))
         return None
 
 
@@ -177,7 +178,7 @@ def _opt_float(value) -> float | None:
     try:
         return float(value)
     except (TypeError, ValueError):
-        logger.exception("TypeError|ValueError")
+        logger.exception(_("TypeError|ValueError"))
         return None
 
 
@@ -368,7 +369,7 @@ def _format_item(item: SecurityItem) -> str:
 # #143 demandait explicitement la forme "JA4=xy123" / "HASSH=xy123" ; la
 # deduire du champ `service` evite de trainer un champ de plus dans le
 # dict produit par fingerprint.report.
-_FINGERPRINT_PREFIXES = {"tls/ja4": "JA4", "ssh/hassh": "HASSH"}
+_FINGERPRINT_PREFIXES = {_("tls/ja4"): "JA4", _("ssh/hassh"): "HASSH"}
 
 # La forme lisible (liste complete des ciphers/extensions ou des
 # algorithmes negocies) fait plusieurs centaines de caracteres. Elle est
@@ -395,7 +396,7 @@ def _format_fingerprint(entry: ServiceEntry) -> str:
 
 
 def _format_service(entry: ServiceEntry) -> str:
-    tag = f"[{entry.severity}]" if entry.severity else "[ok]"
+    tag = f"[{entry.severity}]" if entry.severity else _("[ok]")
     label = _service_label(entry.service, entry.version)
     target = _target(entry.host, entry.port)
     line = f"  {tag} {label}" + (f" @ {target}" if target else "")
@@ -403,9 +404,9 @@ def _format_service(entry: ServiceEntry) -> str:
     if entry.cve_ids:
         line += " -- " + ", ".join(entry.cve_ids)
     elif entry.vulnerable:
-        line += " -- CVE non identifiee"
+        line += _(" -- CVE non identifiee")
     else:
-        line += " -- aucune vulnerabilite connue"
+        line += _(" -- aucune vulnerabilite connue")
     if entry.points:
         line += f" (point(s) {', '.join(entry.points)})"
     return line
@@ -431,36 +432,36 @@ def format_security_report(sr: SecurityReport) -> list[str]:
     """Rendu texte du rapport, une chaine par ligne (jamais de `print()`
     ici, meme separation que `netcross_report.session_objects`)."""
     d = sr.dashboard
-    lines = ["=" * 70, "RAPPORT DE SECURITE (detection passive de vulnerabilites)", "=" * 70]
+    lines = ["=" * 70, _("RAPPORT DE SECURITE (detection passive de vulnerabilites)"), "=" * 70]
 
-    lines += ["", "-- Tableau de bord securite --"]
-    level = d.level or "aucun constat"
+    lines += ["", _("-- Tableau de bord securite --")]
+    level = d.level or _("aucun constat")
     lines.append(f"  score de risque global : {d.score}/100 [{_bar(d.score)}] (niveau : {level})")
     lines.append(f"  services detectes : {d.services_total} (dont {d.services_vulnerable} vulnerable(s))")
     lines.append(f"  exploits detectes : {d.exploits}")
     lines.append(f"  anomalies (Expert Info) : {d.anomalies}")
     lines.append(f"  CVE confirmees : {d.cves}")
-    lines.append("  repartition par severite : " + ", ".join(f"{sev}={d.by_severity[sev]}" for sev in SEVERITIES))
+    lines.append(_("  repartition par severite : ") + ", ".join(f"{sev}={d.by_severity[sev]}" for sev in SEVERITIES))
 
     lines += _section(
-        "Services detectes (classes par criticite)",
+        _("Services detectes (classes par criticite)"),
         [_format_service(s) for s in sr.services],
-        "aucun service identifie",
+        _("aucun service identifie"),
     )
     lines += _section(
-        "Tentatives d'exploitation detectees",
+        _("Tentatives d'exploitation detectees"),
         [_format_item(i) for i in sr.exploits],
-        "aucune tentative d'exploitation detectee",
+        _("aucune tentative d'exploitation detectee"),
     )
     lines += _section(
-        "Anomalies (alertes Expert Info correlees)",
+        _("Anomalies (alertes Expert Info correlees)"),
         [_format_item(i) for i in sr.anomalies],
-        "aucune anomalie correlee",
+        _("aucune anomalie correlee"),
     )
     lines += _section(
-        "CVE confirmees (version + CVE-ID + score CVSS)",
+        _("CVE confirmees (version + CVE-ID + score CVSS)"),
         [_format_item(i) for i in sr.cves],
-        "aucune CVE confirmee",
+        _("aucune CVE confirmee"),
     )
     if sr.notifications:
         lines += _section("Notifications", [f"  {n.get('line', '')}" for n in sr.notifications], "")

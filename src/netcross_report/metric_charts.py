@@ -26,6 +26,7 @@ import matplotlib.pyplot as plt
 
 from netcross_core.logging_config import get_logger
 logger = get_logger(__name__)
+from netcross_core.i18n import _
 
 
 # --- Modeles de donnees -----------------------------------------------------
@@ -93,7 +94,7 @@ class MetricSeries:
         les longueurs de timestamps/labels ne correspondent pas a
         values."""
         if not self.values:
-            raise ValueError("MetricSeries.values ne doit pas etre vide")
+            raise ValueError(_("MetricSeries.values ne doit pas etre vide"))
         n = len(self.values)
         if self.timestamps is not None and len(self.timestamps) != n:
             raise ValueError(f"timestamps ({len(self.timestamps)}) et values ({n}) doivent avoir la meme longueur")

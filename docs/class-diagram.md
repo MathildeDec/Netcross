@@ -37,10 +37,10 @@ flowchart TD
     CLI -->|"32 imports"| netcross_core
     CLI -->|"5 imports"| pcap_parser
     netcross_gtk4 -->|"10 imports"| netcross_report
-    netcross_gtk4 -->|"31 imports"| netcross_core
+    netcross_gtk4 -->|"41 imports"| netcross_core
     netcross_gtk4 -->|"1 import"| pcap_parser
     netcross_api -->|"6 imports"| netcross_core
-    netcross_report -->|"31 imports"| netcross_core
+    netcross_report -->|"50 imports"| netcross_core
     netcross_ai -->|"9 imports"| netcross_core
     netcross_core -->|"17 imports"| pcap_parser
     pcap_parser -->|"7 imports"| netcross_core

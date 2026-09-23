@@ -193,8 +193,8 @@ def diff_status_text(findings: Any) -> str:
     regressions = sum(1 for f in findings if getattr(f, "severity", None) == "regression")
     if regressions:
         return ngettext(
-            "Comparaison terminee -- {n} regression detectee.",
-            "Comparaison terminee -- {n} regressions detectees.",
+    "Comparaison terminee -- {n} regression detectee.",
+    "Comparaison terminee -- {n} regressions detectees.",
             regressions,
         ).format(n=regressions)
     return _("Comparaison terminee -- aucune regression.")

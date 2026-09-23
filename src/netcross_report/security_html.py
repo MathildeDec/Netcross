@@ -37,6 +37,7 @@ from netcross_report.security_report import (
 
 from netcross_core.logging_config import get_logger
 logger = get_logger(__name__)
+from netcross_core.i18n import _
 
 
 # Teintes de severite. Choisies pour rester distinguables en niveaux de
@@ -151,7 +152,7 @@ def _e(valeur) -> str:
     helper dedie -- pas par celui-ci.
     """
     if valeur is None or valeur == "":
-        return "&ndash;"
+        return _("&ndash;")
     return html.escape(str(valeur), quote=False)
 
 
@@ -164,7 +165,7 @@ def _badge(severite: str | None) -> str:
 
 def _cible(host, port) -> str:
     if not host:
-        return "&ndash;"
+        return _("&ndash;")
     return _e(f"{host}:{port}") if port is not None else _e(host)
 
 
@@ -186,7 +187,7 @@ def _table(id_table: str, entetes: list[str], lignes: list[str], message_vide: s
 
 def _ligne_service(s: dict) -> str:
     empreinte = (
-        f"<code>{_e(s['fingerprint'])}</code>" if s.get("fingerprint") else '<span class="lisible">&ndash;</span>'
+        f"<code>{_e(s['fingerprint'])}</code>" if s.get("fingerprint") else _('<span class="lisible">&ndash;</span>')
     )
     lisible = (
         f'<div class="lisible mono">{_e(s["fingerprint_readable"])}</div>' if s.get("fingerprint_readable") else ""
@@ -226,7 +227,7 @@ def _ligne_constat(i: dict, avec_cve: bool) -> str:
 
 def _cartes(d: dict) -> str:
     couleur = _SEVERITY_COLORS.get(d["level"] or "", _NEUTRAL)[0]
-    niveau = d["level"] or "aucun constat"
+    niveau = d["level"] or _("aucun constat")
     cartes = [
         f'<div class="carte" style="color:{couleur}">'
         f'<div class="valeur">{d["score"]}<span style="font-size:1rem;font-weight:400">/100</span></div>'
@@ -241,7 +242,7 @@ def _cartes(d: dict) -> str:
         '<div class="etiquette">anomalies (Expert Info)</div></div>',
         f'<div class="carte"><div class="valeur">{d["cves"]}</div><div class="etiquette">CVE confirmees</div></div>',
     ]
-    repartition = " &middot; ".join(f"{_e(sev)} <strong>{d['by_severity'].get(sev, 0)}</strong>" for sev in SEVERITIES)
+    repartition = _(" &middot; ").join(f"{_e(sev)} <strong>{d['by_severity'].get(sev, 0)}</strong>" for sev in SEVERITIES)
     cartes.append(
         f'<div class="carte"><div class="etiquette" style="margin:0 0 .35rem">'
         f"repartition par severite</div><div>{repartition}</div></div>"
@@ -251,7 +252,7 @@ def _cartes(d: dict) -> str:
 
 def render_security_html(
     sr: SecurityReport,
-    title: str = "Rapport de securite Netcross",
+    title: str = _("Rapport de securite Netcross"),
     meta: dict | None = None,
     generated_at: datetime | None = None,
 ) -> str:
@@ -263,7 +264,7 @@ def render_security_html(
     comparer deux rendus a l'octet pres.
     """
     data = security_report_to_dict(sr)
-    horodatage = (generated_at or datetime.now()).strftime("%Y-%m-%d %H:%M:%S")
+    horodatage = (generated_at or datetime.now()).strftime(_("%Y-%m-%d %H:%M:%S"))
 
     lignes_meta = "".join(
         f'<div class="carte"><div class="etiquette">{_e(cle)}</div><div><strong>{_e(val)}</strong></div></div>'
@@ -275,35 +276,35 @@ def render_security_html(
         f"<h1>{_e(title)}</h1>",
         f'<p class="sous-titre">Detection passive de vulnerabilites &mdash; genere le {_e(horodatage)}</p>',
         bloc_meta,
-        "<h2>Tableau de bord</h2>",
+        _("<h2>Tableau de bord</h2>"),
         _cartes(data["dashboard"]),
-        "<h2>Services detectes</h2>",
+        _("<h2>Services detectes</h2>"),
         _table(
             "t-services",
-            ["Criticite", "Service", "Cible", "Empreinte JA4/HASSH", "CVE", "Points"],
+            ["Criticite", "Service", "Cible", _("Empreinte JA4/HASSH"), "CVE", "Points"],
             [_ligne_service(s) for s in data["services"]],
-            "aucun service identifie dans cette capture",
+            _("aucun service identifie dans cette capture"),
         ),
-        "<h2>Tentatives d'exploitation detectees</h2>",
+        _("<h2>Tentatives d'exploitation detectees</h2>"),
         _table(
             "t-exploits",
             ["Severite", "Detail", "Service", "Cible", "Point"],
             [_ligne_constat(i, avec_cve=False) for i in data["exploits"]],
-            "aucune tentative d'exploitation detectee",
+            _("aucune tentative d'exploitation detectee"),
         ),
-        "<h2>Anomalies correlees (Expert Info)</h2>",
+        _("<h2>Anomalies correlees (Expert Info)</h2>"),
         _table(
             "t-anomalies",
             ["Severite", "Detail", "Service", "Cible", "Point"],
             [_ligne_constat(i, avec_cve=False) for i in data["anomalies"]],
-            "aucune anomalie correlee",
+            _("aucune anomalie correlee"),
         ),
-        "<h2>CVE confirmees</h2>",
+        _("<h2>CVE confirmees</h2>"),
         _table(
             "t-cves",
             ["Severite", "CVE", "CVSS", "Detail", "Service", "Cible", "Point"],
             [_ligne_constat(i, avec_cve=True) for i in data["cves"]],
-            "aucune CVE confirmee",
+            _("aucune CVE confirmee"),
         ),
         _notifications(data.get("notifications") or []),
         _plugins(data.get("plugins") or []),
@@ -341,7 +342,7 @@ def _plugins(items: list[dict]) -> str:
 def generate_security_html(
     sr: SecurityReport,
     output_path,
-    title: str = "Rapport de securite Netcross",
+    title: str = _("Rapport de securite Netcross"),
     meta: dict | None = None,
 ) -> str:
     """Ecrit le rendu HTML dans `output_path` et renvoie ce chemin."""

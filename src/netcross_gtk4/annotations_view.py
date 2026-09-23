@@ -24,6 +24,7 @@ from netcross_core.models import PacketAnnotation
 
 from netcross_core.logging_config import get_logger
 logger = get_logger(__name__)
+from netcross_core.i18n import _
 
 
 
@@ -67,7 +68,7 @@ def add_annotation(
     fonction avec le texte saisi par l'analyste, qui peut etre vide."""
     tag = tag.strip()
     if not tag:
-        raise ValueError("le tag d'une annotation ne peut pas etre vide")
+        raise ValueError(_("le tag d'une annotation ne peut pas etre vide"))
     return [*annotations, PacketAnnotation(frame_number=frame_number, tag=tag, comment=comment, color=color)]
 
 

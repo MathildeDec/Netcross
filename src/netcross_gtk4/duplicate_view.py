@@ -19,13 +19,13 @@ def format_duplicate_indicator(report: Any) -> str:
     counts: Mapping[tuple[str, str], int] = getattr(report, "duplicate_count", {}) or {}
     total = sum(counts.values())
     if total == 0:
-        return "Doublons inter-captures : aucun détecté."
+        return _("Doublons inter-captures : aucun détecté.")
 
     details = ", ".join(f"{a} ↔ {b} : {count}" for (a, b), count in sorted(counts.items()))
     suffix = (
-        " — exclus des statistiques et de la corrélation"
+        _(" — exclus des statistiques et de la corrélation")
         if getattr(report, "duplicates_excluded", False)
-        else " — inclus dans les statistiques"
+        else _(" — inclus dans les statistiques")
     )
     return f"Doublons inter-captures : {total} paquet(s) ({details}){suffix}"
 
@@ -34,4 +34,5 @@ __all__ = ["format_duplicate_indicator"]
 
 from netcross_core.logging_config import get_logger
 logger = get_logger(__name__)
+from netcross_core.i18n import _
 
