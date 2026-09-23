@@ -11,7 +11,7 @@
 > Il remplace l'ancienne section 3 de `docs/features-backlog.md`, tenue à la main, qui avait dérivé
 > (voir `docs/sessions/session-36.md`, issue #140).
 
-125 modules · 174 classes · 373 fonctions publiques de module.
+126 modules · 174 classes · 374 fonctions publiques de module.
 
 Conventions : `+` public, `-` privé (préfixe `_`) ; `int?` = `int | None` ; `list~str~` = `list[str]` ;
 `<<module>>` regroupe les fonctions publiques d'un module ; `A --> B : champ` = `A` a un champ annoté
@@ -388,6 +388,7 @@ classDiagram
 | `netcross_core.flow_view` | vue enrichie d'un flux (FlowView), sixieme objet de contrat de la Session 0 (Job 9/issue #6, section 6.4 et 6.14 de FEATURES.md). |
 | `netcross_core.forensic` | index de correlation bidirectionnel evenement ↔ flow ↔ paquet (Job 8/issue #5, §6.3 et §6.14 de FEATURES.md). |
 | `netcross_core.forensic_search` | moteur de recherche analytique post-capture transversal (Job 17 / issue #16, section 6.13 de FEATURES.md). |
+| `netcross_core.i18n` | internationalisation (issue #299). |
 | `netcross_core.live_diff` | Capture en continu + diff en direct (Job 33, issue #33). |
 | `netcross_core.logging_config` | configuration centrale du logging (issue #245). |
 | `netcross_core.models` | structures de donnees partagees : un paquet normalise (Pkt) et le resultat d'analyse consolide (Report). |
@@ -932,6 +933,12 @@ classDiagram
     }
     class ForensicSearchIndex {
         +search(query) list~ForensicSearchResult~
+    }
+
+    %% ===== netcross_core.i18n =====
+    class mod_netcross_core_i18n["netcross_core.i18n"] {
+        <<module>>
+        +setup_gettext(domain)
     }
 
     %% ===== netcross_core.live_diff =====

@@ -1,0 +1,221 @@
+# Netcross rapports — template de traduction (issue #299)
+# Copyright (C) 2026 MathildeDec
+# Ce fichier est distribué sous la même licence que le paquet Netcross.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: Netcross 1.0\n"
+"Report-Msgid-Bugs-To: bugs@netcross.invalid\n"
+"POT-Creation-Date: 2026-09-23 20:00+0200\n"
+"PO-Revision-Date: 2026-09-23 20:00+0200\n"
+"Last-Translator: Automatically generated\n"
+"Language-Team: none\n"
+"Language: fr\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n > 1);\n"
+
+# --- Titres de sections PDF ---
+msgid "Rapport de securite"
+msgstr "Rapport de securite"
+
+msgid "Tableau de bord"
+msgstr "Tableau de bord"
+
+msgid "Services detectes"
+msgstr "Services detectes"
+
+msgid "Chemin observe"
+msgstr "Chemin observe"
+
+msgid "Sequence des echanges"
+msgstr "Sequence des echanges"
+
+msgid "Expertise -- objets enrichis"
+msgstr "Expertise -- objets enrichis"
+
+msgid "Evenements d'expertise"
+msgstr "Evenements d'expertise"
+
+msgid "Diagnostics par segment"
+msgstr "Diagnostics par segment"
+
+msgid "Conformite aux referentiels"
+msgstr "Conformite aux referentiels"
+
+msgid "Flux correles"
+msgstr "Flux correles"
+
+msgid "Expertise tshark (signaux bruts)"
+msgstr "Expertise tshark (signaux bruts)"
+
+msgid "Par ou commencer"
+msgstr "Par ou commencer"
+
+msgid "Synthese"
+msgstr "Synthese"
+
+msgid "Vue d'ensemble"
+msgstr "Vue d'ensemble"
+
+msgid "Topologie deduite"
+msgstr "Topologie deduite"
+
+msgid "Evolution temporelle (top-N)"
+msgstr "Evolution temporelle (top-N)"
+
+msgid "Detail par module"
+msgstr "Detail par module"
+
+msgid "Sauts de routeur (delta TTL)"
+msgstr "Sauts de routeur (delta TTL)"
+
+msgid "QoS (DSCP)"
+msgstr "QoS (DSCP)"
+
+msgid "Fragmentation / MTU"
+msgstr "Fragmentation / MTU"
+
+# --- En-têtes de tableau ---
+msgid "Segment"
+msgstr "Segment"
+
+msgid "Score"
+msgstr "Score"
+
+msgid "Categories touchees"
+msgstr "Categories touchees"
+
+msgid "Constats"
+msgstr "Constats"
+
+msgid "Trame"
+msgstr "Trame"
+
+msgid "t (ms)"
+msgstr "t (ms)"
+
+msgid "Delta (ms)"
+msgstr "Delta (ms)"
+
+msgid "Source -> Destination"
+msgstr "Source -> Destination"
+
+msgid "Point"
+msgstr "Point"
+
+msgid "Octets"
+msgstr "Octets"
+
+msgid "Detail"
+msgstr "Detail"
+
+msgid "Gravite"
+msgstr "Gravite"
+
+msgid "CVE"
+msgstr "CVE"
+
+msgid "CVSS"
+msgstr "CVSS"
+
+msgid "Service"
+msgstr "Service"
+
+msgid "Cible"
+msgstr "Cible"
+
+msgid "Empreinte JA4/HASSH"
+msgstr "Empreinte JA4/HASSH"
+
+msgid "Criticite"
+msgstr "Criticite"
+
+msgid "Points"
+msgstr "Points"
+
+# --- Messages "Aucun..." ---
+msgid "Aucun constat notable."
+msgstr "Aucun constat notable."
+
+msgid "Aucun evenement d'expertise."
+msgstr "Aucun evenement d'expertise."
+
+msgid "Aucun diagnostic par segment."
+msgstr "Aucun diagnostic par segment."
+
+msgid "Aucun referentiel evalue."
+msgstr "Aucun referentiel evalue."
+
+msgid "Aucun flux correle."
+msgstr "Aucun flux correle."
+
+msgid ""
+"Aucun segment exploitable : ni topologie deduite, ni couple de points fourni."
+msgstr ""
+
+# --- Dashboard sécurité ---
+msgid "Score de risque"
+msgstr "Score de risque"
+
+msgid "Tentatives d'exploitation"
+msgstr "Tentatives d'exploitation"
+
+msgid "Anomalies (Expert Info)"
+msgstr "Anomalies (Expert Info)"
+
+msgid "CVE confirmees"
+msgstr "CVE confirmees"
+
+msgid "Score de sante"
+msgstr "Score de sante"
+
+# --- Format texte sécurité ---
+msgid "RAPPORT DE SECURITE"
+msgstr "RAPPORT DE SECURITE"
+
+msgid "exploits detectes"
+msgstr "exploits detectes"
+
+msgid "anomalies (Expert Info)"
+msgstr "anomalies (Expert Info)"
+
+msgid "score de risque global"
+msgstr "score de risque global"
+
+# --- Sévérités ---
+msgid "critique"
+msgstr "critique"
+
+msgid "elevee"
+msgstr "elevee"
+
+msgid "moyenne"
+msgstr "moyenne"
+
+msgid "faible"
+msgstr "faible"
+
+# --- Triage ---
+msgid "TRIAGE -- top segments a regarder en premier"
+msgstr "TRIAGE -- top segments a regarder en premier"
+
+msgid "Aucun segment avec un score de preuve suffisant."
+msgstr "Aucun segment avec un score de preuve suffisant."
+
+msgid "Sain"
+msgstr "Sain"
+
+msgid "Degrade"
+msgstr "Degrade"
+
+msgid "Critique"
+msgstr "Critique"
+
+# --- Synthèse (verdicts de findings) ---
+msgid "Saturation"
+msgstr "Saturation"
+
+msgid "Bufferbloat"
+msgstr "Bufferbloat"

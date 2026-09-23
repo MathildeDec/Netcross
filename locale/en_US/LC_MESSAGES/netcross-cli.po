@@ -1,0 +1,65 @@
+# Netcross netcross-cli -- English translation (issue #299)
+# Copyright (C) 2026 MathildeDec
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: Netcross 1.0\n"
+"Report-Msgid-Bugs-To: bugs@netcross.invalid\n"
+"POT-Creation-Date: 2026-09-23 20:00+0200\n"
+"PO-Revision-Date: 2026-09-23 20:00+0200\n"
+"Last-Translator: MathildeDec\n"
+"Language-Team: en\n"
+"Language: en_US\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+
+msgid "ECHEC du decoupage"
+msgstr "Splitting failed"
+
+msgid "ERREUR sur"
+msgstr "Error on"
+
+msgid "--quic necessite cryptography"
+msgstr "--quic requires cryptography"
+
+msgid "--export-pcap"
+msgstr "--export-pcap"
+
+msgid "--adjust-time"
+msgstr "--adjust-time"
+
+msgid "base CVE introuvable"
+msgstr "CVE database not found"
+
+msgid "--cve-db necessite --security-report"
+msgstr "--cve-db requires --security-report"
+
+msgid "--security-report n'est pas disponible avec --live"
+msgstr "--security-report is not available with --live"
+
+msgid "--security-report n'est pas disponible avec --redact"
+msgstr "--security-report is not available with --redact"
+
+msgid "--security-report n'est pas disponible avec --merge"
+msgstr "--security-report is not available with --merge"
+
+msgid "signature(s) d'exploit detectee(s) dans"
+msgstr "exploit signature(s) detected in"
+
+msgid "RAPPORT DE SECURITE"
+msgstr "SECURITY REPORT"
+
+msgid "Aucune base CVE fournie (--cve-db)"
+msgstr "No CVE database provided (--cve-db)"
+
+msgid "aucun constat"
+msgstr "no finding"
+
+msgid "aucune tentative d'exploitation detectee"
+msgstr "no exploitation attempt detected"
+
+msgid "aucune CVE confirmee"
+msgstr "no confirmed CVE"

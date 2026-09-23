@@ -1,0 +1,220 @@
+# Netcross rapports — template de traduction (issue #299)
+# Copyright (C) 2026 MathildeDec
+# Ce fichier est distribué sous la même licence que le paquet Netcross.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: Netcross 1.0\n"
+"Report-Msgid-Bugs-To: bugs@netcross.invalid\n"
+"POT-Creation-Date: 2026-09-23 20:00+0200\n"
+"PO-Revision-Date: 2026-09-23 20:00+0200\n"
+"Last-Translator: MathildeDec\n"
+"Language-Team: fr\n"
+"Language: fr\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n > 1);\n"
+
+# --- Titres de sections PDF ---
+msgid "Rapport de securite"
+msgstr ""
+
+msgid "Tableau de bord"
+msgstr ""
+
+msgid "Services detectes"
+msgstr ""
+
+msgid "Chemin observe"
+msgstr ""
+
+msgid "Sequence des echanges"
+msgstr ""
+
+msgid "Expertise -- objets enrichis"
+msgstr ""
+
+msgid "Evenements d'expertise"
+msgstr ""
+
+msgid "Diagnostics par segment"
+msgstr ""
+
+msgid "Conformite aux referentiels"
+msgstr ""
+
+msgid "Flux correles"
+msgstr ""
+
+msgid "Expertise tshark (signaux bruts)"
+msgstr ""
+
+msgid "Par ou commencer"
+msgstr ""
+
+msgid "Synthese"
+msgstr ""
+
+msgid "Vue d'ensemble"
+msgstr ""
+
+msgid "Topologie deduite"
+msgstr ""
+
+msgid "Evolution temporelle (top-N)"
+msgstr ""
+
+msgid "Detail par module"
+msgstr ""
+
+msgid "Sauts de routeur (delta TTL)"
+msgstr ""
+
+msgid "QoS (DSCP)"
+msgstr ""
+
+msgid "Fragmentation / MTU"
+msgstr ""
+
+# --- En-têtes de tableau ---
+msgid "Segment"
+msgstr ""
+
+msgid "Score"
+msgstr ""
+
+msgid "Categories touchees"
+msgstr ""
+
+msgid "Constats"
+msgstr ""
+
+msgid "Trame"
+msgstr ""
+
+msgid "t (ms)"
+msgstr ""
+
+msgid "Delta (ms)"
+msgstr ""
+
+msgid "Source -> Destination"
+msgstr ""
+
+msgid "Point"
+msgstr ""
+
+msgid "Octets"
+msgstr ""
+
+msgid "Detail"
+msgstr ""
+
+msgid "Gravite"
+msgstr ""
+
+msgid "CVE"
+msgstr ""
+
+msgid "CVSS"
+msgstr ""
+
+msgid "Service"
+msgstr ""
+
+msgid "Cible"
+msgstr ""
+
+msgid "Empreinte JA4/HASSH"
+msgstr ""
+
+msgid "Criticite"
+msgstr ""
+
+msgid "Points"
+msgstr ""
+
+# --- Messages "Aucun..." ---
+msgid "Aucun constat notable."
+msgstr ""
+
+msgid "Aucun evenement d'expertise."
+msgstr ""
+
+msgid "Aucun diagnostic par segment."
+msgstr ""
+
+msgid "Aucun referentiel evalue."
+msgstr ""
+
+msgid "Aucun flux correle."
+msgstr ""
+
+msgid "Aucun segment exploitable : ni topologie deduite, ni couple de points fourni."
+msgstr ""
+
+# --- Dashboard sécurité ---
+msgid "Score de risque"
+msgstr ""
+
+msgid "Tentatives d'exploitation"
+msgstr ""
+
+msgid "Anomalies (Expert Info)"
+msgstr ""
+
+msgid "CVE confirmees"
+msgstr ""
+
+msgid "Score de sante"
+msgstr ""
+
+# --- Format texte sécurité ---
+msgid "RAPPORT DE SECURITE"
+msgstr ""
+
+msgid "exploits detectes"
+msgstr ""
+
+msgid "anomalies (Expert Info)"
+msgstr ""
+
+msgid "score de risque global"
+msgstr ""
+
+# --- Sévérités ---
+msgid "critique"
+msgstr ""
+
+msgid "elevee"
+msgstr ""
+
+msgid "moyenne"
+msgstr ""
+
+msgid "faible"
+msgstr ""
+
+# --- Triage ---
+msgid "TRIAGE -- top segments a regarder en premier"
+msgstr ""
+
+msgid "Aucun segment avec un score de preuve suffisant."
+msgstr ""
+
+msgid "Sain"
+msgstr ""
+
+msgid "Degrade"
+msgstr ""
+
+msgid "Critique"
+msgstr ""
+
+# --- Synthèse (verdicts de findings) ---
+msgid "Saturation"
+msgstr ""
+
+msgid "Bufferbloat"
+msgstr ""

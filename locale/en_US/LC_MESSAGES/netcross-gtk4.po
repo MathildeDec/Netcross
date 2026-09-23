@@ -1,0 +1,137 @@
+# Netcross netcross-gtk4 -- English translation (issue #299)
+# Copyright (C) 2026 MathildeDec
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: Netcross 1.0\n"
+"Report-Msgid-Bugs-To: bugs@netcross.invalid\n"
+"POT-Creation-Date: 2026-09-23 20:00+0200\n"
+"PO-Revision-Date: 2026-09-23 20:00+0200\n"
+"Last-Translator: MathildeDec\n"
+"Language-Team: en\n"
+"Language: en_US\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+
+msgid "Enregistrer le filtre"
+msgstr "Save filter"
+
+msgid "Ajouter une capture"
+msgstr "Add capture"
+
+msgid "Ajouter un point de capture"
+msgstr "Add capture point"
+
+msgid "Lancer l'analyse"
+msgstr "Run analysis"
+
+msgid "Arreter et analyser"
+msgstr "Stop and analyze"
+
+msgid "Reinitialiser la selection"
+msgstr "Reset selection"
+
+msgid "Exporter CSV"
+msgstr "Export CSV"
+
+msgid "Exporter JSON"
+msgstr "Export JSON"
+
+msgid "Fichiers max :"
+msgstr "Max files:"
+
+msgid "Duree/fichier (s) :"
+msgstr "Duration/file (s):"
+
+msgid "Options d'analyse"
+msgstr "Analysis options"
+
+msgid "Fenetre temporelle (ms):"
+msgstr "Time window (ms):"
+
+msgid "Cadence RTP (Hz):"
+msgstr "RTP clock rate (Hz):"
+
+msgid "Seuil doublons (ms):"
+msgstr "Duplicate threshold (ms):"
+
+msgid "Top"
+msgstr "Top"
+
+msgid "Top-N graphiques"
+msgstr "Top-N charts"
+
+msgid "Seuil pertes (points de %):"
+msgstr "Loss threshold (pp):"
+
+msgid "Seuil latence (ms):"
+msgstr "Latency threshold (ms):"
+
+msgid "Avancement"
+msgstr "Progress"
+
+msgid "Resultats"
+msgstr "Results"
+
+msgid "Protocole"
+msgstr "Protocol"
+
+msgid "Top-N aretes"
+msgstr "Top-N edges"
+
+msgid "Grouper par"
+msgstr "Group by"
+
+msgid "Trier par"
+msgstr "Sort by"
+
+msgid "Top-N"
+msgstr "Top-N"
+
+msgid "(lancer une analyse pour voir les statistiques)"
+msgstr "(run an analysis to see statistics)"
+
+msgid "Nom du point de capture (ex: LAN, WAN, DC)"
+msgstr "Capture point name (e.g.: LAN, WAN, DC)"
+
+msgid "Monter (ordre = chemin physique reseau)"
+msgstr "Move up (order = physical network path)"
+
+msgid "Descendre"
+msgstr "Move down"
+
+msgid "Retirer cette capture"
+msgstr "Remove this capture"
+
+msgid "Retirer ce point de capture"
+msgstr "Remove this capture point"
+
+msgid "Enregistrer le filtre BPF courant sous un nom"
+msgstr "Save current BPF filter under a name"
+
+msgid "Necessite cryptography. Relit les memes fichiers."
+msgstr "Requires cryptography. Re-reads the same files."
+
+msgid "Necessite cryptography. Idem TLS, baseline et courant separement."
+msgstr "Requires cryptography. Same as TLS, baseline and current separately."
+
+msgid "Duree maximale atteinte -- arret automatique de la capture."
+msgstr "Maximum duration reached -- automatic capture stop."
+
+msgid "--redact n'est pas disponible avec Diagnostic TLS/QUIC (voir netcross_core.redact)."
+msgstr "--redact is not available with TLS/QUIC diagnostics (see netcross_core.redact)."
+
+msgid "Correlation des flux entre points de capture..."
+msgstr "Correlating flows between capture points..."
+
+msgid "Mise en forme du rapport..."
+msgstr "Formatting report..."
+
+msgid "Triage des segments..."
+msgstr "Triage of segments..."
+
+msgid "Analyse terminee."
+msgstr "Analysis complete."

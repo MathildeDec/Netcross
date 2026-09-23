@@ -1,0 +1,212 @@
+# Netcross netcross-report -- English translation (issue #299)
+# Copyright (C) 2026 MathildeDec
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: Netcross 1.0\n"
+"Report-Msgid-Bugs-To: bugs@netcross.invalid\n"
+"POT-Creation-Date: 2026-09-23 20:00+0200\n"
+"PO-Revision-Date: 2026-09-23 20:00+0200\n"
+"Last-Translator: MathildeDec\n"
+"Language-Team: en\n"
+"Language: en_US\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n != 1);\n"
+
+
+msgid "Rapport de securite"
+msgstr "Security report"
+
+msgid "Tableau de bord"
+msgstr "Dashboard"
+
+msgid "Services detectes"
+msgstr "Detected services"
+
+msgid "Chemin observe"
+msgstr "Observed path"
+
+msgid "Sequence des echanges"
+msgstr "Exchange sequence"
+
+msgid "Expertise -- objets enrichis"
+msgstr "Expertise -- enriched objects"
+
+msgid "Evenements d'expertise"
+msgstr "Expertise events"
+
+msgid "Diagnostics par segment"
+msgstr "Per-segment diagnostics"
+
+msgid "Conformite aux referentiels"
+msgstr "Compliance with reference standards"
+
+msgid "Flux correles"
+msgstr "Correlated flows"
+
+msgid "Expertise tshark (signaux bruts)"
+msgstr "tshark expertise (raw signals)"
+
+msgid "Par ou commencer"
+msgstr "Where to start"
+
+msgid "Synthese"
+msgstr "Summary"
+
+msgid "Vue d'ensemble"
+msgstr "Overview"
+
+msgid "Topologie deduite"
+msgstr "Inferred topology"
+
+msgid "Evolution temporelle (top-N)"
+msgstr "Temporal evolution (top-N)"
+
+msgid "Detail par module"
+msgstr "Per-module detail"
+
+msgid "Sauts de routeur (delta TTL)"
+msgstr "Router hops (TTL delta)"
+
+msgid "QoS (DSCP)"
+msgstr "QoS (DSCP)"
+
+msgid "Fragmentation / MTU"
+msgstr "Fragmentation / MTU"
+
+msgid "Segment"
+msgstr "Segment"
+
+msgid "Score"
+msgstr "Score"
+
+msgid "Categories touchees"
+msgstr "Affected categories"
+
+msgid "Constats"
+msgstr "Findings"
+
+msgid "Trame"
+msgstr "Frame"
+
+msgid "t (ms)"
+msgstr "t (ms)"
+
+msgid "Delta (ms)"
+msgstr "Delta (ms)"
+
+msgid "Source -> Destination"
+msgstr "Source -> Destination"
+
+msgid "Point"
+msgstr "Point"
+
+msgid "Octets"
+msgstr "Bytes"
+
+msgid "Detail"
+msgstr "Detail"
+
+msgid "Gravite"
+msgstr "Severity"
+
+msgid "CVE"
+msgstr "CVE"
+
+msgid "CVSS"
+msgstr "CVSS"
+
+msgid "Service"
+msgstr "Service"
+
+msgid "Cible"
+msgstr "Target"
+
+msgid "Empreinte JA4/HASSH"
+msgstr "JA4/HASSH fingerprint"
+
+msgid "Criticite"
+msgstr "Criticality"
+
+msgid "Points"
+msgstr "Points"
+
+msgid "Aucun constat notable."
+msgstr "No notable finding."
+
+msgid "Aucun evenement d'expertise."
+msgstr "No expertise event."
+
+msgid "Aucun diagnostic par segment."
+msgstr "No per-segment diagnosis."
+
+msgid "Aucun referentiel evalue."
+msgstr "No reference standard evaluated."
+
+msgid "Aucun flux correle."
+msgstr "No correlated flow."
+
+msgid "Aucun segment exploitable : ni topologie deduite, ni couple de points fourni."
+msgstr "No usable segment: no inferred topology, no point pair provided."
+
+msgid "Score de risque"
+msgstr "Risk score"
+
+msgid "Tentatives d'exploitation"
+msgstr "Exploitation attempts"
+
+msgid "Anomalies (Expert Info)"
+msgstr "Anomalies (Expert Info)"
+
+msgid "CVE confirmees"
+msgstr "Confirmed CVEs"
+
+msgid "Score de sante"
+msgstr "Health score"
+
+msgid "RAPPORT DE SECURITE"
+msgstr "SECURITY REPORT"
+
+msgid "exploits detectes"
+msgstr "exploits detected"
+
+msgid "anomalies (Expert Info)"
+msgstr "anomalies (Expert Info)"
+
+msgid "score de risque global"
+msgstr "global risk score"
+
+msgid "critique"
+msgstr "critical"
+
+msgid "elevee"
+msgstr "high"
+
+msgid "moyenne"
+msgstr "medium"
+
+msgid "faible"
+msgstr "low"
+
+msgid "TRIAGE -- top segments a regarder en premier"
+msgstr "TRIAGE -- top segments to review first"
+
+msgid "Aucun segment avec un score de preuve suffisant."
+msgstr "No segment with sufficient evidence score."
+
+msgid "Sain"
+msgstr "Healthy"
+
+msgid "Degrade"
+msgstr "Degraded"
+
+msgid "Critique"
+msgstr "Critical"
+
+msgid "Saturation"
+msgstr "Saturation"
+
+msgid "Bufferbloat"
+msgstr "Bufferbloat"

@@ -1,0 +1,67 @@
+# Netcross CLI — template de traduction (issue #299)
+# Copyright (C) 2026 MathildeDec
+# Ce fichier est distribué sous la même licence que le paquet Netcross.
+#
+msgid ""
+msgstr ""
+"Project-Id-Version: Netcross 1.0\n"
+"Report-Msgid-Bugs-To: bugs@netcross.invalid\n"
+"POT-Creation-Date: 2026-09-23 20:00+0200\n"
+"PO-Revision-Date: 2026-09-23 20:00+0200\n"
+"Last-Translator: Automatically generated\n"
+"Language-Team: none\n"
+"Language: fr\n"
+"MIME-Version: 1.0\n"
+"Content-Type: text/plain; charset=UTF-8\n"
+"Content-Transfer-Encoding: 8bit\n"
+"Plural-Forms: nplurals=2; plural=(n > 1);\n"
+
+# --- Messages d'erreur ---
+msgid "ECHEC du decoupage"
+msgstr "ECHEC du decoupage"
+
+msgid "ERREUR sur"
+msgstr "ERREUR sur"
+
+msgid "--quic necessite cryptography"
+msgstr "--quic necessite cryptography"
+
+msgid "--export-pcap"
+msgstr "--export-pcap"
+
+msgid "--adjust-time"
+msgstr "--adjust-time"
+
+msgid "base CVE introuvable"
+msgstr "base CVE introuvable"
+
+msgid "--cve-db necessite --security-report"
+msgstr "--cve-db necessite --security-report"
+
+msgid "--security-report n'est pas disponible avec --live"
+msgstr "--security-report n'est pas disponible avec --live"
+
+msgid "--security-report n'est pas disponible avec --redact"
+msgstr "--security-report n'est pas disponible avec --redact"
+
+msgid "--security-report n'est pas disponible avec --merge"
+msgstr "--security-report n'est pas disponible avec --merge"
+
+# --- Messages de progression ---
+msgid "signature(s) d'exploit detectee(s) dans"
+msgstr "signature(s) d'exploit detectee(s) dans"
+
+msgid "RAPPORT DE SECURITE"
+msgstr "RAPPORT DE SECURITE"
+
+msgid "Aucune base CVE fournie (--cve-db)"
+msgstr "Aucune base CVE fournie (--cve-db)"
+
+msgid "aucun constat"
+msgstr "aucun constat"
+
+msgid "aucune tentative d'exploitation detectee"
+msgstr "aucune tentative d'exploitation detectee"
+
+msgid "aucune CVE confirmee"
+msgstr "aucune CVE confirmee"
