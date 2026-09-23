@@ -964,6 +964,75 @@ def _start_live_report(args):
         threading.Thread(target=server.serve_forever, name="netcross-live-http", daemon=True).start()
         print(f"Page servie sur http://127.0.0.1:{server.server_address[1]}/ (?mode=completive pour le journal)")
     return LiveReporter(writer), server
+def _check_ai_args(args):
+    """Validations de l'issue #146, AVANT l'analyse (echec immediat plutot
+    qu'apres de longues minutes de lecture de capture)."""
+    requested = (
+        args.ai_baseline_save or args.ai_anomalies or args.ai_training_export or args.ai_classify or args.ai_summary
+    )
+    if not requested:
+        if args.ai_report or args.ai_endpoint or args.ai_baseline_label:
+            print(
+                "--ai-report/--ai-endpoint/--ai-baseline-label necessitent une option --ai-* d'analyse.",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        return None
+    from netcross_ai.optional import AIUnavailableError, require_ml
+    from netcross_ai.pipeline import AIOptions
+    from netcross_ai.report_writer import WriterConfigError, parse_engine
+
+    if args.ai_baseline_label and not args.ai_baseline_save:
+        print("--ai-baseline-label necessite --ai-baseline-save.", file=sys.stderr)
+        sys.exit(1)
+    if args.ai_endpoint and not args.ai_summary:
+        print("--ai-endpoint necessite --ai-summary.", file=sys.stderr)
+        sys.exit(1)
+    for flag, path in (("--ai-anomalies", args.ai_anomalies), ("--ai-classify", args.ai_classify)):
+        if path and not os.path.isfile(path):
+            print(f"{flag} : fichier introuvable : {path}", file=sys.stderr)
+            sys.exit(1)
+    try:
+        if args.ai_anomalies:
+            require_ml("--ai-anomalies")
+        if args.ai_classify:
+            require_ml("--ai-classify")
+        if args.ai_summary:
+            parse_engine(args.ai_summary, args.ai_endpoint)
+    except (AIUnavailableError, WriterConfigError) as exc:
+        print(f"Module IA : {exc}", file=sys.stderr)
+        sys.exit(1)
+    return AIOptions(
+        baseline_path=args.ai_anomalies,
+        baseline_save=args.ai_baseline_save,
+        baseline_label=args.ai_baseline_label,
+        training_path=args.ai_classify,
+        training_export=args.ai_training_export,
+        summary_engine=args.ai_summary,
+        endpoint=args.ai_endpoint,
+    )
+
+
+def _run_ai(args, ai_options, report, all_packets) -> None:
+    import json
+
+    from netcross_ai.pipeline import format_ai, run_ai
+
+    flows = report.flow_anomalies
+    if not flows:
+        from netcross_core.security.flow_stats import analyze_flow_stats
+
+        flows = [f.to_dict() for f in analyze_flow_stats(all_packets).flows]
+    try:
+        result = run_ai(report, flows, ai_options)
+    except (RuntimeError, ValueError, OSError) as exc:
+        print(f"Module IA : {exc}", file=sys.stderr)
+        sys.exit(1)
+    print(format_ai(result))
+    if args.ai_report:
+        with open(args.ai_report, "w", encoding="utf-8") as fh:
+            json.dump(result, fh, ensure_ascii=False, indent=2)
+        print(f"\nResultats du module IA ecrits dans {args.ai_report}")
 
 
 def main():
@@ -1370,6 +1439,47 @@ def main():
         "Independant du chemin procedural (build_findings) -- les deux "
         "chemins coexistent, le moteur declaratif ne le remplace pas encore.",
     )
+    ai = ap.add_argument_group(
+        'module IA local (issue #146, optionnel : pip install "netcross[ai]")',
+        "Tout tourne sur cette machine ; voir docs/module-ia.md.",
+    )
+    ai.add_argument(
+        "--ai-baseline-save",
+        metavar="FICHIER.json",
+        help="Ajoute les flux de cette capture (supposee NORMALE) a la baseline FICHIER (creee si absente).",
+    )
+    ai.add_argument("--ai-baseline-label", metavar="ETIQUETTE", default="", help="Avec --ai-baseline-save : nom libre.")
+    ai.add_argument(
+        "--ai-anomalies",
+        metavar="BASELINE.json",
+        help="Detection d'anomalies de flux (Isolation Forest) par rapport a la baseline. Necessite scikit-learn.",
+    )
+    ai.add_argument(
+        "--ai-training-export",
+        metavar="FICHIER.json",
+        help="Exporte les flux pre-etiquetes par les regles FLOW-4, a corriger pour --ai-classify.",
+    )
+    ai.add_argument(
+        "--ai-classify",
+        metavar="ENTRAINEMENT.json",
+        help="Classe les flux (foret aleatoire entrainee sur ce jeu etiquete) avec un score de confiance. "
+        "Necessite scikit-learn.",
+    )
+    ai.add_argument(
+        "--ai-summary",
+        metavar="MOTEUR",
+        nargs="?",
+        const="template",
+        help="Resume executif, correlations et recommandations en francais : template (defaut, sans modele), "
+        "ollama:MODELE ou llamacpp (modele local).",
+    )
+    ai.add_argument(
+        "--ai-endpoint",
+        metavar="URL",
+        help="Avec --ai-summary ollama/llamacpp : point d'acces local (defaut http://127.0.0.1:11434 ou :8080). "
+        "Toute adresse hors boucle locale est refusee.",
+    )
+    ai.add_argument("--ai-report", metavar="FICHIER.json", help="Ecrit les resultats du module IA en JSON.")
     ap.add_argument(
         "--expert-section",
         action="store_true",
@@ -2053,6 +2163,7 @@ def main():
             )
             sys.exit(1)
 
+    ai_options = _check_ai_args(args)
     if args.redact_map and not args.redact:
         print("--redact-map necessite --redact.", file=sys.stderr)
         sys.exit(1)
@@ -2369,6 +2480,9 @@ def main():
             # sinon (ressource SQLite laissee ouverte).
             if cve_conn is not None:
                 close_db(cve_conn)
+
+    if ai_options is not None:
+        _run_ai(args, ai_options, r, all_packets)
 
     if client_group:
         comparison = compare_clients(
