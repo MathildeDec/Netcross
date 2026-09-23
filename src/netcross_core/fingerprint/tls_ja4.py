@@ -97,6 +97,7 @@ def parse_client_hello(payload: bytes) -> dict | None:
     try:
         return _parse_client_hello(payload)
     except (IndexError, struct.error, UnicodeError):
+        logger.debug("exception IndexError/UnicodeError gérée silencieusement")
         return None
 
 

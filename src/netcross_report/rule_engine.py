@@ -704,6 +704,7 @@ def _http_error_evidence(
         try:
             code = int(ex.rsplit(" ", 1)[-1])
         except ValueError:
+            logger.exception("exception ValueError")
             continue
         if code // 100 == status_class:
             texts.append(ex)

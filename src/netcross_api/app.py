@@ -80,6 +80,7 @@ async def upload_capture(
     try:
         packets = parse_capture(label, tmp_path)
     except Exception as exc:
+        logger.exception("exception Exception")
         Path(tmp_path).unlink(missing_ok=True)
         raise HTTPException(status_code=400, detail=f"Erreur de parsing: {exc}") from exc
     finally:

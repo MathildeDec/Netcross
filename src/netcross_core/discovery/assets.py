@@ -156,6 +156,7 @@ def load_baseline_hosts(path: str | Path) -> set[str]:
         with open(path, encoding="utf-8") as f:
             data = json.load(f)
     except (OSError, json.JSONDecodeError):
+        logger.debug("exception OSError gérée silencieusement")
         return set()
     if isinstance(data, list):
         return {str(ip) for ip in data}

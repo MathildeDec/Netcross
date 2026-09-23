@@ -67,6 +67,7 @@ def as_int(value: Any, base: int = 10) -> int | None:
     try:
         return int(value, base) if isinstance(value, str) else int(value)
     except (TypeError, ValueError):
+        _get_logger().debug("exception TypeError/ValueError gérée silencieusement")
         return None
 
 
@@ -118,6 +119,7 @@ def as_float(value: Any) -> float | None:
     try:
         return float(value)
     except (TypeError, ValueError):
+        _get_logger().debug("exception TypeError/ValueError gérée silencieusement")
         return None
 
 
@@ -339,4 +341,5 @@ def as_bytes_from_hex_dump(value: Any) -> bytes:
     try:
         return bytes.fromhex(value.replace(":", ""))
     except ValueError:
+        _get_logger().debug("exception ValueError gérée silencieusement")
         return b""

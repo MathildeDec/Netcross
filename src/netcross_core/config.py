@@ -49,9 +49,11 @@ logger = get_logger(__name__)
 try:
     import tomllib
 except ModuleNotFoundError:  # pragma: no cover
+    logger.exception("exception ModuleNotFoundError")
     try:
         import tomli as tomllib  # type: ignore[no-redef]
     except ModuleNotFoundError:
+        logger.exception("exception ModuleNotFoundError")
         tomllib = None  # type: ignore[assignment]
 
 

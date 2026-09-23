@@ -196,6 +196,7 @@ def _load_packets(scenario_name, captures, parallel, parallel_workers):
         try:
             pkts = parse_capture(label, path, raise_on_error=True)
         except (TsharkNotFoundError, TsharkError) as exc:
+            _get_logger().exception("exception TsharkNotFoundError/TsharkError")
             any_error = True
             print(f"[{scenario_name}/{label}] ECHEC sur {path} : {exc}", file=sys.stderr)
             continue
@@ -256,6 +257,7 @@ def _run_live_captures(live_specs, duration):
                     last_log = now
         except Exception as e:  # noqa: BLE001 -- thread de fond : une erreur sur
             # ce point doit etre rapportee sans arreter les autres points en cours.
+            _get_logger().exception("exception Exception")
             print(f"[courant/{label}] ERREUR : {e}", file=sys.stderr)
         print(f"[courant/{label}] capture arretee -- {count} paquet(s) au total.")
 
@@ -659,6 +661,7 @@ def main():
                 print_quic_diagnostics,
             )
         except ImportError:
+            _get_logger().exception("exception ImportError")
             print(
                 "\n--quic necessite cryptography : pip install cryptography --break-system-packages",
                 file=sys.stderr,
@@ -688,6 +691,7 @@ def main():
         try:
             from netcross_report import generate_diff_pdf
         except ImportError:
+            _get_logger().exception("exception ImportError")
             generate_diff_pdf = None
         if generate_diff_pdf is None:
             print(
@@ -767,6 +771,7 @@ def main():
                 entries = list_history(args.history_db, limit=args.history_show, label=args.history_label)
                 print_history(entries)
         except HistoryDatabaseError as exc:
+            _get_logger().exception("exception HistoryDatabaseError")
             print(exc, file=sys.stderr)
             sys.exit(1)
 

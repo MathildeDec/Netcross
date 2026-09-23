@@ -384,6 +384,7 @@ def _port(flow: Flow, side: int) -> str:
     try:
         return str(key[2] if side == 0 else key[4])
     except IndexError:
+        logger.debug("exception IndexError gérée silencieusement")
         return "?"
 
 

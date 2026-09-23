@@ -61,6 +61,7 @@ def load_known_fingerprints(path: str | Path | None = None) -> dict[str, dict]:
     try:
         return _load_cached(str(path or _DEFAULT_PATH))
     except (OSError, json.JSONDecodeError):
+        logger.debug("exception OSError gérée silencieusement")
         return {"ja4": {}, "hassh": {}}
 
 

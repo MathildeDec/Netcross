@@ -128,6 +128,7 @@ def _ip_kind(value: str) -> str | None:
     try:
         return "ipv6" if ipaddress.ip_address(value).version == 6 else "ipv4"
     except ValueError:
+        logger.debug("exception ValueError gérée silencieusement")
         return None
 
 

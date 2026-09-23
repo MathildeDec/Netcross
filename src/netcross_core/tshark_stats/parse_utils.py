@@ -95,6 +95,7 @@ def parse_int(s: str | None) -> int | None:
     try:
         return int(float(m))
     except ValueError:
+        logger.debug("exception ValueError gérée silencieusement")
         return None
 
 
@@ -110,6 +111,7 @@ def parse_float(s: str | None) -> float | None:
     try:
         return float(m)
     except ValueError:
+        logger.debug("exception ValueError gérée silencieusement")
         return None
 
 

@@ -141,6 +141,7 @@ def _executer_schema(conn, db_path) -> None:
     try:
         conn.executescript(_SCHEMA)
     except sqlite3.DatabaseError as exc:
+        logger.debug("exception propagée")
         raise HistoryDatabaseError(_message_base_invalide(db_path, exc)) from exc
 
 

@@ -229,6 +229,7 @@ def run_single_analysis(
                 print_quic_diagnostics,
             )
         except ImportError:
+            logger.exception("exception ImportError")
             with contextlib.redirect_stdout(buf):
                 print(
                     "\n--quic nécessite cryptography : "
@@ -382,6 +383,7 @@ def run_diff_analysis(
                 print_quic_diagnostics,
             )
         except ImportError:
+            logger.exception("exception ImportError")
             with contextlib.redirect_stdout(buf):
                 print(
                     "\n--quic nécessite cryptography : "

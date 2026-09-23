@@ -128,6 +128,7 @@ def read_capture_comment(path: str) -> str | None:
             timeout=_TIMEOUT_SECONDS,
         )
     except (OSError, subprocess.TimeoutExpired):
+        _get_logger().debug("exception OSError gérée silencieusement")
         return None
     return _parse_capture_comment(proc.stdout)
 
@@ -226,6 +227,7 @@ def _integer(value: str | None) -> int | None:
     try:
         return int(text) if text is not None else None
     except ValueError:
+        _get_logger().debug("exception ValueError gérée silencieusement")
         return None
 
 
@@ -234,6 +236,7 @@ def _number(value: str | None) -> float | None:
     try:
         return float(text) if text is not None else None
     except ValueError:
+        _get_logger().debug("exception ValueError gérée silencieusement")
         return None
 
 
@@ -294,6 +297,7 @@ def read_capture_info(path: str) -> CaptureInfo | None:
             timeout=_TIMEOUT_SECONDS,
         )
     except (OSError, subprocess.TimeoutExpired):
+        _get_logger().debug("exception OSError gérée silencieusement")
         return None
     fields = _parse_table_report(proc.stdout)
     if fields is None:
@@ -301,5 +305,6 @@ def read_capture_info(path: str) -> CaptureInfo | None:
     try:
         structure = read_structure(path)
     except (OSError, ValueError, struct.error):
+        _get_logger().exception("exception OSError/ValueError")
         structure = None
     return _build_capture_info(path, fields, structure)

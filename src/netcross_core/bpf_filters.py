@@ -118,6 +118,7 @@ def save_bpf_filters(filters: Iterable[BPFFilter], path: str | Path | None = Non
         tmp.write_text(payload, encoding="utf-8")
         os.replace(tmp, target)
     except BaseException:
+        logger.exception("exception BaseException")
         tmp.unlink(missing_ok=True)
         raise
     return target
@@ -156,8 +157,10 @@ def load_bpf_filters(path: str | Path | None = None) -> list[BPFFilter]:
     try:
         data = json.loads(source.read_text(encoding="utf-8"))
     except FileNotFoundError:
+        logger.debug("exception FileNotFoundError gérée silencieusement")
         return []
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        logger.debug("exception UnicodeDecodeError propagée")
         raise ValueError(f"filtres BPF: fichier illisible {source}: {exc}") from exc
     if isinstance(data, dict):
         if "filters" not in data:

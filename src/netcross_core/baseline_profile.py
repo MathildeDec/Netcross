@@ -134,6 +134,7 @@ def _extract_metrics_from_row(row: sqlite3.Row) -> dict[str, float]:
             for sev, count in counts.items():
                 metrics[f"finding_count:{sev}"] = float(count)
     except (json.JSONDecodeError, TypeError):
+        logger.debug("exception TypeError gérée silencieusement")
         pass
 
     return metrics
@@ -161,6 +162,7 @@ def load_baseline_from_db(
         conn = sqlite3.connect(db_path)
         conn.row_factory = sqlite3.Row
     except sqlite3.Error:
+        logger.debug("exception gérée silencieusement")
         return None
 
     try:
@@ -178,6 +180,7 @@ def load_baseline_from_db(
 
         rows = conn.execute(query, params).fetchall()
     except sqlite3.Error:
+        logger.exception("exception")
         conn.close()
         return None
     finally:
@@ -212,6 +215,7 @@ def load_all_baselines(
         conn = sqlite3.connect(db_path)
         conn.row_factory = sqlite3.Row
     except sqlite3.Error:
+        logger.debug("exception gérée silencieusement")
         return []
 
     try:
@@ -229,6 +233,7 @@ def load_all_baselines(
 
         rows = conn.execute(query, params).fetchall()
     except sqlite3.Error:
+        logger.exception("exception")
         conn.close()
         return []
     finally:

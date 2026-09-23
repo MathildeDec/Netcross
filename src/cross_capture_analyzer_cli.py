@@ -260,6 +260,7 @@ def _run_merge(capture_specs, output_path, dedup):
         # RuntimeError : parent de TsharkNotFoundError/TsharkError (outil
         # absent du PATH ou en echec) -- meme sortie propre que les autres
         # erreurs d'arguments de cette CLI plutot qu'une trace Python.
+        _get_logger().exception("exception OSError/ValueError/RuntimeError")
         print(f"--merge : {e}", file=sys.stderr)
         sys.exit(1)
     print(
@@ -304,6 +305,7 @@ def _run_export(capture_specs, output_path, bpf_filter, time_start, time_end, en
             endpoints=endpoints,
         )
     except (TsharkNotFoundError, TsharkError, FileNotFoundError, ValueError) as e:
+        _get_logger().exception("exception TsharkNotFoundError/TsharkError/FileNotFoundError/ValueError")
         print(f"--export-pcap : {e}", file=sys.stderr)
         sys.exit(1)
     print(f"{output_path} cree ({label}).")
@@ -347,6 +349,7 @@ def _parse_split_spec(spec):
         else:
             value = _parse_size(raw)
     except ValueError:
+        _get_logger().exception("exception ValueError")
         value = None
     if value is None or value <= 0:
         hint = " (unites decimales k/M/G, ex: 100M ; MiB/Mio non supportes)" if mode == "size" else ""
@@ -376,6 +379,7 @@ def _run_split(capture_specs, split_spec, output_dir):
             for path in paths:
                 segments.extend(split_capture(path, label_dir, mode, value))
         except (ValueError, OSError, RuntimeError) as e:
+            _get_logger().exception("exception ValueError/OSError/RuntimeError")
             print(f"[{label}] ECHEC du decoupage : {e}", file=sys.stderr)
             status = 1
             continue
@@ -422,6 +426,7 @@ def _run_adjust_time(capture_specs, output_path, offset, normalize, align_to):
             align_to=align_to,
         )
     except (TsharkNotFoundError, TsharkError, FileNotFoundError, ValueError) as e:
+        _get_logger().exception("exception TsharkNotFoundError/TsharkError/FileNotFoundError/ValueError")
         print(f"--adjust-time : {e}", file=sys.stderr)
         sys.exit(1)
     print(f"{output_path} cree ({label}).")
@@ -455,6 +460,7 @@ def _run_replay(capture_specs, interface, speed, loop):
         # RuntimeError : parent de TcpreplayNotFoundError/TcpreplayError
         # (tcpreplay absent du PATH ou en echec) -- meme sortie propre que
         # --merge/--split plutot qu'une trace Python.
+        _get_logger().exception("exception OSError/ValueError/RuntimeError")
         print(f"--replay : {e}", file=sys.stderr)
         sys.exit(1)
     print(f"{paths[0]} rejoue sur {interface} (speed={speed}, loop={loop}).")
@@ -488,6 +494,7 @@ def _run_live_captures(live_specs, duration):
                     last_log = now
         except Exception as e:  # noqa: BLE001 -- thread de fond : une erreur sur
             # ce point doit etre rapportee sans arreter les autres points en cours.
+            _get_logger().exception("exception Exception")
             print(f"[{label}] ERREUR : {e}", file=sys.stderr)
         print(f"[{label}] capture arretee -- {count} paquet(s) au total.")
 
@@ -1518,6 +1525,7 @@ def main():
             try:
                 pkts = parse_capture(label, path, raise_on_error=True)
             except (TsharkNotFoundError, TsharkError) as exc:
+                _get_logger().exception("exception TsharkNotFoundError/TsharkError")
                 any_error = True
                 print(f"[{label}] ECHEC sur {path} : {exc}", file=sys.stderr)
                 continue
@@ -1720,6 +1728,7 @@ def main():
                 print_quic_diagnostics,
             )
         except ImportError:
+            _get_logger().exception("exception ImportError")
             print(
                 "\n--quic necessite cryptography : pip install cryptography --break-system-packages",
                 file=sys.stderr,
@@ -1770,6 +1779,7 @@ def main():
         try:
             from netcross_report import generate_pdf
         except ImportError:
+            _get_logger().exception("exception ImportError")
             generate_pdf = None
         if generate_pdf is None:
             print(
@@ -1836,6 +1846,7 @@ def main():
                 entries = list_history(args.history_db, limit=args.history_show, label=args.history_label)
                 print_history(entries)
         except HistoryDatabaseError as exc:
+            _get_logger().exception("exception HistoryDatabaseError")
             print(exc, file=sys.stderr)
             sys.exit(1)
 

@@ -165,6 +165,7 @@ def parse_cert_date(value: str | None) -> datetime | None:
     try:
         return datetime.strptime(value.removesuffix(" (UTC)"), "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
     except ValueError:
+        logger.debug("exception ValueError gérée silencieusement")
         return None
 
 

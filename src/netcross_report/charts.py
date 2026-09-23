@@ -38,6 +38,7 @@ def chart_topology(r, path):
     try:
         generations = list(nx.topological_generations(G))
     except nx.NetworkXUnfeasible:
+        logger.exception("exception")
         generations = None  # ne devrait pas arriver (reduction transitive deja acyclique)
 
     pos = {}

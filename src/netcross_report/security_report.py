@@ -159,6 +159,7 @@ def _opt_int(value) -> int | None:
     try:
         return int(value)
     except (TypeError, ValueError):
+        logger.debug("exception TypeError/ValueError gérée silencieusement")
         return None
 
 
@@ -166,6 +167,7 @@ def _opt_float(value) -> float | None:
     try:
         return float(value)
     except (TypeError, ValueError):
+        logger.debug("exception TypeError/ValueError gérée silencieusement")
         return None
 
 

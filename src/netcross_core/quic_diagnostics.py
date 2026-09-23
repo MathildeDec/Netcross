@@ -59,6 +59,7 @@ except ImportError as e:
     # installe tant qu'il n'a pas explicitement demande --quic, et
     # afficher son propre message plutot que de voir tout le process
     # mourir a l'import.
+    logger.debug("exception ImportError propagée")
     raise ImportError(
         "netcross_core.quic_diagnostics necessite cryptography : pip install cryptography --break-system-packages"
     ) from e
@@ -260,6 +261,7 @@ def _decrypt_initial(payload: bytes, client_secret: bytes, header_info: dict) ->
     try:
         return AESGCM(key).decrypt(bytes(nonce), ciphertext, header)
     except InvalidTag:
+        logger.debug("exception InvalidTag gérée silencieusement")
         return None
 
 

@@ -161,6 +161,7 @@ def parse_capture(label, path, raise_on_error=False) -> list[Pkt]:
     try:
         raw_packets = pcap_parser.parse_capture(path, raise_on_error=True)
     except (TsharkNotFoundError, TsharkError) as e:
+        logger.exception("exception TsharkNotFoundError/TsharkError")
         if raise_on_error:
             raise
         print(f"[{label}] impossible de lire {path} : {e}", file=sys.stderr)
@@ -222,6 +223,7 @@ def parse_captures_parallel(captures, max_workers=None) -> tuple[list[Pkt], list
             except Exception as e:  # noqa: BLE001 -- catch-all volontaire : un
                 # fichier en echec (tshark absent, pcap corrompu, permission...)
                 # ne doit jamais interrompre le traitement parallele des autres.
+                logger.exception("exception Exception")
                 per_file_stats.append(
                     {
                         "label": label,

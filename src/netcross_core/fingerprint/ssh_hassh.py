@@ -65,6 +65,7 @@ def parse_kexinit(payload: bytes) -> dict | None:
     try:
         return _parse_kexinit(payload)
     except (IndexError, UnicodeError):
+        logger.debug("exception IndexError/UnicodeError gérée silencieusement")
         return None
 
 

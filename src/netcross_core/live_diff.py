@@ -230,6 +230,7 @@ class LiveDiffEngine:
                     self._evaluate_diff()
                     self.state.last_eval_ts = now
         except Exception:
+            logger.exception("exception Exception")
             if self.state.running:
                 self.state.running = False
             raise

@@ -84,6 +84,7 @@ logger = get_logger(__name__)
 try:
     from netcross_report.pdf import generate_diff_pdf, generate_pdf
 except ImportError:
+    logger.exception("exception ImportError")
     generate_pdf = None  # type: ignore[assignment]  # reportlab absent -- repli optionnel
     generate_diff_pdf = None  # type: ignore[assignment]
 
