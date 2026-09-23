@@ -82,9 +82,9 @@ jobs:
       - name: Tests (pytest + couverture)
         # --cov sans chemin : source lue depuis [tool.coverage.run] (source =
         # ["src"]) dans pyproject.toml. term-missing dans les logs CI,
-        # coverage.xml publie comme artifact (issue #224). Pas de seuil
-        # bloquant (--cov-fail-under) tant que la base de reference n'est
-        # pas calibree -- a decider dans une issue de suivi.
+        # coverage.xml publie comme artifact (issue #224). Seuil bloquant :
+        # fail_under dans [tool.coverage.report] (issue #246), l'etape echoue
+        # si la couverture totale passe dessous.
         run: uv run pytest --cov --cov-report=term-missing --cov-report=xml
 
       - name: Aucun test sauté silencieusement (issues #261/#262)

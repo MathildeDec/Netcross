@@ -90,6 +90,10 @@ docs(#216): documentation CLAUDE.md
   compréhensions de liste.
 - `dict()` déclenche `C408` — utiliser des littéraux `{}`.
 - Lancer : `PYTHONPATH=src python -m pytest tests/ -v`
+- Seuil de couverture : la CI échoue sous `fail_under` (`pyproject.toml`,
+  80 %). Vérifier en local avec `uv run pytest --cov -q`. Le seuil se relève
+  quand la base monte, il ne se baisse pas pour faire passer une PR — voir
+  `docs/quality/seuil-couverture.md`.
 
 ### Ajouter un détecteur de sécurité
 
