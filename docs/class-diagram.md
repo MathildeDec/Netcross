@@ -37,7 +37,7 @@ flowchart TD
     netcross_gtk4 -->|"10 imports"| netcross_report
     netcross_gtk4 -->|"18 imports"| netcross_core
     netcross_api -->|"3 imports"| netcross_core
-    netcross_report -->|"12 imports"| netcross_core
+    netcross_report -->|"13 imports"| netcross_core
     netcross_core -->|"15 imports"| pcap_parser
 ```
 
@@ -2555,7 +2555,8 @@ classDiagram
 | `netcross_report.security_report` | rapport de securite consolide et tableau de bord (CVE-5, issue #139, parent #133). |
 | `netcross_report.sequence_view` | diagramme de sequence multi-hotes (Job 14/issue #11, FEATURES.md section 6.5). |
 | `netcross_report.session_objects` | construction et rendu CONSOLE des objets de contrat de la Session 0 (Job 4/issue #13). |
-| `netcross_report.siem_export` | export des constats de sécurité au format CEF (Common Event Format) pour intégration SIEM (issue #170). |
+| `netcross_report.siem_export` | export des constats de securite pour integration SIEM : CEF (issue #170), LEEF 2.0 et STIX 2.1 (issue #279). |
+| `netcross_report.stix_export` | export STIX 2.1 des constats de securite (issue #279, sous-issue de #170). |
 | `netcross_report.synthesis` | transforme un Report en une liste de constats (Finding) via des regles et seuils explicites. |
 | `netcross_report.triage` | agrege les Finding (ou DiffFinding) produits par ailleurs pour repondre a une question que synthesis.py ne pose pas : "par ou je commence a regarder ?" |
 
@@ -2858,10 +2859,46 @@ classDiagram
     }
 
     %% ===== netcross_report.siem_export =====
+    class SiemRecord {
+        <<dataclass, frozen, slots>>
+        +int sig_id
+        +str category
+        +str severity
+        +int severity_num
+        +str detail
+        +str? point
+        +int timestamp_ms
+        +Mapping~str, Any~ finding
+    }
     class mod_netcross_report_siem_export["netcross_report.siem_export"] {
         <<module>>
+        +to_cef(records) list~str~
         +export_cef(report) list~str~
+        +to_leef(records) list~str~
+        +export_leef(report) list~str~
         +write_cef(report, output_path) str
+        +write_leef(report, output_path) str
+        +write_siem(report, output_path, fmt, observed_from, observed_until) str
+    }
+
+    %% ===== netcross_report.stix_export =====
+    class _Builder {
+        +add(obj) str
+        +skip(reason) None
+        +sdo(stix_type, content, confidence) dict~str, Any~
+        +ip(value) str?
+        +software(name, version) str
+        +traffic(dst_ref, dst_port, src_ref, protocol) str?
+        +observed(refs, point) str
+    }
+    class mod_netcross_report_stix_export["netcross_report.stix_export"] {
+        <<module>>
+        +format_timestamp(when) str
+        +identity_object() dict~str, Any~
+        +exploit_pattern(f) str?
+        +to_stix_bundle(report, observed_from, observed_until) dict~str, Any~
+        +export_stix(report, observed_from, observed_until) str
+        +write_stix(report, output_path, observed_from, observed_until) str
     }
 
     %% ===== netcross_report.synthesis =====

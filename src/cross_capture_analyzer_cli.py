@@ -1055,6 +1055,18 @@ def main():
         "`new_destination`) ; sans baseline, ce signal n'est jamais emis.",
     )
     ap.add_argument(
+        "--siem-export",
+        choices=("cef", "leef", "stix"),
+        help="Avec --security-report et --siem-output : exporte les constats pour un SIEM -- "
+        "`cef` (ArcSight/Splunk/ELK), `leef` (QRadar, LEEF 2.0) ou `stix` (bundle STIX 2.1 "
+        "pour MISP/OpenCTI, deterministe). Voir docs/siem-export.md.",
+    )
+    ap.add_argument(
+        "--siem-output",
+        metavar="FICHIER",
+        help="Fichier de sortie de --siem-export.",
+    )
+    ap.add_argument(
         "--security-html",
         help="Avec --security-report : chemin de sortie pour un rendu HTML "
         "autonome du rapport de securite (tableau de bord, services avec "
@@ -1355,6 +1367,12 @@ def main():
     # Meme discipline que --cve-db : echouer tot et clairement plutot que
     # de produire un fichier HTML vide, ou de ne rien ecrire en silence --
     # l'utilisateur croirait avoir un rapport (issue #218).
+    if bool(args.siem_export) != bool(args.siem_output):
+        print("--siem-export et --siem-output vont ensemble (format + fichier).", file=sys.stderr)
+        sys.exit(1)
+    if args.siem_export and not args.security_report:
+        print("--siem-export necessite --security-report.", file=sys.stderr)
+        sys.exit(1)
     if args.security_html and not args.security_report:
         print("--security-html necessite --security-report.", file=sys.stderr)
         sys.exit(1)
@@ -1962,6 +1980,24 @@ def main():
                     meta={"Anonymisation": "adresses IP/MAC anonymisees (--redact)"} if args.redact else None,
                 )
                 print(f"Rapport de securite HTML ecrit dans {args.security_html}")
+            if args.siem_export:
+                from netcross_report.siem_export import write_siem
+
+                # bornes de la capture : datent les objets STIX (jamais
+                # l'heure de l'export -- determinisme, issue #279)
+                timestamps = [p.ts for p in all_packets if p.ts]
+                bounds = (
+                    (
+                        datetime.fromtimestamp(min(timestamps), tz=timezone.utc),
+                        datetime.fromtimestamp(max(timestamps), tz=timezone.utc),
+                    )
+                    if timestamps
+                    else (None, None)
+                )
+                written = write_siem(
+                    r, args.siem_output, args.siem_export, observed_from=bounds[0], observed_until=bounds[1]
+                )
+                print(f"Export SIEM ({args.siem_export}) ecrit dans {written}")
         finally:
             # issue #217 (suite PR #212) : close_db() dans un finally pour
             # garantir la fermeture de la connexion SQLite meme si
