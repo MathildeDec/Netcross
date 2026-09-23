@@ -1039,9 +1039,20 @@ _CSV_FIELDS = [
     "frame.time_epoch",
     "ip.src",
     "ip.dst",
+    "ipv6.src",
+    "ipv6.dst",
     "_ws.col.Protocol",
     "frame.len",
 ]
+
+
+def _check_in_out(path_in: str, path_out: str) -> None:
+    """Source existante et distincte de la sortie : ``-w`` sur le fichier
+    lu le tronquerait avant lecture (capture perdue)."""
+    if not os.path.isfile(path_in):
+        raise FileNotFoundError(f"capture introuvable : {path_in}")
+    if os.path.exists(path_out) and os.path.samefile(path_in, path_out):
+        raise ValueError(f"la sortie {path_out} est le fichier source : choisir un autre chemin.")
 
 
 def convert_capture(path_in: str, path_out: str, fmt: str = "pcapng") -> None:
@@ -1052,15 +1063,14 @@ def convert_capture(path_in: str, path_out: str, fmt: str = "pcapng") -> None:
     Leve FileNotFoundError (capture absente), TsharkNotFoundError (tshark
     absent), TsharkError (echec de tshark), ValueError (format non supporte).
     """
-    if not os.path.isfile(path_in):
-        raise FileNotFoundError(f"capture introuvable : {path_in}")
+    _check_in_out(path_in, path_out)
     fmt_lower = fmt.lower()
     if fmt_lower not in _SUPPORTED_FORMATS:
         raise ValueError(f"format non supporte : {fmt!r}. Formats reconnus : {', '.join(sorted(_SUPPORTED_FORMATS))}.")
     from pcap_parser.ek_source import _tshark_path
 
     tshark = _tshark_path()
-    args = [tshark, "-r", path_in, "-F", fmt_lower, "-w", path_out]
+    args = [tshark, "-n", "-r", path_in, "-F", fmt_lower, "-w", path_out]
     proc = subprocess.run(args, capture_output=True, text=True, check=False)
     if proc.returncode != 0:
         raise TsharkError(
@@ -1078,16 +1088,20 @@ def export_csv(path_in: str, path_out: str) -> None:
 
     Leve FileNotFoundError, TsharkNotFoundError, TsharkError.
     """
-    if not os.path.isfile(path_in):
-        raise FileNotFoundError(f"capture introuvable : {path_in}")
+    _check_in_out(path_in, path_out)
     from pcap_parser.ek_source import _tshark_path
 
     tshark = _tshark_path()
-    args = [tshark, "-r", path_in, "-T", "fields", "-E", "header=y", "-E", "separator=,"]
+    # quote=d : un champ contenant une virgule reste une seule colonne ;
+    # occurrence=f : une seule valeur par champ (IP-dans-IP, ICMP d'erreur).
+    args = [tshark, "-n", "-r", path_in, "-T", "fields"]
+    args += ["-E", "header=y", "-E", "separator=,", "-E", "quote=d", "-E", "occurrence=f"]
     for field in _CSV_FIELDS:
         args += ["-e", field]
     with open(path_out, "w", encoding="utf-8") as fh:
-        proc = subprocess.run(args, capture_output=True, text=True, check=False, stdout=fh)
+        # stdout vers le fichier : capture_output=True est interdit avec
+        # stdout=... (ValueError), seul stderr est capture.
+        proc = subprocess.run(args, stdout=fh, stderr=subprocess.PIPE, text=True, check=False)
     if proc.returncode != 0:
         raise TsharkError(
             f"tshark a echoue lors de l'export CSV (code {proc.returncode}) : {proc.stderr.strip()}",
@@ -1103,14 +1117,13 @@ def export_json(path_in: str, path_out: str) -> None:
 
     Leve FileNotFoundError, TsharkNotFoundError, TsharkError.
     """
-    if not os.path.isfile(path_in):
-        raise FileNotFoundError(f"capture introuvable : {path_in}")
+    _check_in_out(path_in, path_out)
     from pcap_parser.ek_source import _tshark_path
 
     tshark = _tshark_path()
-    args = [tshark, "-r", path_in, "-T", "json"]
+    args = [tshark, "-n", "-r", path_in, "-T", "json"]
     with open(path_out, "w", encoding="utf-8") as fh:
-        proc = subprocess.run(args, capture_output=True, text=True, check=False, stdout=fh)
+        proc = subprocess.run(args, stdout=fh, stderr=subprocess.PIPE, text=True, check=False)
     if proc.returncode != 0:
         raise TsharkError(
             f"tshark a echoue lors de l'export JSON (code {proc.returncode}) : {proc.stderr.strip()}",

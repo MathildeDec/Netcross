@@ -268,14 +268,17 @@ def _run_convert(capture_specs, output_path, fmt):
     if not capture_specs:
         print("--convert necessite --capture (fichier source).", file=sys.stderr)
         sys.exit(1)
-    if len(capture_specs) > 1:
+    paths = []
+    for spec in capture_specs:
+        _label, spec_paths = _parse_capture_spec(spec, "--capture")
+        paths.extend(spec_paths)
+    if len(paths) != 1:
         print(
-            f"--convert convertit UN fichier a la fois (recu {len(capture_specs)} spec(s) --capture) -- "
+            f"--convert convertit UN fichier a la fois (recu {len(paths)} fichier(s) via --capture) -- "
             "fusionnez d'abord avec --merge si besoin.",
             file=sys.stderr,
         )
         sys.exit(1)
-    paths = [c["path"] for c in capture_specs]
     path_in = paths[0]
     try:
         if fmt in ("csv", "json"):

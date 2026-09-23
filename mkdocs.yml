@@ -64,6 +64,7 @@ nav:
       - Tickets de support: support-tickets.md
       - Extraction des contenus: extraction-contenus.md
       - Rapport temps réel: live-report.md
+      - Conversion de formats: conversion-formats.md
       - Rule engine: architecture-rule-engine.md
   - Architecture:
       - Diagramme de classes: class-diagram.md
