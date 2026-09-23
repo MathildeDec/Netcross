@@ -121,7 +121,7 @@ def test_la_serialisation_ne_tronque_pas_la_forme_lisible(rapport):
 
 def test_la_serialisation_expose_les_quatre_sections_et_le_tableau_de_bord(rapport):
     d = security_report_to_dict(rapport)
-    assert set(d) == {"dashboard", "services", "exploits", "anomalies", "cves", "notifications", "plugins"}
+    assert set(d) == {"dashboard", "services", "exploits", "anomalies", "cves", "notifications", "plugins", "lateral_movement_by_type"}
     assert d["notifications"] == []  # aucune notification demandee (issue #280)
     assert d["plugins"] == []  # aucun plugin demande (issue #284)
     assert d["dashboard"]["cves"] == 1

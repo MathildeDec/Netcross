@@ -154,6 +154,9 @@ class SecurityReport:
     # tracabilite des plugins (issue #284) : une ligne par plugin demande
     # (« detecteur x : erreur, constats absents »). Vide = aucun plugin.
     plugins: list[dict] = field(default_factory=list)
+    # Mouvement lateral (issue #329) : decomposition par sous-type
+    # (port_scan, host_scan, brute_force, unusual_protocol, new_connection).
+    lateral_movement_by_type: dict[str, int] = field(default_factory=dict)
 
 
 # -- normalisation -------------------------------------------------------
@@ -170,7 +173,6 @@ def _opt_int(value) -> int | None:
     try:
         return int(value)
     except (TypeError, ValueError):
-        logger.exception(_("TypeError|ValueError"))
         return None
 
 
@@ -178,7 +180,6 @@ def _opt_float(value) -> float | None:
     try:
         return float(value)
     except (TypeError, ValueError):
-        logger.exception(_("TypeError|ValueError"))
         return None
 
 
@@ -320,6 +321,11 @@ def build_security_report(report) -> SecurityReport:
         dash.by_severity[item.severity] += 1
     dash.score = min(100, sum(SEVERITY_WEIGHTS[sev] * n for sev, n in dash.by_severity.items()))
     dash.level = next((sev for sev in SEVERITIES if dash.by_severity[sev]), None)
+    # Decomposition du mouvement lateral par sous-type (issue #329)
+    lateral_by_type: dict[str, int] = {}
+    for ev in (report.lateral_movement_events or []):
+        t = ev.get("type", "unknown")
+        lateral_by_type[t] = lateral_by_type.get(t, 0) + 1
     return SecurityReport(
         services=services,
         exploits=exploits,
@@ -327,6 +333,7 @@ def build_security_report(report) -> SecurityReport:
         cves=cves,
         dashboard=dash,
         plugins=[dict(r) for r in (getattr(report, "plugin_runs", None) or [])],
+        lateral_movement_by_type=lateral_by_type,
     )
 
 
@@ -467,6 +474,10 @@ def format_security_report(sr: SecurityReport) -> list[str]:
         lines += _section("Notifications", [f"  {n.get('line', '')}" for n in sr.notifications], "")
     if sr.plugins:
         lines += _section("Plugins", [f"  {p.get('line', '')}" for p in sr.plugins], "")
+    # Mouvement lateral (issue #329) : decomposition par sous-type
+    if sr.lateral_movement_by_type:
+        lm_lines = [f"  {typ}: {cnt}" for typ, cnt in sorted(sr.lateral_movement_by_type.items())]
+        lines += _section(_("Mouvement lateral (par type)"), lm_lines, _("aucun evenement de mouvement lateral"))
     return lines
 
 
@@ -544,4 +555,5 @@ def security_report_to_dict(sr: SecurityReport) -> dict:
         },
         "notifications": [dict(n) for n in sr.notifications],
         "plugins": [dict(p) for p in sr.plugins],
+        "lateral_movement_by_type": dict(sr.lateral_movement_by_type),
     }

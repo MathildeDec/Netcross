@@ -3399,6 +3399,7 @@ classDiagram
         +SecurityDashboard dashboard
         +list~dict~ notifications
         +list~dict~ plugins
+        +dict~str, int~ lateral_movement_by_type
     }
     class mod_netcross_report_security_report["netcross_report.security_report"] {
         <<module>>

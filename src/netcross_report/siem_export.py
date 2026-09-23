@@ -66,6 +66,19 @@ _SIGID_MAP = {
     "lateral_movement": 204,
     "dga": 205,
     "fast_flux": 206,
+    "exfiltration": 207,
+    "flow_stats": 208,
+    "tls_audit": 209,
+    "cross_capture_duplicate": 210,
+    "sequence_gap": 211,
+    "expert_correlation": 212,
+    "cpe_match": 213,
+    "port_scan": 214,
+    "host_scan": 215,
+    "brute_force": 216,
+    "unusual_protocol": 217,
+    "new_connection": 218,
+    "plugin": 219,
 }
 
 
