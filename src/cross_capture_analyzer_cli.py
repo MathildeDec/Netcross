@@ -153,6 +153,9 @@ from netcross_core.support import (
 )
 from netcross_report.security_report import build_security_report, print_security_report
 from pcap_parser.ek_source import TsharkError, TsharkNotFoundError
+from netcross_core.i18n import setup_gettext
+
+_ = setup_gettext("netcross-cli")
 
 
 _logger = None
@@ -1120,28 +1123,27 @@ def main():
     if args.security_report:
         if args.live:
             print(
-                "--security-report n'est pas disponible avec --live : les "
+                _("--security-report n'est pas disponible avec --live : les "
                 "signatures d'exploits cherchent la charge utile brute, relue "
-                "depuis les fichiers --capture (comme --tls).",
+                "depuis les fichiers --capture (comme --tls)."),
                 file=sys.stderr,
             )
             sys.exit(1)
         if args.redact:
             print(
-                "--security-report n'est pas disponible avec --redact : les "
+                _("--security-report n'est pas disponible avec --redact : les "
                 "signatures d'exploits cherchent la charge utile brute, jamais "
-                "des paquets anonymises.",
+                "des paquets anonymises."),
                 file=sys.stderr,
             )
             sys.exit(1)
         if args.cve_db and not os.path.isfile(args.cve_db):
             # refuser plutot que laisser connect_cve_db creer une base vide,
             # qui correlerait... rien (voir scripts/import_nvd.py).
-            print(
-                f"base CVE introuvable : {args.cve_db} (aucune base vide n'est "
-                "creee -- construire la base avec scripts/import_nvd.py).",
-                file=sys.stderr,
-            )
+            msg = _("base CVE introuvable") + f" : {args.cve_db} (" + _(
+                "aucune base vide n'est creee -- construire la base avec scripts/import_nvd.py"
+            ) + ")"
+            print(msg, file=sys.stderr)
             sys.exit(1)
 
     # --export-pcap est exclusif avec --merge/--split/--replay
@@ -1730,7 +1732,7 @@ def main():
         except ImportError:
             _get_logger().exception("exception ImportError")
             print(
-                "\n--quic necessite cryptography : pip install cryptography --break-system-packages",
+                _("\n--quic necessite cryptography : pip install cryptography --break-system-packages"),
                 file=sys.stderr,
             )
             sys.exit(1)

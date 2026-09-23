@@ -90,7 +90,10 @@ from netcross_core import (
     write_redaction_map_csv,
 )
 from netcross_core.baseline_diff import diff_reports, print_diff_report, write_diff_csv
+from netcross_core.i18n import setup_gettext
 from pcap_parser.ek_source import TsharkError, TsharkNotFoundError
+
+_ = setup_gettext("netcross-cli")
 
 
 
@@ -663,7 +666,7 @@ def main():
         except ImportError:
             _get_logger().exception("exception ImportError")
             print(
-                "\n--quic necessite cryptography : pip install cryptography --break-system-packages",
+                _("\n--quic necessite cryptography : pip install cryptography --break-system-packages"),
                 file=sys.stderr,
             )
             sys.exit(1)
