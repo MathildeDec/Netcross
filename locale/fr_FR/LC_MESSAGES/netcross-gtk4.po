@@ -1,6 +1,5 @@
-# Netcross GTK4 — template de traduction (issue #299)
+# Netcross netcross-gtk4 -- traduction française (référence, issue #299)
 # Copyright (C) 2026 MathildeDec
-# Ce fichier est distribué sous la même licence que le paquet Netcross.
 #
 msgid ""
 msgstr ""
@@ -8,15 +7,15 @@ msgstr ""
 "Report-Msgid-Bugs-To: bugs@netcross.invalid\n"
 "POT-Creation-Date: 2026-09-23 20:00+0200\n"
 "PO-Revision-Date: 2026-09-23 20:00+0200\n"
-"Last-Translator: Automatically generated\n"
-"Language-Team: none\n"
-"Language: fr\n"
+"Last-Translator: MathildeDec\n"
+"Language-Team: fr\n"
+"Language: fr_FR\n"
 "MIME-Version: 1.0\n"
 "Content-Type: text/plain; charset=UTF-8\n"
 "Content-Transfer-Encoding: 8bit\n"
 "Plural-Forms: nplurals=2; plural=(n > 1);\n"
 
-# --- Boutons ---
+
 msgid "Enregistrer le filtre"
 msgstr "Enregistrer le filtre"
 
@@ -41,7 +40,6 @@ msgstr "Exporter CSV"
 msgid "Exporter JSON"
 msgstr "Exporter JSON"
 
-# --- Labels ---
 msgid "Fichiers max :"
 msgstr "Fichiers max :"
 
@@ -96,7 +94,6 @@ msgstr "Top-N"
 msgid "(lancer une analyse pour voir les statistiques)"
 msgstr "(lancer une analyse pour voir les statistiques)"
 
-# --- Tooltips ---
 msgid "Nom du point de capture (ex: LAN, WAN, DC)"
 msgstr "Nom du point de capture (ex: LAN, WAN, DC)"
 
@@ -121,14 +118,11 @@ msgstr "Necessite cryptography. Relit les memes fichiers."
 msgid "Necessite cryptography. Idem TLS, baseline et courant separement."
 msgstr "Necessite cryptography. Idem TLS, baseline et courant separement."
 
-# --- Messages utilisateur ---
 msgid "Duree maximale atteinte -- arret automatique de la capture."
 msgstr "Duree maximale atteinte -- arret automatique de la capture."
 
-msgid ""
-"--redact n'est pas disponible avec Diagnostic TLS/QUIC (voir "
-"netcross_core.redact)."
-msgstr ""
+msgid "--redact n'est pas disponible avec Diagnostic TLS/QUIC (voir netcross_core.redact)."
+msgstr "--redact n'est pas disponible avec Diagnostic TLS/QUIC (voir netcross_core.redact)."
 
 msgid "Correlation des flux entre points de capture..."
 msgstr "Correlation des flux entre points de capture..."
