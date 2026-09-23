@@ -3525,6 +3525,7 @@ classDiagram
 | `netcross_gtk4.annotations_view` | logique de presentation pour l'etiquetage/signets sur paquets (Job 40 / issue #160, section "Metadonnees et annotation"). |
 | `netcross_gtk4.app` | interface GTK4 pour netcross_core / netcross_report. |
 | `netcross_gtk4.bpf_panel` | Decisions du panneau de filtres BPF de la capture live, sorties de ``netcross_gtk4/app.py`` (issue #285, quatrieme lot). |
+| `netcross_gtk4.capture_list` | Enumeration, ordre et retrait des lignes des panneaux de captures, sortis de ``netcross_gtk4/app.py`` (issue #285, cinquieme lot). |
 | `netcross_gtk4.dashboard_context` | contexte d'analyse partage pour le dashboard analytique interactif (issue #18, section 6.17). |
 | `netcross_gtk4.duplicate_view` | Presentation helpers for cross-capture duplicate detection (Job 41). |
 | `netcross_gtk4.live_capture_points` | points de capture en direct de la GUI (Job 48, issue #168) : une ligne du panneau de capture live peut porter PLUSIEURS interfaces d'une meme machine ("eth0, eth1"), chacune devenant son propre point… |
@@ -3609,6 +3610,24 @@ classDiagram
         +indice_du_filtre_nomme(nom, filtres)
         +noms_du_menu(filtres, titre)
         +indice_apres_deplacement(index, nombre_de_lignes, vers_le_haut)
+    }
+
+    %% ===== netcross_gtk4.capture_list =====
+    class _RowSource {
+        <<Protocol>>
+        +get_row_at_index(index) Any
+    }
+    class mod_netcross_gtk4_capture_list["netcross_gtk4.capture_list"] {
+        <<module>>
+        +nombre_de_lignes(listbox) int
+        +lignes(listbox) list~Any~
+        +nom_de_point(nom, index) str
+        +nom_par_defaut_fichier(chemin) str
+        +nom_par_defaut_live(lignes_existantes) str
+        +captures_fichiers(contenus) list~tuple~str, str~~
+        +captures_live(contenus) list~tuple~str, str, str?~~
+        +deplacer_ligne(row, vers_le_haut) bool
+        +retirer_ligne(row, on_change) bool
     }
 
     %% ===== netcross_gtk4.dashboard_context =====
