@@ -1403,6 +1403,7 @@ classDiagram
         +list~dict~ dga_alerts
         +list~dict~ fast_flux_alerts
         +list~dict~ lateral_movement_events
+        +list~dict~ exfiltration_alerts
         +list~dict~ plugin_runs
         +list~dict~ flow_anomalies
         +list~tuple~str, str, dict~~ topology_edges
@@ -2575,6 +2576,10 @@ classDiagram
         +cve_findings(fingerprints, conn) list~dict~str, Any~~
         +dga_findings(alerts) list~dict~str, Any~~
         +fast_flux_findings(alerts) list~dict~str, Any~~
+        +exfiltration_findings(alerts) list~dict~str, Any~~
+        +sequence_gap_findings(gaps) list~dict~str, Any~~
+        +cross_capture_duplicate_findings(duplicate_count) list~dict~str, Any~~
+        +extracted_file_findings(extraction) list~dict~str, Any~~
         +apply_security_findings(report, all_packets, detections, cve_conn, tls_policy, known_destinations) None
     }
 
