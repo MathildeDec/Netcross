@@ -36,7 +36,10 @@ from netcross_report.security_report import (
 )
 
 
+from netcross_core.i18n import setup_gettext
 from netcross_core.logging_config import get_logger
+
+_ = setup_gettext("netcross-report")
 
 logger = get_logger(__name__)
 # Teintes de severite. Choisies pour rester distinguables en niveaux de
@@ -157,7 +160,7 @@ def _e(valeur) -> str:
 
 def _badge(severite: str | None) -> str:
     if not severite:
-        return '<span class="badge" style="color:#374151;background:#f3f4f6">aucune CVE connue</span>'
+        return '<span class="badge" style="color:#374151;background:#f3f4f6">' + _e(_("aucune CVE connue")) + '</span>'
     avant, fond = _SEVERITY_COLORS.get(severite, _NEUTRAL)
     return f'<span class="badge" style="color:{avant};background:{fond}">{_e(severite)}</span>'
 
@@ -225,20 +228,20 @@ def _ligne_constat(i: dict, avec_cve: bool) -> str:
 
 def _cartes(d: dict) -> str:
     couleur = _SEVERITY_COLORS.get(d["level"] or "", _NEUTRAL)[0]
-    niveau = d["level"] or "aucun constat"
+    niveau = d["level"] or _("aucun constat")
     cartes = [
         f'<div class="carte" style="color:{couleur}">'
         f'<div class="valeur">{d["score"]}<span style="font-size:1rem;font-weight:400">/100</span></div>'
-        f'<div class="etiquette" style="color:inherit">score de risque &mdash; {_e(niveau)}</div>'
+        f'<div class="etiquette" style="color:inherit">{_e(_("score de risque"))} &mdash; {_e(niveau)}</div>'
         f'<div class="jauge"><span style="width:{d["score"]}%"></span></div>'
         "</div>",
         f'<div class="carte"><div class="valeur">{d["services_total"]}</div>'
-        f'<div class="etiquette">services detectes, dont {d["services_vulnerable"]} vulnerable(s)</div></div>',
+        f'<div class="etiquette">{_e(_("services detectes"))}, {_e(_("dont"))} {d["services_vulnerable"]} {_e(_("vulnerable(s)"))}</div></div>',
         f'<div class="carte"><div class="valeur">{d["exploits"]}</div>'
-        '<div class="etiquette">tentatives d\'exploitation</div></div>',
+        f'<div class="etiquette">{_e(_("tentatives d\'exploitation"))}</div></div>',
         f'<div class="carte"><div class="valeur">{d["anomalies"]}</div>'
-        '<div class="etiquette">anomalies (Expert Info)</div></div>',
-        f'<div class="carte"><div class="valeur">{d["cves"]}</div><div class="etiquette">CVE confirmees</div></div>',
+        f'<div class="etiquette">{_e(_("anomalies (Expert Info)"))}</div></div>',
+        f'<div class="carte"><div class="valeur">{d["cves"]}</div><div class="etiquette">{_e(_("CVE confirmees"))}</div></div>',
     ]
     repartition = " &middot; ".join(f"{_e(sev)} <strong>{d['by_severity'].get(sev, 0)}</strong>" for sev in SEVERITIES)
     cartes.append(
@@ -274,35 +277,35 @@ def render_security_html(
         f"<h1>{_e(title)}</h1>",
         f'<p class="sous-titre">Detection passive de vulnerabilites &mdash; genere le {_e(horodatage)}</p>',
         bloc_meta,
-        "<h2>Tableau de bord</h2>",
+        f"<h2>{_e(_('Tableau de bord'))}</h2>",
         _cartes(data["dashboard"]),
-        "<h2>Services detectes</h2>",
+        f"<h2>{_e(_('Services detectes'))}</h2>",
         _table(
             "t-services",
-            ["Criticite", "Service", "Cible", "Empreinte JA4/HASSH", "CVE", "Points"],
+            [_("Criticite"), _("Service"), _("Cible"), _("Empreinte JA4/HASSH"), _("CVE"), _("Points")],
             [_ligne_service(s) for s in data["services"]],
-            "aucun service identifie dans cette capture",
+            _("aucun service identifie dans cette capture"),
         ),
-        "<h2>Tentatives d'exploitation detectees</h2>",
+        f"<h2>{_e(_('Tentatives d\'exploitation detectees'))}</h2>",
         _table(
             "t-exploits",
-            ["Severite", "Detail", "Service", "Cible", "Point"],
+            [_("Severite"), _("Detail"), _("Service"), _("Cible"), _("Point")],
             [_ligne_constat(i, avec_cve=False) for i in data["exploits"]],
-            "aucune tentative d'exploitation detectee",
+            _("aucune tentative d'exploitation detectee"),
         ),
-        "<h2>Anomalies correlees (Expert Info)</h2>",
+        f"<h2>{_e(_('Anomalies correlees (Expert Info)'))}</h2>",
         _table(
             "t-anomalies",
-            ["Severite", "Detail", "Service", "Cible", "Point"],
+            [_("Severite"), _("Detail"), _("Service"), _("Cible"), _("Point")],
             [_ligne_constat(i, avec_cve=False) for i in data["anomalies"]],
-            "aucune anomalie correlee",
+            _("aucune anomalie correlee"),
         ),
-        "<h2>CVE confirmees</h2>",
+        f"<h2>{_e(_('CVE confirmees'))}</h2>",
         _table(
             "t-cves",
-            ["Severite", "CVE", "CVSS", "Detail", "Service", "Cible", "Point"],
+            [_("Severite"), _("CVE"), _("CVSS"), _("Detail"), _("Service"), _("Cible"), _("Point")],
             [_ligne_constat(i, avec_cve=True) for i in data["cves"]],
-            "aucune CVE confirmee",
+            _("aucune CVE confirmee"),
         ),
         '<p class="pied">Netcross &mdash; analyse passive : aucun paquet n\'a ete emis vers les '
         "hotes listes. Une empreinte ou une banniere peut etre forgee&nbsp;; un service absent de "
