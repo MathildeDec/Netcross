@@ -12,10 +12,13 @@ Deux besoins justifient un système de plugins, et seulement eux :
 ```python
 class Detector(Protocol):
     name: str
+
     def analyse(self, contexte: DetectorContext) -> list[dict]: ...
+
 
 class Exporter(Protocol):
     name: str
+
     def export(self, report, chemin: Path) -> None: ...
 ```
 
