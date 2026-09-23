@@ -594,7 +594,12 @@ def _executer(chemin_script, *args):
 
 @pytest.mark.parametrize(
     "script",
-    ["src/cross_capture_analyzer_cli.py", "src/cross_capture_diff_cli.py", "src/cross_history_cli.py"],
+    [
+        "src/cross_capture_analyzer_cli.py",
+        "src/cross_capture_diff_cli.py",
+        "src/cross_history_cli.py",
+        "src/cross_capture_batch_cli.py",
+    ],
 )
 def test_chaque_cli_repond_a_help_en_sous_processus(script):
     """Verifie le point d'entree reel, pas seulement `main()` importe : un
@@ -612,6 +617,7 @@ def test_chaque_cli_repond_a_help_en_sous_processus(script):
         ("src/cross_capture_analyzer_cli.py", "--capture"),
         ("src/cross_capture_diff_cli.py", "--baseline"),
         ("src/cross_history_cli.py", "--db"),
+        ("src/cross_capture_batch_cli.py", "--input"),
     ],
 )
 def test_chaque_cli_sans_argument_explique_ce_qui_manque(script, attendu):

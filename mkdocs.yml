@@ -54,6 +54,7 @@ nav:
   - Utilisation:
       - API REST: api-rest.md
       - Filtres BPF: bpf-filters.md
+      - Mode batch: batch-mode.md
   - Analyses:
       - Rapport de sécurité: security-report.md
       - Empreintes JA4/HASSH: fingerprints-ja4-hassh.md

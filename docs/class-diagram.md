@@ -11,7 +11,7 @@
 > Il remplace l'ancienne section 3 de `docs/features-backlog.md`, tenue à la main, qui avait dérivé
 > (voir `docs/sessions/session-36.md`, issue #140).
 
-123 modules · 172 classes · 361 fonctions publiques de module.
+125 modules · 177 classes · 376 fonctions publiques de module.
 
 Conventions : `+` public, `-` privé (préfixe `_`) ; `int?` = `int | None` ; `list~str~` = `list[str]` ;
 `<<module>>` regroupe les fonctions publiques d'un module ; `A --> B : champ` = `A` a un champ annoté
@@ -31,8 +31,8 @@ flowchart TD
     netcross_report["netcross_report"]
     netcross_core["netcross_core"]
     pcap_parser["pcap_parser"]
-    CLI -->|"14 imports"| netcross_report
-    CLI -->|"16 imports"| netcross_core
+    CLI -->|"15 imports"| netcross_report
+    CLI -->|"20 imports"| netcross_core
     CLI -->|"3 imports"| pcap_parser
     netcross_gtk4 -->|"10 imports"| netcross_report
     netcross_gtk4 -->|"18 imports"| netcross_core
@@ -373,6 +373,7 @@ classDiagram
 | `netcross_core.analysis` | coeur analytique : construit un Report a partir des flux correles (pertes, latence, TTL/topologie, QoS, fragmentation, saturation/bufferbloat, TCP avance, VLAN, decalage d'horloge, RTP, decomposition… |
 | `netcross_core.baseline_diff` | compare deux Report (avant/apres un correctif, site A / site B, ou toute paire de scenarios comparables) et produit des constats de regression/amelioration. |
 | `netcross_core.baseline_profile` | profil de reference dynamique construit a partir de l'historique SQLite (Job 12/issue #9, section 8.5 de FEATURES.md). |
+| `netcross_core.batch` | Mode batch : inventaire d'un dossier de captures et regroupement automatique CONSERVATEUR des captures qui semblent etre plusieurs points de vue d'un meme evenement (issue #277). |
 | `netcross_core.bpf_filters` | catalogue de filtres BPF predefinis et filtres sauvegardes par l'utilisateur (Job 47 / issue #167). |
 | `netcross_core.causality` | moteur de correlation causale (Session 3 de la section 13.3 de FEATURES.md, Job 4/issue #4). |
 | `netcross_core.client_diff` | comparaison "client vs client" : meme capture, memes points, seule la source (l'IP du poste) change. |
@@ -488,6 +489,68 @@ classDiagram
         +build_baseline_profile(metric, values) BaselineProfile
         +load_baseline_from_db(db_path, metric, label, limit) BaselineProfile?
         +load_all_baselines(db_path, label, limit) list~BaselineProfile~
+    }
+
+    %% ===== netcross_core.batch =====
+    class CaptureInventory {
+        <<dataclass>>
+        +str label
+        +str path
+        +int packet_count
+        +float? start
+        +float? end
+        +set~str~ ips
+        +dict~tuple~str, str~, float~ pairs
+        +set~str~ protocols
+        +str? error
+        +duration() float
+        +to_dict() dict
+        +from_dict(data)$ CaptureInventory
+    }
+    class PairEvaluation {
+        <<dataclass>>
+        +str a
+        +str b
+        +float overlap_ratio
+        +float? overlap_start
+        +float? overlap_end
+        +list~str~ common_ips
+        +list~tuple~str, str~~ common_pairs
+        +list~str~ common_protocols
+        +float? clock_offset
+        +bool offset_applied
+        +list~str~ failed
+        +compatible() bool
+        +score() int
+    }
+    class CaptureGroup {
+        <<dataclass>>
+        +list~CaptureInventory~ members
+        +list~PairEvaluation~ evaluations
+        +labels() list~str~
+    }
+    class IsolatedCapture {
+        <<dataclass>>
+        +CaptureInventory capture
+        +str reason
+    }
+    class BatchPlan {
+        <<dataclass>>
+        +int total
+        +list~CaptureGroup~ groups
+        +list~IsolatedCapture~ isolated
+        +list~CaptureInventory~ failures
+        +bool grouping_enabled
+        +grouped_count() int
+        +check_invariant() None
+    }
+    class mod_netcross_core_batch["netcross_core.batch"] {
+        <<module>>
+        +inventory_from_packets(label, path, packets) CaptureInventory
+        +evaluate_pair(a, b, min_overlap, min_common_ips, group_window) PairEvaluation
+        +justify(ev) str
+        +plan_batch(inventories, group, min_overlap, min_common_ips, group_window) BatchPlan
+        +format_batch_index(plan, folder, group_reports, capture_reports, synthesis) str
     }
 
     %% ===== netcross_core.bpf_filters =====
@@ -1445,6 +1508,12 @@ classDiagram
 
     %% ===== relations =====
     DiffFinding --> EvidenceLink : evidence
+    CaptureGroup --> CaptureInventory : members
+    CaptureGroup --> PairEvaluation : evaluations
+    IsolatedCapture --> CaptureInventory : capture
+    BatchPlan --> CaptureGroup : groups
+    BatchPlan --> CaptureInventory : failures
+    BatchPlan --> IsolatedCapture : isolated
     ClientReport --> ClientSignature : signature
     ClientReport --> Report : report
     ClientComparisonResult --> ClientReport : clients
@@ -3147,6 +3216,7 @@ classDiagram
 | Module | Rôle |
 |---|---|
 | `cross_capture_analyzer_cli` | cross_capture_analyzer_cli.py -- interface en ligne de commande pour netcross_core. |
+| `cross_capture_batch_cli` | Mode batch (issue #277) : expertise de toutes les captures d'un dossier, et analyse croisee automatique des captures qui semblent etre plusieurs points de vue d'un meme evenement. |
 | `cross_capture_diff_cli` | cross_capture_diff_cli.py -- compare deux jeux de captures (avant/apres un correctif, site A / site B...) et remonte les regressions et ameliorations entre les deux runs. |
 | `cross_history_cli` | cross_history_cli.py -- interroge une base d'historique SQLite deja alimentee par cross_capture_analyzer_cli.py/cross_capture_diff_cli.py (--history-db), sans relancer d'analyse ni de comparaison. |
 
@@ -3160,6 +3230,21 @@ classDiagram
     class mod_cross_capture_analyzer_cli["cross_capture_analyzer_cli"] {
         <<module>>
         +main()
+    }
+
+    %% ===== cross_capture_batch_cli =====
+    class mod_cross_capture_batch_cli["cross_capture_batch_cli"] {
+        <<module>>
+        +list_captures(folder, recursive) tuple~list~str~, list~str~~
+        +make_labels(paths) dict~str, str~
+        +build_inventory(label, path) CaptureInventory
+        +load_cached_inventory(output, label, path) CaptureInventory?
+        +save_cached_inventory(output, inv) None
+        +collect_inventories(paths, labels, output, jobs, skip_existing) list~CaptureInventory~
+        +analyse_and_write(members, out_path, security) dict
+        +run_analyses(plan, output, security, skip_existing)
+        +build_synthesis(plan, summaries, errors, ignored, security) list~str~
+        +main(argv)
     }
 
     %% ===== cross_capture_diff_cli =====
