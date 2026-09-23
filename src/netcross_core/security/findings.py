@@ -131,6 +131,11 @@ def exploit_findings(detections: Iterable[Detection]) -> list[dict[str, Any]]:
                 "host": d.dst,
                 "port": d.dport,
                 "point": d.point or None,
+                # pour les exports SIEM (issue #279) : source, signature et
+                # CVE structurees, sans reanalyser le texte de `detail`
+                "src": d.src,
+                "signature_id": d.signature_id,
+                "cves": list(d.cves),
                 "_count": 1,
             }
         else:

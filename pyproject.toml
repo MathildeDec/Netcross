@@ -32,6 +32,9 @@ dev = [
     "import-linter>=2.13",
     "pre-commit>=4.0",
     "mypy>=1.10",
+    # validation des bundles STIX 2.1 dans les tests (issue #279) ; 3.3.x est
+    # publie sans les schemas OASIS (schemas-2.1 absent du wheel)
+    "stix2-validator>=3.2,<3.3",
 ]
 # API REST (issue #209) : jamais obligatoire pour le cœur ou les rapports.
 # Installé avec : pip install -e ".[api]" ou uv sync --extra api
