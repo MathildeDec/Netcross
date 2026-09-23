@@ -207,11 +207,12 @@ def _ligne_constat(i: dict, avec_cve: bool) -> str:
     service = i.get("service")
     if service and i.get("version"):
         service = f"{service} {i['version']}"
+    plugin = f' <span class="mono">[plugin {_e(i["plugin"])}]</span>' if i.get("plugin") else ""
     return (
         "<tr>"
         f"<td>{_badge(i.get('severity'))}</td>"
         f"{colonnes_cve}"
-        f"<td>{_e(i.get('detail'))}</td>"
+        f"<td>{_e(i.get('detail'))}{plugin}</td>"
         f"<td>{_e(service)}</td>"
         f'<td class="mono">{_cible(i.get("host"), i.get("port"))}</td>'
         f"<td>{_e(i.get('point'))}</td>"
@@ -301,6 +302,7 @@ def render_security_html(
             "aucune CVE confirmee",
         ),
         _notifications(data.get("notifications") or []),
+        _plugins(data.get("plugins") or []),
         '<p class="pied">Netcross &mdash; analyse passive : aucun paquet n\'a ete emis vers les '
         "hotes listes. Une empreinte ou une banniere peut etre forgee&nbsp;; un service absent de "
         "ce rapport n'est pas un service absent du reseau, seulement un service qui n'a pas parle "
@@ -324,6 +326,12 @@ def _notifications(items: list[dict]) -> str:
         return ""
     lignes = "".join(f"<li>{_e(i.get('line', ''))}</li>" for i in items)
     return f'<h2>Notifications</h2><ul id="notifications">{lignes}</ul>'
+def _plugins(items: list[dict]) -> str:
+    """Tracabilite des plugins (issue #284) ; rien si aucun plugin demande."""
+    if not items:
+        return ""
+    lignes = "".join(f"<li>{_e(i.get('line', ''))}</li>" for i in items)
+    return f'<h2>Plugins</h2><ul id="plugins">{lignes}</ul>'
 
 
 def generate_security_html(
