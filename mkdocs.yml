@@ -55,6 +55,7 @@ nav:
       - API REST: api-rest.md
       - Filtres BPF: bpf-filters.md
       - Mode batch: batch-mode.md
+      - Capture distante: capture-distante.md
   - Analyses:
       - Rapport de sécurité: security-report.md
       - Export SIEM (CEF, LEEF, STIX): siem-export.md
