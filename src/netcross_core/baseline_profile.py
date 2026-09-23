@@ -30,6 +30,10 @@ import sqlite3
 import statistics
 from dataclasses import dataclass, field
 
+from netcross_core.logging_config import get_logger
+logger = get_logger(__name__)
+
+
 
 @dataclass
 class BaselineProfile:
@@ -130,6 +134,7 @@ def _extract_metrics_from_row(row: sqlite3.Row) -> dict[str, float]:
             for sev, count in counts.items():
                 metrics[f"finding_count:{sev}"] = float(count)
     except (json.JSONDecodeError, TypeError):
+        logger.exception("JSONDecodeError|TypeError")
         pass
 
     return metrics
@@ -157,6 +162,7 @@ def load_baseline_from_db(
         conn = sqlite3.connect(db_path)
         conn.row_factory = sqlite3.Row
     except sqlite3.Error:
+        logger.exception("Error")
         return None
 
     try:
@@ -174,6 +180,7 @@ def load_baseline_from_db(
 
         rows = conn.execute(query, params).fetchall()
     except sqlite3.Error:
+        logger.exception("Error")
         conn.close()
         return None
     finally:
@@ -208,6 +215,7 @@ def load_all_baselines(
         conn = sqlite3.connect(db_path)
         conn.row_factory = sqlite3.Row
     except sqlite3.Error:
+        logger.exception("Error")
         return []
 
     try:
@@ -225,6 +233,7 @@ def load_all_baselines(
 
         rows = conn.execute(query, params).fetchall()
     except sqlite3.Error:
+        logger.exception("Error")
         conn.close()
         return []
     finally:

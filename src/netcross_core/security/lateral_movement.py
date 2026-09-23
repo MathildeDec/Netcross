@@ -73,6 +73,7 @@ def _is_internal(ip: str) -> bool:
     try:
         addr = ipaddress.ip_address(ip)
     except ValueError:
+        logger.exception("ValueError")
         return False
     return addr.is_private or addr.is_link_local
 
@@ -195,6 +196,7 @@ def detect_host_scans(
             try:
                 addrs = sorted(ipaddress.ip_address(h) for h in hosts)
             except ValueError:
+                logger.exception("ValueError")
                 continue
             # Grouper par /24 et chercher des plages consecutives.
             by_prefix: dict[str, list[int]] = defaultdict(list)

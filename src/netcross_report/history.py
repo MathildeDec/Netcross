@@ -60,6 +60,10 @@ from dataclasses import dataclass
 from netcross_report.synthesis import build_findings
 from netcross_report.triage import HEALTH_LABELS, health_label, health_score, rank_segments
 
+from netcross_core.logging_config import get_logger
+logger = get_logger(__name__)
+
+
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS runs (
     id INTEGER PRIMARY KEY AUTOINCREMENT,
@@ -137,6 +141,7 @@ def _executer_schema(conn, db_path) -> None:
     try:
         conn.executescript(_SCHEMA)
     except sqlite3.DatabaseError as exc:
+        logger.exception("DatabaseError")
         raise HistoryDatabaseError(_message_base_invalide(db_path, exc)) from exc
 
 

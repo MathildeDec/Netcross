@@ -86,6 +86,7 @@ def main():
     except HistoryDatabaseError as exc:
         # Un fichier qui existe mais n'est pas une base netcross : message
         # nommant le chemin plutot qu'une trace sqlite3 brute (issue #287).
+        logger.exception("HistoryDatabaseError")
         print(exc, file=sys.stderr)
         sys.exit(1)
     print_history(entries)

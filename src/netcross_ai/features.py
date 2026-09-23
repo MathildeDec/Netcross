@@ -10,6 +10,10 @@ from __future__ import annotations
 import math
 from statistics import mean, pstdev
 
+from netcross_core.logging_config import get_logger
+logger = get_logger(__name__)
+
+
 FEATURE_NAMES: tuple[str, ...] = (
     "log_paquets",
     "log_octets",
@@ -43,6 +47,7 @@ def _size_counts(flow: dict) -> dict[float, int]:
         try:
             counts[float(size)] = int(n)
         except (TypeError, ValueError):  # noqa: PERF203 -- entree JSON externe, rare
+            logger.exception("TypeError|ValueError")
             continue
     return counts
 

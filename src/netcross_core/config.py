@@ -53,14 +53,20 @@ import os
 from dataclasses import dataclass, field
 from pathlib import Path
 
+from netcross_core.logging_config import get_logger
+logger = get_logger(__name__)
+
+
 # tomllib est dans la stdlib depuis Python 3.11.
 # Pour 3.9-3.10, tomli est un fallback optionnel.
 try:
     import tomllib
 except ModuleNotFoundError:  # pragma: no cover
+    logger.exception("ModuleNotFoundError")
     try:
         import tomli as tomllib  # type: ignore[no-redef]
     except ModuleNotFoundError:
+        logger.exception("ModuleNotFoundError")
         tomllib = None  # type: ignore[assignment]
 
 

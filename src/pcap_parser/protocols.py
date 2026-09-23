@@ -15,6 +15,20 @@ from __future__ import annotations
 
 from pcap_parser.ek_fields import as_bool, as_float, g, hex_or_dec_to_int, innermost
 
+class _LazyLogger:
+    """Proxy lazy pour loguru — evite les imports circulaires pcap_parser <-> netcross_core."""
+    _real = None
+    def _ensure(self):
+        if _LazyLogger._real is None:
+            from netcross_core.logging_config import get_logger
+            _LazyLogger._real = get_logger(__name__)
+        return _LazyLogger._real
+    def __getattr__(self, name):
+        return getattr(self._ensure(), name)
+
+logger = _LazyLogger()
+
+
 try:  # cryptography est une dependance du projet ; son absence degrade l'extraction, ne la casse pas
     from cryptography import x509 as _x509
     from cryptography.exceptions import UnsupportedAlgorithm as _UnsupportedAlgorithm
@@ -24,6 +38,7 @@ try:  # cryptography est une dependance du projet ; son absence degrade l'extrac
     from cryptography.hazmat.primitives.asymmetric import ed25519 as _ed25519
     from cryptography.hazmat.primitives.asymmetric import rsa as _rsa
 except ImportError:  # pragma: no cover - exercee seulement sans cryptography
+    logger.exception("ImportError")
     _x509 = None  # type: ignore[assignment]
 
 # Table de correspondance code -> nom, cf. RFC 2132 section 9.6 (option
@@ -156,6 +171,7 @@ def _parse_sip_heuristic(payload: bytes) -> dict | None:
     try:
         text = payload.decode("utf-8", errors="replace")
     except (AttributeError, UnicodeError):
+        logger.exception("AttributeError|UnicodeError")
         return None
     lines = text.split("\r\n") if "\r\n" in text else text.split("\n")
     if not lines:
@@ -298,6 +314,7 @@ def _public_key_summary(cert) -> tuple[str | None, int | None]:
     try:
         key = cert.public_key()
     except (ValueError, _UnsupportedAlgorithm):
+        logger.exception("ValueError|_UnsupportedAlgorithm")
         return None, None
     if isinstance(key, _rsa.RSAPublicKey):
         return "RSA", key.key_size
@@ -318,6 +335,7 @@ def _signature_hash(cert) -> str | None:
     try:
         algo = cert.signature_hash_algorithm
     except _UnsupportedAlgorithm:
+        logger.exception("_UnsupportedAlgorithm")
         return _UNMAPPED_SIGNATURE_HASHES.get(cert.signature_algorithm_oid.dotted_string)
     return algo.name if algo is not None else None
 
@@ -343,12 +361,14 @@ def _certificate_details(tls: dict) -> dict:
     try:
         leaf = _x509.load_der_x509_certificate(bytes.fromhex(str(blobs[0]).replace(":", "")))
     except ValueError:
+        logger.exception("ValueError")
         return {}
     key_type, key_bits = _public_key_summary(leaf)
     try:
         san = leaf.extensions.get_extension_for_class(_x509.SubjectAlternativeName).value
         san_ip = tuple(str(ip) for ip in san.get_values_for_type(_x509.IPAddress))
     except (_x509.ExtensionNotFound, ValueError):
+        logger.exception("ExtensionNotFound|ValueError")
         san_ip = ()
     return {
         "issuer": leaf.issuer.rfc4514_string(),

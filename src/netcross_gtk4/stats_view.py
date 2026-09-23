@@ -205,3 +205,7 @@ __all__ = [
     "run_stats",
     "sort_options",
 ]
+
+from netcross_core.logging_config import get_logger
+logger = get_logger(__name__)
+

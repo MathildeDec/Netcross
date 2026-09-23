@@ -33,6 +33,10 @@ from __future__ import annotations
 import hashlib
 import struct
 
+from netcross_core.logging_config import get_logger
+logger = get_logger(__name__)
+
+
 _TLS_HANDSHAKE_CONTENT_TYPE = 0x16
 _CLIENT_HELLO_TYPE = 0x01
 
@@ -97,6 +101,7 @@ def parse_client_hello(payload: bytes) -> dict | None:
     try:
         return _parse_client_hello(payload)
     except (IndexError, struct.error, UnicodeError):
+        logger.exception("IndexError|error|UnicodeError")
         return None
 
 

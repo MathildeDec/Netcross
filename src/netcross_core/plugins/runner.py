@@ -100,6 +100,7 @@ def run_detectors(detectors: list[Detector], packets: list[Any], report: Any) ->
             try:
                 finding = validate_finding(item)
             except InvalidFindingError as exc:
+                logger.exception("InvalidFindingError")
                 problems.append(str(exc))
                 continue
             finding["plugin"] = name

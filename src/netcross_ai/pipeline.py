@@ -10,6 +10,10 @@ from netcross_ai.anomaly import Baseline, detect_anomalies
 from netcross_ai.flow_classifier import FlowClassifier, export_training_set, load_training_set
 from netcross_ai.report_writer import write_summary
 
+from netcross_core.logging_config import get_logger
+logger = get_logger(__name__)
+
+
 AI_SCHEMA = "netcross.ai/1"
 
 

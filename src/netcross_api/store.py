@@ -13,6 +13,10 @@ from typing import Any
 
 from netcross_core.models import Report
 
+from netcross_core.logging_config import get_logger
+logger = get_logger(__name__)
+
+
 
 class AnalysesStore:
     """Store en mémoire des analyses : ID → (Report, metadata)."""

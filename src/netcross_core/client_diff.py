@@ -35,6 +35,10 @@ from netcross_core.baseline_diff import diff_reports
 from netcross_core.correlate import correlate
 from netcross_core.models import Report
 
+from netcross_core.logging_config import get_logger
+logger = get_logger(__name__)
+
+
 _SEVERITY_MARKERS = {
     "regression": "[REGRESSION]",
     "amelioration": "[MIEUX]",

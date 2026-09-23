@@ -39,6 +39,10 @@ from pathlib import Path
 
 from netcross_core.models import BPFFilter
 
+from netcross_core.logging_config import get_logger
+logger = get_logger(__name__)
+
+
 #: Version du format du fichier de sauvegarde (cle ``version``). Incrementee
 #: si la structure change de facon incompatible ; le chargeur actuel ignore
 #: la valeur (un fichier sans ``version``, ou une simple liste, est accepte).
@@ -114,6 +118,7 @@ def save_bpf_filters(filters: Iterable[BPFFilter], path: str | Path | None = Non
         tmp.write_text(payload, encoding="utf-8")
         os.replace(tmp, target)
     except BaseException:
+        logger.exception("BaseException")
         tmp.unlink(missing_ok=True)
         raise
     return target
@@ -152,8 +157,10 @@ def load_bpf_filters(path: str | Path | None = None) -> list[BPFFilter]:
     try:
         data = json.loads(source.read_text(encoding="utf-8"))
     except FileNotFoundError:
+        logger.exception("FileNotFoundError")
         return []
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        logger.exception("UnicodeDecodeError|JSONDecodeError")
         raise ValueError(f"filtres BPF: fichier illisible {source}: {exc}") from exc
     if isinstance(data, dict):
         if "filters" not in data:

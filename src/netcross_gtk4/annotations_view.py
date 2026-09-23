@@ -22,6 +22,10 @@ from __future__ import annotations
 from netcross_core.forensic import annotations_by_tag
 from netcross_core.models import PacketAnnotation
 
+from netcross_core.logging_config import get_logger
+logger = get_logger(__name__)
+
+
 
 def available_tags(annotations: list[PacketAnnotation]) -> list[str]:
     """Liste triee des tags distincts presents, pour peupler la ListBox

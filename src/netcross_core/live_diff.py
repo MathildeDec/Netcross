@@ -226,6 +226,7 @@ class LiveDiffEngine:
                     self._evaluate_diff()
                     self.state.last_eval_ts = now
         except Exception:
+            logger.exception("Exception")
             if self.state.running:
                 self.state.running = False
             raise
@@ -291,3 +292,7 @@ __all__ = [
     "LiveDiffState",
     "finding_to_alarm_signal",
 ]
+
+from netcross_core.logging_config import get_logger
+logger = get_logger(__name__)
+

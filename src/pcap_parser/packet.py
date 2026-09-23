@@ -40,6 +40,20 @@ from pcap_parser.protocols import (
 )
 from pcap_parser.tunnels import detect_encapsulation, select_innermost_layers
 
+class _LazyLogger:
+    """Proxy lazy pour loguru — evite les imports circulaires pcap_parser <-> netcross_core."""
+    _real = None
+    def _ensure(self):
+        if _LazyLogger._real is None:
+            from netcross_core.logging_config import get_logger
+            _LazyLogger._real = get_logger(__name__)
+        return _LazyLogger._real
+    def __getattr__(self, name):
+        return getattr(self._ensure(), name)
+
+logger = _LazyLogger()
+
+
 
 def _intern(value: str | None) -> str | None:
     """sys.intern() tolerant a None -- chaque ligne NDJSON `tshark -T ek`

@@ -24,6 +24,10 @@ from typing import Any
 
 from netcross_core.support.scrubber import TextScrubber
 
+from netcross_core.logging_config import get_logger
+logger = get_logger(__name__)
+
+
 SEVERITIES = ("critique", "elevee", "moyenne", "faible")
 DETAIL_LEVELS = ("resume", "complet")
 TOP_FINDINGS = 3
@@ -39,6 +43,7 @@ def severity_rank(severity: str | None) -> int:
     try:
         return SEVERITIES.index(str(severity).lower())
     except ValueError:
+        logger.exception("ValueError")
         return len(SEVERITIES)
 
 

@@ -25,6 +25,10 @@ from urllib.parse import urlparse
 
 from netcross_core.notify.summary import NotificationSummary
 
+from netcross_core.logging_config import get_logger
+logger = get_logger(__name__)
+
+
 DEFAULT_TIMEOUT = 10.0
 _USER_AGENT = "netcross-notify/1.0"
 
@@ -78,8 +82,10 @@ def _post_json(url: str, payload: dict[str, Any], timeout: float) -> None:
             if not 200 <= response.status < 300:
                 raise NotifyError(f"HTTP {response.status}")
     except NotifyError:
+        logger.exception("NotifyError")
         raise
     except (OSError, ValueError) as exc:
+        logger.exception("OSError|ValueError")
         raise NotifyError(_reason(exc)) from exc
 
 
@@ -144,6 +150,7 @@ class SlackNotifier:
         try:
             _post_json(self.url, {"text": text, "blocks": slack_blocks(summary)}, self.timeout)
         except NotifyError as exc:
+            logger.exception("NotifyError")
             if str(exc) != "HTTP 400":
                 raise
             self.degraded = True
@@ -191,5 +198,6 @@ class EmailNotifier:
                     smtp.login(self.username, self.password or "")
                 smtp.send_message(msg)
         except (OSError, smtplib.SMTPException) as exc:
+            logger.exception("OSError|SMTPException")
             raise NotifyError(_reason(exc)) from exc
         return True

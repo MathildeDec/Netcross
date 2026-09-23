@@ -39,6 +39,10 @@ from pathlib import Path
 
 from pcap_parser.protocols import compute_mos
 
+from netcross_core.logging_config import get_logger
+logger = get_logger(__name__)
+
+
 # PT statiques (RFC 3551) : nom, horloge, nature.
 _STATIC_PT: dict[int, tuple[str, int, str]] = {
     0: ("PCMU", 8000, "audio"),

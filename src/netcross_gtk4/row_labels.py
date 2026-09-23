@@ -31,6 +31,10 @@ pas » ; un champ disparu laisse croire qu'il n'y avait rien a dire.
 
 from __future__ import annotations
 
+from netcross_core.logging_config import get_logger
+logger = get_logger(__name__)
+
+
 
 def timeline_row_label(row) -> str:
     return f"{row['label']} — {row['loss_events']} perte(s)"

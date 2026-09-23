@@ -21,6 +21,10 @@ import json
 from netcross_report.synthesis import build_findings
 from netcross_report.triage import health_label, health_score, rank_segments
 
+from netcross_core.logging_config import get_logger
+logger = get_logger(__name__)
+
+
 
 def _evidence_list_dict(evidence) -> list[dict]:
     """Serialise une liste d'EvidenceLink -- factorise entre _finding_dict

@@ -33,6 +33,10 @@ import statistics
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 
+from netcross_core.logging_config import get_logger
+logger = get_logger(__name__)
+
+
 # Ports des services d'infrastructure omnipresents (DNS, NTP, DHCP, mDNS,
 # LLMNR, NetBIOS, SSDP) : une IP qui n'apparait QUE dans ce trafic (le
 # resolveur, le serveur NTP...) est presente dans toutes les captures d'un
@@ -104,6 +108,7 @@ def _is_meaningful_ip(addr: str) -> bool:
     try:
         ip = ipaddress.ip_address(addr)
     except ValueError:
+        logger.exception("ValueError")
         return False
     if ip.is_multicast or ip.is_unspecified or ip.is_loopback or ip.is_link_local:
         return False

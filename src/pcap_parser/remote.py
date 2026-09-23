@@ -41,6 +41,20 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from urllib.parse import parse_qs, unquote
 
+class _LazyLogger:
+    """Proxy lazy pour loguru — evite les imports circulaires pcap_parser <-> netcross_core."""
+    _real = None
+    def _ensure(self):
+        if _LazyLogger._real is None:
+            from netcross_core.logging_config import get_logger
+            _LazyLogger._real = get_logger(__name__)
+        return _LazyLogger._real
+    def __getattr__(self, name):
+        return getattr(self._ensure(), name)
+
+logger = _LazyLogger()
+
+
 ENV_RPCAP_PASSWORD = "NETCROSS_RPCAP_PASSWORD"
 ENV_SSH_PASSWORD = "NETCROSS_SSH_PASSWORD"
 RPCAP_DEFAULT_PORT = 2002
@@ -116,10 +130,12 @@ def _check_host(host: str) -> str:
         try:
             return str(ipaddress.IPv6Address(host[1:-1]))
         except ValueError:
+            logger.exception("ValueError")
             raise CaptureSourceError(f"adresse IPv6 invalide : {host}") from None
     try:
         return str(ipaddress.IPv4Address(host))
     except ValueError:
+        logger.exception("ValueError")
         pass
     if _HOSTNAME_RE.match(host):
         return host
@@ -247,6 +263,7 @@ def _parse_pipe(body: str) -> CaptureSource:
     try:
         mode = os.stat(path).st_mode
     except OSError:
+        logger.exception("OSError")
         raise CaptureSourceError(f"tube nomme introuvable : {path} (le creer avec mkfifo)") from None
     if not stat.S_ISFIFO(mode):
         raise CaptureSourceError(f"{path} n'est pas un tube nomme (pour un fichier, utiliser --capture)")
@@ -285,4 +302,5 @@ def source_display(text: str) -> str:
     try:
         return parse_source(text, env={}).display
     except CaptureSourceError:
+        logger.exception("CaptureSourceError")
         return text

@@ -17,6 +17,20 @@ from __future__ import annotations
 
 from typing import Any
 
+class _LazyLogger:
+    """Proxy lazy pour loguru — evite les imports circulaires pcap_parser <-> netcross_core."""
+    _real = None
+    def _ensure(self):
+        if _LazyLogger._real is None:
+            from netcross_core.logging_config import get_logger
+            _LazyLogger._real = get_logger(__name__)
+        return _LazyLogger._real
+    def __getattr__(self, name):
+        return getattr(self._ensure(), name)
+
+logger = _LazyLogger()
+
+
 
 def layer(layers: dict, key: str) -> dict | None:
     """Couche unique (premiere/seule occurrence). None si absente."""
@@ -56,6 +70,7 @@ def as_int(value: Any, base: int = 10) -> int | None:
     try:
         return int(value, base) if isinstance(value, str) else int(value)
     except (TypeError, ValueError):
+        logger.exception("TypeError|ValueError")
         return None
 
 
@@ -107,6 +122,7 @@ def as_float(value: Any) -> float | None:
     try:
         return float(value)
     except (TypeError, ValueError):
+        logger.exception("TypeError|ValueError")
         return None
 
 
@@ -328,4 +344,5 @@ def as_bytes_from_hex_dump(value: Any) -> bytes:
     try:
         return bytes.fromhex(value.replace(":", ""))
     except ValueError:
+        logger.exception("ValueError")
         return b""

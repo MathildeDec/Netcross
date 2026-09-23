@@ -11,7 +11,7 @@
 > Il remplace l'ancienne section 3 de `docs/features-backlog.md`, tenue à la main, qui avait dérivé
 > (voir `docs/sessions/session-36.md`, issue #140).
 
-151 modules · 222 classes · 485 fonctions publiques de module.
+151 modules · 230 classes · 485 fonctions publiques de module.
 
 Conventions : `+` public, `-` privé (préfixe `_`) ; `int?` = `int | None` ; `list~str~` = `list[str]` ;
 `<<module>>` regroupe les fonctions publiques d'un module ; `A --> B : champ` = `A` a un champ annoté
@@ -34,15 +34,16 @@ flowchart TD
     pcap_parser["pcap_parser"]
     CLI -->|"17 imports"| netcross_report
     CLI -->|"8 imports"| netcross_ai
-    CLI -->|"31 imports"| netcross_core
+    CLI -->|"32 imports"| netcross_core
     CLI -->|"5 imports"| pcap_parser
     netcross_gtk4 -->|"10 imports"| netcross_report
-    netcross_gtk4 -->|"20 imports"| netcross_core
+    netcross_gtk4 -->|"31 imports"| netcross_core
     netcross_gtk4 -->|"1 import"| pcap_parser
-    netcross_api -->|"3 imports"| netcross_core
-    netcross_report -->|"13 imports"| netcross_core
-    netcross_ai -->|"1 import"| netcross_core
+    netcross_api -->|"6 imports"| netcross_core
+    netcross_report -->|"31 imports"| netcross_core
+    netcross_ai -->|"9 imports"| netcross_core
     netcross_core -->|"17 imports"| pcap_parser
+    pcap_parser -->|"7 imports"| netcross_core
 ```
 
 ## Relations inter-modules
@@ -120,6 +121,7 @@ classDiagram
     direction LR
 
     %% ===== pcap_parser.capfile =====
+    class pcap_parser_capfile__LazyLogger["pcap_parser.capfile._LazyLogger"]
     class InterfaceRecord {
         <<dataclass, frozen>>
         +int index
@@ -154,6 +156,7 @@ classDiagram
     }
 
     %% ===== pcap_parser.capinfos_source =====
+    class pcap_parser_capinfos_source__LazyLogger["pcap_parser.capinfos_source._LazyLogger"]
     class CaptureInfo {
         <<dataclass, frozen>>
         +str path
@@ -222,6 +225,7 @@ classDiagram
     }
 
     %% ===== pcap_parser.ek_fields =====
+    class pcap_parser_ek_fields__LazyLogger["pcap_parser.ek_fields._LazyLogger"]
     class mod_pcap_parser_ek_fields["pcap_parser.ek_fields"] {
         <<module>>
         +layer(layers, key) dict?
@@ -258,6 +262,7 @@ classDiagram
     }
 
     %% ===== pcap_parser.packet =====
+    class pcap_parser_packet__LazyLogger["pcap_parser.packet._LazyLogger"]
     class RawPacket {
         <<dataclass, slots>>
         +float ts
@@ -356,6 +361,7 @@ classDiagram
     }
 
     %% ===== pcap_parser.protocols =====
+    class pcap_parser_protocols__LazyLogger["pcap_parser.protocols._LazyLogger"]
     class mod_pcap_parser_protocols["pcap_parser.protocols"] {
         <<module>>
         +extract_rtp(layers, udp_payload) dict?
@@ -369,6 +375,7 @@ classDiagram
     }
 
     %% ===== pcap_parser.remote =====
+    class pcap_parser_remote__LazyLogger["pcap_parser.remote._LazyLogger"]
     class CaptureSourceError {
         <<ValueError>>
     }
@@ -390,6 +397,7 @@ classDiagram
     }
 
     %% ===== pcap_parser.tunnels =====
+    class pcap_parser_tunnels__LazyLogger["pcap_parser.tunnels._LazyLogger"]
     class mod_pcap_parser_tunnels["pcap_parser.tunnels"] {
         <<module>>
         +is_tunnel(layers) bool
@@ -1131,6 +1139,7 @@ classDiagram
     }
 
     %% ===== netcross_core.logging_config =====
+    class _NullLogger
     class mod_netcross_core_logging_config["netcross_core.logging_config"] {
         <<module>>
         +configure_logging(level) None

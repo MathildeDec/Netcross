@@ -17,6 +17,20 @@ from __future__ import annotations
 
 from pcap_parser.ek_fields import all_occurrences, g, hex_or_dec_to_int, innermost, layer
 
+class _LazyLogger:
+    """Proxy lazy pour loguru — evite les imports circulaires pcap_parser <-> netcross_core."""
+    _real = None
+    def _ensure(self):
+        if _LazyLogger._real is None:
+            from netcross_core.logging_config import get_logger
+            _LazyLogger._real = get_logger(__name__)
+        return _LazyLogger._real
+    def __getattr__(self, name):
+        return getattr(self._ensure(), name)
+
+logger = _LazyLogger()
+
+
 # Cles de couches EK qui signalent un vrai tunnel (l'IP/TCP/UDP le plus
 # interne doit etre utilise pour l'analyse, pas le premier trouve).
 # MPLS et VLAN ne sont PAS ici : ils ne re-encapsulent pas une nouvelle

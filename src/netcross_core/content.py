@@ -129,3 +129,7 @@ def objects_to_dicts(objects: list[HttpObject]) -> list[dict]:
 
 
 __all__ = ["HttpObject", "extract_http_objects", "objects_to_dicts"]
+
+from netcross_core.logging_config import get_logger
+logger = get_logger(__name__)
+

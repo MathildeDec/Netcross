@@ -45,6 +45,10 @@ from netcross_gtk4.dashboard_context import (
     select_protocol,
 )
 
+from netcross_core.logging_config import get_logger
+logger = get_logger(__name__)
+
+
 #: Nombre minimal de points de capture pour lancer une analyse croisee.
 #: Deux, par definition : l'outil compare ce que plusieurs points ont vu du
 #: meme trafic. Nomme plutot que repete en `>= 2` a quatre endroits, ou la

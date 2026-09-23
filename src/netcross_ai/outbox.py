@@ -28,6 +28,10 @@ from urllib.parse import urlencode
 
 from netcross_ai.model_pack import ModelPack, ModelPackError, check_name, read_pack, ticket_body
 
+from netcross_core.logging_config import get_logger
+logger = get_logger(__name__)
+
+
 DEFAULT_OUTBOX = Path.home() / ".netcross" / "outbox" / "modeles"
 DEFAULT_REPO = "MathildeDec/Netcross"
 TICKET_LABEL = "modeles"
@@ -67,6 +71,7 @@ def _try_read(path: Path) -> ModelPack | None:
     try:
         return read_pack(path)
     except ModelPackError:
+        logger.exception("ModelPackError")
         return None
 
 
@@ -107,4 +112,5 @@ def is_online(host: str = "github.com", port: int = 443, timeout: float = 3.0) -
         with socket.create_connection((host, port), timeout=timeout):
             return True
     except OSError:
+        logger.exception("OSError")
         return False

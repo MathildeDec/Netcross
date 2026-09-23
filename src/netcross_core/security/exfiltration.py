@@ -63,6 +63,10 @@ from datetime import datetime, timezone
 
 from netcross_core.models import Pkt
 
+from netcross_core.logging_config import get_logger
+logger = get_logger(__name__)
+
+
 # -- Constantes ---------------------------------------------------------------
 
 SIGNAL_HIGH_VOLUME = "high_volume"
@@ -200,6 +204,7 @@ def _is_global(addr: str) -> bool:
     try:
         return ipaddress.ip_address(addr).is_global
     except ValueError:
+        logger.exception("ValueError")
         return False
 
 

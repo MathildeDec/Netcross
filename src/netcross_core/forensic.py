@@ -55,6 +55,10 @@ from netcross_core.models import (
     SequenceGap,
 )
 
+from netcross_core.logging_config import get_logger
+logger = get_logger(__name__)
+
+
 # -- Detection de doublons inter-captures (Job 41/issue #161) ---------------
 
 # Delta maximal (ms) entre deux observations du meme payload a deux points

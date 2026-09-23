@@ -20,9 +20,22 @@ from __future__ import annotations
 import os
 import sys
 
-from loguru import logger as _logger
 
 _CONFIGURED = False
+_logger = None
+
+
+def _get_loguru():
+    """Import lazy de loguru pour etre fork-safe."""
+    global _logger
+    if _logger is not None:
+        return _logger
+    try:
+        from loguru import logger as lu
+        _logger = lu
+        return _logger
+    except Exception:
+        return None
 
 
 def configure_logging(level: str | None = None) -> None:
@@ -34,22 +47,44 @@ def configure_logging(level: str | None = None) -> None:
     if level is None:
         level = os.environ.get("NETCROSS_LOG_LEVEL", "INFO").upper()
 
-    _logger.remove()
-    _logger.add(
-        sys.stderr,
-        level=level,
-        format=(
-            "<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | "
-            "<level>{level: <8}</level> | "
-            "<cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - "
-            "<level>{message}</level>"
-        ),
-    )
+    lu = _get_loguru()
+    if lu is not None:
+        try:
+            lu.remove()
+            lu.add(
+                sys.stderr,
+                level=level,
+                format=(
+                    "<green>{time:YYYY-MM-DD HH:mm:ss.SSS}</green> | "
+                    "<level>{level: <8}</level> | "
+                    "<cyan>{name}</cyan>:<cyan>{function}</cyan>:<cyan>{line}</cyan> - "
+                    "<level>{message}</level>"
+                ),
+            )
+        except Exception:
+            pass
     _CONFIGURED = True
 
 
+class _NullLogger:
+    """Logger de repli si loguru est indisponible ou corrompu (apres fork)."""
+    def __getattr__(self, _name: str):
+        return lambda *a, **kw: None
+
+
 def get_logger(name: str):
-    """Retourne un logger loguru configuré pour le module ``name``."""
+    """Retourne un logger loguru configuré pour le module ``name``.
+
+    Fork-safe : retourne un logger nul si loguru est corrompu
+    (typiquement apres un fork() dans un ProcessPoolExecutor).
+    """
+    global _CONFIGURED
     if not _CONFIGURED:
         configure_logging()
-    return _logger.bind(name=name)
+    lu = _get_loguru()
+    if lu is None:
+        return _NullLogger()
+    try:
+        return lu.bind(name=name)
+    except Exception:
+        return _NullLogger()

@@ -32,6 +32,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from netcross_core.logging_config import get_logger
+logger = get_logger(__name__)
+
+
 # Du plus grave au moins grave : l'indice sert de rang de tri.
 SEVERITIES: tuple[str, ...] = ("critique", "elevee", "moyenne", "faible")
 
@@ -165,6 +169,7 @@ def _opt_int(value) -> int | None:
     try:
         return int(value)
     except (TypeError, ValueError):
+        logger.exception("TypeError|ValueError")
         return None
 
 
@@ -172,6 +177,7 @@ def _opt_float(value) -> float | None:
     try:
         return float(value)
     except (TypeError, ValueError):
+        logger.exception("TypeError|ValueError")
         return None
 
 

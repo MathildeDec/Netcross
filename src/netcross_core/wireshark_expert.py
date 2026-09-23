@@ -163,6 +163,10 @@ from __future__ import annotations
 from netcross_core.correlate import flow_key
 from netcross_core.expert_model import EvidenceLink, ExpertEvent, PacketEvidence
 
+from netcross_core.logging_config import get_logger
+logger = get_logger(__name__)
+
+
 # Flags tshark deja identifies par ce projet : (libelle lisible exact,
 # severite Netcross de REPLI -- vocabulaire Finding.severity, utilisee
 # seulement quand aucune severite NATIVE tshark n'est disponible pour ce

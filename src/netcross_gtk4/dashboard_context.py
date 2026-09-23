@@ -380,6 +380,7 @@ def _port(flow: Flow, side: int) -> str:
     try:
         return str(key[2] if side == 0 else key[4])
     except IndexError:
+        logger.exception("IndexError")
         return "?"
 
 
@@ -436,3 +437,7 @@ __all__ = [
     "select_point",
     "select_protocol",
 ]
+
+from netcross_core.logging_config import get_logger
+logger = get_logger(__name__)
+

@@ -37,6 +37,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from netcross_core.logging_config import get_logger
+logger = get_logger(__name__)
+
+
 # Valeurs de TTL initial standard, triees croissant -- voir docstring
 # du module pour la source (usage documente par p0f/nmap, pas une
 # empreinte precise de version d'OS).

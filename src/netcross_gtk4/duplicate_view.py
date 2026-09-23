@@ -31,3 +31,7 @@ def format_duplicate_indicator(report: Any) -> str:
 
 
 __all__ = ["format_duplicate_indicator"]
+
+from netcross_core.logging_config import get_logger
+logger = get_logger(__name__)
+

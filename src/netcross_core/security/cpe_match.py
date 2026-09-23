@@ -18,6 +18,10 @@ from __future__ import annotations
 import re
 from dataclasses import dataclass
 
+from netcross_core.logging_config import get_logger
+logger = get_logger(__name__)
+
+
 # Alias banniere -> (vendor, product) CPE 2.3, alignes sur le
 # dictionnaire officiel NVD (https://nvd.nist.gov/products/cpe/search).
 # Volontairement une liste courte de produits reseau courants plutot

@@ -648,6 +648,10 @@ from netcross_core.expert_rules import Rule, get_rule
 from netcross_core.models import Report
 from netcross_report.synthesis import Finding
 
+from netcross_core.logging_config import get_logger
+logger = get_logger(__name__)
+
+
 
 def _pct(n: int, d: int) -> float:
     """Copie volontaire de `synthesis._pct` (fonction PRIVEE de ce module
@@ -700,6 +704,7 @@ def _http_error_evidence(
         try:
             code = int(ex.rsplit(" ", 1)[-1])
         except ValueError:
+            logger.exception("ValueError")
             continue
         if code // 100 == status_class:
             texts.append(ex)

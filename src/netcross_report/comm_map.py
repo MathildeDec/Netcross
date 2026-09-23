@@ -30,6 +30,10 @@ Couche : `netcross_report` peut importer `netcross_core`, jamais l'inverse.
 
 from dataclasses import dataclass, field
 
+from netcross_core.logging_config import get_logger
+logger = get_logger(__name__)
+
+
 DEFAULT_TOP_N = 15
 """Aretes conservees par defaut quand un top-N est demande. Un graphe
 au-dela d'une quinzaine d'aretes cesse d'etre lisible a l'ecran, et la GUI

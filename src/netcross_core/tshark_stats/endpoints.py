@@ -22,6 +22,10 @@ from netcross_core.tshark_stats.parse_utils import (
     split_fields,
 )
 
+from netcross_core.logging_config import get_logger
+logger = get_logger(__name__)
+
+
 #: Ordre positionnel documente des colonnes numeriques d'un endpoint.
 _COL_ORDER = (
     "packets_total",

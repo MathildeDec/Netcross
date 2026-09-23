@@ -69,6 +69,7 @@ def setup(language: str | None = None) -> gettext.NullTranslations:
         try:
             found = gettext.translation(DOMAIN, localedir=str(localedir), languages=languages)
         except OSError:
+            logger.exception("OSError")
             continue
         break
     _translation = found
@@ -124,3 +125,7 @@ __all__ = [
     "requested_languages",
     "setup",
 ]
+
+from netcross_core.logging_config import get_logger
+logger = get_logger(__name__)
+
