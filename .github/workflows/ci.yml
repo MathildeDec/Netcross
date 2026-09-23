@@ -79,6 +79,11 @@ jobs:
           PYTHONPATH: src
         run: uv run python scripts/generate_openapi.py --check
 
+      - name: Cohérence des traductions i18n (issue #299)
+        # Vérifie que tous les .po couvrent les .pot et que les .mo sont à jour.
+        # Échec si une traduction manque ou si un .mo est périmé.
+        run: python3 scripts/check_i18n.py
+
       - name: Tests (pytest + couverture)
         # --cov sans chemin : source lue depuis [tool.coverage.run] (source =
         # ["src"]) dans pyproject.toml. term-missing dans les logs CI,

@@ -111,6 +111,9 @@ from netcross_report.comm_map import (  # noqa: E402
     build_comm_map,
     format_comm_map,
 )
+from netcross_core.i18n import setup_gettext  # noqa: E402
+
+_ = setup_gettext("netcross-gtk4")
 
 
 
@@ -161,7 +164,7 @@ class CaptureRow(Gtk.Box):
         self.label_entry = Gtk.Entry()
         self.label_entry.set_text(default_label)
         self.label_entry.set_width_chars(12)
-        self.label_entry.set_tooltip_text("Nom du point de capture (ex: LAN, WAN, DC)")
+        self.label_entry.set_tooltip_text(_("Nom du point de capture (ex: LAN, WAN, DC)"))
         self.append(self.label_entry)
 
         path_label = Gtk.Label(label=os.path.basename(path))
@@ -171,17 +174,17 @@ class CaptureRow(Gtk.Box):
         self.append(path_label)
 
         up_btn = Gtk.Button(icon_name="go-up-symbolic")
-        up_btn.set_tooltip_text("Monter (ordre = chemin physique reseau)")
+        up_btn.set_tooltip_text(_("Monter (ordre = chemin physique reseau)"))
         up_btn.connect("clicked", self._on_up)
         self.append(up_btn)
 
         down_btn = Gtk.Button(icon_name="go-down-symbolic")
-        down_btn.set_tooltip_text("Descendre")
+        down_btn.set_tooltip_text(_("Descendre"))
         down_btn.connect("clicked", self._on_down)
         self.append(down_btn)
 
         remove_btn = Gtk.Button(icon_name="user-trash-symbolic")
-        remove_btn.set_tooltip_text("Retirer cette capture")
+        remove_btn.set_tooltip_text(_("Retirer cette capture"))
         remove_btn.connect("clicked", self._on_remove)
         self.append(remove_btn)
 
@@ -254,7 +257,7 @@ class LiveCaptureRow(Gtk.Box):
         self.label_entry = Gtk.Entry()
         self.label_entry.set_text(default_label)
         self.label_entry.set_width_chars(12)
-        self.label_entry.set_tooltip_text("Nom du point de capture (ex: LAN, WAN, DC)")
+        self.label_entry.set_tooltip_text(_("Nom du point de capture (ex: LAN, WAN, DC)"))
         self.append(self.label_entry)
 
         self.interface_entry = Gtk.Entry()
@@ -292,22 +295,22 @@ class LiveCaptureRow(Gtk.Box):
         self.set_filters(filters or [])
 
         self.save_filter_btn = Gtk.MenuButton(icon_name="document-save-symbolic")
-        self.save_filter_btn.set_tooltip_text("Enregistrer le filtre BPF courant sous un nom")
+        self.save_filter_btn.set_tooltip_text(_("Enregistrer le filtre BPF courant sous un nom"))
         self.save_filter_btn.set_popover(self._build_save_popover())
         self.append(self.save_filter_btn)
 
         up_btn = Gtk.Button(icon_name="go-up-symbolic")
-        up_btn.set_tooltip_text("Monter (ordre = chemin physique reseau)")
+        up_btn.set_tooltip_text(_("Monter (ordre = chemin physique reseau)"))
         up_btn.connect("clicked", self._on_up)
         self.append(up_btn)
 
         down_btn = Gtk.Button(icon_name="go-down-symbolic")
-        down_btn.set_tooltip_text("Descendre")
+        down_btn.set_tooltip_text(_("Descendre"))
         down_btn.connect("clicked", self._on_down)
         self.append(down_btn)
 
         remove_btn = Gtk.Button(icon_name="user-trash-symbolic")
-        remove_btn.set_tooltip_text("Retirer ce point de capture")
+        remove_btn.set_tooltip_text(_("Retirer ce point de capture"))
         remove_btn.connect("clicked", self._on_remove)
         self.append(remove_btn)
 
@@ -878,7 +881,7 @@ class MainWindow(Gtk.ApplicationWindow):
             "Relit les memes fichiers avec un pipeline de decodage independant (via tshark)."
         )
         self.quic_check = Gtk.CheckButton(label="Diagnostic QUIC/HTTP3")
-        self.quic_check.set_tooltip_text("Necessite cryptography. Relit les memes fichiers.")
+        self.quic_check.set_tooltip_text(_("Necessite cryptography. Relit les memes fichiers."))
         topn_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=4)
         topn_box.append(Gtk.Label(label="Top-N graphiques"))
         self.topn_spin = Gtk.SpinButton.new_with_range(1, 20, 1)
@@ -921,7 +924,7 @@ class MainWindow(Gtk.ApplicationWindow):
         )
         self.diff_options_box.attach(self.diff_tls_check, 0, 1, 2, 1)
         self.diff_quic_check = Gtk.CheckButton(label="Diagnostic QUIC/HTTP3")
-        self.diff_quic_check.set_tooltip_text("Necessite cryptography. Idem TLS, baseline et courant separement.")
+        self.diff_quic_check.set_tooltip_text(_("Necessite cryptography. Idem TLS, baseline et courant separement."))
         self.diff_options_box.attach(self.diff_quic_check, 2, 1, 2, 1)
         self.diff_options_box.set_visible(False)
         page.append(self.diff_options_box)
@@ -1200,11 +1203,11 @@ class MainWindow(Gtk.ApplicationWindow):
         dash_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=8)
         dash_box.set_margin_top(8)
         self.dashboard_context_label = Gtk.Label(
-            label="Contexte selectionne : aucun", halign=Gtk.Align.START, wrap=True
+            label=_("Contexte selectionne : aucun"), halign=Gtk.Align.START, wrap=True
         )
         self.dashboard_context_label.set_selectable(True)
         dash_box.append(self.dashboard_context_label)
-        clear_btn = Gtk.Button(label="Reinitialiser la selection")
+        clear_btn = Gtk.Button(label=_("Reinitialiser la selection"))
         clear_btn.connect("clicked", lambda _b: self._dashboard_clear())
         dash_box.append(clear_btn)
         self.dashboard_sections_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
@@ -1269,7 +1272,7 @@ class MainWindow(Gtk.ApplicationWindow):
         self.status_label = Gtk.Label(label="", halign=Gtk.Align.START, hexpand=True)
         bottom.append(self.status_label)
 
-        new_btn = Gtk.Button(label="Nouvelle analyse")
+        new_btn = Gtk.Button(label=_("Nouvelle analyse"))
         new_btn.connect("clicked", lambda _b: self.stack.set_visible_child_name("config"))
         bottom.append(new_btn)
 
@@ -1321,7 +1324,7 @@ class MainWindow(Gtk.ApplicationWindow):
             # arriver en pratique, mais mieux vaut refuser explicitement
             # qu'anonymiser partiellement le rapport sans le signaler.
             self.stack.set_visible_child_name("log")
-            self._log("--redact n'est pas disponible avec Diagnostic TLS/QUIC (voir netcross_core.redact).")
+            self._log(_("--redact n'est pas disponible avec Diagnostic TLS/QUIC (voir netcross_core.redact)."))
             return
 
         self.run_btn.set_sensitive(False)
@@ -1329,7 +1332,7 @@ class MainWindow(Gtk.ApplicationWindow):
         self.csv_btn.set_sensitive(False)
         self.json_btn.set_sensitive(False)
         self.log_view.get_buffer().set_text("")
-        self.work_status_label.set_text("Analyse en cours...")
+        self.work_status_label.set_text(_("Analyse en cours..."))
         self.spinner.start()
         self.stack.set_visible_child_name("log")
 
@@ -1471,7 +1474,7 @@ class MainWindow(Gtk.ApplicationWindow):
 
     def _on_live_duration_elapsed(self, session_id):
         if self._live_capturing and session_id == self._live_session_id:
-            self._log("Duree maximale atteinte -- arret automatique de la capture.")
+            self._log(_("Duree maximale atteinte -- arret automatique de la capture."))
             self._end_live_capture()
         return False  # ne pas repeter le timeout (GLib.timeout_add_seconds)
 
@@ -1496,14 +1499,14 @@ class MainWindow(Gtk.ApplicationWindow):
                 count += 1
                 now = time.time()
                 if now - last_log >= 1.0:
-                    GLib.idle_add(self._log, f"  [{label}] {count} paquets...")
+                    GLib.idle_add(self._log, f"  [{label}] {count} " + _("paquets..."))
                     last_log = now
         except Exception as e:  # noqa: BLE001 -- thread de fond : toute erreur
             # (tshark, interface, permission...) doit remonter au journal GUI
             # plutot que de tuer le thread silencieusement.
             logger.exception("exception Exception")
             GLib.idle_add(self._log, f"[{label}] ERREUR : {e}")
-        GLib.idle_add(self._log, f"[{label}] capture arretee -- {count} paquet(s) au total.")
+        GLib.idle_add(self._log, f"[{label}] capture arretee -- {count} " + _("paquet(s) au total."))
 
     def _end_live_capture(self):
         if not self._live_capturing or self._live_stop_event.is_set():
@@ -1513,7 +1516,7 @@ class MainWindow(Gtk.ApplicationWindow):
         self.run_btn.set_sensitive(False)
         self.work_stop_btn.set_sensitive(False)
         self.run_btn.set_label("Arret de la capture...")
-        self.work_status_label.set_text("Arret de la capture en cours (peut prendre quelques secondes)...")
+        self.work_status_label.set_text(_("Arret de la capture en cours (peut prendre quelques secondes)..."))
         self._live_stop_event.set()
         threading.Thread(target=self._join_live_and_analyze, daemon=True).start()
 
@@ -1536,7 +1539,7 @@ class MainWindow(Gtk.ApplicationWindow):
                 duplicate_counts = detect_cross_capture_duplicates(all_packets, self._live_duplicate_threshold_ms)
                 GLib.idle_add(self._log, f"  -> {sum(duplicate_counts.values())} paquet(s) dupliqué(s) détecté(s)")
 
-            GLib.idle_add(self._log, "Correlation des flux entre points de capture...")
+            GLib.idle_add(self._log, _("Correlation des flux entre points de capture..."))
             flows = correlate(all_packets, self._live_nat_tolerant, 200, self._live_exclude_duplicates)
             GLib.idle_add(self._log, f"  -> {len(flows)} flux identifies")
 
@@ -1555,14 +1558,14 @@ class MainWindow(Gtk.ApplicationWindow):
                 duplicate_counts=duplicate_counts,
             )
 
-            GLib.idle_add(self._log, "Mise en forme du rapport...")
+            GLib.idle_add(self._log, _("Mise en forme du rapport..."))
             buf = io.StringIO()
             with contextlib.redirect_stdout(buf):
                 print_report(report)
 
             findings = None
             if self._live_triage:
-                GLib.idle_add(self._log, "Triage des segments...")
+                GLib.idle_add(self._log, _("Triage des segments..."))
                 from netcross_report import (
                     build_findings,
                     format_health_line,
@@ -1587,7 +1590,7 @@ class MainWindow(Gtk.ApplicationWindow):
             GLib.idle_add(self._on_analysis_error, str(e))
             GLib.idle_add(self._reset_live_ui)
             return
-        GLib.idle_add(self._log, "Analyse terminee.")
+        GLib.idle_add(self._log, _("Analyse terminee."))
         GLib.idle_add(
             self._on_analysis_done,
             "single",
@@ -1681,7 +1684,7 @@ class MainWindow(Gtk.ApplicationWindow):
             GLib.idle_add(self._log, f"ERREUR : {e}")
             GLib.idle_add(self._on_analysis_error, str(e))
             return
-        GLib.idle_add(self._log, "Analyse terminee.")
+        GLib.idle_add(self._log, _("Analyse terminee."))
         GLib.idle_add(
             self._on_analysis_done,
             "single",
@@ -1732,7 +1735,7 @@ class MainWindow(Gtk.ApplicationWindow):
             GLib.idle_add(self._log, f"ERREUR : {e}")
             GLib.idle_add(self._on_analysis_error, str(e))
             return
-        GLib.idle_add(self._log, "Comparaison terminee.")
+        GLib.idle_add(self._log, _("Comparaison terminee."))
         GLib.idle_add(
             self._on_diff_done,
             result.findings,
@@ -1896,7 +1899,7 @@ class MainWindow(Gtk.ApplicationWindow):
 
     def export_pdf_to(self, path):
         """Separe de la callback du dialogue pour pouvoir etre pilote directement (tests)."""
-        self.status_label.set_text("Generation du PDF...")
+        self.status_label.set_text(_("Generation du PDF..."))
         threading.Thread(target=self._generate_pdf_thread, args=(path,), daemon=True).start()
 
     # ================= exploration statistique (issue #22, section 6.8) =================
