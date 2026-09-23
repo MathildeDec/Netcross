@@ -631,17 +631,23 @@ def extracted_file_findings(extraction) -> list[dict[str, Any]]:
     rapport pour audit). Sans fichier extrait, aucun constat."""
     findings: list[dict[str, Any]] = []
     for ef in getattr(extraction, "files", []):
+        filename = getattr(ef, "uri", None) or "?"
+        size = getattr(ef, "size", 0) or 0
+        proto = getattr(ef, "proto_source", "?")
+        src = getattr(ef, "src", "?")
+        dst = getattr(ef, "dst", "?")
+        point = getattr(ef, "point", None)
         detail = (
-            f"fichier extrait : {ef.get('filename', '?')} "
-            f"({ef.get('size', 0)} octets, {ef.get('protocol', '?')}) "
-            f"-- {ef.get('src', '?')} -> {ef.get('dst', '?')}"
+            f"fichier extrait : {filename} "
+            f"({size} octets, {proto}) "
+            f"-- {src} -> {dst}"
         )
         findings.append(
             {
                 "severity": "faible",
                 "category": "anomalie",
                 "detail": detail,
-                "point": ef.get("point") or None,
+                "point": point,
             }
         )
     return findings
