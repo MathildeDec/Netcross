@@ -62,6 +62,7 @@ nav:
       - Plugins: plugins.md
       - Empreintes JA4/HASSH: fingerprints-ja4-hassh.md
       - Tickets de support: support-tickets.md
+      - Extraction des contenus: extraction-contenus.md
       - Rule engine: architecture-rule-engine.md
   - Architecture:
       - Diagramme de classes: class-diagram.md

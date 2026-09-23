@@ -842,6 +842,58 @@ def _parse_plugin_exports(specs: list[str], authorized: list[str]) -> list[tuple
             sys.exit(1)
         targets.append((name.strip(), path.strip()))
     return targets
+def _check_extraction_args(args) -> tuple[str, ...]:
+    """Validations de l'issue #278 ; renvoie les types a extraire."""
+    from netcross_core.extract.contents import parse_kinds
+
+    if args.extract_kinds and not args.extract_contents:
+        print("--extract-kinds necessite --extract-contents.", file=sys.stderr)
+        sys.exit(1)
+    if not (args.media_quality or args.extract_contents):
+        return ()
+    if args.live:
+        print(
+            "--media-quality/--extract-contents relisent les fichiers passes a --capture : indisponibles avec --live.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    if args.redact and args.extract_contents:
+        print(
+            "--extract-contents est incompatible avec --redact : une voix, une video ou un document "
+            "extrait ne peut pas etre anonymise, le combiner a un rapport anonymise serait trompeur.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    try:
+        kinds = parse_kinds(args.extract_kinds)
+    except ValueError as exc:
+        print(f"--extract-kinds : {exc}", file=sys.stderr)
+        sys.exit(1)
+    if args.extract_contents:
+        out = args.extract_contents
+        if os.path.exists(out) and (not os.path.isdir(out) or os.listdir(out)):
+            print(
+                f"--extract-contents : {out} existe deja et n'est pas un repertoire vide "
+                "(une extraction par repertoire, pour un manifeste fidele).",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+    return kinds
+
+
+def _run_content_extraction(captures, out_dir, kinds) -> None:
+    """Analyse qualitative / extraction des contenus (issue #278)."""
+    from netcross_core.extract.contents import USAGE_REMINDER, format_extraction, run_extraction
+
+    print("\n" + "=" * 70)
+    print("CONTENUS AUDIO/VIDEO/DOCUMENTS (relit les memes fichiers)")
+    print("=" * 70)
+    if out_dir:
+        print(USAGE_REMINDER, file=sys.stderr)
+        logger.warning("extraction de contenus vers {} (types : {})", out_dir, ", ".join(kinds))
+    result = run_extraction(captures, out_dir=out_dir, kinds=kinds if out_dir else ())
+    for line in format_extraction(result):
+        print(line)
 
 
 def main():
@@ -1457,6 +1509,30 @@ def main():
         "sur --history-label si elle est fournie, sinon montre tous les "
         "runs de la base.",
     )
+    ext = ap.add_argument_group(
+        "extraction des contenus (issue #278)",
+        "Analyse qualitative des flux audio/video (note de degradation due au transport) et, sur demande "
+        "explicite, extraction du son, de la video et des documents. Rappel d'usage raisonne : "
+        "voir docs/extraction-contenus.md.",
+    )
+    ext.add_argument(
+        "--media-quality",
+        action="store_true",
+        help="Analyse qualitative des flux RTP (pertes, rafales, gigue, MOS, images endommagees, note de "
+        "degradation 0-100). N'ecrit AUCUN contenu : a privilegier quand elle suffit.",
+    )
+    ext.add_argument(
+        "--extract-contents",
+        metavar="REPERTOIRE",
+        help="Extrait les contenus dans REPERTOIRE (cree en 0700, doit etre absent ou vide) : audio G.711 "
+        "-> WAV, video H.264 -> .h264, documents via tshark --export-objects (HTTP, SMB, courriel, TFTP, "
+        "FTP-DATA), plus manifest.json (SHA-256, flux d'origine, degradation). Inclut --media-quality.",
+    )
+    ext.add_argument(
+        "--extract-kinds",
+        metavar="TYPE[,TYPE]",
+        help="Avec --extract-contents : restreint l'extraction a audio, video et/ou documents (defaut : tous).",
+    )
     args = ap.parse_args()
 
     plugin_names = [n.strip() for n in (args.plugins or "").split(",") if n.strip()]
@@ -1653,6 +1729,8 @@ def main():
                 ("--quic", args.quic),
                 ("--security-report", args.security_report),
                 ("--cve-db", args.cve_db),
+                ("--media-quality", args.media_quality),
+                ("--extract-contents", args.extract_contents),
                 ("--parallel", args.parallel),
                 ("--max-packets", args.max_packets),
                 ("--sample", args.sample),
@@ -1691,6 +1769,8 @@ def main():
                 ("--quic", args.quic),
                 ("--security-report", args.security_report),
                 ("--cve-db", args.cve_db),
+                ("--media-quality", args.media_quality),
+                ("--extract-contents", args.extract_contents),
                 ("--parallel", args.parallel),
                 ("--max-packets", args.max_packets),
                 ("--sample", args.sample),
@@ -1792,6 +1872,8 @@ def main():
                 ("--quic", args.quic),
                 ("--security-report", args.security_report),
                 ("--cve-db", args.cve_db),
+                ("--media-quality", args.media_quality),
+                ("--extract-contents", args.extract_contents),
                 ("--parallel", args.parallel),
                 ("--max-packets", args.max_packets),
                 ("--sample", args.sample),
@@ -1883,6 +1965,7 @@ def main():
     if args.redact_map and not args.redact:
         print("--redact-map necessite --redact.", file=sys.stderr)
         sys.exit(1)
+    extract_kinds = _check_extraction_args(args)
     if args.redact and (args.tls or args.quic or args.client_group):
         print(
             "--redact n'est pas disponible avec --tls/--quic/--client-group : ces "
@@ -2283,6 +2366,9 @@ def main():
             quic_events.extend(events)
         quic_findings = diagnose_quic(quic_events, r.points)
         print_quic_diagnostics(quic_findings)
+
+    if args.media_quality or args.extract_contents:
+        _run_content_extraction(captures, args.extract_contents, extract_kinds)
 
     if args.detail_csv:
         write_detail_csv(args.detail_csv, flows, r.points, names=names)

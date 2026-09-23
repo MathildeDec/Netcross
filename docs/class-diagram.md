@@ -53,6 +53,7 @@ flowchart LR
     BPFFilter["netcross_core.models.BPFFilter"]
     CaptureInfo["pcap_parser.capinfos_source.CaptureInfo"]
     ClientReport["netcross_core.client_diff.ClientReport"]
+    ContentExtraction["netcross_core.extract.contents.ContentExtraction"]
     DemandeSauvegarde["netcross_gtk4.bpf_panel.DemandeSauvegarde"]
     Detector["netcross_core.plugins.api.Detector"]
     DiffFinding["netcross_core.baseline_diff.DiffFinding"]
@@ -70,10 +71,12 @@ flowchart LR
     Pkt["netcross_core.models.Pkt"]
     Report["netcross_core.models.Report"]
     SegmentScore["netcross_report.triage.SegmentScore"]
+    StreamQuality["netcross_core.extract.media.StreamQuality"]
     _Detector["netcross_core.exploit_signatures._Detector"]
     netcross_core_security_expert_correlation__FlowState["netcross_core.security.expert_correlation._FlowState"]
     CaptureInfo -->|interfaces| InterfaceRecord
     ClientReport -->|report| Report
+    ContentExtraction -->|media| StreamQuality
     DemandeSauvegarde -->|filtre| BPFFilter
     DiffFinding -->|evidence| EvidenceLink
     Finding -->|event| ExpertEvent
@@ -1719,6 +1722,8 @@ classDiagram
 |---|---|
 | `netcross_core.extract` | extraction et reconstruction de fichiers (issue #150). |
 | `netcross_core.extract.carver` | issue #150 (SCENARIO-4, parent #141) : extraction et reconstruction de fichiers depuis les traces réseau. |
+| `netcross_core.extract.contents` | issue #278 : extraction des contenus (audio, video, documents) a titre d'analyse qualitative, avec rappel de l'usage raisonne. |
+| `netcross_core.extract.media` | issue #278 : flux RTP audio/video. |
 
 ### Diagramme
 
@@ -1754,8 +1759,108 @@ classDiagram
         +detect_extracted_files(packets, extract_dir) ExtractionResult
     }
 
+    %% ===== netcross_core.extract.contents =====
+    class ExtractedDocument {
+        <<dataclass>>
+        +str point
+        +str protocol
+        +str path
+        +int size
+        +str sha256
+        +str? detected_type
+        +to_dict() dict
+    }
+    class ContentExtraction {
+        <<dataclass>>
+        +str? out_dir
+        +tuple~str, ...~ kinds
+        +list~StreamQuality~ media
+        +list~ExtractedDocument~ documents
+        +list~str~ errors
+        +to_dict() dict
+    }
+    class mod_netcross_core_extract_contents["netcross_core.extract.contents"] {
+        <<module>>
+        +parse_kinds(spec) tuple~str, ...~
+        +prepare_out_dir(path) Path
+        +inventory_documents(point, protocol, directory) list~ExtractedDocument~
+        +export_documents(captures, out_dir, protocols, tshark_bin, timeout) tuple~list~ExtractedDocument~, list~str~~
+        +datagrams_from_raw(label, raw_packets) Iterable~tuple~
+        +analyse_media(datagrams) tuple~list~RtpStream~, list~StreamQuality~~
+        +run_extraction(captures, out_dir, kinds, read_capture, tshark_bin) ContentExtraction
+        +write_manifest(result, out) None
+        +format_extraction(result) list~str~
+    }
+
+    %% ===== netcross_core.extract.media =====
+    class _RtpPacket {
+        <<dataclass>>
+        +float arrival
+        +int seq
+        +int ts
+        +int pt
+        +bool marker
+        +bytes payload
+    }
+    class RtpStream {
+        <<dataclass>>
+        +str point
+        +str src
+        +int sport
+        +str dst
+        +int dport
+        +int ssrc
+        +int pt
+        +str? codec
+        +int? clock_rate
+        +str kind
+        +bool encrypted
+        +list~_RtpPacket~ packets
+        +label() str
+        +file_stem() str
+    }
+    class StreamQuality {
+        <<dataclass>>
+        +str label
+        +str kind
+        +str? codec
+        +int received
+        +int expected
+        +int lost
+        +float loss_pct
+        +int duplicates
+        +int reordered
+        +int max_burst
+        +float? jitter_ms
+        +float duration_s
+        +float? mos
+        +float? r_factor
+        +int? frames
+        +int? damaged_frames
+        +int? degradation
+        +str verdict
+        +str? exported
+        +str? note
+        +to_dict() dict
+    }
+    class mod_netcross_core_extract_media["netcross_core.extract.media"] {
+        <<module>>
+        +parse_rtp_header(data) tuple~int, int, int, int, bool, bytes~?
+        +parse_sdp(payload) _SdpMap
+        +collect_streams(datagrams) list~RtpStream~
+        +verdict(degradation) str
+        +analyse_stream(st) StreamQuality
+        +decode_g711(codec, payload) bytes
+        +write_wav(st, path) None
+        +depacketize_h264(ordered) bytes
+        +export_stream(st, out_dir) Path
+    }
+
     %% ===== relations =====
     ExtractionResult --> ExtractedFile : files
+    ContentExtraction --> ExtractedDocument : documents
+    ContentExtraction --> StreamQuality : media
+    RtpStream --> _RtpPacket : packets
 ```
 
 ## `netcross_core.fingerprint`
