@@ -781,6 +781,36 @@ def _apply_packet_limits(all_packets, max_packets, sample_n):
     return kept, "analyse tronquee -- " + " ; ".join(notes) + " -- les constats ne couvrent pas la capture entiere."
 
 
+def _send_notifications(args, report, security_report_obj) -> list[dict]:
+    """Notifications sortantes (issue #280). Ne leve jamais : un canal en
+    echec est une ligne de tracabilite du rapport, pas un echec d'analyse."""
+    from pathlib import Path
+
+    from netcross_core.config import load_config
+    from netcross_core.notify import build_summary, run_notifications
+
+    dash = security_report_obj.dashboard
+    report_path = args.security_html or args.json_report or args.pdf_report
+    results = run_notifications(
+        lambda threshold: build_summary(
+            report.security_findings or [],
+            score=dash.score,
+            level=dash.level,
+            threshold=threshold,
+            report_path=os.path.abspath(report_path) if report_path else None,
+            detail=args.notify_detail,
+        ),
+        threshold=args.notify_on,
+        cfg=load_config().notify,
+        webhook=args.notify_webhook,
+        slack=args.notify_slack,
+        email_to=args.notify_email,
+        state_path=Path(args.notify_state) if args.notify_state else None,
+        silence_hours=args.notify_silence,
+    )
+    return [res.to_dict() for res in results]
+
+
 def main():
     ap = argparse.ArgumentParser(description="Analyse croisee de captures Wireshark multi-points")
     ap.add_argument(
@@ -1045,6 +1075,44 @@ def main():
         help="Avec --security-report : base CVE SQLite locale (construite par "
         "scripts/import_nvd.py) pour la correlation version -> CVE. Doit "
         "designer un fichier existant (aucune base vide n'est creee).",
+    )
+    notify = ap.add_argument_group(
+        "notifications (issue #280)",
+        "Un resume par analyse (jamais un message par constat) quand le pire constat atteint le seuil. "
+        "Secrets SMTP et URL de webhook de preference dans .netcross.toml ([notify]) ou en variables "
+        "d'environnement (NETCROSS_SLACK_WEBHOOK, NETCROSS_SMTP_*). Voir docs/notifications.md.",
+    )
+    notify.add_argument(
+        "--notify-on",
+        choices=("critique", "elevee", "moyenne", "faible"),
+        help="Avec --security-report : notifie si le niveau atteint ce seuil. Sans cette option, "
+        "AUCUNE notification (aucun appel reseau), meme si des canaux sont configures.",
+    )
+    notify.add_argument("--notify-webhook", metavar="URL", help="POST JSON du resume vers cette URL.")
+    notify.add_argument("--notify-slack", metavar="URL", help="Webhook entrant Slack (Block Kit).")
+    notify.add_argument(
+        "--notify-email",
+        metavar="DEST[,DEST...]",
+        help="Destinataires du courriel (serveur et identifiants SMTP : .netcross.toml ou NETCROSS_SMTP_*).",
+    )
+    notify.add_argument(
+        "--notify-detail",
+        choices=("resume", "complet"),
+        default="resume",
+        help="`resume` (defaut) : adresses, noms d'hote et chemins anonymises ; `complet` : texte brut "
+        "des constats -- a n'utiliser que vers un canal de confiance.",
+    )
+    notify.add_argument(
+        "--notify-silence",
+        type=float,
+        metavar="HEURES",
+        help="Fenetre anti-repetition : le meme lot de constats n'est pas re-notifie pendant cette "
+        "duree (defaut 24, 0 = desactive).",
+    )
+    notify.add_argument(
+        "--notify-state",
+        metavar="FICHIER",
+        help="Fichier d'etat anti-repetition (defaut ~/.cache/netcross/notify-state.json).",
     )
     ap.add_argument(
         "--known-destinations",
@@ -1372,6 +1440,33 @@ def main():
         sys.exit(1)
     if args.siem_export and not args.security_report:
         print("--siem-export necessite --security-report.", file=sys.stderr)
+        sys.exit(1)
+    notify_extras = [
+        opt
+        for opt, given in (
+            ("--notify-webhook", args.notify_webhook),
+            ("--notify-slack", args.notify_slack),
+            ("--notify-email", args.notify_email),
+            ("--notify-detail", args.notify_detail != "resume"),
+            ("--notify-silence", args.notify_silence is not None),
+            ("--notify-state", args.notify_state),
+        )
+        if given
+    ]
+    if notify_extras and not args.notify_on:
+        # jamais un canal sortant active a l'insu de l'utilisateur, et jamais
+        # une option ignoree en silence : on le dit
+        print(
+            f"{', '.join(notify_extras)} sans --notify-on : aucun seuil, aucune notification. "
+            "Ajoutez --notify-on critique|elevee|moyenne|faible.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    if args.notify_on and not args.security_report:
+        print("--notify-on necessite --security-report.", file=sys.stderr)
+        sys.exit(1)
+    if args.notify_silence is not None and args.notify_silence < 0:
+        print("--notify-silence doit etre >= 0.", file=sys.stderr)
         sys.exit(1)
     if args.security_html and not args.security_report:
         print("--security-html necessite --security-report.", file=sys.stderr)
@@ -1970,6 +2065,8 @@ def main():
             # constats de securite n'atteignaient donc aucune sortie
             # machine, meme quand --json-report etait demande.
             security_report_obj = build_security_report(r)
+            if args.notify_on:
+                security_report_obj.notifications = _send_notifications(args, r, security_report_obj)
             print_security_report(security_report_obj)
             if args.security_html:
                 from netcross_report.security_html import generate_security_html
