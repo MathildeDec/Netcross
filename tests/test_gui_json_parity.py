@@ -33,6 +33,8 @@ from netcross_report import build_findings, build_session_objects, generate_json
 from netcross_report.synthesis import Finding
 
 APP_SOURCE = pathlib.Path(__file__).resolve().parents[1] / "src" / "netcross_gtk4" / "app.py"
+HELPERS_SOURCE = pathlib.Path(__file__).resolve().parents[1] / "src" / "netcross_gtk4" / "app_helpers.py"
+PIPELINE_SOURCE = pathlib.Path(__file__).resolve().parents[1] / "src" / "netcross_gtk4" / "analysis_pipeline.py"
 
 
 def _report():
@@ -177,13 +179,18 @@ def test_session_objects_laisse_none_si_lanalyse_na_rien_fourni(main_window):
 
 
 def test_le_thread_json_passe_les_objets_enrichis():
-    source = APP_SOURCE.read_text()
-    assert "**self._session_objects().json_kwargs()" in source
+    """L'objet session_objects est passe en kwargs au generateur JSON.
+    Extrait vers app_helpers.generate_json (issue #285, lot 7) : la
+    verification porte sur le module d'extraction."""
+    source = HELPERS_SOURCE.read_text()
+    assert "**session_objects.json_kwargs()" in source
 
 
 def test_le_thread_pdf_passe_les_objets_enrichis():
-    source = APP_SOURCE.read_text()
-    assert "session_objects=self._session_objects()" in source
+    """L'objet session_objects est passe au generateur PDF.
+    Extrait vers app_helpers.generate_pdf (issue #285, lot 7)."""
+    source = HELPERS_SOURCE.read_text()
+    assert "session_objects=session_objects" in source
 
 
 def test_lanalyse_calcule_les_signaux_tshark_avant_de_liberer_les_paquets():

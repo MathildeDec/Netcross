@@ -1889,19 +1889,15 @@ class MainWindow(Gtk.ApplicationWindow):
 
     def _stats_group_value(self) -> str:
         """Lit la valeur de group_by selectionnee dans le DropDown."""
-        opts = group_options()
-        idx = self.stats_group_drop.get_selected()
-        if 0 <= idx < len(opts):
-            return opts[idx][0]
-        return "endpoint"
+        from netcross_gtk4.app_helpers import stats_group_value
+
+        return stats_group_value(self.stats_group_drop.get_selected())
 
     def _stats_sort_value(self) -> str:
         """Lit la valeur de sort_by selectionnee dans le DropDown."""
-        opts = sort_options()
-        idx = self.stats_sort_drop.get_selected()
-        if 0 <= idx < len(opts):
-            return opts[idx][0]
-        return "bytes"
+        from netcross_gtk4.app_helpers import stats_sort_value
+
+        return stats_sort_value(self.stats_sort_drop.get_selected())
 
     def _refresh_stats(self):
         """Reconstruit la liste des statistiques depuis les memes objets
@@ -2090,19 +2086,21 @@ class MainWindow(Gtk.ApplicationWindow):
         self._refresh_dashboard()
 
     def _flow_by_key(self, key):
-        for f in self.last_flows or []:
-            if f.key == key:
-                return f
-        return None
+        from netcross_gtk4.app_helpers import flow_by_key
+
+        return flow_by_key(self.last_flows, key)
 
     def _dashboard_events(self):
         """Liste fusionnee des evenements (findings + TLS/QUIC + signaux
         tshark), meme ordre que build_dashboard_snapshot."""
-        events = list(self.last_findings or [])
-        events.extend(self.last_tls_findings or [])
-        events.extend(self.last_quic_findings or [])
-        events.extend(self.last_wireshark_expert_events or [])
-        return events
+        from netcross_gtk4.app_helpers import dashboard_events
+
+        return dashboard_events(
+            self.last_findings,
+            self.last_tls_findings,
+            self.last_quic_findings,
+            self.last_wireshark_expert_events,
+        )
 
     def _refresh_dashboard(self):
         """Reconstruit le snapshot depuis les memes objets que le rapport et
@@ -2235,46 +2233,35 @@ class MainWindow(Gtk.ApplicationWindow):
         Les signaux tshark, eux, ne sont jamais recalcules : ils viennent du
         thread d'analyse (les paquets bruts ne sont plus disponibles ici).
         """
-        from netcross_report import build_findings, build_session_objects
+        from netcross_gtk4.app_helpers import build_session_objects_for_gui
 
-        findings = self.last_findings if self.last_findings is not None else build_findings(self.last_report)
-        return build_session_objects(
+        return build_session_objects_for_gui(
             self.last_report,
-            findings,
-            flows=self.last_flows,
-            wireshark_expert_events=self.last_wireshark_expert_events,
+            self.last_findings,
+            self.last_flows,
+            self.last_wireshark_expert_events,
         )
 
     def _generate_pdf_thread(self, path):
+        from netcross_gtk4.app_helpers import generate_pdf
+
         try:
-            if self.last_mode == "single":
-                from netcross_report import generate_pdf
-
-                if generate_pdf is None:
-                    raise ImportError("reportlab/matplotlib/networkx requis pour l'export PDF")
-                generate_pdf(
-                    self.last_report,
-                    path,
-                    findings=self.last_findings,
-                    tls_findings=self.last_tls_findings,
-                    quic_findings=self.last_quic_findings,
-                    session_objects=self._session_objects(),
-                )
-            else:
-                from netcross_report import generate_diff_pdf
-
-                if generate_diff_pdf is None:
-                    raise ImportError("reportlab/matplotlib/networkx requis pour l'export PDF")
-                generate_diff_pdf(
-                    self.last_diff_findings,
-                    self.last_baseline_report,
-                    self.last_current_report,
-                    path,
-                    tls_findings_baseline=self.last_diff_tls_findings_baseline,
-                    tls_findings_current=self.last_diff_tls_findings_current,
-                    quic_findings_baseline=self.last_diff_quic_findings_baseline,
-                    quic_findings_current=self.last_diff_quic_findings_current,
-                )
+            generate_pdf(
+                mode=self.last_mode,
+                path=path,
+                report=self.last_report,
+                findings=self.last_findings,
+                tls_findings=self.last_tls_findings,
+                quic_findings=self.last_quic_findings,
+                session_objects=self._session_objects(),
+                diff_findings=self.last_diff_findings,
+                baseline_report=self.last_baseline_report,
+                current_report=self.last_current_report,
+                tls_findings_baseline=self.last_diff_tls_findings_baseline,
+                tls_findings_current=self.last_diff_tls_findings_current,
+                quic_findings_baseline=self.last_diff_quic_findings_baseline,
+                quic_findings_current=self.last_diff_quic_findings_current,
+            )
         except Exception as e:  # noqa: BLE001 -- thread de fond (export PDF) : idem, erreur affichee via GLib.idle_add.
             GLib.idle_add(self._on_pdf_error, str(e))
             return
@@ -2314,31 +2301,25 @@ class MainWindow(Gtk.ApplicationWindow):
         threading.Thread(target=self._generate_json_thread, args=(path,), daemon=True).start()
 
     def _generate_json_thread(self, path):
+        from netcross_gtk4.app_helpers import generate_json
+
         try:
-            if self.last_mode == "single":
-                from netcross_report import generate_json_report
-
-                generate_json_report(
-                    self.last_report,
-                    path,
-                    findings=self.last_findings,
-                    tls_findings=self.last_tls_findings,
-                    quic_findings=self.last_quic_findings,
-                    **self._session_objects().json_kwargs(),
-                )
-            else:
-                from netcross_report import generate_json_diff
-
-                generate_json_diff(
-                    self.last_diff_findings,
-                    self.last_baseline_report,
-                    self.last_current_report,
-                    path,
-                    tls_findings_baseline=self.last_diff_tls_findings_baseline,
-                    tls_findings_current=self.last_diff_tls_findings_current,
-                    quic_findings_baseline=self.last_diff_quic_findings_baseline,
-                    quic_findings_current=self.last_diff_quic_findings_current,
-                )
+            generate_json(
+                mode=self.last_mode,
+                path=path,
+                report=self.last_report,
+                findings=self.last_findings,
+                tls_findings=self.last_tls_findings,
+                quic_findings=self.last_quic_findings,
+                session_objects=self._session_objects(),
+                diff_findings=self.last_diff_findings,
+                baseline_report=self.last_baseline_report,
+                current_report=self.last_current_report,
+                tls_findings_baseline=self.last_diff_tls_findings_baseline,
+                tls_findings_current=self.last_diff_tls_findings_current,
+                quic_findings_baseline=self.last_diff_quic_findings_baseline,
+                quic_findings_current=self.last_diff_quic_findings_current,
+            )
         except Exception as e:  # noqa: BLE001 -- thread de fond (export JSON) : idem, erreur affichee via GLib.idle_add.
             GLib.idle_add(self._on_json_error, str(e))
             return

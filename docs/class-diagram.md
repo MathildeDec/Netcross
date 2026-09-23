@@ -11,7 +11,7 @@
 > Il remplace l'ancienne section 3 de `docs/features-backlog.md`, tenue à la main, qui avait dérivé
 > (voir `docs/sessions/session-36.md`, issue #140).
 
-124 modules · 174 classes · 362 fonctions publiques de module.
+125 modules · 174 classes · 369 fonctions publiques de module.
 
 Conventions : `+` public, `-` privé (préfixe `_`) ; `int?` = `int | None` ; `list~str~` = `list[str]` ;
 `<<module>>` regroupe les fonctions publiques d'un module ; `A --> B : champ` = `A` a un champ annoté
@@ -2903,6 +2903,7 @@ classDiagram
 | `netcross_gtk4.analysis_pipeline` | extraction de l'orchestration analyse/diff. |
 | `netcross_gtk4.annotations_view` | logique de presentation pour l'etiquetage/signets sur paquets (Job 40 / issue #160, section "Metadonnees et annotation"). |
 | `netcross_gtk4.app` | interface GTK4 pour netcross_core / netcross_report. |
+| `netcross_gtk4.app_helpers` | fonctions de logique pure extraites de app.py. |
 | `netcross_gtk4.bpf_panel` | Decisions du panneau de filtres BPF de la capture live, sorties de ``netcross_gtk4/app.py`` (issue #285, quatrieme lot). |
 | `netcross_gtk4.dashboard_context` | contexte d'analyse partage pour le dashboard analytique interactif (issue #18, section 6.17). |
 | `netcross_gtk4.duplicate_view` | Presentation helpers for cross-capture duplicate detection (Job 41). |
@@ -2999,6 +3000,18 @@ classDiagram
     class mod_netcross_gtk4_app["netcross_gtk4.app"] {
         <<module>>
         +main()
+    }
+
+    %% ===== netcross_gtk4.app_helpers =====
+    class mod_netcross_gtk4_app_helpers["netcross_gtk4.app_helpers"] {
+        <<module>>
+        +flow_by_key(flows, key) Any?
+        +dashboard_events(findings, tls_findings, quic_findings, wireshark_expert_events) list
+        +stats_group_value(selected_idx) str
+        +stats_sort_value(selected_idx) str
+        +build_session_objects_for_gui(report, findings, flows, wireshark_expert_events) Any
+        +generate_pdf(mode, path, report, findings, tls_findings, quic_findings, session_objects, diff_findings, baseline_report, current_report, tls_findings_baseline, tls_findings_current, quic_findings_baseline, quic_findings_current) None
+        +generate_json(mode, path, report, findings, tls_findings, quic_findings, session_objects, diff_findings, baseline_report, current_report, tls_findings_baseline, tls_findings_current, quic_findings_baseline, quic_findings_current) None
     }
 
     %% ===== netcross_gtk4.bpf_panel =====
