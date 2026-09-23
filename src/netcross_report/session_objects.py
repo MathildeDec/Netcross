@@ -39,8 +39,10 @@ from netcross_core.correlate import build_conversations, build_flows
 from netcross_core.wireshark_expert import build_wireshark_expert_events
 from netcross_report.expert_events import build_diagnoses, build_expert_events
 
-
+from netcross_core.i18n import setup_gettext
 from netcross_core.logging_config import get_logger
+
+_ = setup_gettext("netcross-report")
 
 logger = get_logger(__name__)
 # Plafond par defaut du rendu console : au-dela, seules les premieres
@@ -169,7 +171,7 @@ def _truncated(items, top_n):
 
 
 def _format_flows(objs, top_n) -> list[str]:
-    lines = [f"Flux correles : {len(objs.flows)} ({len(objs.conversations)} conversation(s))"]
+    lines = [f"{_('Flux correles')} : {len(objs.flows)} ({len(objs.conversations)} {_('conversation(s)')})"]
     # Tri par volume de paquets decroissant : sur une capture reelle, les
     # flux les plus bavards sont ceux qui portent le trafic a expliquer.
     # A volume egal, le libelle tranche pour garder un ordre stable d'une
@@ -180,11 +182,11 @@ def _format_flows(objs, top_n) -> list[str]:
     for flow in shown:
         points = ", ".join(flow.points)
         lines.append(
-            f"  {_flow_label(flow)} -- {_total(flow.packet_count)} paquet(s), "
-            f"{_total(flow.byte_count)} octet(s), vu a : {points}"
+            f"  {_flow_label(flow)} -- {_total(flow.packet_count)} {_("paquet(s)")}, "
+            f"{_total(flow.byte_count)} {_("octet(s)")}, {_("vu a")} : {points}"
         )
     if remaining:
-        lines.append(f"  ... et {remaining} autre(s) flux (voir --json-report)")
+        lines.append(f"  ... {_('et')} {remaining} {_('autre(s) flux')} ({_('voir --json-report')})")
     return lines
 
 
@@ -199,25 +201,25 @@ def _format_events(events, title, top_n) -> list[str]:
         # netcross_core.causality) : la majorite des evenements n'en a
         # pas, on n'affiche donc la ligne que si elle porte une valeur.
         if ev.cause:
-            lines.append(f"      Cause probable : {ev.cause}")
+            lines.append(f"      {_('Cause probable')} : {ev.cause}")
         if ev.impact:
-            lines.append(f"      Impact : {ev.impact}")
+            lines.append(f"      {_('Impact')} : {ev.impact}")
     if remaining:
-        lines.append(f"  ... et {remaining} autre(s) evenement(s) (voir --json-report)")
+        lines.append(f"  ... {_('et')} {remaining} {_('autre(s) evenement(s)')} ({_('voir --json-report')})")
     return lines
 
 
 def _format_diagnoses(diagnoses, top_n) -> list[str]:
-    lines = [f"Diagnostics par segment : {len(diagnoses)}"]
+    lines = [f"{_('Diagnostics par segment')} : {len(diagnoses)}"]
     shown, remaining = _truncated(diagnoses, top_n)
     for diag in shown:
-        lines.append(f"  {diag.segment} -- {len(diag.events)} evenement(s)")
+        lines.append(f"  {diag.segment} -- {len(diag.events)} {_('evenement(s)')}")
         if diag.cause:
-            lines.append(f"      Cause probable : {diag.cause}")
+            lines.append(f"      {_('Cause probable')} : {diag.cause}")
         if diag.impact:
-            lines.append(f"      Impact : {diag.impact}")
+            lines.append(f"      {_('Impact')} : {diag.impact}")
     if remaining:
-        lines.append(f"  ... et {remaining} autre(s) segment(s) (voir --json-report)")
+        lines.append(f"  ... {_('et')} {remaining} {_('autre(s) segment(s)')} ({_('voir --json-report')})")
     return lines
 
 
@@ -232,7 +234,7 @@ def _compliance_counts(results) -> list[str]:
 
 def _format_compliance(results, top_n) -> list[str]:
     summary = ", ".join(_compliance_counts(results))
-    lines = [f"Conformite aux referentiels : {len(results)} evaluee(s)" + (f" -- {summary}" if summary else "")]
+    lines = [f"{_('Conformite aux referentiels')} : {len(results)} {_('evaluee(s)')}" + (f" -- {summary}" if summary else "")]
 
     # Les ecarts d'abord (VIOLATION puis DEVIATION), le reste ensuite :
     # meme intention que le tri du triage, l'operateur doit voir ce qui
@@ -250,7 +252,7 @@ def _format_compliance(results, top_n) -> list[str]:
             f"seuil {ref.operator} {ref.threshold:g} {ref.unit} ({ref.source})"
         )
     if remaining:
-        lines.append(f"  ... et {remaining} autre(s) referentiel(s) (voir --json-report)")
+        lines.append(f"  ... {_('et')} {remaining} {_('autre(s) referentiel(s)')} ({_('voir --json-report')})")
     return lines
 
 
@@ -265,16 +267,16 @@ def format_session_objects(objs, top_n=DEFAULT_TOP_N) -> list[str]:
     "Flux correles : 0" n'apparait que parce que l'appelant n'a pas
     passe `flows`.
     """
-    lines = [_SEPARATOR, "EXPERTISE -- OBJETS ENRICHIS", _SEPARATOR, ""]
+    lines = [_SEPARATOR, _("EXPERTISE -- OBJETS ENRICHIS"), _SEPARATOR, ""]
     if objs.flows:
         lines += [*_format_flows(objs, top_n), ""]
-    lines += [*_format_events(objs.expert_events, "Evenements d'expertise (netcross)", top_n), ""]
+    lines += [*_format_events(objs.expert_events, _("Evenements d'expertise (netcross)"), top_n), ""]
     if objs.diagnoses:
         lines += [*_format_diagnoses(objs.diagnoses, top_n), ""]
     if objs.compliance:
         lines += [*_format_compliance(objs.compliance, top_n), ""]
     if objs.wireshark_expert_events:
-        lines += [*_format_events(objs.wireshark_expert_events, "Expertise tshark (signaux bruts)", top_n), ""]
+        lines += [*_format_events(objs.wireshark_expert_events, _("Expertise tshark (signaux bruts)"), top_n), ""]
     return lines
 
 
