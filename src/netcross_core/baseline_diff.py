@@ -27,8 +27,10 @@ from dataclasses import dataclass, field
 from netcross_core.expert_model import EvidenceLink, PacketEvidence
 from netcross_core.models import Report
 
-
+from netcross_core.i18n import setup_gettext
 from netcross_core.logging_config import get_logger
+
+_ = setup_gettext("netcross-report")
 
 logger = get_logger(__name__)
 SEVERITY_ORDER = {"regression": 0, "a_verifier": 1, "amelioration": 2, "stable": 3}
@@ -882,17 +884,17 @@ def diff_reports(
 
 def print_diff_report(findings: list[DiffFinding]) -> None:
     print("=" * 70)
-    print("COMPARAISON AVANT / APRES (baseline vs courant)")
+    print(_("COMPARAISON AVANT / APRES (baseline vs courant)"))
     print("=" * 70)
 
     if not findings:
-        print("\nAucun ecart significatif detecte entre les deux runs.")
+        print("\n" + _("Aucun ecart significatif detecte entre les deux runs."))
         return
 
     counts = {sev: sum(1 for f in findings if f.severity == sev) for sev in SEVERITY_ORDER}
     print(
-        f"\n{counts['regression']} regression(s), {counts['amelioration']} amelioration(s), "
-        f"{counts['a_verifier']} point(s) a verifier"
+        f"\n{counts['regression']} {_('regression(s)')}, {counts['amelioration']} {_('amelioration(s)')}, "
+        f"{counts['a_verifier']} {_('point(s) a verifier')}"
     )
 
     current_severity = None
@@ -900,10 +902,10 @@ def print_diff_report(findings: list[DiffFinding]) -> None:
         if f.severity != current_severity:
             current_severity = f.severity
             title = {
-                "regression": "-- REGRESSIONS (ca allait mieux avant) --",
-                "a_verifier": "-- A VERIFIER (changement sans verdict clair) --",
-                "amelioration": "-- AMELIORATIONS --",
-                "stable": "-- STABLE --",
+                "regression": _("-- REGRESSIONS (ca allait mieux avant) --"),
+                "a_verifier": _("-- A VERIFIER (changement sans verdict clair) --"),
+                "amelioration": _("-- AMELIORATIONS --"),
+                "stable": _("-- STABLE --"),
             }[f.severity]
             print(f"\n{title}")
         print(f"  [{f.category:14s}] {f.segment:20s} : {f.message}")
@@ -912,7 +914,7 @@ def print_diff_report(findings: list[DiffFinding]) -> None:
 def write_diff_csv(findings: list[DiffFinding], path: str) -> None:
     with open(path, "w", newline="", encoding="utf-8") as fh:
         writer = csv.writer(fh)
-        writer.writerow(["severite", "categorie", "segment", "message", "avant", "apres"])
+        writer.writerow([_("severite"), _("categorie"), _("segment"), _("message"), _("avant"), _("apres")])
         for f in findings:
             writer.writerow(
                 [
