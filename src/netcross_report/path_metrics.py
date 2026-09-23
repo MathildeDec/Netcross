@@ -42,9 +42,10 @@ from dataclasses import dataclass
 
 from netcross_core.baseline_profile import build_baseline_profile
 
-
-
+from netcross_core.i18n import setup_gettext
 from netcross_core.logging_config import get_logger
+
+_ = setup_gettext("netcross-report")
 
 logger = get_logger(__name__)
 @dataclass
@@ -216,21 +217,21 @@ def degradation_summary(metrics) -> str:
     restent du ressort des Finding/ExpertEvent."""
     ranked = rank_path_segments(metrics)
     if not metrics:
-        return "Aucun segment exploitable : la topologie n'a pas pu etre deduite de ces captures."
+        return _("Aucun segment exploitable : la topologie n'a pas pu etre deduite de ces captures.")
     if not ranked:
         return (
-            "Aucune metrique de qualite mesurable sur les segments observes "
-            "(ni delai, ni perte, ni remarquage) -- horloges non synchronisees "
-            "ou trafic commun insuffisant entre les points."
+            _("Aucune metrique de qualite mesurable sur les segments observes ")
+            + _("(ni delai, ni perte, ni remarquage) -- horloges non synchronisees ")
+            + _("ou trafic commun insuffisant entre les points.")
         )
     pire = ranked[0]
     details = []
     if pire.loss_pct is not None and pire.loss_count:
-        details.append(f"{pire.loss_count} paquet(s) perdu(s) ({pire.loss_pct:.1f}%)")
+        details.append(f"{pire.loss_count} {_("paquet(s) perdu(s)")} ({pire.loss_pct:.1f}%)")
     if pire.delay_p95_ms is not None:
-        details.append(f"delai P95 {pire.delay_p95_ms:.1f} ms")
+        details.append(f"{_("delai P95")} {pire.delay_p95_ms:.1f} ms")
     if pire.jitter_ms:
-        details.append(f"gigue {pire.jitter_ms:.1f} ms")
+        details.append(f"{_("gigue")} {pire.jitter_ms:.1f} ms")
     if not details:
-        details.append("aucune metrique chiffree")
-    return f"Segment le plus degrade : {pire.label} -- " + ", ".join(details) + "."
+        details.append(_("aucune metrique chiffree"))
+    return f"{_("Segment le plus degrade")} : {pire.label} -- " + ", ".join(details) + "."
