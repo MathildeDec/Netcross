@@ -129,6 +129,14 @@ branch = true
 
 [tool.coverage.report]
 precision = 1
+# Seuil bloquant (issue #246), decide APRES le traitement de app.py (#285)
+# comme le demandait l'issue : 82,2 % mesures sur dev le 2026-09-23, avec
+# ou sans tshark. Deux points de marge pour absorber une PR qui ajoute du
+# code GTK non testable, pas davantage : au-dela, le seuil ne retiendrait
+# plus rien. Ne s'applique qu'aux executions avec --cov (la CI) ; relever
+# ce chiffre quand la base monte, ne jamais le baisser pour faire passer
+# une PR. Detail : docs/quality/seuil-couverture.md.
+fail_under = 80
 exclude_lines = [
     "pragma: no cover",
     "if TYPE_CHECKING:",

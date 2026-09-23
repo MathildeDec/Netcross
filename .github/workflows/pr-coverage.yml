@@ -4,8 +4,10 @@
 # Principe : la suite etant rapide (~10 s), on execute pytest --cov deux
 # fois -- une fois sur le ref de fusion de la PR, une fois sur le SHA de
 # base -- puis scripts/pr_coverage_comment.py publie (ou met a jour) un
-# commentaire sur la PR. Aucun seuil bloquant ici : la decision de
-# calibrer --cov-fail-under reste a une issue de suivi (voir #224).
+# commentaire sur la PR. Aucun seuil bloquant ici :
+# le seuil bloquant (fail_under, #246) est applique par ci.yml ; ici il est
+# neutralise (--cov-fail-under=0) pour que le commentaire soit publie meme
+# quand la PR passe dessous -- c'est justement la qu'il est utile.
 name: Couverture par PR
 
 on:
@@ -35,7 +37,7 @@ jobs:
       - name: Dépendances + couverture de la PR
         run: |
           uv sync --extra dev
-          uv run pytest --cov --cov-report=json:coverage-pr.json -q
+          uv run pytest --cov --cov-fail-under=0 --cov-report=json:coverage-pr.json -q
 
       - name: Couverture de la base (SHA de dev)
         run: |
@@ -43,7 +45,7 @@ jobs:
           git worktree add ../base ${{ github.event.pull_request.base.sha }}
           cd ../base
           uv sync --extra dev
-          uv run pytest --cov --cov-report=json:coverage-base.json -q
+          uv run pytest --cov --cov-fail-under=0 --cov-report=json:coverage-base.json -q
           mv coverage-base.json "$OLDPWD/"
 
       - name: Publication du commentaire de couverture

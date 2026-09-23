@@ -67,3 +67,4 @@ nav:
   - Référence:
       - Roadmap: roadmap.md
       - Backlog: features-backlog.md
+      - Seuil de couverture: quality/seuil-couverture.md
