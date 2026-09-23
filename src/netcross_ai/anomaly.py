@@ -15,6 +15,7 @@ from pathlib import Path
 from statistics import mean, pstdev
 
 from netcross_ai.features import FEATURE_NAMES, flow_features, flow_key
+from netcross_ai.flow_classifier import is_feature_vector
 from netcross_ai.optional import require_ml
 
 BASELINE_SCHEMA = "netcross.ai.baseline/1"
@@ -39,15 +40,31 @@ class Baseline:
     def merge(self, other: Baseline) -> Baseline:
         return Baseline(self.vectors + other.vectors, self.label or other.label)
 
-    def save(self, path: str | Path) -> None:
-        data = {
+    def to_dict(self) -> dict:
+        return {
             "schema": BASELINE_SCHEMA,
             "features": list(FEATURE_NAMES),
             "label": self.label,
             "created_at": self.created_at,
             "vectors": self.vectors,
         }
-        Path(path).write_text(json.dumps(data, ensure_ascii=False), encoding="utf-8")
+
+    def save(self, path: str | Path) -> None:
+        Path(path).write_text(json.dumps(self.to_dict(), ensure_ascii=False), encoding="utf-8")
+
+    @classmethod
+    def from_dict(cls, data: object, source: str = "baseline") -> Baseline:
+        """Valide un document ``netcross.ai.baseline/1`` deja decode."""
+        if not isinstance(data, dict) or data.get("schema") != BASELINE_SCHEMA:
+            raise BaselineError(f"{source} n'est pas une baseline {BASELINE_SCHEMA}.")
+        if data.get("features") != list(FEATURE_NAMES):
+            raise BaselineError(f"{source} : caracteristiques differentes de cette version, regenerer la baseline.")
+        vectors = data.get("vectors")
+        if not isinstance(vectors, list) or not all(is_feature_vector(v) for v in vectors):
+            raise BaselineError(f"{source} : vecteurs invalides.")
+        return cls(
+            [[float(x) for x in v] for v in vectors], str(data.get("label", "")), str(data.get("created_at", ""))
+        )
 
     @classmethod
     def load(cls, path: str | Path) -> Baseline:
@@ -55,19 +72,7 @@ class Baseline:
             data = json.loads(Path(path).read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError) as exc:
             raise BaselineError(f"baseline illisible ({path}) : {exc}") from exc
-        if not isinstance(data, dict) or data.get("schema") != BASELINE_SCHEMA:
-            raise BaselineError(f"{path} n'est pas une baseline {BASELINE_SCHEMA}.")
-        if data.get("features") != list(FEATURE_NAMES):
-            raise BaselineError(f"{path} : caracteristiques differentes de cette version, regenerer la baseline.")
-        vectors = data.get("vectors")
-        width = len(FEATURE_NAMES)
-        if not isinstance(vectors, list) or not all(
-            isinstance(v, list) and len(v) == width and all(isinstance(x, (int, float)) for x in v) for v in vectors
-        ):
-            raise BaselineError(f"{path} : vecteurs invalides.")
-        return cls(
-            [[float(x) for x in v] for v in vectors], str(data.get("label", "")), str(data.get("created_at", ""))
-        )
+        return cls.from_dict(data, str(path))
 
 
 @dataclass

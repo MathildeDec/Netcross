@@ -85,3 +85,58 @@ constats de sécurité à résumer.
 `is_anomaly`, raisons), `classification` (étiquette, confiance, classification par règles),
 `summary` (moteur, texte, corrélations, recommandations, motif de repli éventuel), et les
 métadonnées de baseline / jeu d'entraînement utilisés.
+
+## Partage de modèles et remontée hors connexion
+
+Issue #271. Les baselines (« bons états transactionnels ») et les exemples
+étiquetés peuvent enrichir une **base commune** : ils sont exportés en
+**paquet de modèle** ZIP, remontés sur le dépôt par un ticket `modeles`, puis
+importés par d'autres postes. Ces commandes ne nécessitent pas scikit-learn.
+
+```bash
+# export (consentement obligatoire), mise en file pour plus tard
+python3 src/netcross_ai_models_cli.py export --baseline base-bureau.json \
+    --training entrainement.json --name bureau-lan --description "LAN bureautique" \
+    --consent -o bureau-lan.zip --queue
+
+python3 src/netcross_ai_models_cli.py inspect bureau-lan.zip     # vérification
+python3 src/netcross_ai_models_cli.py outbox list                # en attente
+
+# une fois connecté : URL du ticket pré-rempli + archive à joindre
+python3 src/netcross_ai_models_cli.py outbox send --open
+python3 src/netcross_ai_models_cli.py outbox done bureau-lan     # -> envoyes/
+
+# enrichir sa base locale avec un paquet de la base commune
+python3 src/netcross_ai_models_cli.py import commun.zip --baseline base-bureau.json --training entrainement.json
+```
+
+### Ce que contient un paquet
+
+| Fichier | Contenu |
+|---|---|
+| `manifest.json` | schéma `netcross.ai.modelpack/1`, nom, date (jour), comptes, caractéristiques, SHA-256 des fichiers |
+| `baseline.json` | vecteurs de caractéristiques du trafic normal |
+| `training.json` | exemples `{"features": [...], "label": "..."}` |
+| `TICKET.md` | corps du ticket `modeles` |
+
+**Sans garder d'infos** : seuls des vecteurs de caractéristiques voyagent
+(aucune adresse, aucun port, aucun nom d'hôte, aucun horodatage de paquet,
+aucune charge utile) ; ils sont arrondis à 4 chiffres significatifs et
+mélangés ; libellé et description passent par l'anonymiseur des tickets de
+support. Un jeu d'entraînement local (qui contient les flux complets pour
+pouvoir être corrigé) est réduit à ses vecteurs à l'export.
+
+**À l'import**, l'archive est vérifiée : fichiers attendus uniquement (ni
+chemin, ni script, ni pickle), tailles bornées, empreintes SHA-256, schémas,
+version des caractéristiques, exemples sans flux brut. Rien n'est exécuté.
+
+### Hors connexion
+
+La boîte d'envoi (`~/.netcross/outbox/modeles`, option `--outbox`) garde les
+paquets jusqu'à ce que le poste soit connecté. `outbox send` teste seulement la
+connectivité (connexion TCP vers github.com, rien n'est transmis) : hors ligne,
+il sort avec le code **3** (utilisable par une tâche planifiée pour réessayer) ;
+en ligne, il affiche pour chaque paquet l'URL de création du ticket (titre,
+étiquette `modeles`, corps pré-rempli) et le chemin de l'archive à joindre —
+les pièces jointes GitHub ne se déposent que depuis l'interface web. Netcross
+n'envoie jamais rien lui-même et ne stocke aucun jeton.

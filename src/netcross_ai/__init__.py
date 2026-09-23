@@ -12,6 +12,10 @@ Trois usages, tous executes sur la machine de traitement (aucune API cloud) :
    recommandations -- gabarit deterministe sans aucune dependance, ou modele
    de langage local (ollama, llama.cpp) joint **uniquement en boucle locale**.
 
+Partage (issue #271) : ``model_pack`` (paquets ZIP anonymes et verifies de
+baselines/exemples) et ``outbox`` (boite d'envoi hors connexion, tickets
+« modeles ») -- CLI ``src/netcross_ai_models_cli.py``.
+
 Installation : ``pip install "netcross[ai]"`` ou ``uv sync --extra ai``.
 Sans scikit-learn, le reste de Netcross fonctionne normalement ; seules les
 options ``--ai-anomalies``/``--ai-classify`` le signalent (voir ``optional``).
