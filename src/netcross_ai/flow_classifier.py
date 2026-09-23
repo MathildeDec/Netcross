@@ -1,7 +1,10 @@
 """Classification de flux avec score de confiance (foret aleatoire).
 
 Jeu d'entrainement : JSON ``netcross.ai.training/1`` -- une liste
-d'exemples ``{"flow": {...stats FLOW-4...}, "label": "tunnel"}``. Il se
+d'exemples ``{"flow": {...stats FLOW-4...}, "label": "tunnel"}``, ou
+``{"features": [...], "label": "tunnel"}`` (vecteur de caracteristiques deja
+calcule, sans aucun identifiant : forme des paquets de modeles partages,
+issue #271). Il se
 constitue avec ``--ai-training-export`` (flux de la capture pre-etiquetes par
 les regles FLOW-4), que l'analyste corrige et complete (tunnel, c2,
 exfiltration...). Comme la baseline, aucun modele pickle : reentraine a
@@ -15,7 +18,7 @@ from collections import Counter
 from dataclasses import dataclass
 from pathlib import Path
 
-from netcross_ai.features import flow_features, flow_key
+from netcross_ai.features import FEATURE_NAMES, flow_features, flow_key
 from netcross_ai.optional import require_ml
 
 TRAINING_SCHEMA = "netcross.ai.training/1"
@@ -35,19 +38,41 @@ def export_training_set(flows: list[dict], path: str | Path) -> int:
     return len(samples)
 
 
-def load_training_set(path: str | Path) -> list[tuple[dict, str]]:
+def load_training_set(path: str | Path) -> list[tuple[dict | list[float], str]]:
     try:
         data = json.loads(Path(path).read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
         raise TrainingSetError(f"jeu d'entrainement illisible ({path}) : {exc}") from exc
     if not isinstance(data, dict) or data.get("schema") != TRAINING_SCHEMA:
         raise TrainingSetError(f"{path} n'est pas un jeu {TRAINING_SCHEMA}.")
-    samples = []
+    samples: list[tuple[dict | list[float], str]] = []
     for i, item in enumerate(data.get("samples") or []):
-        if not (isinstance(item, dict) and isinstance(item.get("flow"), dict) and item.get("label")):
-            raise TrainingSetError(f"{path} : exemple {i} invalide (attendu {{'flow': {{...}}, 'label': '...'}}).")
-        samples.append((item["flow"], str(item["label"])))
+        if isinstance(item, dict) and item.get("label") and isinstance(item.get("flow"), dict):
+            samples.append((item["flow"], str(item["label"])))
+        elif isinstance(item, dict) and item.get("label") and is_feature_vector(item.get("features")):
+            samples.append(([float(x) for x in item["features"]], str(item["label"])))
+        else:
+            raise TrainingSetError(
+                f"{path} : exemple {i} invalide (attendu {{'flow': {{...}}, 'label': '...'}} "
+                f"ou {{'features': [{len(FEATURE_NAMES)} nombres], 'label': '...'}})."
+            )
     return samples
+
+
+def is_feature_vector(value: object) -> bool:
+    """Vrai pour une liste de len(FEATURE_NAMES) nombres finis (bool exclus)."""
+    return (
+        isinstance(value, list)
+        and len(value) == len(FEATURE_NAMES)
+        and all(
+            isinstance(x, (int, float)) and not isinstance(x, bool) and x == x and abs(x) != float("inf") for x in value
+        )
+    )
+
+
+def sample_vector(sample: dict | list[float]) -> list[float]:
+    """Vecteur de caracteristiques d'un exemple (flux FLOW-4 ou vecteur deja calcule)."""
+    return list(sample) if isinstance(sample, list) else flow_features(sample)
 
 
 @dataclass
@@ -67,7 +92,7 @@ class FlowPrediction:
 
 
 class FlowClassifier:
-    def __init__(self, samples: list[tuple[dict, str]]):
+    def __init__(self, samples: list[tuple[dict | list[float], str]]):
         require_ml("La classification de flux")
         labels = Counter(label for _f, label in samples)
         if len(samples) < MIN_SAMPLES or len(labels) < 2:
@@ -79,7 +104,7 @@ class FlowClassifier:
 
         self.labels = dict(labels)
         self._model = RandomForestClassifier(n_estimators=200, random_state=0, class_weight="balanced")
-        self._model.fit([flow_features(f) for f, _l in samples], [label for _f, label in samples])
+        self._model.fit([sample_vector(f) for f, _l in samples], [label for _f, label in samples])
 
     def predict(self, flows: list[dict]) -> list[FlowPrediction]:
         if not flows:
