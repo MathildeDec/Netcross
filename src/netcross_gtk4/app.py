@@ -84,7 +84,7 @@ from netcross_gtk4.dashboard_context import (  # noqa: E402
     DashboardSelection,
     build_dashboard_snapshot,
 )
-from netcross_gtk4.live_capture_points import duplicate_labels, expand_live_points  # noqa: E402
+from netcross_gtk4.live_capture_points import duplicate_labels, expand_live_points, invalid_sources  # noqa: E402
 from netcross_gtk4.panel_state import (  # noqa: E402
     apply_dashboard_selection,
     comm_map_filters,
@@ -260,13 +260,16 @@ class LiveCaptureRow(Gtk.Box):
             # bouton depend du contenu du champ, pas seulement du nombre de lignes
             self.interface_entry.connect("changed", lambda _entry: on_change())
         self.interface_entry.set_width_chars(10)
-        self.interface_entry.set_placeholder_text("eth0 ou eth0, eth1...")
+        self.interface_entry.set_placeholder_text("eth0, eth0, eth1 ou rpcap://hote/eth0")
         self.interface_entry.set_tooltip_text(
             "Nom de l'interface reseau a capturer (voir `tshark -D` ou "
             "`ip link` pour lister les interfaces disponibles). Plusieurs "
             "interfaces separees par des virgules (ex: eth0, eth1) sont "
             "capturees simultanement : chacune devient un point "
-            "'NOM:interface', dans l'ordre saisi (= chemin physique reseau)."
+            "'NOM:interface', dans l'ordre saisi (= chemin physique reseau). "
+            "Source distante possible : rpcap://hote[:port]/eth0 (rpcapd), "
+            "sshdump://utilisateur@hote/eth0 (tcpdump via SSH), pipe:///chemin/fifo "
+            "ou pipe://- (entree standard)."
         )
         self.interface_entry.set_hexpand(True)
         self.append(self.interface_entry)
@@ -1402,6 +1405,11 @@ class MainWindow(Gtk.ApplicationWindow):
                 f"Interface manquante pour : {', '.join(missing)} -- "
                 f"capture annulee (renseignez une interface par point)."
             )
+            return
+        source_errors = invalid_sources(rows_data)
+        if source_errors:
+            self.stack.set_visible_child_name("log")
+            self._log(f"Source de capture invalide -- capture annulee : {'; '.join(source_errors)}")
             return
         duplicates = duplicate_labels(rows_data)
         if duplicates:

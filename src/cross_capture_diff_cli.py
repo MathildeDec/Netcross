@@ -92,6 +92,7 @@ from netcross_core import (
 from netcross_core.baseline_diff import diff_reports, print_diff_report, write_diff_csv
 from netcross_core.logging_config import get_logger
 from pcap_parser.ek_source import TsharkError, TsharkNotFoundError
+from pcap_parser.remote import CaptureSourceError, parse_source, split_live_target
 
 logger = get_logger(__name__)
 
@@ -206,16 +207,33 @@ def _parse_live_spec(spec):
     cross_capture_analyzer_cli.py -- chaque CLI reste independante (voir
     docstring du module), pas de module partage pour un helper aussi
     court."""
-    parts = spec.split(":", 2)
-    if len(parts) < 2 or not parts[0] or not parts[1]:
+    label, sep, rest = spec.partition(":")
+    iface, bpf = split_live_target(rest) if sep else ("", None)
+    if not label or not iface:
         print(
-            f"Format invalide pour --live-current: {spec} (attendu LABEL:INTERFACE[:FILTRE_BPF])",
+            f"Format invalide pour --live-current: {spec} (attendu LABEL:INTERFACE[:FILTRE_BPF], INTERFACE pouvant "
+            "etre une source distante rpcap://, sshdump:// ou pipe://)",
             file=sys.stderr,
         )
         sys.exit(1)
-    label, iface = parts[0], parts[1]
-    bpf = parts[2] if len(parts) > 2 else None
-    return label, iface, bpf
+    try:
+        parse_source(iface)
+    except CaptureSourceError as exc:
+        print(f"Source invalide pour --live-current {label} : {exc}", file=sys.stderr)
+        sys.exit(1)
+    return label, iface, bpf or None
+
+
+def _check_single_stdin(points):
+    """Une seule source pipe://- (entree standard) par execution : deux
+    lecteurs se partageraient les octets du meme flux pcap."""
+    stdin_labels = [label for label, iface, _bpf in points if parse_source(iface).uses_stdin]
+    if len(stdin_labels) > 1:
+        print(
+            f"Une seule source peut lire l'entree standard (pipe://-) : {', '.join(stdin_labels)}",
+            file=sys.stderr,
+        )
+        sys.exit(1)
 
 
 def _run_live_captures(live_specs, duration):
@@ -228,6 +246,7 @@ def _run_live_captures(live_specs, duration):
     le detail : thread par point, arret sur SIGINT ou timer, un point en
     echec ne bloque pas les autres)."""
     points = [_parse_live_spec(s) for s in live_specs]
+    _check_single_stdin(points)
     stop_event = threading.Event()
     packets_by_point = {label: [] for label, _iface, _bpf in points}
     lock = threading.Lock()
@@ -351,7 +370,8 @@ def main():
         metavar="LABEL:INTERFACE[:FILTRE_BPF]",
         help="Capture en direct le run COURANT au lieu de le lire depuis des "
         "fichiers (repetable pour plusieurs points simultanes, un thread "
-        "par point -- meme mecanique que --live sur "
+        "par point, sources distantes rpcap:// sshdump:// pipe:// "
+        "comprises -- meme mecanique que --live sur "
         "cross_capture_analyzer_cli.py). S'arrete sur Ctrl+C ou "
         "--live-duration. Le BASELINE reste toujours un ou plusieurs "
         "fichiers via --baseline : une reference de comparaison est par "

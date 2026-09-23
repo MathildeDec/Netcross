@@ -157,24 +157,44 @@ from netcross_core.support import (
 )
 from netcross_report.security_report import build_security_report, print_security_report
 from pcap_parser.ek_source import TsharkError, TsharkNotFoundError
+from pcap_parser.remote import CaptureSourceError, parse_source, split_live_target
 
 logger = get_logger(__name__)
 
 
 def _parse_live_spec(spec):
     """LABEL:INTERFACE[:FILTRE_BPF] -> (label, interface, bpf_ou_None).
-    maxsplit=2 : un filtre BPF contenant lui-meme des ':' (adresse IPv6,
-    par exemple) reste intact, seuls les 2 premiers ':' sont significatifs."""
-    parts = spec.split(":", 2)
-    if len(parts) < 2 or not parts[0] or not parts[1]:
+    Un filtre BPF contenant lui-meme des ':' (adresse IPv6, par exemple)
+    reste intact, seuls les 2 premiers ':' sont significatifs. INTERFACE
+    peut etre une source distante (issue #166) : les ':' de son hote/port
+    ne comptent pas -- voir pcap_parser.remote.split_live_target."""
+    label, sep, rest = spec.partition(":")
+    iface, bpf = split_live_target(rest) if sep else ("", None)
+    if not label or not iface:
         print(
-            f"Format invalide pour --live: {spec} (attendu LABEL:INTERFACE[:FILTRE_BPF])",
+            f"Format invalide pour --live: {spec} (attendu LABEL:INTERFACE[:FILTRE_BPF], INTERFACE pouvant "
+            "etre une source distante rpcap://, sshdump:// ou pipe://)",
             file=sys.stderr,
         )
         sys.exit(1)
-    label, iface = parts[0], parts[1]
-    bpf = parts[2] if len(parts) > 2 else None
-    return label, iface, bpf
+    try:
+        parse_source(iface)
+    except CaptureSourceError as exc:
+        print(f"Source invalide pour --live {label} : {exc}", file=sys.stderr)
+        sys.exit(1)
+    return label, iface, bpf or None
+
+
+def _check_single_stdin(points):
+    """Une seule source pipe://- (entree standard) par execution : deux
+    lecteurs se partageraient les octets du meme flux pcap."""
+    stdin_labels = [label for label, iface, _bpf in points if parse_source(iface).uses_stdin]
+    if len(stdin_labels) > 1:
+        print(
+            f"Une seule source peut lire l'entree standard (pipe://-) : {', '.join(stdin_labels)}",
+            file=sys.stderr,
+        )
+        sys.exit(1)
 
 
 def _parse_client_group_spec(spec):
@@ -498,6 +518,7 @@ def _run_live_captures(live_specs, duration, reporter=None):
     ``reporter`` (issue #274, --live-report) : LiveReporter alimente paquet
     par paquet et publie a intervalle regulier pendant la capture."""
     points = [_parse_live_spec(s) for s in live_specs]
+    _check_single_stdin(points)
     stop_event = threading.Event()
     packets_by_point = {label: [] for label, _iface, _bpf in points}
     lock = threading.Lock()
@@ -1055,7 +1076,9 @@ def main():
         "pcap existants (repetable pour plusieurs points simultanes, un "
         "thread par point comme sur l'interface graphique). S'arrete sur "
         "Ctrl+C ou --live-duration. Mutuellement exclusif avec --capture/"
-        "--parallel/--tls/--quic (memes limitations assumees que sur la GUI).",
+        "--parallel/--tls/--quic (memes limitations assumees que sur la GUI). "
+        "INTERFACE peut etre une source distante : rpcap://hote[:port]/eth0, "
+        "sshdump://utilisateur@hote/eth0, pipe:///fifo ou pipe://- (voir docs/capture-distante.md).",
     )
     ap.add_argument(
         "--live-duration",

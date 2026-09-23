@@ -49,6 +49,7 @@ from loguru import logger
 from pcap_parser.capfile import detect_format, first_timestamp, format_extension, has_packets, split_by_size
 from pcap_parser.ek_source import TsharkError, TsharkNotFoundError, iter_ek_records
 from pcap_parser.packet import RawPacket, build_packet
+from pcap_parser.remote import CaptureSource, parse_source
 
 
 def parse_capture(path: str, raise_on_error: bool = False) -> list[RawPacket]:
@@ -149,9 +150,15 @@ def parse_captures_parallel(
     return all_packets, per_file_stats
 
 
+def _source_kwargs(source: CaptureSource) -> dict:
+    """Arguments tshark propres a une source distante (vide pour une interface locale)."""
+    return {"extra_args": source.extra_args} if source.extra_args else {}
+
+
 def iter_live(interface: str, bpf_filter: str | None = None, stop_event=None) -> Iterator[RawPacket]:
     """
-    Capture en direct sur `interface` (ex: "eth0") et yield un RawPacket
+    Capture en direct sur `interface` (ex: "eth0", ou une source distante
+    rpcap://, sshdump://, pipe:// -- voir pcap_parser.remote) et yield un RawPacket
     au fil de l'eau. Meme pipeline de dissection que parse_capture, la
     seule difference est la source tshark (-i au lieu de -r) : aucune
     duplication de logique de decodage entre batch et live.
@@ -166,7 +173,11 @@ def iter_live(interface: str, bpf_filter: str | None = None, stop_event=None) ->
     pour le detail (utile pour un bouton "Arreter" reactif meme sur une
     interface sans trafic).
     """
-    for record in iter_ek_records(interface=interface, bpf_filter=bpf_filter, stop_event=stop_event):
+    source = parse_source(interface)
+    records = iter_ek_records(
+        interface=source.interface, bpf_filter=bpf_filter, stop_event=stop_event, **_source_kwargs(source)
+    )
+    for record in records:
         pkt = build_packet(record.ts, record.layers)
         if pkt is not None:
             yield pkt
@@ -632,6 +643,13 @@ def _validate_live_sources(interfaces: Sequence[tuple[str, str]]) -> list[tuple[
         raise ValueError(
             f"iter_live_multi : label(s) en double ({', '.join(duplicates)}) -- un label distinct par interface"
         )
+    # sources distantes (#166) : URL invalide -> CaptureSourceError (ValueError)
+    # des l'appel ; une seule source peut lire l'entree standard.
+    stdin_labels = [label for label, interface in sources if parse_source(interface).uses_stdin]
+    if len(stdin_labels) > 1:
+        raise ValueError(
+            f"iter_live_multi : une seule source peut lire l'entree standard (pipe://-) : {', '.join(stdin_labels)}"
+        )
     return sources
 
 
@@ -648,7 +666,10 @@ def _live_source_worker(
     processus tshark, la lecture voit l'EOF (apres avoir rendu les paquets
     deja recus) et la boucle se termine d'elle-meme."""
     try:
-        records = iter_ek_records(interface=interface, bpf_filter=bpf_filter, stop_event=halt)
+        source = parse_source(interface)
+        records = iter_ek_records(
+            interface=source.interface, bpf_filter=bpf_filter, stop_event=halt, **_source_kwargs(source)
+        )
         try:
             for record in records:
                 pkt = build_packet(record.ts, record.layers)

@@ -36,6 +36,7 @@ flowchart TD
     CLI -->|"3 imports"| pcap_parser
     netcross_gtk4 -->|"10 imports"| netcross_report
     netcross_gtk4 -->|"18 imports"| netcross_core
+    netcross_gtk4 -->|"1 import"| pcap_parser
     netcross_api -->|"3 imports"| netcross_core
     netcross_report -->|"13 imports"| netcross_core
     netcross_core -->|"15 imports"| pcap_parser
@@ -103,6 +104,7 @@ flowchart LR
 | `pcap_parser.ek_source` | couche 1 : execution de tshark -T ek et lecture du flux NDJSON qui en resulte, fichier pcap ou interface live. |
 | `pcap_parser.packet` | couche 5 : assemblage d'un RawPacket normalise a partir des couches EK d'un paquet, une fois l'encapsulation detectee (tunnels.py) et les protocoles applicatifs extraits (protocols.py). |
 | `pcap_parser.protocols` | couche 4 : RTP / DHCP / SIP. |
+| `pcap_parser.remote` | sources de capture distantes (issue #166). |
 | `pcap_parser.tunnels` | couche 3 : detection de la pile d'encapsulation (VLAN/MPLS/GRE/VXLAN/GTP-U/ERSPAN/CAPWAP) et selection de la couche IP/TCP/UDP/ICMP la plus interne a utiliser pour l'analyse. |
 
 ### Diagramme
@@ -245,6 +247,7 @@ classDiagram
     }
     class mod_pcap_parser_ek_source["pcap_parser.ek_source"] {
         <<module>>
+        +redact_args(args) list
         +iter_ek_records(path, interface, bpf_filter, display_filter, extra_prefs, extra_args, lua_scripts, stop_event) Iterator~EkRecord~
     }
 
@@ -357,6 +360,27 @@ classDiagram
         +extract_tls_certificate(layers) dict?
         +extract_tls_handshake(layers) dict?
         +compute_mos(delay_ms, loss_pct)
+    }
+
+    %% ===== pcap_parser.remote =====
+    class CaptureSourceError {
+        <<ValueError>>
+    }
+    class CaptureSource {
+        <<dataclass, frozen>>
+        +str kind
+        +str interface
+        +tuple~str, ...~ extra_args
+        +str display
+        +bool uses_stdin
+        +is_remote() bool
+    }
+    class mod_pcap_parser_remote["pcap_parser.remote"] {
+        <<module>>
+        +is_source_url(text) bool
+        +split_live_target(text) tuple~str, str?~
+        +parse_source(text, env) CaptureSource
+        +source_display(text) str
     }
 
     %% ===== pcap_parser.tunnels =====
@@ -3441,6 +3465,7 @@ classDiagram
         +split_interfaces(text) list~str~
         +expand_live_points(rows) list~tuple~str, str, str?~~
         +duplicate_labels(points) list~str~
+        +invalid_sources(points) list~str~
     }
 
     %% ===== netcross_gtk4.panel_state =====
