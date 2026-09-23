@@ -1401,6 +1401,7 @@ def main():
         "--siem-output",
         metavar="FICHIER",
         help="Fichier de sortie de --siem-export.",
+    )
     plug = ap.add_argument_group(
         "plugins (issue #284)",
         "Detecteurs et sorties tierces. Chargement EXPLICITE : un plugin installe n'est execute que "

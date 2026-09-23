@@ -11,7 +11,7 @@
 > Il remplace l'ancienne section 3 de `docs/features-backlog.md`, tenue à la main, qui avait dérivé
 > (voir `docs/sessions/session-36.md`, issue #140).
 
-125 modules · 177 classes · 376 fonctions publiques de module.
+151 modules · 222 classes · 485 fonctions publiques de module.
 
 Conventions : `+` public, `-` privé (préfixe `_`) ; `int?` = `int | None` ; `list~str~` = `list[str]` ;
 `<<module>>` regroupe les fonctions publiques d'un module ; `A --> B : champ` = `A` a un champ annoté
@@ -32,15 +32,17 @@ flowchart TD
     netcross_ai["netcross_ai"]
     netcross_core["netcross_core"]
     pcap_parser["pcap_parser"]
-    CLI -->|"15 imports"| netcross_report
-    CLI -->|"20 imports"| netcross_core
-    CLI -->|"3 imports"| pcap_parser
+    CLI -->|"17 imports"| netcross_report
+    CLI -->|"8 imports"| netcross_ai
+    CLI -->|"31 imports"| netcross_core
+    CLI -->|"5 imports"| pcap_parser
     netcross_gtk4 -->|"10 imports"| netcross_report
-    netcross_gtk4 -->|"18 imports"| netcross_core
+    netcross_gtk4 -->|"20 imports"| netcross_core
     netcross_gtk4 -->|"1 import"| pcap_parser
     netcross_api -->|"3 imports"| netcross_core
     netcross_report -->|"13 imports"| netcross_core
-    netcross_core -->|"15 imports"| pcap_parser
+    netcross_ai -->|"1 import"| netcross_core
+    netcross_core -->|"17 imports"| pcap_parser
 ```
 
 ## Relations inter-modules
@@ -70,6 +72,7 @@ flowchart LR
     InterfaceRecord["pcap_parser.capfile.InterfaceRecord"]
     LiveDiffState["netcross_core.live_diff.LiveDiffState"]
     LoadedPlugins["netcross_core.plugins.loader.LoadedPlugins"]
+    ModelPack["netcross_ai.model_pack.ModelPack"]
     OsGuess["netcross_core.discovery.os_detect.OsGuess"]
     Pkt["netcross_core.models.Pkt"]
     Report["netcross_core.models.Report"]
@@ -90,6 +93,7 @@ flowchart LR
     LiveDiffState -->|packets_in_window| Pkt
     LoadedPlugins -->|detectors| Detector
     LoadedPlugins -->|exporters| Exporter
+    ModelPack -->|baseline| Baseline
     SegmentScore -->|findings| Finding
     _Detector -->|run| netcross_core_security_expert_correlation__FlowState
 ```
@@ -2159,6 +2163,98 @@ classDiagram
     }
 ```
 
+## `netcross_core.plugins`
+
+| Module | Rôle |
+|---|---|
+| `netcross_core.plugins` | detecteurs et sorties tierces (issue #284). |
+| `netcross_core.plugins.api` | contrat des plugins (issue #284). |
+| `netcross_core.plugins.loader` | decouverte et chargement EXPLICITE des plugins (issue #284). |
+| `netcross_core.plugins.runner` | execution isolee des plugins (issue #284). |
+
+### Diagramme
+
+```mermaid
+classDiagram
+    direction LR
+
+    %% ===== netcross_core.plugins.api =====
+    class PluginAccessError {
+        <<AttributeError>>
+    }
+    class InvalidFindingError {
+        <<ValueError>>
+    }
+    class ReadOnlyView {
+        <<__slots__>>
+    }
+    class _Packets {
+        <<__slots__>>
+    }
+    class DetectorContext {
+        <<dataclass, frozen, slots>>
+        +Any packets
+        +ReadOnlyView report
+        +tuple~Mapping~str, Any~, ...~ findings
+        +build(packets, report)$ DetectorContext
+    }
+    class Detector {
+        <<Protocol>>
+        +str name
+        +analyse(contexte) list~dict~
+    }
+    class Exporter {
+        <<Protocol>>
+        +str name
+        +export(report, chemin) None
+    }
+    class mod_netcross_core_plugins_api["netcross_core.plugins.api"] {
+        <<module>>
+        +freeze(value) Any
+        +validate_finding(raw) dict~str, Any~
+    }
+
+    %% ===== netcross_core.plugins.loader =====
+    class PluginLoadError {
+        <<Exception>>
+    }
+    class PluginInfo {
+        <<dataclass, frozen, slots>>
+        +str name
+        +str kind
+        +str origin
+        +str target
+    }
+    class LoadedPlugins {
+        <<dataclass, slots>>
+        +list~Detector~ detectors
+        +dict~str, Exporter~ exporters
+        +list~dict~str, str~~ errors
+    }
+    class mod_netcross_core_plugins_loader["netcross_core.plugins.loader"] {
+        <<module>>
+        +forbidden_imports(source) list~str~
+        +discover_installed() list~PluginInfo~
+        +load_path_module(path) dict~str, list~Any~~
+        +load_plugins(authorized, plugin_paths) LoadedPlugins
+        +list_plugins(authorized, plugin_paths) list~dict~str, Any~~
+    }
+
+    %% ===== netcross_core.plugins.runner =====
+    class mod_netcross_core_plugins_runner["netcross_core.plugins.runner"] {
+        <<module>>
+        +run_line(run) str
+        +load_error_runs(errors) list~dict~str, Any~~
+        +run_detectors(detectors, packets, report) list~dict~str, Any~~
+        +run_exporters(exporters, targets, report) list~dict~str, Any~~
+    }
+
+    %% ===== relations =====
+    DetectorContext --> ReadOnlyView : report
+    LoadedPlugins --> Detector : detectors
+    LoadedPlugins --> Exporter : exporters
+```
+
 ## `netcross_core.security`
 
 | Module | Rôle |
@@ -3293,6 +3389,7 @@ classDiagram
         +list~SecurityItem~ cves
         +SecurityDashboard dashboard
         +list~dict~ notifications
+        +list~dict~ plugins
     }
     class mod_netcross_report_security_report["netcross_report.security_report"] {
         <<module>>
