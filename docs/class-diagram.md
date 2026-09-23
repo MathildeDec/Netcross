@@ -11,7 +11,7 @@
 > Il remplace l'ancienne section 3 de `docs/features-backlog.md`, tenue à la main, qui avait dérivé
 > (voir `docs/sessions/session-36.md`, issue #140).
 
-125 modules · 177 classes · 375 fonctions publiques de module.
+125 modules · 177 classes · 376 fonctions publiques de module.
 
 Conventions : `+` public, `-` privé (préfixe `_`) ; `int?` = `int | None` ; `list~str~` = `list[str]` ;
 `<<module>>` regroupe les fonctions publiques d'un module ; `A --> B : champ` = `A` a un champ annoté
@@ -33,7 +33,7 @@ flowchart TD
     pcap_parser["pcap_parser"]
     CLI -->|"15 imports"| netcross_report
     CLI -->|"20 imports"| netcross_core
-    CLI -->|"2 imports"| pcap_parser
+    CLI -->|"3 imports"| pcap_parser
     netcross_gtk4 -->|"10 imports"| netcross_report
     netcross_gtk4 -->|"18 imports"| netcross_core
     netcross_api -->|"3 imports"| netcross_core
@@ -1278,6 +1278,8 @@ classDiagram
         +list~float~ http_response_time_ms
         +dict~tuple~str, str~, int~ duplicate_count
         +bool duplicates_excluded
+        +bool truncated
+        +str truncation_note
         +list~dict~ http_objects
         +list~dict~ extracted_files
         +list~dict~ application_transactions
@@ -1288,6 +1290,7 @@ classDiagram
         +list~dict~ dga_alerts
         +list~dict~ fast_flux_alerts
         +list~dict~ lateral_movement_events
+        +list~dict~ flow_anomalies
         +list~tuple~str, str, dict~~ topology_edges
         +list~tuple~str, str, str~~ topology_ambiguous
         +list~str~ topology_isolated
@@ -2136,6 +2139,7 @@ classDiagram
         +beaconing_findings(suspicions) list~dict~str, Any~~
         +tls_audit_findings(audit) list~dict~str, Any~~
         +lateral_movement_findings(events) list~dict~str, Any~~
+        +flow_stats_findings(flows) list~dict~str, Any~~
         +cve_findings(fingerprints, conn) list~dict~str, Any~~
         +dga_findings(alerts) list~dict~str, Any~~
         +fast_flux_findings(alerts) list~dict~str, Any~~
