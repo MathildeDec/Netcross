@@ -51,8 +51,8 @@ jobs:
       - name: Installation de Python
         run: uv python install 3.14
 
-      - name: Installation des dépendances (extras dev + api)
-        run: uv sync --extra dev --extra api
+      - name: Installation des dépendances (extras dev + api + ai)
+        run: uv sync --extra dev --extra api --extra ai
 
       - name: Lint (ruff check)
         run: uv run ruff check .

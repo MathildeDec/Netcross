@@ -38,6 +38,8 @@ jobs:
         run: |
           uv sync --extra dev
           uv run pytest --cov --cov-fail-under=0 --cov-report=json:coverage-pr.json -q
+          uv sync --extra dev --extra ai
+          uv run pytest --cov --cov-report=json:coverage-pr.json -q
 
       - name: Couverture de la base (SHA de dev)
         run: |

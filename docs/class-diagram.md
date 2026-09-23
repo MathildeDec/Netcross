@@ -3593,3 +3593,129 @@ classDiagram
         +main()
     }
 ```
+
+## `netcross_ai`
+
+| Module | Rôle |
+|---|---|
+| `netcross_ai` | module IA/ML **optionnel et local** (issue #146, FLOW-5). |
+| `netcross_ai.anomaly` | Detection d'anomalies de flux par rapport a une baseline (Isolation Forest). |
+| `netcross_ai.features` | Vecteur de caracteristiques d'un flux, calcule a partir des statistiques FLOW-4 (``Report.flow_anomalies`` / ``security.flow_stats``) : taille, SPLT, entropie, ratio montant/descendant, regularite… |
+| `netcross_ai.flow_classifier` | Classification de flux avec score de confiance (foret aleatoire). |
+| `netcross_ai.optional` | Detection de disponibilite des dependances ML et repli gracieux. |
+| `netcross_ai.pipeline` | Orchestration des trois usages pour la CLI (``--ai-*``) et mise en forme. |
+| `netcross_ai.report_writer` | Redaction du resume executif en francais, des correlations et des recommandations a partir d'un ``Report``. |
+
+### Diagramme
+
+```mermaid
+classDiagram
+    direction LR
+
+    %% ===== netcross_ai.anomaly =====
+    class BaselineError {
+        <<ValueError>>
+    }
+    class Baseline {
+        <<dataclass>>
+        +list~list~float~~ vectors
+        +str label
+        +str created_at
+        +from_flows(flows, label)$ Baseline
+        +merge(other) Baseline
+        +save(path) None
+        +load(path)$ Baseline
+    }
+    class FlowAnomaly {
+        <<dataclass>>
+        +str flow
+        +float score
+        +bool is_anomaly
+        +str classification
+        +list~str~ reasons
+        +to_dict() dict
+    }
+    class mod_netcross_ai_anomaly["netcross_ai.anomaly"] {
+        <<module>>
+        +detect_anomalies(baseline, flows, contamination) list~FlowAnomaly~
+    }
+
+    %% ===== netcross_ai.features =====
+    class mod_netcross_ai_features["netcross_ai.features"] {
+        <<module>>
+        +flow_features(flow) list~float~
+        +flow_key(flow) str
+    }
+
+    %% ===== netcross_ai.flow_classifier =====
+    class TrainingSetError {
+        <<ValueError>>
+    }
+    class FlowPrediction {
+        <<dataclass>>
+        +str flow
+        +str label
+        +float confidence
+        +str rule_classification
+        +to_dict() dict
+    }
+    class FlowClassifier {
+        +predict(flows) list~FlowPrediction~
+    }
+    class mod_netcross_ai_flow_classifier["netcross_ai.flow_classifier"] {
+        <<module>>
+        +export_training_set(flows, path) int
+        +load_training_set(path) list~tuple~dict, str~~
+    }
+
+    %% ===== netcross_ai.optional =====
+    class AIUnavailableError {
+        <<RuntimeError>>
+    }
+    class mod_netcross_ai_optional["netcross_ai.optional"] {
+        <<module>>
+        +ml_available() bool
+        +require_ml(feature) None
+    }
+
+    %% ===== netcross_ai.pipeline =====
+    class AIOptions {
+        <<dataclass>>
+        +str? baseline_path
+        +str? baseline_save
+        +str baseline_label
+        +str? training_path
+        +str? training_export
+        +str? summary_engine
+        +str? endpoint
+    }
+    class mod_netcross_ai_pipeline["netcross_ai.pipeline"] {
+        <<module>>
+        +run_ai(report, flows, options) dict
+        +format_ai(result, top) str
+    }
+
+    %% ===== netcross_ai.report_writer =====
+    class WriterConfigError {
+        <<ValueError>>
+    }
+    class Summary {
+        <<dataclass>>
+        +str engine
+        +str text
+        +list~str~ correlations
+        +list~str~ recommendations
+        +str fallback_reason
+        +to_dict() dict
+    }
+    class mod_netcross_ai_report_writer["netcross_ai.report_writer"] {
+        <<module>>
+        +collect_facts(report, ai) dict
+        +template_summary(report, ai) Summary
+        +parse_engine(spec, endpoint) tuple~str, str, str~
+        +check_local_endpoint(url) None
+        +build_prompt(facts) str
+        +llm_generate(kind, model, url, prompt, timeout) str
+        +write_summary(report, ai, engine, endpoint) Summary
+    }
+```

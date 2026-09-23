@@ -44,6 +44,12 @@ api = [
     "python-multipart>=0.0.6",
     "httpx>=0.24",  # pour TestClient dans les tests
 ]
+# Module IA/ML local (issue #146) : jamais obligatoire -- sans lui, seules
+# les options --ai-anomalies/--ai-classify le signalent.
+# Installe avec : pip install -e ".[ai]" ou uv sync --extra ai
+ai = [
+    "scikit-learn>=1.5",
+]
 # Documentation navigable (issue #282) : MkDocs Material + extensions.
 # Installe avec : uv sync --extra docs
 docs = [
@@ -82,7 +88,7 @@ ignore = ["RUF100"]
 ban-relative-imports = "all"
 
 [tool.importlinter]
-root_packages = ["netcross_gtk4", "netcross_report", "netcross_api", "netcross_core", "pcap_parser"]
+root_packages = ["netcross_gtk4", "netcross_report", "netcross_api", "netcross_ai", "netcross_core", "pcap_parser"]
 include_external_packages = true
 
 [[tool.importlinter.contracts]]
@@ -92,6 +98,7 @@ layers = [
     "netcross_gtk4",
     "netcross_report",
     "netcross_api",
+    "netcross_ai",
     "netcross_core",
     "pcap_parser",
 ]

@@ -65,6 +65,7 @@ nav:
       - Extraction des contenus: extraction-contenus.md
       - Rapport temps réel: live-report.md
       - Conversion de formats: conversion-formats.md
+      - Module IA local: module-ia.md
       - Rule engine: architecture-rule-engine.md
   - Architecture:
       - Diagramme de classes: class-diagram.md
