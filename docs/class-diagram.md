@@ -1285,6 +1285,7 @@ classDiagram
         +list~dict~ application_transactions
         +list~dict~ service_fingerprints
         +list~dict~ security_findings
+        +list~dict~ exfiltration_alerts
         +dict~str, dict~str, int~~ protocol_mismatches
         +list~dict~ protocol_mismatch_details
         +list~dict~ dga_alerts
@@ -1856,7 +1857,7 @@ classDiagram
 | `netcross_core.security.cve_db` | base SQLite locale des CVE, peuplee par scripts/import_nvd.py depuis le flux NVD (voir ce script pour le format JSON attendu, API NVD 2.0). |
 | `netcross_core.security.dga` | issue #152 (SCENARIO-6, parent #141) : detection de domaines generes algorithmiquement (DGA). |
 | `netcross_core.security.dns_tunnel` | issue #144 (FLOW-3, parent #141) : detection de tunneling DNS (exfiltration, C2, VPN over DNS). |
-| `netcross_core.security.exfiltration` | issue #148 (SCENARIO-2, parent #141) : detection d'exfiltration de données (transferts sortants anormaux). |
+| `netcross_core.security.exfiltration` | issue #148 (SCENARIO-2, parent #141) : detection d'exfiltration de donnees (transferts sortants anormaux). |
 | `netcross_core.security.expert_correlation` | issue #137 (CVE-3) : exploitation des alertes Expert Info de tshark pour DETECTER des tentatives d'exploitation (fuzzing, depassement de tampon, deni de service) a partir de paquets malformes et de… |
 | `netcross_core.security.fast_flux` | issue #152 (SCENARIO-6, parent #141) : detection d'infrastructures a flux rapide (fast flux) utilisees par les botnets et C2. |
 | `netcross_core.security.findings` | alimentation de `Report.service_fingerprints` et `Report.security_findings` a partir des modules de detection CVE-1 a CVE-4 (issue #139, CVE-5, parent #133). |
@@ -2043,11 +2044,16 @@ classDiagram
         +int business_hours_end
         +int min_packets_for_volume
         +int min_bytes_for_protocol
+        +int? min_upload_for_ratio
+        +float off_hours_min_fraction
+        +bool external_only
+        +ratio_floor() int
     }
     class ExfiltrationAlert {
         <<dataclass>>
         +str src
         +str dst
+        +str point
         +list~str~ signals
         +int volume_bytes
         +int upload_bytes
@@ -2055,7 +2061,11 @@ classDiagram
         +float ratio
         +set~str~ protocols
         +list~int?~ frames
+        +float? first_ts
+        +float? last_ts
+        +float off_hours_fraction
         +is_strong() bool
+        +score() int
         +to_dict() dict
     }
     class ExfiltrationResult {
@@ -2065,7 +2075,11 @@ classDiagram
     }
     class mod_netcross_core_security_exfiltration["netcross_core.security.exfiltration"] {
         <<module>>
+        +compute_score(signals) int
+        +severity_for(score) str
         +detect_exfiltration(packets, thresholds, known_destinations) ExfiltrationResult
+        +dns_tunnel_sources(packets, dns_suspicions) set~tuple~str, str~~
+        +correlate_exfiltration(alerts, beacon_suspicions, dns_sources) list~dict~
     }
 
     %% ===== netcross_core.security.expert_correlation =====
@@ -2137,13 +2151,14 @@ classDiagram
         +anomaly_findings(suspicions) list~dict~str, Any~~
         +dns_tunnel_findings(suspicions) list~dict~str, Any~~
         +beaconing_findings(suspicions) list~dict~str, Any~~
+        +exfiltration_findings(alerts) list~dict~str, Any~~
         +tls_audit_findings(audit) list~dict~str, Any~~
         +lateral_movement_findings(events) list~dict~str, Any~~
         +flow_stats_findings(flows) list~dict~str, Any~~
         +cve_findings(fingerprints, conn) list~dict~str, Any~~
         +dga_findings(alerts) list~dict~str, Any~~
         +fast_flux_findings(alerts) list~dict~str, Any~~
-        +apply_security_findings(report, all_packets, detections, cve_conn, tls_policy) None
+        +apply_security_findings(report, all_packets, detections, cve_conn, tls_policy, known_destinations) None
     }
 
     %% ===== netcross_core.security.flow_stats =====

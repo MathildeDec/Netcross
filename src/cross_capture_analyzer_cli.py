@@ -139,6 +139,7 @@ from netcross_core import (
     write_detail_csv,
     write_redaction_map_csv,
 )
+from netcross_core.discovery import load_baseline_hosts
 from netcross_core.forensic import DEFAULT_DUPLICATE_THRESHOLD_MS, detect_cross_capture_duplicates
 from netcross_core.logging_config import get_logger
 from netcross_core.security import close_db, connect_cve_db
@@ -1046,6 +1047,14 @@ def main():
         "designer un fichier existant (aucune base vide n'est creee).",
     )
     ap.add_argument(
+        "--known-destinations",
+        metavar="FICHIER.json",
+        help="Avec --security-report : baseline des destinations connues pour la detection "
+        "d'exfiltration (issue #148) -- liste JSON d'IP, ou objet avec une cle `hosts`. "
+        "Un transfert suspect vers une IP absente de la liste est aggrave (signal "
+        "`new_destination`) ; sans baseline, ce signal n'est jamais emis.",
+    )
+    ap.add_argument(
         "--security-html",
         help="Avec --security-report : chemin de sortie pour un rendu HTML "
         "autonome du rapport de securite (tableau de bord, services avec "
@@ -1325,6 +1334,24 @@ def main():
     if args.cve_db and not args.security_report:
         print("--cve-db necessite --security-report.", file=sys.stderr)
         sys.exit(1)
+    known_destinations = None
+    if args.known_destinations:
+        if not args.security_report:
+            print("--known-destinations necessite --security-report.", file=sys.stderr)
+            sys.exit(1)
+        if not os.path.isfile(args.known_destinations):
+            print(f"--known-destinations : fichier introuvable : {args.known_destinations}", file=sys.stderr)
+            sys.exit(1)
+        hosts = load_baseline_hosts(args.known_destinations)
+        if not hosts:
+            # load_baseline_hosts avale les erreurs de lecture : une baseline
+            # vide ferait passer TOUTE destination pour nouvelle. On refuse.
+            print(
+                f"--known-destinations : aucune IP lue dans {args.known_destinations} (JSON invalide ou liste vide).",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        known_destinations = frozenset(hosts)
     # Meme discipline que --cve-db : echouer tot et clairement plutot que
     # de produire un fichier HTML vide, ou de ne rien ecrire en silence --
     # l'utilisateur croirait avoir un rapport (issue #218).
@@ -1918,6 +1945,7 @@ def main():
                 all_packets,
                 detections=security_detections,
                 cve_conn=cve_conn,
+                known_destinations=known_destinations,
             )
             # Conserve pour les sorties PDF/JSON/HTML (issue #218) :
             # jusqu'ici l'objet etait construit, imprime, puis perdu -- les
