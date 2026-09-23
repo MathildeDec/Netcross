@@ -627,12 +627,27 @@ classDiagram
         <<dataclass>>
         +int workers
     }
+    class NotifyConfig {
+        <<dataclass>>
+        +str webhook
+        +str slack_webhook
+        +str email_to
+        +str smtp_host
+        +int smtp_port
+        +str smtp_user
+        +str smtp_password
+        +str smtp_from
+        +bool smtp_starttls
+        +float silence_hours
+        +str state_path
+    }
     class NetcrossConfig {
         <<dataclass>>
         +AnalysisConfig analysis
         +OutputConfig output
         +SecurityConfig security
         +ParallelConfig parallel
+        +NotifyConfig notify
         +str? source_path
     }
     class mod_netcross_core_config["netcross_core.config"] {
@@ -1519,6 +1534,7 @@ classDiagram
     ClientReport --> Report : report
     ClientComparisonResult --> ClientReport : clients
     NetcrossConfig --> AnalysisConfig : analysis
+    NetcrossConfig --> NotifyConfig : notify
     NetcrossConfig --> OutputConfig : output
     NetcrossConfig --> ParallelConfig : parallel
     NetcrossConfig --> SecurityConfig : security
@@ -1844,6 +1860,109 @@ classDiagram
         <<module>>
         +parse_netflow_v5_packet(data, exporter) list~FlowRecord~
         +iter_netflow_v5_file(path, exporter) Iterator~FlowRecord~
+    }
+```
+
+## `netcross_core.notify`
+
+| Module | Rôle |
+|---|---|
+| `netcross_core.notify` | notifications sortantes sur seuil de gravite (webhook, Slack, courriel), issue #280. |
+| `netcross_core.notify.dispatch` | repartition, garde-fous et tracabilite des notifications (issue #280). |
+| `netcross_core.notify.summary` | resume d'analyse a notifier (issue #280). |
+| `netcross_core.notify.transports` | canaux de notification (issue #280). |
+
+### Diagramme
+
+```mermaid
+classDiagram
+    direction LR
+
+    %% ===== netcross_core.notify.dispatch =====
+    class DeliveryResult {
+        <<dataclass, frozen, slots>>
+        +str channel
+        +str status
+        +str? reason
+        +line() str
+        +to_dict() dict~str, Any~
+    }
+    class mod_netcross_core_notify_dispatch["netcross_core.notify.dispatch"] {
+        <<module>>
+        +is_silenced(fingerprint, state_path, silence_seconds, now) float?
+        +send_notifications(summary, notifiers, state_path, silence_seconds, now) list~DeliveryResult~
+        +notifiers_from_config(cfg, webhook, slack, email_to, env) tuple~list~Notifier~, list~DeliveryResult~~
+        +run_notifications(summary_factory, threshold, cfg, webhook, slack, email_to, state_path, silence_hours, env) list~DeliveryResult~
+    }
+
+    %% ===== netcross_core.notify.summary =====
+    class NotificationSummary {
+        <<dataclass, slots>>
+        +int score
+        +str? level
+        +str threshold
+        +dict~str, int~ by_severity
+        +int total
+        +list~dict~str, str~~ top
+        +str? report_path
+        +str fingerprint
+        +str detail
+        +bool anonymized
+        +str title
+        +to_dict() dict~str, Any~
+        +to_text() str
+    }
+    class mod_netcross_core_notify_summary["netcross_core.notify.summary"] {
+        <<module>>
+        +severity_rank(severity) int
+        +meets_threshold(severity, threshold) bool
+        +finding_key(finding) str
+        +findings_fingerprint(findings) str
+        +build_summary(findings, score, level, threshold, report_path, detail) NotificationSummary
+    }
+
+    %% ===== netcross_core.notify.transports =====
+    class NotifyError {
+        <<Exception>>
+    }
+    class Notifier {
+        <<Protocol>>
+        +str name
+        +send(summary) bool
+    }
+    class WebhookNotifier {
+        <<dataclass, slots>>
+        +str url
+        +float timeout
+        +str name
+        +send(summary) bool
+    }
+    class SlackNotifier {
+        <<dataclass, slots>>
+        +str url
+        +float timeout
+        +str name
+        +bool degraded
+        +send(summary) bool
+    }
+    class EmailNotifier {
+        <<dataclass, slots>>
+        +str host
+        +tuple~str, ...~ recipients
+        +str sender
+        +int port
+        +str? username
+        +str? password
+        +bool starttls
+        +float timeout
+        +str name
+        +build_message(summary) EmailMessage
+        +send(summary) bool
+    }
+    class mod_netcross_core_notify_transports["netcross_core.notify.transports"] {
+        <<module>>
+        +validate_http_url(url) str
+        +slack_blocks(summary) list~dict~str, Any~~
     }
 ```
 
@@ -2796,6 +2915,7 @@ classDiagram
         +list~SecurityItem~ anomalies
         +list~SecurityItem~ cves
         +SecurityDashboard dashboard
+        +list~dict~ notifications
     }
     class mod_netcross_report_security_report["netcross_report.security_report"] {
         <<module>>

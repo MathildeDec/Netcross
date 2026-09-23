@@ -139,6 +139,10 @@ class SecurityReport:
     anomalies: list[SecurityItem] = field(default_factory=list)
     cves: list[SecurityItem] = field(default_factory=list)
     dashboard: SecurityDashboard = field(default_factory=SecurityDashboard)
+    # tracabilite des notifications sortantes (issue #280) : une entree par
+    # canal -- envoyee / echec + motif / non configuree. Vide = aucune
+    # notification demandee (pas de --notify-on).
+    notifications: list[dict] = field(default_factory=list)
 
 
 # -- normalisation -------------------------------------------------------
@@ -436,6 +440,8 @@ def format_security_report(sr: SecurityReport) -> list[str]:
         [_format_item(i) for i in sr.cves],
         "aucune CVE confirmee",
     )
+    if sr.notifications:
+        lines += _section("Notifications", [f"  {n.get('line', '')}" for n in sr.notifications], "")
     return lines
 
 
@@ -510,4 +516,5 @@ def security_report_to_dict(sr: SecurityReport) -> dict:
             ]
             for cle, items in (("exploits", sr.exploits), ("anomalies", sr.anomalies), ("cves", sr.cves))
         },
+        "notifications": [dict(n) for n in sr.notifications],
     }

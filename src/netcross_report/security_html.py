@@ -300,6 +300,7 @@ def render_security_html(
             [_ligne_constat(i, avec_cve=True) for i in data["cves"]],
             "aucune CVE confirmee",
         ),
+        _notifications(data.get("notifications") or []),
         '<p class="pied">Netcross &mdash; analyse passive : aucun paquet n\'a ete emis vers les '
         "hotes listes. Une empreinte ou une banniere peut etre forgee&nbsp;; un service absent de "
         "ce rapport n'est pas un service absent du reseau, seulement un service qui n'a pas parle "
@@ -314,6 +315,15 @@ def render_security_html(
         + "\n".join(p for p in corps if p)
         + f"\n<script>{_JS}</script></body></html>\n"
     )
+
+
+def _notifications(items: list[dict]) -> str:
+    """Tracabilite des notifications sortantes (issue #280) ; rien si aucune
+    notification n'a ete demandee."""
+    if not items:
+        return ""
+    lignes = "".join(f"<li>{_e(i.get('line', ''))}</li>" for i in items)
+    return f'<h2>Notifications</h2><ul id="notifications">{lignes}</ul>'
 
 
 def generate_security_html(

