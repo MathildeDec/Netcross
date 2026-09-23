@@ -603,6 +603,14 @@ class Report:
     # `version`, `host`, `port`, `point` quand ils sont connus (ils
     # servent a rattacher une CVE a un service detecte).
     security_findings: list[dict] = field(default_factory=list)
+    # -- exfiltration (SCENARIO-2, issue #148) : un dict par flux sortant
+    # suspect, cles `point`, `src`, `dst`, `signals`, `upload_bytes`,
+    # `download_bytes`, `volume_bytes`, `ratio` (None si aucun retour),
+    # `score` (0-100), `severity`, `first_ts`, `last_ts`, `frames`. Rempli par
+    # `security.findings.apply_security_findings` via
+    # `security.exfiltration.detect_exfiltration` puis
+    # `correlate_exfiltration` (beaconing #147, tunneling DNS #144).
+    exfiltration_alerts: list[dict] = field(default_factory=list)
     # -- mismatches de protocole/flux (FLOW-1, issue #142) : un protocole
     # applicatif detecte sur un port non standard (SSH sur 443, HTTP sur 22,
     # DNS sur 443, tunneling ICMP). `protocol_mismatches` : compteur par

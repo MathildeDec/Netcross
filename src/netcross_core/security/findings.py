@@ -55,6 +55,7 @@ from netcross_core.security import correlate_banner
 from netcross_core.security.beaconing import detect_beaconing
 from netcross_core.security.dga import detect_dga
 from netcross_core.security.dns_tunnel import detect_dns_tunneling
+from netcross_core.security.exfiltration import correlate_exfiltration, detect_exfiltration, dns_tunnel_sources
 from netcross_core.security.fast_flux import detect_fast_flux
 from netcross_core.security.flow_stats import analyze_flow_stats
 from netcross_core.security.lateral_movement import detect_lateral_movement
@@ -257,6 +258,56 @@ def beaconing_findings(suspicions: Iterable[dict]) -> list[dict[str, Any]]:
     return findings
 
 
+# -- SCENARIO-2 : exfiltration de donnees ----------------------------------
+
+_EXFIL_SIGNAL_LABELS = {
+    "high_volume": "volume eleve",
+    "asymmetric_ratio": "envoi tres superieur a la reception",
+    "off_hours": "hors heures ouvrees",
+    "new_destination": "destination absente de la baseline",
+    "unusual_protocol_volume": "gros volume DNS/ICMP",
+    "correlated_beaconing": "meme hote en beaconing vers cette destination",
+    "correlated_dns_tunnel": "meme hote suspect de tunneling DNS",
+}
+
+
+def _fmt_bytes(n: int) -> str:
+    for unit, div in (("Go", 1e9), ("Mo", 1e6), ("Ko", 1e3)):
+        if n >= div:
+            return f"{n / div:.1f} {unit}"
+    return f"{n} o"
+
+
+def exfiltration_findings(alerts: Iterable[dict]) -> list[dict[str, Any]]:
+    """Un constat `anomalie` par alerte de `exfiltration.detect_exfiltration`
+    (apres `correlate_exfiltration`). Severite calculee par le module
+    (moyenne, elevee a partir d'un score de 60/100) : un transfert sortant
+    volumineux reste un INDICE -- une sauvegarde cloud legitime y ressemble."""
+    findings = []
+    for a in alerts:
+        signals = ", ".join(_EXFIL_SIGNAL_LABELS.get(sig, sig) for sig in a.get("signals") or [])
+        ratio = a.get("ratio")
+        ratio_txt = "aucun retour" if ratio is None else f"ratio {ratio}:1"
+        detail = (
+            f"suspicion d'exfiltration de {a.get('src', '?')} vers {a.get('dst', '?')} : {signals} "
+            f"-- {_fmt_bytes(int(a.get('upload_bytes') or 0))} envoyes, "
+            f"{_fmt_bytes(int(a.get('download_bytes') or 0))} recus ({ratio_txt}), "
+            f"score de risque {a.get('score', 0)}/100"
+        )
+        frames = ", ".join(str(f) for f in a.get("frames") or [])
+        if frames:
+            detail += f" -- trames {frames}"
+        findings.append(
+            {
+                "severity": a.get("severity") or "moyenne",
+                "category": "anomalie",
+                "detail": detail,
+                "point": a.get("point") or None,
+            }
+        )
+    return findings
+
+
 # -- SCENARIO-7 : audit des certificats TLS ---------------------------------
 
 
@@ -447,6 +498,7 @@ def apply_security_findings(
     detections: Iterable[Detection] = (),
     cve_conn=None,
     tls_policy: TlsAuditPolicy | None = None,
+    known_destinations: frozenset[str] | None = None,
 ) -> None:
     """Remplit `report.service_fingerprints` et `report.security_findings`
     (remplacement, pas ajout : deux appels donnent le meme resultat).
@@ -521,11 +573,13 @@ def apply_security_findings(
     flow_result = analyze_flow_stats(all_packets)
     report.flow_anomalies = [f.to_dict() for f in flow_result.flows]
 
+    dns_suspicions = detect_dns_tunneling(all_packets).suspicions
+    beacon_suspicions = detect_beaconing(all_packets).suspicions
     findings = (
         exploit_findings(detections)
         + anomaly_findings(report.exploit_suspicion_flows)
-        + dns_tunnel_findings(detect_dns_tunneling(all_packets).suspicions)
-        + beaconing_findings(detect_beaconing(all_packets).suspicions)
+        + dns_tunnel_findings(dns_suspicions)
+        + beaconing_findings(beacon_suspicions)
         + protocol_mismatch_findings(protocol_mismatch_details)
         + dga_findings(report.dga_alerts)
         + fast_flux_findings(report.fast_flux_alerts)
@@ -535,6 +589,14 @@ def apply_security_findings(
     )
     if cve_conn is not None:
         findings += cve_findings(report.service_fingerprints, cve_conn)
+    # SCENARIO-2 (#148) : exfiltration, correlee au beaconing (#147) et au
+    # tunneling DNS (#144) deja calcules ci-dessus -- pas de second passage.
+    report.exfiltration_alerts = correlate_exfiltration(
+        detect_exfiltration(all_packets, known_destinations=known_destinations).alerts,
+        beacon_suspicions,
+        dns_tunnel_sources(all_packets, dns_suspicions),
+    )
+    findings += exfiltration_findings(report.exfiltration_alerts)
     report.security_findings = findings
     # Le troisieme compteur annoncait "fingerprints" alors qu'il comptait
     # report.protocol_mismatch_details (issue #259) : la ligne affichait
