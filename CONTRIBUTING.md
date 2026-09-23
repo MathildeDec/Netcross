@@ -107,6 +107,13 @@ docs(#216): documentation CLAUDE.md
 4. Écrire les tests dans `tests/test_nom_module.py`.
 5. Documenter dans le canvas de l'issue.
 
+### Chaînes traduisibles
+
+Les textes affichés à l'utilisateur passent par `netcross_core.i18n`
+(`_()`, `ngettext()`, `N_()`) ; après en avoir ajouté ou modifié, lancer
+`scripts/i18n-update.sh` et committer `lang/`. Voir
+[docs/i18n.md](docs/i18n.md).
+
 ## Releases
 
 1. Merger toutes les PRs prévues vers `dev`.

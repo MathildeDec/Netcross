@@ -39,6 +39,7 @@ from __future__ import annotations
 from dataclasses import dataclass, fields
 from typing import Any
 
+from netcross_core.i18n import N_, _, ngettext
 from netcross_gtk4.duplicate_view import format_duplicate_indicator
 
 #: Indicateur de doublons en mode comparaison. La detection de doublons
@@ -46,7 +47,7 @@ from netcross_gtk4.duplicate_view import format_duplicate_indicator
 #: sens entre une baseline et un courant. Le message le dit au lieu de
 #: laisser la zone vide : une zone vide se lit « aucun doublon », ce qui
 #: serait une affirmation que l'outil n'a pas verifiee.
-INDICATEUR_DOUBLONS_DIFF = "Doublons inter-captures : non disponible en mode comparaison."
+INDICATEUR_DOUBLONS_DIFF = N_("Doublons inter-captures : non disponible en mode comparaison.")
 
 
 @dataclass(frozen=True)
@@ -170,8 +171,8 @@ def analysis_outcome(
         diff_tls_findings_current=None,
         diff_quic_findings_baseline=None,
         diff_quic_findings_current=None,
-        work_status="Analyse terminee.",
-        status="Analyse terminee.",
+        work_status=_("Analyse terminee."),
+        status=_("Analyse terminee."),
         duplicate_indicator=format_duplicate_indicator(report),
         result_text=text,
     )
@@ -187,8 +188,12 @@ def diff_status_text(findings: Any) -> str:
     """
     regressions = sum(1 for f in findings if getattr(f, "severity", None) == "regression")
     if regressions:
-        return f"Comparaison terminee -- {regressions} regression(s) detectee(s)."
-    return "Comparaison terminee -- aucune regression."
+        return ngettext(
+            "Comparaison terminee -- {n} regression detectee.",
+            "Comparaison terminee -- {n} regressions detectees.",
+            regressions,
+        ).format(n=regressions)
+    return _("Comparaison terminee -- aucune regression.")
 
 
 def diff_outcome(
@@ -222,8 +227,8 @@ def diff_outcome(
         diff_tls_findings_current=tls_findings_current,
         diff_quic_findings_baseline=quic_findings_baseline,
         diff_quic_findings_current=quic_findings_current,
-        work_status="Comparaison terminee.",
+        work_status=_("Comparaison terminee."),
         status=diff_status_text(findings),
-        duplicate_indicator=INDICATEUR_DOUBLONS_DIFF,
+        duplicate_indicator=_(INDICATEUR_DOUBLONS_DIFF),
         result_text=text,
     )

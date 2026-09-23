@@ -70,6 +70,7 @@ nav:
       - Rule engine: architecture-rule-engine.md
   - Architecture:
       - Diagramme de classes: class-diagram.md
+      - Internationalisation: i18n.md
       - Décisions d'architecture: adr/netflow-sflow-architecture.md
       - Qualité: quality/anonymization-plan.md
   - Référence:

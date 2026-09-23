@@ -20,3 +20,4 @@ __pycache__/
 coverage.xml
 htmlcov/
 site/
+src/netcross_core/locale/

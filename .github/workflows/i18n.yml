@@ -1,0 +1,117 @@
+# .github/workflows/i18n.yml -- catalogues de traduction gettext (issue #299).
+#
+# check  (PR et push) : le modele lang/messages.pot et les lang/*.po sont a
+#        jour avec les sources, valides (msgfmt --check : syntaxe, pluriels,
+#        formats) et compilables pour toutes les locales de lang/LINGUAS ;
+#        resume dans l'onglet du run.
+# update (push sur dev, ou lancement manuel) : regenere les catalogues et
+#        ouvre/actualise une PR "chore(i18n): update translation catalogs"
+#        ne contenant que lang/. Les nouvelles chaines y arrivent avec
+#        msgstr "" : aucune traduction automatique n'est inseree.
+
+name: i18n
+
+on:
+  pull_request:
+    paths:
+      - "src/**/*.py"
+      - "lang/**"
+      - "scripts/i18n-update.sh"
+      - "scripts/i18n_report.py"
+      - ".github/workflows/i18n.yml"
+  push:
+    branches: [dev, main]
+    paths:
+      - "src/**/*.py"
+      - "lang/**"
+      - "scripts/i18n-update.sh"
+      - "scripts/i18n_report.py"
+      - ".github/workflows/i18n.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: i18n-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.14"
+
+      - name: Installer gettext
+        run: |
+          sudo DEBIAN_FRONTEND=noninteractive apt-get update -qq
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq gettext
+
+      - name: Catalogues a jour et valides
+        id: sync
+        continue-on-error: ${{ github.event_name != 'pull_request' }}
+        run: ./scripts/i18n-update.sh --check
+
+      - name: Compilation de toutes les locales
+        run: ./scripts/i18n-update.sh --compile "$RUNNER_TEMP/locale"
+
+      - name: Resume
+        if: always()
+        env:
+          BASE: ${{ github.event.pull_request.base.sha || github.event.before }}
+        run: |
+          since=()
+          if [ -n "$BASE" ] && git cat-file -e "$BASE^{commit}" 2>/dev/null; then since=(--since "$BASE"); fi
+          python3 scripts/i18n_report.py --compiled "$RUNNER_TEMP/locale" "${since[@]}"
+          python3 scripts/i18n_report.py --markdown --compiled "$RUNNER_TEMP/locale" "${since[@]}" >> "$GITHUB_STEP_SUMMARY"
+          python3 scripts/i18n_report.py --strict > /dev/null
+
+      - name: Catalogues desynchronises
+        if: steps.sync.outcome == 'failure'
+        run: echo "::warning::catalogues a regenerer -- le job update ouvre la PR de mise a jour"
+
+  update:
+    needs: check
+    if: github.event_name == 'workflow_dispatch' || (github.event_name == 'push' && github.ref == 'refs/heads/dev')
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      pull-requests: write
+    steps:
+      - uses: actions/checkout@v7
+
+      - name: Installer gettext
+        run: |
+          sudo DEBIAN_FRONTEND=noninteractive apt-get update -qq
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq gettext
+
+      - name: Regenerer les catalogues
+        run: ./scripts/i18n-update.sh
+
+      - name: PR de mise a jour
+        env:
+          GH_TOKEN: ${{ github.token }}
+          BASE: ${{ github.ref_name }}
+        run: |
+          if git diff --quiet -- lang/ && [ -z "$(git ls-files --others --exclude-standard lang/)" ]; then
+            echo "Catalogues deja a jour."
+            exit 0
+          fi
+          branch="chore/i18n-catalogs-$BASE"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git switch -C "$branch"
+          git add lang/
+          git commit -m "chore(i18n): update translation catalogs"
+          git push --force-with-lease origin "$branch"
+          if [ -z "$(gh pr list --head "$branch" --base "$BASE" --state open --json number -q '.[].number')" ]; then
+            gh pr create --base "$BASE" --head "$branch" \
+              --title "chore(i18n): update translation catalogs" \
+              --body "Mise a jour automatique de \`lang/\` (xgettext + msgmerge). Les nouvelles chaines ont \`msgstr \"\"\` : a traduire et relire, aucune traduction automatique n'est inseree."
+          fi
