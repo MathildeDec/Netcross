@@ -56,6 +56,7 @@ from netcross_core.security.beaconing import detect_beaconing
 from netcross_core.security.dga import detect_dga
 from netcross_core.security.dns_tunnel import detect_dns_tunneling
 from netcross_core.security.fast_flux import detect_fast_flux
+from netcross_core.security.flow_stats import analyze_flow_stats
 from netcross_core.security.lateral_movement import detect_lateral_movement
 from netcross_core.security.protocol_mismatch import (
     count_protocol_mismatches,
@@ -322,6 +323,39 @@ def lateral_movement_findings(events: list[dict]) -> list[dict[str, Any]]:
     return findings
 
 
+# -- FLOW-4 : statistiques de flux ------------------------------------------
+
+
+def flow_stats_findings(flows: list[dict]) -> list[dict[str, Any]]:
+    """Un constat `anomalie` par flux dont la classification n'est pas
+    `normal`. Severite : `elevee` pour `obfusque` (chiffrement/obfuscation
+    suspect), `moyenne` pour `transfert` (volume inhabituel), `faible`
+    pour `interactif` (session interactive, souvent legitime)."""
+    severity_map = {
+        "obfusque": "elevee",
+        "transfert": "moyenne",
+        "interactif": "faible",
+    }
+    findings: list[dict[str, Any]] = []
+    for f in flows:
+        cls = f.get("classification", "normal")
+        if cls == "normal":
+            continue
+        findings.append(
+            {
+                "severity": severity_map.get(cls, "faible"),
+                "category": "anomalie",
+                "detail": (
+                    f"flux {f.get('src', '?')} -> {f.get('dst', '?')} "
+                    f"classifie '{cls}' ({f.get('packet_count', 0)} paquets, "
+                    f"entropie {f.get('entropy', 0.0):.2f}, "
+                    f"ratio upload {f.get('upload_ratio', 0.0):.2f})"
+                ),
+            }
+        )
+    return findings
+
+
 # -- CVE-4 : correlation version -> CVE -------------------------------------
 
 
@@ -483,6 +517,10 @@ def apply_security_findings(
         for ev in lateral_result.events
     ]
 
+    # FLOW-4 (#145) : statistiques de flux (SPLT, entropie, ratio, classification)
+    flow_result = analyze_flow_stats(all_packets)
+    report.flow_anomalies = [f.to_dict() for f in flow_result.flows]
+
     findings = (
         exploit_findings(detections)
         + anomaly_findings(report.exploit_suspicion_flows)
@@ -492,6 +530,7 @@ def apply_security_findings(
         + dga_findings(report.dga_alerts)
         + fast_flux_findings(report.fast_flux_alerts)
         + lateral_movement_findings(report.lateral_movement_events)
+        + flow_stats_findings(report.flow_anomalies)
         + tls_audit_findings(audit_tls_certificates(all_packets, tls_policy or DEFAULT_POLICY))
     )
     if cve_conn is not None:

@@ -213,7 +213,10 @@ def test_tshark_certificat_legitime_aucun_faux_positif(tmp_path):
     assert pk.tls_cert_chain_len == 2 and pk.tls_cert_san == ("www.lab.test",) and pk.tls_cert_san_ip == ()
     report = Report()
     apply_security_findings(report, [pk])
-    assert report.security_findings == []
+    # flow_stats ajoute des constats d'anomalie de flux (issue #145) :
+    # on verifie juste l'absence de constats TLS/cert sur un certificat legitime.
+    non_flow = [f for f in report.security_findings if "flux " not in f.get("detail", "")]
+    assert non_flow == []
 
 
 @needs_tshark
@@ -222,7 +225,8 @@ def test_tshark_feuille_seule_signalee_comme_chaine_incomplete(tmp_path):
     pkts = parse_capture("A", _capture(tmp_path, leaf))
     report = Report()
     apply_security_findings(report, pkts)
-    (finding,) = report.security_findings
+    non_flow = [f for f in report.security_findings if "flux " not in f.get("detail", "")]
+    (finding,) = non_flow
     assert finding["severity"] == "faible" and "chaine incomplete" in finding["detail"]
     assert (finding["host"], finding["port"]) == (SERVER, 443)
 
@@ -232,11 +236,12 @@ def test_tshark_certificat_faible_auto_signe_sha1(tmp_path):
     pkts = parse_capture("A", _capture(tmp_path, base64.b64decode(SHA1_RSA1024_DER_B64)))
     report = Report()
     apply_security_findings(report, pkts)
-    details = " | ".join(f["detail"] for f in report.security_findings)
+    non_flow = [f for f in report.security_findings if "flux " not in f.get("detail", "")]
+    details = " | ".join(f["detail"] for f in non_flow)
     assert "auto-signe" in details and "SHA1" in details and "cle RSA de 1024 bits" in details
     assert "wildcard" not in details and "expire" not in details
-    assert len(report.security_findings) == 3
-    assert {f["severity"] for f in report.security_findings} == {"elevee", "moyenne"}
+    assert len(non_flow) == 3
+    assert {f["severity"] for f in non_flow} == {"elevee", "moyenne"}
 
 
 @needs_tshark
@@ -255,7 +260,8 @@ def test_tshark_certificat_expire_et_ip_dans_le_san(tmp_path):
     )
     report = Report()
     apply_security_findings(report, parse_capture("A", _capture(tmp_path, _der(old), _der(inter))))
-    by_kind = {("expire" in f["detail"], "adresse IP" in f["detail"]): f for f in report.security_findings}
+    non_flow = [f for f in report.security_findings if "flux " not in f.get("detail", "")]
+    by_kind = {("expire" in f["detail"], "adresse IP" in f["detail"]): f for f in non_flow}
     assert by_kind[(True, False)]["severity"] == "elevee" and "2024-03-01" in by_kind[(True, False)]["detail"]
     assert by_kind[(False, True)]["severity"] == "faible" and "192.0.2.7" in by_kind[(False, True)]["detail"]
-    assert len(report.security_findings) == 2
+    assert len(non_flow) == 2
