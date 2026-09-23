@@ -482,7 +482,7 @@ def _run_replay(capture_specs, interface, speed, loop):
     print(f"{paths[0]} rejoue sur {interface} (speed={speed}, loop={loop}).")
 
 
-def _run_live_captures(live_specs, duration):
+def _run_live_captures(live_specs, duration, reporter=None):
     """Capture en direct sur un ou plusieurs points simultanement (un thread
     par point, comme l'interface graphique -- voir netcross_gtk4.app
     _begin_live_capture/_live_capture_worker) jusqu'a Ctrl+C ou
@@ -490,7 +490,10 @@ def _run_live_captures(live_specs, duration):
 
     Un point en erreur (tshark absent, interface invalide, permission...)
     n'arrete pas les autres points : meme choix assume que sur la GUI,
-    ou seul l'utilisateur (ou la duree max) met fin a la session complete."""
+    ou seul l'utilisateur (ou la duree max) met fin a la session complete.
+
+    ``reporter`` (issue #274, --live-report) : LiveReporter alimente paquet
+    par paquet et publie a intervalle regulier pendant la capture."""
     points = [_parse_live_spec(s) for s in live_specs]
     stop_event = threading.Event()
     packets_by_point = {label: [] for label, _iface, _bpf in points}
@@ -503,6 +506,8 @@ def _run_live_captures(live_specs, duration):
             for pkt in parse_live(label, iface, bpf_filter=bpf, stop_event=stop_event):
                 with lock:
                     packets_by_point[label].append(pkt)
+                if reporter is not None:
+                    reporter.add(pkt)
                 count += 1
                 now = time.monotonic()
                 if now - last_log >= 2.0:
@@ -511,6 +516,11 @@ def _run_live_captures(live_specs, duration):
         except Exception as e:  # noqa: BLE001 -- thread de fond : une erreur sur
             # ce point doit etre rapportee sans arreter les autres points en cours.
             print(f"[{label}] ERREUR : {e}", file=sys.stderr)
+            if reporter is not None:
+                reporter.aggregator.set_status(label, "erreur", str(e))
+        else:
+            if reporter is not None:
+                reporter.aggregator.set_status(label, "arrete")
         print(f"[{label}] capture arretee -- {count} paquet(s) au total.")
 
     def _on_sigint(_signum, _frame):
@@ -535,6 +545,10 @@ def _run_live_captures(live_specs, duration):
             + "... (Ctrl+C pour arreter)"
         )
     threads = [threading.Thread(target=_worker, args=(label, iface, bpf), daemon=True) for label, iface, bpf in points]
+    if reporter is not None:
+        for label, _iface, _bpf in points:
+            reporter.aggregator.register(label)
+        reporter.start()
     for t in threads:
         t.start()
 
@@ -551,6 +565,8 @@ def _run_live_captures(live_specs, duration):
         if timer:
             timer.cancel()
         signal.signal(signal.SIGINT, old_handler)
+        if reporter is not None:
+            reporter.stop()
 
     all_packets = []
     for label, _iface, _bpf in points:
@@ -894,6 +910,57 @@ def _run_content_extraction(captures, out_dir, kinds) -> None:
     result = run_extraction(captures, out_dir=out_dir, kinds=kinds if out_dir else ())
     for line in format_extraction(result):
         print(line)
+def _check_live_report_args(args) -> None:
+    """Validations de l'issue #274."""
+    if (args.live_report_serve is not None or args.live_report_interval != 5.0) and not args.live_report:
+        print("--live-report-interval/--live-report-serve necessitent --live-report.", file=sys.stderr)
+        sys.exit(1)
+    if not args.live_report:
+        return
+    if not args.live:
+        print("--live-report necessite --live (pour une capture existante, --json-report suffit).", file=sys.stderr)
+        sys.exit(1)
+    if args.live_report_interval < 1:
+        print("--live-report-interval : 1 seconde minimum.", file=sys.stderr)
+        sys.exit(1)
+    if args.live_report_serve is not None and not 1 <= args.live_report_serve <= 65535:
+        print("--live-report-serve : port entre 1 et 65535.", file=sys.stderr)
+        sys.exit(1)
+    if os.path.exists(args.live_report) and not os.path.isdir(args.live_report):
+        print(f"--live-report : {args.live_report} n'est pas un repertoire.", file=sys.stderr)
+        sys.exit(1)
+
+
+def _start_live_report(args):
+    """(LiveReporter | None, serveur HTTP | None) pour --live-report."""
+    if not args.live_report:
+        return None, None
+    from netcross_core.live_report import LiveReporter, LiveReportWriter
+    from netcross_report.live_html import render_live_html
+
+    writer = LiveReportWriter(args.live_report, render_live_html, args.live_report_interval)
+    print(f"Rapport temps reel : {writer.html_path} (releve toutes les {args.live_report_interval:g} s)")
+    server = None
+    if args.live_report_serve is not None:
+        import functools
+        from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
+
+        class _Quiet(SimpleHTTPRequestHandler):
+            def log_message(self, format, *args):  # noqa: A002 -- signature imposee par http.server
+                pass
+
+        handler = functools.partial(_Quiet, directory=str(writer.out_dir))
+        try:
+            server = ThreadingHTTPServer(("127.0.0.1", args.live_report_serve), handler)
+        except OSError as exc:
+            print(
+                f"--live-report-serve : impossible d'ecouter sur le port {args.live_report_serve} ({exc}).",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        threading.Thread(target=server.serve_forever, name="netcross-live-http", daemon=True).start()
+        print(f"Page servie sur http://127.0.0.1:{server.server_address[1]}/ (?mode=completive pour le journal)")
+    return LiveReporter(writer), server
 
 
 def main():
@@ -923,6 +990,27 @@ def main():
         type=int,
         default=None,
         help="Duree maximale en secondes pour --live (defaut: illimitee, s'arrete uniquement sur Ctrl+C)",
+    )
+    ap.add_argument(
+        "--live-report",
+        metavar="REPERTOIRE",
+        help="Avec --live : rapport temps reel (issue #274) publie pendant la capture dans REPERTOIRE : "
+        "live.json (instantane complet, remplace atomiquement), live.jsonl (journal en ajout seul, une "
+        "ligne par releve) et index.html (relecture successive ou completive). Voir docs/live-report.md.",
+    )
+    ap.add_argument(
+        "--live-report-interval",
+        type=float,
+        default=5.0,
+        metavar="SECONDES",
+        help="Avec --live-report : intervalle entre deux releves (defaut 5, minimum 1).",
+    )
+    ap.add_argument(
+        "--live-report-serve",
+        type=int,
+        metavar="PORT",
+        help="Avec --live-report : sert REPERTOIRE en HTTP sur 127.0.0.1:PORT (localhost seulement) pour que "
+        "la page se mette a jour sans rechargement.",
     )
     ap.add_argument(
         "--split",
@@ -1966,6 +2054,7 @@ def main():
         print("--redact-map necessite --redact.", file=sys.stderr)
         sys.exit(1)
     extract_kinds = _check_extraction_args(args)
+    _check_live_report_args(args)
     if args.redact and (args.tls or args.quic or args.client_group):
         print(
             "--redact n'est pas disponible avec --tls/--quic/--client-group : ces "
@@ -2035,7 +2124,12 @@ def main():
 
     all_packets = []
     if args.live:
-        all_packets = _run_live_captures(args.live, args.live_duration)
+        reporter, server = _start_live_report(args)
+        try:
+            all_packets = _run_live_captures(args.live, args.live_duration, reporter)
+        finally:
+            if server is not None:
+                server.shutdown()
         print(f"\n{len(all_packets)} paquet(s) captures au total, analyse en cours...")
     elif args.parallel:
         _cpu_count = os.cpu_count() or 1

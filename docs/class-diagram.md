@@ -397,6 +397,7 @@ classDiagram
 | `netcross_core.forensic` | index de correlation bidirectionnel evenement ↔ flow ↔ paquet (Job 8/issue #5, §6.3 et §6.14 de FEATURES.md). |
 | `netcross_core.forensic_search` | moteur de recherche analytique post-capture transversal (Job 17 / issue #16, section 6.13 de FEATURES.md). |
 | `netcross_core.live_diff` | Capture en continu + diff en direct (Job 33, issue #33). |
+| `netcross_core.live_report` | issue #274 : export / rapport temps reel du mode ``--live``. |
 | `netcross_core.logging_config` | configuration centrale du logging (issue #245). |
 | `netcross_core.models` | structures de donnees partagees : un paquet normalise (Pkt) et le resultat d'analyse consolide (Report). |
 | `netcross_core.naming` | table locale de correspondance adresse/MAC -> nom logique, type, contexte (Job 18 / issue #16-bis, section 6.15 de FEATURES.md). |
@@ -1045,6 +1046,47 @@ classDiagram
         +finding_to_alarm_signal(finding, segment) AlarmSignal
     }
 
+    %% ===== netcross_core.live_report =====
+    class _Point {
+        <<dataclass>>
+        +int packets
+        +int bytes
+        +int retransmissions
+        +float? first_ts
+        +float? last_ts
+        +str status
+        +str? error
+        +int tick_packets
+        +int tick_bytes
+        +float? ewma_pps
+        +bool silent
+    }
+    class LiveAggregator {
+        <<dataclass>>
+        +dict~str, _Point~ points
+        +Counter protocols
+        +Counter conversations
+        +set hosts
+        +float started_at
+        -list~dict~ _events
+        -int _host_overflow
+        -threading.Lock _lock
+        -int _seq
+        -float? _last_tick
+        +register(label) None
+        +add(pkt) None
+        +set_status(label, status, error) None
+        +tick(now, final) tuple~dict, dict~
+    }
+    class LiveReportWriter {
+        +publish(snapshot, journal) None
+    }
+    class LiveReporter {
+        +add(pkt) None
+        +start() None
+        +stop() None
+    }
+
     %% ===== netcross_core.logging_config =====
     class mod_netcross_core_logging_config["netcross_core.logging_config"] {
         <<module>>
@@ -1560,6 +1602,7 @@ classDiagram
     FlowView --> TcpSummary : tcp
     FlowView --> Transaction : transactions
     LiveDiffState --> Pkt : packets_in_window
+    LiveAggregator --> _Point : points
     Pkt --> Banner : service_banners
     Report --> ChecksumError : checksum_errors
     Report --> SequenceGap : sequence_gaps
@@ -2777,6 +2820,7 @@ classDiagram
 | `netcross_report.expert_events` | construit les vues `ExpertEvent`/ `Diagnosis` (Session 36, cinquieme et sixieme objets de contrat de la Session 0, FEATURES.md section 13.3) a partir d'une liste de `Finding`/ `DiffFinding` deja… |
 | `netcross_report.history` | persiste un resume de chaque run (analyse ou diff) dans une base SQLite locale, pour observer une tendance dans le temps (score de sante, nombre de constats par severite) sur des runs successifs --… |
 | `netcross_report.json_report` | serialise un Report/DiffFinding en JSON structure, pour l'integration externe (dashboard, ticketing, pipeline CI qui veut parser un resultat sans dependre du format texte console). |
+| `netcross_report.live_html` | issue #274 : page de presentation du rapport temps reel (voir netcross_core.live_report). |
 | `netcross_report.metric_charts` | API generique de graphiques : tout module d'analyse peut produire un graphique a partir d'une MetricSeries sans reimplementer son propre code matplotlib. |
 | `netcross_report.path_metrics` | metriques de qualite par segment du chemin observe (Job 16/issue #12, FEATURES.md section 6.7). |
 | `netcross_report.pdf` | assemble le rapport PDF final (synthese, graphiques, tableaux de detail) a partir d'un Report netcross_core, avec reportlab. |
@@ -2884,6 +2928,12 @@ classDiagram
         <<module>>
         +generate_json_report(r, output_path, title, meta, findings, tls_findings, quic_findings, flows, conversations, expert_events, diagnoses, compliance, wireshark_expert_events, rule_engine_findings, names, security_report) str
         +generate_json_diff(findings, baseline, current, output_path, title, meta, tls_findings_baseline, tls_findings_current, quic_findings_baseline, quic_findings_current, flows, conversations, expert_events, diagnoses, compliance, wireshark_expert_events, names) str
+    }
+
+    %% ===== netcross_report.live_html =====
+    class mod_netcross_report_live_html["netcross_report.live_html"] {
+        <<module>>
+        +render_live_html(snapshot, journal, interval) str
     }
 
     %% ===== netcross_report.metric_charts =====

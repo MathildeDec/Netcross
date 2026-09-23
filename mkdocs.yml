@@ -63,6 +63,7 @@ nav:
       - Empreintes JA4/HASSH: fingerprints-ja4-hassh.md
       - Tickets de support: support-tickets.md
       - Extraction des contenus: extraction-contenus.md
+      - Rapport temps réel: live-report.md
       - Rule engine: architecture-rule-engine.md
   - Architecture:
       - Diagramme de classes: class-diagram.md
