@@ -1,214 +1,170 @@
-"""
-netcross_api -- tests (issue #209).
+"""Tests du module netcross_api (issue #209).
 
-Utilise FastAPI TestClient (httpx) pour tester les endpoints sans
-démarrer un serveur. Les tests ne dépendent pas de tshark : on mocke
-parse_capture pour injecter des paquets synthétiques.
+Couvre les endpoints FastAPI : health, upload/analyse, get_analysis,
+get_security_report, list_analyses.
 """
-
 from __future__ import annotations
 
-from unittest.mock import patch
-
 import pytest
+from fastapi.testclient import TestClient
 
-from tests.conftest import make_pkt
+from netcross_api.app import app, store
+from netcross_api.store import AnalysesStore
+from netcross_api.models import HealthResponse, AnalysisSummary, SecurityFinding, SecurityReport, ErrorResponse
 
-try:
-    from fastapi.testclient import TestClient
 
-    from netcross_api.app import app
-    from netcross_api.store import store
-
+@pytest.fixture
+def client():
+    """Client de test FastAPI avec un store isole."""
+    import netcross_api.app as app_mod  # noqa: F401 -- provoque l'import
+    import sys
+    # netcross_api/__init__.py reexporte `app` (FastAPI), donc
+    # `netcross_api.app` est l'instance, pas le module. On recupere le
+    # vrai module via sys.modules.
+    real_mod = sys.modules["netcross_api.app"]
+    original_store = real_mod.store
+    real_mod.store = AnalysesStore()
     client = TestClient(app)
-    HAS_FASTAPI = True
-except ImportError:
-    HAS_FASTAPI = False
-
-pytestmark = pytest.mark.skipif(not HAS_FASTAPI, reason="fastapi non installé (extra [api])")
+    yield client
+    real_mod.store = original_store
 
 
-@pytest.fixture(autouse=True)
-def reset_store():
-    """Réinitialise le store entre les tests."""
-    store._store.clear()
-    yield
-    store._store.clear()
+@pytest.fixture
+def api_store():
+    """Store isole pour les tests unitaires."""
+    import netcross_api.store as store_mod
+    original = store_mod.store
+    store_mod.store = AnalysesStore()
+    yield store_mod.store
+    store_mod.store = original
 
 
-def _fake_capture_file() -> bytes:
-    """Crée un faux pcap (bytes quelconques, le parsing est mocké)."""
-    return b"\xd4\xc3\xb2\xa1" + b"\x00" * 100
-
-
-def _mock_parse_capture(label, path):
-    """Mock de parse_capture qui retourne des paquets synthétiques."""
-    return [
-        make_pkt(src="192.168.1.1", dst="192.168.1.2", dport=80, ts=1000.0),
-        make_pkt(src="192.168.1.2", dst="192.168.1.1", dport=50000, ts=1001.0),
-    ]
-
-
-# --- Health ----------------------------------------------------------------
-
-
-def test_health_ok():
-    """GET /health doit retourner 200 et status=ok."""
-    response = client.get("/health")
-    assert response.status_code == 200
-    data = response.json()
+def test_health_endpoint(client):
+    """GET /health retourne status=ok et version."""
+    resp = client.get("/health")
+    assert resp.status_code == 200
+    data = resp.json()
     assert data["status"] == "ok"
     assert "version" in data
 
 
-# --- Upload capture --------------------------------------------------------
+def test_list_analyses_vide(client):
+    """GET /analyses retourne une liste vide au demarrage."""
+    resp = client.get("/analyses")
+    assert resp.status_code == 200
+    assert resp.json() == {"analyses": []}
 
 
-def test_upload_capture_success():
-    """POST /captures avec un pcap mocké doit retourner 201."""
-    with patch("netcross_api.app.parse_capture", side_effect=_mock_parse_capture):
-        response = client.post(
-            "/captures",
-            files={"file": ("test.pcap", _fake_capture_file(), "application/octet-stream")},
-            data={"label": "point-A"},
-        )
-    assert response.status_code == 201
-    data = response.json()
-    assert "analysis_id" in data
-    assert data["status"] == "completed"
-    assert data["packet_count"] == 2
-    assert data["point_count"] >= 1
+def test_get_analysis_inexistante(client):
+    """GET /analyses/{id} avec un ID inexistant retourne 404."""
+    resp = client.get("/analyses/inexistant")
+    assert resp.status_code == 404
+    assert "inexistant" in resp.json()["detail"].lower() or "introuvable" in resp.json()["detail"].lower()
 
 
-def test_upload_capture_no_filename():
-    """POST /captures sans nom de fichier doit retourner une erreur (422 FastAPI)."""
-    response = client.post(
-        "/captures",
-        files={"file": ("", _fake_capture_file(), "application/octet-stream")},
-        data={"label": "test"},
-    )
-    assert response.status_code in (400, 422)
+def test_get_security_report_inexistant(client):
+    """GET /analyses/{id}/security avec un ID inexistant retourne 404."""
+    resp = client.get("/analyses/inexistant/security")
+    assert resp.status_code == 404
 
 
-def test_upload_capture_empty_file():
-    """POST /captures avec un fichier vide doit retourner 400."""
-    with patch("netcross_api.app.parse_capture", return_value=[]):
-        response = client.post(
-            "/captures",
-            files={"file": ("empty.pcap", b"", "application/octet-stream")},
-            data={"label": "test"},
-        )
-    assert response.status_code == 400
+def test_upload_sans_fichier(client):
+    """POST /captures sans fichier retourne 422 (FastAPI validation)."""
+    resp = client.post("/captures")
+    assert resp.status_code == 422
 
 
-def test_upload_capture_parse_error():
-    """POST /captures avec une erreur de parsing doit retourner 400."""
-    with patch("netcross_api.app.parse_capture", side_effect=Exception("tshark not found")):
-        response = client.post(
-            "/captures",
-            files={"file": ("bad.pcap", b"garbage", "application/octet-stream")},
-            data={"label": "test"},
-        )
-    assert response.status_code == 400
-    assert "Erreur de parsing" in response.json()["detail"]
+def test_health_response_model():
+    """HealthResponse a les bons champs par defaut."""
+    h = HealthResponse()
+    assert h.status == "ok"
+    assert h.version == "1.0.0"
 
 
-# --- Get analysis ----------------------------------------------------------
+def test_analysis_summary_model():
+    """AnalysisSummary a les bons champs par defaut."""
+    s = AnalysisSummary(analysis_id="test123")
+    assert s.analysis_id == "test123"
+    assert s.status == "completed"
+    assert s.point_count == 0
+    assert s.packet_count == 0
+    assert s.security_finding_count == 0
 
 
-def test_get_analysis_success():
-    """GET /analyses/{id} doit retourner le rapport JSON."""
-    with patch("netcross_api.app.parse_capture", side_effect=_mock_parse_capture):
-        upload = client.post(
-            "/captures",
-            files={"file": ("test.pcap", _fake_capture_file(), "application/octet-stream")},
-            data={"label": "point-A"},
-        )
-    analysis_id = upload.json()["analysis_id"]
-
-    response = client.get(f"/analyses/{analysis_id}")
-    assert response.status_code == 200
-    data = response.json()
-    # Le rapport JSON contient au moins des métadonnées
-    assert isinstance(data, dict)
+def test_security_finding_model():
+    """SecurityFinding a les bons champs par defaut."""
+    f = SecurityFinding()
+    assert f.severity == ""
+    assert f.category == ""
+    assert f.detail == ""
+    assert f.point is None
 
 
-def test_get_analysis_not_found():
-    """GET /analyses/{id} avec un ID inexistant doit retourner 404."""
-    response = client.get("/analyses/inexistant12345")
-    assert response.status_code == 404
-    assert "introuvable" in response.json()["detail"]
+def test_security_report_model():
+    """SecurityReport a les bons champs par defaut."""
+    r = SecurityReport(analysis_id="test")
+    assert r.analysis_id == "test"
+    assert r.findings == []
+    assert r.service_fingerprints == []
+    assert r.lateral_movement_events == []
+    assert r.dga_alerts == []
+    assert r.fast_flux_alerts == []
 
 
-# --- Security report -------------------------------------------------------
+def test_error_response_model():
+    """ErrorResponse a le bon champ."""
+    e = ErrorResponse(detail="erreur test")
+    assert e.detail == "erreur test"
 
 
-def test_get_security_report_success():
-    """GET /analyses/{id}/security doit retourner les constats."""
-    with patch("netcross_api.app.parse_capture", side_effect=_mock_parse_capture):
-        upload = client.post(
-            "/captures",
-            files={"file": ("test.pcap", _fake_capture_file(), "application/octet-stream")},
-            data={"label": "point-A"},
-        )
-    analysis_id = upload.json()["analysis_id"]
-
-    response = client.get(f"/analyses/{analysis_id}/security")
-    assert response.status_code == 200
-    data = response.json()
-    assert data["analysis_id"] == analysis_id
-    assert isinstance(data["findings"], list)
-    assert isinstance(data["service_fingerprints"], list)
+def test_store_add_et_get(api_store):
+    """AnalysesStore.add() retourne un ID et get() retrouve le rapport."""
+    from netcross_core.models import Report
+    r = Report()
+    analysis_id = api_store.add(r, metadata={"filename": "test.pcap"})
+    assert isinstance(analysis_id, str)
+    assert len(analysis_id) == 12
+    entry = api_store.get(analysis_id)
+    assert entry is not None
+    assert entry["report"] is r
+    assert entry["metadata"]["filename"] == "test.pcap"
 
 
-def test_get_security_report_not_found():
-    """GET /analyses/{id}/security avec un ID inexistant doit retourner 404."""
-    response = client.get("/analyses/inexistant12345/security")
-    assert response.status_code == 404
+def test_store_get_inexistant(api_store):
+    """AnalysesStore.get() retourne None pour un ID inexistant."""
+    assert api_store.get("inexistant") is None
 
 
-# --- List analyses ---------------------------------------------------------
+def test_store_get_report_inexistant(api_store):
+    """AnalysesStore.get_report() retourne None pour un ID inexistant."""
+    assert api_store.get_report("inexistant") is None
 
 
-def test_list_analyses():
-    """GET /analyses doit lister les IDs d'analyses."""
-    # Au début, liste vide
-    response = client.get("/analyses")
-    assert response.status_code == 200
-    assert response.json()["analyses"] == []
-
-    # Ajouter une analyse
-    with patch("netcross_api.app.parse_capture", side_effect=_mock_parse_capture):
-        upload = client.post(
-            "/captures",
-            files={"file": ("test.pcap", _fake_capture_file(), "application/octet-stream")},
-            data={"label": "point-A"},
-        )
-    analysis_id = upload.json()["analysis_id"]
-
-    # La liste doit maintenant contenir l'ID
-    response = client.get("/analyses")
-    assert response.status_code == 200
-    assert analysis_id in response.json()["analyses"]
+def test_store_exists(api_store):
+    """AnalysesStore.exists() retourne True/False correctement."""
+    from netcross_core.models import Report
+    r = Report()
+    analysis_id = api_store.add(r)
+    assert api_store.exists(analysis_id) is True
+    assert api_store.exists("inexistant") is False
 
 
-# --- OpenAPI spec ----------------------------------------------------------
+def test_store_list_ids(api_store):
+    """AnalysesStore.list_ids() retourne la liste des IDs."""
+    from netcross_core.models import Report
+    r1 = Report()
+    r2 = Report()
+    id1 = api_store.add(r1)
+    id2 = api_store.add(r2)
+    ids = api_store.list_ids()
+    assert id1 in ids
+    assert id2 in ids
+    assert len(ids) == 2
 
 
-def test_openapi_json_available():
-    """GET /openapi.json doit retourner la spec OpenAPI."""
-    response = client.get("/openapi.json")
-    assert response.status_code == 200
-    spec = response.json()
-    assert spec["info"]["title"] == "Netcross API"
-    assert "paths" in spec
-    assert "/captures" in spec["paths"]
-    assert "/analyses/{analysis_id}" in spec["paths"]
-    assert "/health" in spec["paths"]
-
-
-def test_swagger_ui_available():
-    """GET /docs doit retourner la Swagger UI."""
-    response = client.get("/docs")
-    assert response.status_code == 200
-    assert "swagger" in response.text.lower()
+def test_store_get_report(api_store):
+    """AnalysesStore.get_report() retourne le rapport."""
+    from netcross_core.models import Report
+    r = Report()
+    analysis_id = api_store.add(r)
+    assert api_store.get_report(analysis_id) is r

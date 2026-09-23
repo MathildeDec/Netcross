@@ -153,3 +153,10 @@ exclude_lines = [
     "if __name__ == .__main__.:",
     "raise NotImplementedError",
 ]
+
+[dependency-groups]
+dev = [
+    "fastapi>=0.141.1",
+    "httpx>=0.28.1",
+    "python-multipart>=0.0.32",
+]
