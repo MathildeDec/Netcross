@@ -559,6 +559,21 @@ class Report:
     # doublons ci-dessus sont alors ABSENTS de tous les autres compteurs de
     # ce Report (debit, flux, pertes...) ; False -> ils y sont comptes.
     duplicates_excluded: bool = False
+    # -- gestion memoire sur gros PCAP (issue #283, Etape 3) : renseignes par
+    # l'appelant (CLI, voir cross_capture_analyzer_cli.py) AVANT correlate()/
+    # analyse(), jamais par analyse() elle-meme -- meme discipline que
+    # capture_comments/capture_infos ci-dessus (metadonnee sur la PORTEE de
+    # l'analyse, pas sur son contenu). `truncated` est True si --max-packets
+    # ou --sample a reellement limite le nombre de paquets analyses (jamais
+    # True si le fichier avait de toute facon moins de paquets que la
+    # limite demandee) ; `truncation_note` porte alors le texte a
+    # destination du lecteur du rapport, ex: "analyse limitee aux 2 000 000
+    # premiers paquets sur 18 300 000 -- les constats ne couvrent que les 4
+    # premieres minutes de la capture." Une troncature silencieuse
+    # produirait un rapport FAUX (l'analyste croirait couvrir toute la
+    # capture) : plus grave qu'un simple echec, voir le constat de l'issue.
+    truncated: bool = False
+    truncation_note: str = ""
     # -- objets applicatifs HTTP (Job 25), metadonnees uniquement
     http_objects: list[dict] = field(default_factory=list)
     # -- fichiers extraits (SCENARIO-4, issue #150) : métadonnées des fichiers

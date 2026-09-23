@@ -986,3 +986,163 @@ def test_detect_format_vide(tmp_path):
     p = tmp_path / "empty.pcap"
     p.write_bytes(b"")
     assert detect_format(str(p)) is None
+
+
+# -- ISB (Interface Statistics Block) : issue #288 ---------------------------
+
+
+def _isb(interface_id: int = 0, *, ifrecv=None, ifdrop=None, osdrop=None, endian="<"):
+    """Construit un bloc ISB pcapng avec les options donnees.
+    Le corps d'un ISB contient interface_id (4) + timestamp (8) + options."""
+    from pcap_builders import _pad4, block
+
+    body = struct.pack(endian + "I", interface_id)
+    body += struct.pack(endian + "Q", 0)  # timestamp (8 octets)
+    for code, val in [
+        (4, ifrecv),  # _OPT_ISB_IFRECV
+        (5, ifdrop),  # _OPT_ISB_IFDROP
+        (7, osdrop),  # _OPT_ISB_OSDROP
+    ]:
+        if val is not None:
+            opt_val = struct.pack(endian + "Q", val)
+            body += struct.pack(endian + "HH", code, len(opt_val)) + _pad4(opt_val)
+    body += struct.pack(endian + "HH", 0, 0)  # opt_endofopt
+    return block(0x00000005, body, endian)
+
+
+def test_read_structure_pcapng_avec_isb_remplit_les_compteurs(tmp_path):
+    """Un ISB avec ifrecv/ifdrop/osdrop renseigne les compteurs de
+    l'InterfaceRecord correspondant (lignes 255-260)."""
+    from pcap_builders import epb, frame, idb, shb, write_bytes
+
+    from pcap_parser.capfile import read_structure
+
+    pkt = frame(0, 60)
+    write_bytes(
+        tmp_path / "isb.pcapng",
+        shb(),
+        idb(),
+        epb(pkt, ts_us=1_700_000_000_000_000),
+        _isb(ifrecv=1000, ifdrop=5, osdrop=2),
+    )
+    struct = read_structure(str(tmp_path / "isb.pcapng"))
+    assert struct is not None
+    assert struct.interfaces[0].received == 1000
+    assert struct.interfaces[0].dropped_by_interface == 5
+    assert struct.interfaces[0].dropped_by_os == 2
+
+
+def test_read_structure_pcapng_isb_interface_inconnu_ignore(tmp_path):
+    """Un ISB pour une interface inexistante est ignore sans erreur
+    (ligne 253)."""
+    from pcap_builders import idb, shb, write_bytes
+
+    from pcap_parser.capfile import read_structure
+
+    write_bytes(
+        tmp_path / "isb_unknown.pcapng",
+        shb(),
+        idb(),
+        _isb(interface_id=99, ifrecv=42),
+    )
+    struct = read_structure(str(tmp_path / "isb_unknown.pcapng"))
+    assert struct is not None
+    assert len(struct.interfaces) == 1
+    # L'ISB pour l'interface 99 n'a pas modifie l'interface 0
+    assert struct.interfaces[0].received is None
+
+
+def test_read_structure_pcapng_isb_option_non_8_octets_ignoree(tmp_path):
+    """Une option ISB dont la valeur ne fait pas 8 octets est ignoree
+    (ligne 259-260 : if len(value) != 8: continue)."""
+    from pcap_builders import _pad4, block, idb, shb, write_bytes
+
+    from pcap_parser.capfile import read_structure
+
+    # ISB avec une option IFRECV dont la valeur fait 4 octets (pas 8)
+    isb_body = struct.pack("<I", 0)  # interface_id
+    isb_body += struct.pack("<Q", 0)  # timestamp
+    isb_body += struct.pack("<HH", 4, 4) + _pad4(b"\x01\x00\x00\x00")  # IFRECV, 4 octets
+    isb_body += struct.pack("<HH", 0, 0)  # opt_endofopt
+    bad_isb = block(0x00000005, isb_body)
+
+    write_bytes(
+        tmp_path / "isb_bad.pcapng",
+        shb(),
+        idb(),
+        bad_isb,
+    )
+    cap = read_structure(str(tmp_path / "isb_bad.pcapng"))
+    assert cap is not None
+    assert cap.interfaces[0].received is None
+
+
+def test_read_structure_pcapng_avec_isb_retourne_capture_structure(tmp_path):
+    """Un pcapng valide avec ISB retourne bien un CaptureStructure (ligne 267)."""
+    from pcap_builders import epb, frame, idb, shb, write_bytes
+
+    from pcap_parser.capfile import FORMAT_PCAPNG, read_structure
+
+    pkt = frame(0, 60)
+    write_bytes(
+        tmp_path / "ok.pcapng",
+        shb(),
+        idb(),
+        epb(pkt, ts_us=1_700_000_000_000_000),
+        _isb(ifrecv=10),
+    )
+    struct = read_structure(str(tmp_path / "ok.pcapng"))
+    assert struct is not None
+    assert struct.fmt == FORMAT_PCAPNG
+    assert struct.version is not None
+
+
+# -- _first_timestamp_pcap : issue #288 (ligne 456) -------------------------
+
+
+def test_first_timestamp_pcap_retourne_le_timestamp_du_premier_paquet(tmp_path):
+    """first_timestamp sur un pcap classique lit le timestamp du premier
+    paquet (couvre _first_timestamp_pcap, ligne 456)."""
+    from pcap_builders import synthetic_packets, write_pcap
+
+    from pcap_parser.capfile import first_timestamp
+
+    pkts = synthetic_packets(3, start_us=1_700_000_000_000_000)
+    path = tmp_path / "ts.pcap"
+    write_pcap(path, pkts)
+    ts = first_timestamp(str(path))
+    assert ts == 1700000000.0  # premier paquet a t=1700000000.0
+
+
+def test_first_timestamp_nsecpcap_retourne_en_nanosecondes(tmp_path):
+    """first_timestamp sur un nsecpcap utilise le diviseur 1e9."""
+    from pcap_builders import synthetic_packets, write_pcap
+
+    from pcap_parser.capfile import first_timestamp
+
+    pkts = synthetic_packets(1, start_us=1_700_000_000_000_000)
+    path = tmp_path / "ts_nsec.pcap"
+    write_pcap(path, pkts, nsec=True)
+    ts = first_timestamp(str(path))
+    # synthetic_packets retourne des timestamps en microsecondes ; pcap_bytes
+    # avec nsec=True les divise par 1e9 pour obtenir sec + frac nanosec.
+    # 1_700_000_000_000_000 us / 1e9 = 1_700_000 s + 0 ns
+    assert ts == 1_700_000.0
+
+
+# -- _split_pcap : issue #288 (ligne 414) -----------------------------------
+
+
+def test_split_by_size_pcap_couvre_split_pcap(tmp_path):
+    """split_by_size sur un pcap classique passe par _split_pcap (ligne 414)."""
+    from pcap_builders import synthetic_packets, write_pcap
+
+    from pcap_parser.capfile import split_by_size
+
+    pkts = synthetic_packets(5, size=100)
+    path = tmp_path / "split.pcap"
+    write_pcap(path, pkts)
+    segments = split_by_size(str(path), str(tmp_path / "out"), max_bytes=500)
+    assert len(segments) >= 1
+    for seg in segments:
+        assert os.path.exists(seg)

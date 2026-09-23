@@ -800,3 +800,15 @@ def test_parse_tls_capture_unknown_handshake_type(monkeypatch):
     events = tls_diagnostics.parse_tls_capture("A", "fake.pcap")
     assert len(events) == 1
     assert "unknown" in events[0].handshake_type
+
+
+# -- parse_client_hello : branches complementaires (issue #288) -------------
+
+
+def test_parse_client_hello_body_se_termine_apres_cipher_suites():
+    """Body qui s'arrete juste apres les cipher suites, sans compression
+    methods : i >= len(body) est vrai, retourne version seule (ligne 154).
+    """
+    body = b"\x03\x03" + b"\x00" * 32 + b"\x00" + b"\x00\x02" + b"\x13\x01"
+    result = parse_client_hello(body)
+    assert result == {"tls_version": "TLS 1.2"}
