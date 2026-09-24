@@ -25,7 +25,6 @@ def flow_key(pk: Pkt, nat_tolerant=False, nat_window_ms=200):
     temporelle (ignore IP/port). Limites : inutile sans payload (SYN/ACK
     purs), et inefficace si un ALG reecrit le contenu (FTP actif, SIP).
     """
-    logger.debug("flow_key(pk={pk}, nat_tolerant={nat_tolerant}, nat_window_ms={nat_window_ms})")
     if nat_tolerant and pk.payload_hash:
         bucket = int(pk.ts / (nat_window_ms / 1000.0))
         return ("NAT", pk.proto, pk.payload_hash, bucket)
@@ -44,9 +43,6 @@ def correlate(all_packets, nat_tolerant=False, nat_window_ms=200, exclude_duplic
     absent (et une perte sera rapportee en aval avec --order) : c'est le
     prix de ne plus doubler les compteurs de paquets/octets.
     """
-    logger.debug(
-        "correlate(all_packets={all_packets}, nat_tolerant={nat_tolerant}, nat_window_ms={nat_window_ms}, ...)"
-    )
     flows = defaultdict(dict)  # cle -> {point: [Pkt, ...]}
     for pk in all_packets:
         if exclude_duplicates and pk.is_duplicate:
@@ -84,7 +80,6 @@ def build_flows(flows: dict) -> list[Flow]:
     section 13.3). Ne recalcule rien : une seule passe supplementaire sur
     les memes Pkt deja groupes par correlate(), aucune nouvelle
     correlation ni nouvelle lecture de capture."""
-    logger.debug("build_flows(flows={flows})")
     out = []
     for key, per_point in flows.items():
         f = Flow(key=key)
@@ -108,7 +103,6 @@ def build_conversations(flow_list: list[Flow]) -> list[Conversation]:
     `Flow.endpoints` deja ordonne (min, max) suffit a regrouper un flux
     src->dst et son retour dst->src sous la MEME Conversation, sans
     relire les paquets bruts."""
-    logger.debug("build_conversations(flow_list={flow_list})")
     by_endpoints: dict[tuple[str, str], Conversation] = {}
     for f in flow_list:
         if f.endpoints is None:
@@ -122,7 +116,6 @@ def build_conversations(flow_list: list[Flow]) -> list[Conversation]:
 
 def compute_throughput(all_packets, bucket_seconds):
     """point -> {bucket_index: octets cumules dans cette fenetre}"""
-    logger.debug("compute_throughput(all_packets={all_packets}, bucket_seconds={bucket_seconds})")
     tp = defaultdict(lambda: defaultdict(int))
     for pk in all_packets:
         bucket = int(pk.ts // bucket_seconds)
@@ -180,9 +173,6 @@ def compute_topn_series(all_packets, bucket_seconds, dimension, top_n=5):
     compute_throughput() ci-dessus : meme decoupage en buckets, mais
     ventile le debit par categorie plutot qu'agrege.
     """
-    logger.debug(
-        "compute_topn_series(all_packets={all_packets}, bucket_seconds={bucket_seconds}, dimension={dimension}, ...)"
-    )
     totals = defaultdict(lambda: defaultdict(int))  # point -> categorie -> octets (pour le classement)
     raw = defaultdict(lambda: defaultdict(lambda: defaultdict(int)))  # point -> categorie -> bucket -> octets
     for pk in all_packets:

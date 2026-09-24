@@ -47,7 +47,9 @@ from typing import Any
 
 import pcap_parser
 from netcross_core.application.banners import build_service_fingerprints
+from netcross_core.discovery.assets import build_asset_inventory
 from netcross_core.exploit_signatures import Detection, Signature, detect_exploits
+from netcross_core.extract.carver import detect_extracted_files
 from netcross_core.fingerprint.report import build_fingerprint_records
 from netcross_core.logging_config import get_logger
 from netcross_core.models import Pkt, Report
@@ -293,12 +295,15 @@ def _fmt_bytes(n: int) -> str:
 
 def exfiltration_findings(alerts: Iterable[dict]) -> list[dict[str, Any]]:
     """Un constat `anomalie` par alerte de `exfiltration.detect_exfiltration`
-    (apres `correlate_exfiltration`). Severite calculee par le module
-    (moyenne, elevee a partir d'un score de 60/100) : un transfert sortant
-    volumineux reste un INDICE -- une sauvegarde cloud legitime y ressemble."""
+    (apres `correlate_exfiltration`). Severite `elevee` si au moins un signal
+    fort (high_volume ou asymmetric_ratio), `moyenne` sinon : un transfert
+    sortant volumineux reste un INDICE -- une sauvegarde cloud legitime y ressemble."""
     findings = []
     for a in alerts:
-        signals = ", ".join(_EXFIL_SIGNAL_LABELS.get(sig, sig) for sig in a.get("signals") or [])
+        sig_list = a.get("signals") or []
+        has_strong = any(s in ("high_volume", "asymmetric_ratio") for s in sig_list)
+        severity = a.get("severity") or ("elevee" if has_strong else "moyenne")
+        signals = ", ".join(_EXFIL_SIGNAL_LABELS.get(sig, sig) for sig in sig_list)
         ratio = a.get("ratio")
         ratio_txt = "aucun retour" if ratio is None else f"ratio {ratio}:1"
         detail = (
@@ -312,7 +317,7 @@ def exfiltration_findings(alerts: Iterable[dict]) -> list[dict[str, Any]]:
             detail += f" -- trames {frames}"
         findings.append(
             {
-                "severity": a.get("severity") or "moyenne",
+                "severity": severity,
                 "category": "anomalie",
                 "detector": "exfiltration",
                 "detail": detail,
@@ -427,6 +432,7 @@ def flow_stats_findings(flows: list[dict]) -> list[dict[str, Any]]:
                     f"flux {f.get('src', '?')} -> {f.get('dst', '?')} "
                     f"classifie '{cls}' ({f.get('packet_count', 0)} paquets, "
                     f"entropie {f.get('entropy', 0.0):.2f}, "
+                    f"entropie octets {f.get('byte_entropy', 0.0):.2f}, "
                     f"ratio upload {f.get('upload_ratio', 0.0):.2f})"
                 ),
                 "points": points,
@@ -529,6 +535,96 @@ def fast_flux_findings(alerts: list[dict]) -> list[dict[str, Any]]:
     return findings
 
 
+# -- SCENARIO-2 : exfiltration de donnees (#148) ----------------------------
+
+
+_EXFIL_SIGNAL_LABELS = {
+    "high_volume": "volume sortant anormal",
+    "asymmetric_ratio": "ratio upload/download eleve",
+    "off_hours": "transfert hors heures ouvrables",
+    "new_destination": "destination non connue",
+    "unusual_protocol_volume": "volume inhabituel sur protocole non standard",
+}
+
+
+# -- FORENSIC : trous de sequence TCP et doublons cross-capture -----------------
+
+
+def sequence_gap_findings(gaps: list) -> list[dict[str, Any]]:
+    """Un constat `anomalie` par trou de sequence TCP detecte par
+    `forensic.detect_sequence_gaps`. La severite est `moyenne` (un trou
+    de sequence indique une perte de donnees -- capture drop ou perte
+    reseau -- sans preciser la cause, a confirmer)."""
+    findings: list[dict[str, Any]] = []
+    for g in gaps:
+        detail = (
+            f"trou de sequence TCP : {g.missing_bytes} octets manquants "
+            f"({g.start_seq} -> {g.end_seq}) sur {g.src}:{g.sport} -> {g.dst}:{g.dport} "
+            f"-- cause : {g.cause} ({g.evidence})"
+        )
+        if g.frame_number is not None:
+            detail += f" -- trame {g.frame_number}"
+        findings.append(
+            {
+                "severity": "moyenne",
+                "category": "anomalie",
+                "detail": detail,
+                "point": g.point or None,
+            }
+        )
+    return findings
+
+
+def cross_capture_duplicate_findings(duplicate_count: dict) -> list[dict[str, Any]]:
+    """Un constat `anomalie` par paire de points presentant des paquets
+    en double (cross-capture). Severite `faible` (un doublon indique
+    une capture multi-points avec chevauchement, pas une anomalie
+    reseau). Sans doublon, aucun constat."""
+    findings: list[dict[str, Any]] = []
+    for (point_a, point_b), count in sorted(duplicate_count.items()):
+        if count > 0:
+            findings.append(
+                {
+                    "severity": "faible",
+                    "category": "anomalie",
+                    "detail": (
+                        f"{count} paquet(s) en double entre {point_a} et {point_b} "
+                        f"-- chevauchement de capture multi-points"
+                    ),
+                    "point": point_a,
+                }
+            )
+    return findings
+
+
+# -- EXTRACTION : fichiers extraits de la capture ---------------------------
+
+
+def extracted_file_findings(extraction) -> list[dict[str, Any]]:
+    """Un constat `anomalie` par fichier extrait de la capture (HTTP,
+    email, SMB, FTP). Severite `faible` (la presence d'un fichier
+    n'est pas une anomalie en soi, mais doit apparaitre dans le
+    rapport pour audit). Sans fichier extrait, aucun constat."""
+    findings: list[dict[str, Any]] = []
+    for ef in getattr(extraction, "files", []):
+        filename = getattr(ef, "uri", None) or "?"
+        size = getattr(ef, "size", 0) or 0
+        proto = getattr(ef, "proto_source", "?")
+        src = getattr(ef, "src", "?")
+        dst = getattr(ef, "dst", "?")
+        point = getattr(ef, "point", None)
+        detail = f"fichier extrait : {filename} ({size} octets, {proto}) -- {src} -> {dst}"
+        findings.append(
+            {
+                "severity": "faible",
+                "category": "anomalie",
+                "detail": detail,
+                "point": point,
+            }
+        )
+    return findings
+
+
 # -- assemblage -----------------------------------------------------------
 
 
@@ -565,6 +661,14 @@ def apply_security_findings(
     protocol_mismatch_details = detect_protocol_mismatches(all_packets)
     report.protocol_mismatches = count_protocol_mismatches(all_packets)
     report.protocol_mismatch_details = protocol_mismatch_details
+
+    # SCENARIO-2 (#148) : exfiltration de donnees -- si analyse() ne l'a
+    # pas deja fait (appel direct de apply_security_findings sans analyse()).
+    if not report.exfiltration_alerts:
+        report.exfiltration_alerts = detect_exfiltration(all_packets).alerts
+    # Extraction de fichiers (HTTP, email, SMB, FTP) -- issue #329 : chaque
+    # detection doit apparaitre dans le rapport.
+    extraction = detect_extracted_files(all_packets)
 
     # SCENARIO-6 (#152) : DGA et fast flux -- detectes depuis les champs DNS de Pkt.
     dga_result = detect_dga(all_packets)
@@ -617,6 +721,9 @@ def apply_security_findings(
     flow_result = analyze_flow_stats(all_packets)
     report.flow_anomalies = [f.to_dict() for f in flow_result.flows]
 
+    # Issue #350 : inventaire d'actifs -- jamais appele, la section etait vide.
+    report.asset_inventory = build_asset_inventory(all_packets).to_records()
+
     dns_suspicions = detect_dns_tunneling(all_packets).suspicions
     beacon_suspicions = detect_beaconing(all_packets).suspicions
     findings = (
@@ -630,6 +737,10 @@ def apply_security_findings(
         + lateral_movement_findings(report.lateral_movement_events)
         + flow_stats_findings(report.flow_anomalies)
         + tls_audit_findings(audit_tls_certificates(all_packets, tls_policy or DEFAULT_POLICY))
+        + exfiltration_findings(report.exfiltration_alerts)
+        + sequence_gap_findings(report.sequence_gaps)
+        + cross_capture_duplicate_findings(dict(report.duplicate_count))
+        + extracted_file_findings(extraction)
     )
     if cve_conn is not None:
         findings += cve_findings(report.service_fingerprints, cve_conn)

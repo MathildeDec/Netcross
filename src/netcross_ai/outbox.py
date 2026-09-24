@@ -49,7 +49,6 @@ class Submission:
 
 def queue_pack(pack_path: str | Path, outbox: str | Path = DEFAULT_OUTBOX) -> Path:
     """Verifie le paquet puis le copie dans la boite d'envoi (``NOM.zip``)."""
-    logger.debug("queue_pack(pack_path={pack_path}, outbox={outbox})")
     pack = read_pack(pack_path)
     box = Path(outbox)
     box.mkdir(parents=True, exist_ok=True)
@@ -62,7 +61,6 @@ def queue_pack(pack_path: str | Path, outbox: str | Path = DEFAULT_OUTBOX) -> Pa
 
 def pending(outbox: str | Path = DEFAULT_OUTBOX) -> list[ModelPack]:
     """Paquets en attente (illisibles ignores : ils sont signales par ``inspect``)."""
-    logger.debug("pending(outbox={outbox})")
     box = Path(outbox)
     paths = sorted(box.glob("*.zip")) if box.is_dir() else []
     return [pack for pack in map(_try_read, paths) if pack is not None]
@@ -85,7 +83,6 @@ def _archive(name: str, outbox: str | Path) -> Path:
 
 def submission(name: str, outbox: str | Path = DEFAULT_OUTBOX, repo: str = DEFAULT_REPO) -> Submission:
     """Prepare le ticket « modeles » d'un paquet en attente (aucun envoi)."""
-    logger.debug("submission(name={name}, outbox={outbox}, repo={repo})")
     archive = _archive(name, outbox)
     pack = read_pack(archive)
     body = ticket_body(pack)
@@ -99,7 +96,6 @@ def submission(name: str, outbox: str | Path = DEFAULT_OUTBOX, repo: str = DEFAU
 
 def mark_sent(name: str, outbox: str | Path = DEFAULT_OUTBOX) -> Path:
     """Deplace le paquet dans ``envoyes/`` (le ticket a ete cree)."""
-    logger.debug("mark_sent(name={name}, outbox={outbox})")
     archive = _archive(name, outbox)
     sent = Path(outbox) / SENT_DIR
     sent.mkdir(exist_ok=True)

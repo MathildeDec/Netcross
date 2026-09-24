@@ -47,14 +47,13 @@ def _size_counts(flow: dict) -> dict[float, int]:
         try:
             counts[float(size)] = int(n)
         except (TypeError, ValueError):  # noqa: PERF203 -- entree JSON externe, rare
-            logger.exception("erreur: e")
+            logger.exception("échec dans _size_counts")
             continue
     return counts
 
 
 def flow_features(flow: dict) -> list[float]:
     """Vecteur de ``len(FEATURE_NAMES)`` reels, sans NaN ni infini."""
-    logger.debug("flow_features(flow={flow})")
     sizes = _splt_sizes(flow)
     counts = _size_counts(flow)
     total = sum(counts.values())

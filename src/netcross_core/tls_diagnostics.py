@@ -141,7 +141,6 @@ def parse_client_hello(body: bytes) -> dict:
     ne correspond pas a ce qui est attendu -- pas de reconstruction
     approximative en cas de doute.
     """
-    logger.debug("parse_client_hello(body={body})")
     if len(body) < 34:
         return {}
     version = _tls_version_str(body[0], body[1])
@@ -180,7 +179,6 @@ def parse_client_hello(body: bytes) -> dict:
 
 def parse_server_hello(body: bytes) -> dict:
     """Extrait la version TLS negociee et le cipher suite choisi."""
-    logger.debug("parse_server_hello(body={body})")
     if len(body) < 35:
         return {}
     version = _tls_version_str(body[0], body[1])
@@ -194,7 +192,6 @@ def parse_server_hello(body: bytes) -> dict:
 
 
 def parse_alert(body: bytes) -> dict:
-    logger.debug("parse_alert(body={body})")
     if len(body) < 2:
         return {}
     level = ALERT_LEVELS.get(body[0], f"unknown({body[0]})")
@@ -252,7 +249,6 @@ def parse_tls_capture(label: str, path: str) -> list[TlsEvent]:
     avale les erreurs de lecture (message sur stderr, deja emis par
     pcap_parser lui-meme) et renvoie une liste vide plutot que de faire
     planter tout le run -- coherent avec le reste de netcross_core."""
-    logger.debug("parse_tls_capture(label={label}, path={path})")
     events: list[TlsEvent] = []
     raw_packets = pcap_parser.parse_capture(path, raise_on_error=False)
 
@@ -350,7 +346,6 @@ class HandshakeStatus:
 
     @property
     def verdict(self) -> str:
-        logger.debug("verdict(self={self})")
         if self.fatal_alert:
             return f"alert_fatal:{self.fatal_alert}"
         if self.application_data_seen:
@@ -367,7 +362,6 @@ def build_handshake_status(
 ) -> dict[str, dict[str, HandshakeStatus]]:
     """point -> flow_id -> HandshakeStatus, construit en rejouant les
     evenements dans l'ordre chronologique."""
-    logger.debug("build_handshake_status(events={events})")
     status: dict[str, dict[str, HandshakeStatus]] = {}
     for ev in sorted(events, key=lambda e: e.ts):
         fid = _flow_id(ev.src, ev.sport, ev.dst, ev.dport)
@@ -417,7 +411,6 @@ def diagnose_tls(
     analysis.py, ce module ne deduit pas la topologie lui-meme, c'est
     une limite assumee vu son perimetre).
     """
-    logger.debug("diagnose_tls(status_by_point={status_by_point}, points_order={points_order})")
     findings: list[TlsFinding] = []
     points = points_order or sorted(status_by_point)
 
@@ -489,7 +482,6 @@ def diagnose_tls(
 
 
 def print_tls_diagnostics(findings: list[TlsFinding]) -> None:
-    logger.debug("print_tls_diagnostics(findings={findings})")
     print("=" * 70)
     print("DIAGNOSTIC TLS -- etat des handshakes par point")
     print("=" * 70)

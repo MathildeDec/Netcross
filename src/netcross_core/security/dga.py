@@ -343,7 +343,6 @@ def detect_dga(
     Le ratio NXDOMAIN est calcule par domaine : nombre de reponses
     NXDOMAIN (rcode=3) / nombre total de reponses pour ce domaine.
     """
-    logger.debug("detect_dga(packets={packets}, thresholds={thresholds})")
     if thresholds is None:
         thresholds = DgaThresholds()
 

@@ -106,7 +106,6 @@ class SegmentScore:
         """Vrai si au moins 2 categories differentes pointent vers ce segment --
         c'est la signature d'un vrai faisceau de preuves, pas un artefact
         d'une seule regle trop sensible."""
-        logger.debug("convergent(self={self})")
         return len(self.categories) >= 2
 
 
@@ -143,10 +142,6 @@ def rank_segments(
     est marque `low_confidence=True` si la totalite de ses findings a
     poids non nul en dependent.
     """
-    logger.debug(
-        "rank_segments(findings={findings}, severity_weights={severity_weights}, "
-        "convergence_bonus={convergence_bonus}, ...)"
-    )
     weights = severity_weights or DEFAULT_SEVERITY_WEIGHTS
     by_segment: dict[str, list[Finding]] = defaultdict(list)
     for f in findings:
@@ -184,7 +179,6 @@ def rank_segments(
 
 
 def print_triage(ranked: list[SegmentScore], top_n: int = 5) -> None:
-    logger.debug("print_triage(ranked={ranked}, top_n={top_n})")
     print("=" * 70)
     print(
         f"TRIAGE -- top {top_n} segments a regarder en premier "
@@ -283,7 +277,6 @@ def health_score(ranked: list[SegmentScore], scale: float = HEALTH_SCORE_SCALE) 
     preuve ponderee), decroissant ensuite avec le total des scores de
     segment (voir SegmentScore.score).
     """
-    logger.debug("health_score(ranked={ranked}, scale={scale})")
     total = sum(s.score for s in ranked)
     if total <= 0:
         return 100
@@ -293,7 +286,6 @@ def health_score(ranked: list[SegmentScore], scale: float = HEALTH_SCORE_SCALE) 
 def health_label(score: int) -> str:
     """Cle courte identifiant la tranche du score (voir HEALTH_LABELS pour
     le libelle affichable, HEALTH_LABEL_THRESHOLDS pour les bornes)."""
-    logger.debug("health_label(score={score})")
     for threshold, label in HEALTH_LABEL_THRESHOLDS:
         if score >= threshold:
             return label
@@ -304,5 +296,4 @@ def health_label(score: int) -> str:
 def format_health_line(score: int) -> str:
     """Rendu texte commun (CLI console + GUI GTK4) -- une seule source pour
     le libelle exact, pour eviter que les deux divergent legerement."""
-    logger.debug("format_health_line(score={score})")
     return f"Score de sante : {score}/100 ({HEALTH_LABELS[health_label(score)]})"

@@ -119,7 +119,6 @@ class ExfiltrationThresholds:
 
     @property
     def ratio_floor(self) -> int:
-        logger.debug("ratio_floor(self={self})")
         if self.min_upload_for_ratio is not None:
             return self.min_upload_for_ratio
         return self.min_volume_bytes // 10
@@ -163,7 +162,6 @@ class ExfiltrationAlert:
         return compute_score(self.signals)
 
     def to_dict(self) -> dict:
-        logger.debug("to_dict(self={self})")
         score = self.score
         return {
             "point": self.point,
@@ -205,7 +203,7 @@ def _is_global(addr: str) -> bool:
     try:
         return ipaddress.ip_address(addr).is_global
     except ValueError:
-        logger.exception("erreur: ValueError")
+        logger.exception("échec dans _is_global")
         return False
 
 
@@ -241,9 +239,6 @@ def detect_exfiltration(
     (baseline). Si fourni, les destinations non listees declenchent le
     signal faible `new_destination`.
     """
-    logger.debug(
-        "detect_exfiltration(packets={packets}, thresholds={thresholds}, known_destinations={known_destinations})"
-    )
     flow_data: dict[tuple[str, str, str], dict] = defaultdict(
         lambda: {
             "bytes": 0,
@@ -268,7 +263,6 @@ def detect_exfiltration(
         data["proto_bytes"][_proto_family(pk)] += pk.length
 
     def download_of(point: str, src: str, dst: str) -> int:
-        logger.debug("download_of(point={point}, src={src}, dst={dst})")
         rev = flow_data.get((point, dst, src))
         return rev["bytes"] if rev else 0
 
@@ -348,7 +342,6 @@ def detect_exfiltration(
 def dns_tunnel_sources(packets: Iterable[Pkt], dns_suspicions: Iterable[dict]) -> set[tuple[str, str]]:
     """(point, IP source) des hotes ayant interroge un domaine suspect de
     tunneling DNS (sorties `dns_tunnel.detect_dns_tunneling`)."""
-    logger.debug("dns_tunnel_sources(packets={packets}, dns_suspicions={dns_suspicions})")
     domains: dict[str, set[str]] = defaultdict(set)
     for s in dns_suspicions:
         if s.get("domain"):
@@ -382,9 +375,6 @@ def correlate_exfiltration(
     - `correlated_dns_tunnel` : le meme hote interroge un domaine suspect de
       tunneling DNS sur le meme point.
     """
-    logger.debug(
-        "correlate_exfiltration(alerts={alerts}, beacon_suspicions={beacon_suspicions}, dns_sources={dns_sources})"
-    )
     beacons = {(str(s.get("point") or ""), s.get("src"), s.get("dst")) for s in beacon_suspicions}
     dns_sources = dns_sources or set()
     out = []

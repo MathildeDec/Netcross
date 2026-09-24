@@ -703,7 +703,7 @@ def _http_error_evidence(
         try:
             code = int(ex.rsplit(" ", 1)[-1])
         except ValueError:
-            logger.exception("erreur: ValueError")
+            logger.exception("échec dans _http_error_evidence")
             continue
         if code // 100 == status_class:
             texts.append(ex)
@@ -2229,7 +2229,6 @@ def evaluate(rule_id: str, report: Report) -> list[Finding]:
     "regle inconnue" (erreur d'appelant) et "regle connue mais pilote
     pas encore etendu jusque-la" (limite documentee -- voir docstring de
     module), plutot qu'une seule exception ambigue pour les deux cas."""
-    logger.debug("evaluate(rule_id={rule_id}, report={report})")
     rule = get_rule(rule_id)
     if rule is None:
         raise KeyError(f"regle inconnue du catalogue expert_rules : {rule_id!r}")

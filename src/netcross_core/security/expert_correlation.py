@@ -143,7 +143,6 @@ def app_anomaly(pk: Pkt) -> AppAnomaly | None:
     Note/Chat/Comment, les signaux L3/L4 et les conditions sans metadonnees
     de severite (paquet synthetique sans `expert_details`) ne comptent pas.
     """
-    logger.debug("app_anomaly(pk={pk})")
     if not pk.expert_flags:
         return None
     details = {d[0]: d for d in pk.expert_details}
@@ -183,7 +182,6 @@ def flow_id(pk: Pkt) -> str:
     Distinct de netcross_core.correlate.flow_key, qui inclut `key_id`
     (numero de sequence TCP) et sert a apparier un MEME paquet entre points.
     """
-    logger.debug("flow_id(pk={pk})")
     lo, hi = sorted((_endpoint(pk.src, pk.sport), _endpoint(pk.dst, pk.dport)))
 
     def fmt(ep: tuple[str, int]) -> str:
@@ -233,7 +231,6 @@ def correlate_expert_alerts(
     packets: Iterable[Pkt], thresholds: CorrelationThresholds = DEFAULT_THRESHOLDS
 ) -> CorrelationResult:
     """Detecte fuzzing / overflow / dos a partir des alertes Expert Info (voir module)."""
-    logger.debug("correlate_expert_alerts(packets={packets}, thresholds={thresholds})")
     flows: dict[tuple[str, str], _FlowState] = defaultdict(_FlowState)
     hosts: dict[tuple[str, str, str], list[tuple[float, int | None, str]]] = defaultdict(list)
     by_point: dict[str, Counter] = defaultdict(Counter)
@@ -306,7 +303,6 @@ def apply_expert_correlation(
     r: Report, all_packets: Iterable[Pkt], thresholds: CorrelationThresholds = DEFAULT_THRESHOLDS
 ) -> None:
     """Calcule la correlation et recopie le resultat dans les champs Report dedies."""
-    logger.debug("apply_expert_correlation(r={r}, all_packets={all_packets}, thresholds={thresholds})")
     result = correlate_expert_alerts(all_packets, thresholds)
     for point, per_proto in result.malformed_by_point.items():
         for protocol, n in per_proto.items():

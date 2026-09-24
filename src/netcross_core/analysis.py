@@ -24,6 +24,7 @@ from netcross_core.forensic import detect_sequence_gaps
 from netcross_core.logging_config import get_logger
 from netcross_core.models import Pkt, Report
 from netcross_core.parsing import compute_mos
+from netcross_core.security.exfiltration import detect_exfiltration
 from netcross_core.security.expert_correlation import apply_expert_correlation
 
 logger = get_logger(__name__)
@@ -340,6 +341,10 @@ def analyse(
     r.voip_calls = [call.to_dict() for call in calls]
     _analyse_dns(r, all_packets, points, points_order)
     _analyse_http(r, all_packets, points, points_order)
+
+    # SCENARIO-2 (#148) : exfiltration de donnees (transferts volumineux
+    # vers l'exterieur) -- detectee depuis les champs Pkt deja disponibles.
+    r.exfiltration_alerts = detect_exfiltration(all_packets).alerts
 
     return r
 
@@ -775,7 +780,7 @@ def _parse_tls_cert_date(s: str | None) -> datetime | None:
     try:
         return datetime.strptime(s.removesuffix(" (UTC)"), "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
     except ValueError:
-        logger.exception("erreur: ValueError")
+        logger.exception("échec dans _parse_tls_cert_date")
         return None
 
 
@@ -1140,7 +1145,7 @@ def _analyse_saturation(r: Report):
         try:
             p75 = statistics.quantiles(all_vals, n=4)[2] if len(all_vals) >= 4 else statistics.mean(all_vals)
         except statistics.StatisticsError:
-            logger.exception("erreur inattendue")
+            logger.exception("échec dans _analyse_saturation")
             p75 = statistics.mean(all_vals)
 
         frac_high = sum(1 for v in loss_vals if v >= p75) / len(loss_vals)

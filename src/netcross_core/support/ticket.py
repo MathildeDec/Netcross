@@ -158,7 +158,6 @@ def format_exception(exc: BaseException) -> tuple[str, str, list[str]]:
     scrubber puisse le traiter ligne par ligne -- les chemins de fichiers
     y sont nombreux et c'est precisement ce qu'il faut rediger.
     """
-    logger.debug("format_exception(exc={exc})")
     lines = traceback.format_exception(type(exc), exc, exc.__traceback__)
     flat = [ln.rstrip("\n") for chunk in lines for ln in chunk.splitlines()]
     return type(exc).__name__, str(exc), flat

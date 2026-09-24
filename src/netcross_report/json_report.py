@@ -278,7 +278,6 @@ def generate_json_report(
     DiffFinding deja diagnostiques) : cle JSON de premier niveau
     distincte, meme convention d'absence que les autres objets Session 0.
     """
-    logger.debug("generate_json_report(r={r}, output_path={output_path}, title={title}, ...)")
     if findings is None:
         findings = build_findings(r)
     ranked = rank_segments(list(findings) + list(tls_findings or []) + list(quic_findings or []))
@@ -308,6 +307,12 @@ def generate_json_report(
         # invisible jusqu'ici). Toujours present (liste vide = rien trouve),
         # meme convention que http_objects.
         "extracted_files": list(getattr(r, "extracted_files", [])),
+        # Issue #350 : inventaire d'actifs -- toujours present (liste
+        # vide = rien trouve), meme convention que http_objects.
+        "asset_inventory": list(getattr(r, "asset_inventory", [])),
+        # flow_anomalies et lateral_movement_events : meme convention.
+        "flow_anomalies": list(getattr(r, "flow_anomalies", [])),
+        "lateral_movement_events": list(getattr(r, "lateral_movement_events", [])),
     }
     if getattr(r, "duplicate_count", None):
         # Job 41/issue #161 : cle absente si la detection n'a rien trouve
@@ -316,6 +321,28 @@ def generate_json_report(
             "excluded": bool(getattr(r, "duplicates_excluded", False)),
             "by_pair": [{"points": list(pair), "count": count} for pair, count in sorted(r.duplicate_count.items())],
         }
+    # issue #329 : chaque détection doit apparaître dans le rapport JSON.
+    # Cles dedicatées pour les consommateurs machine (en plus de security_findings).
+    if getattr(r, "exfiltration_alerts", None):
+        doc["exfiltration_alerts"] = list(r.exfiltration_alerts)
+    if getattr(r, "sequence_gaps", None):
+        doc["sequence_gaps"] = [
+            {
+                "point": g.point,
+                "src": g.src,
+                "sport": g.sport,
+                "dst": g.dst,
+                "dport": g.dport,
+                "start_seq": g.start_seq,
+                "end_seq": g.end_seq,
+                "missing_bytes": g.missing_bytes,
+                "ts": g.ts,
+                "frame_number": g.frame_number,
+                "cause": g.cause,
+                "evidence": g.evidence,
+            }
+            for g in r.sequence_gaps
+        ]
     if getattr(r, "voip_calls", None):
         doc["voip_calls"] = list(r.voip_calls)
         doc["voip_quality_distribution"] = dict(r.voip_quality_distribution)
@@ -411,7 +438,6 @@ def generate_json_diff(
     cle JSON distincte de "expert_events" (qui ne porte que des
     ExpertEvent de source "netcross").
     """
-    logger.debug("generate_json_diff(findings={findings}, baseline={baseline}, current={current}, ...)")
     ranked = rank_segments(findings)
     score = health_score(ranked)
 

@@ -81,7 +81,7 @@ def _is_internal(ip: str) -> bool:
     try:
         addr = ipaddress.ip_address(ip)
     except ValueError:
-        logger.exception("erreur: ValueError")
+        logger.exception("échec dans _is_internal")
         return False
     return addr.is_private or addr.is_link_local
 
@@ -144,7 +144,6 @@ class LateralMovementResult:
 
     @property
     def events_by_type(self) -> dict[str, list[LateralMovementEvent]]:
-        logger.debug("events_by_type(self={self})")
         grouped: dict[str, list[LateralMovementEvent]] = defaultdict(list)
         for ev in self.events:
             grouped[ev.event_type].append(ev)
@@ -156,7 +155,6 @@ def detect_port_scans(
     thresholds: LateralMovementThresholds,
 ) -> list[LateralMovementEvent]:
     """Detecte les scans de ports : 1 source -> N ports sur M hotes."""
-    logger.debug("detect_port_scans(packets={packets}, thresholds={thresholds})")
     # point -> source -> {(dst, dport)}
     scan_map: dict[str, dict[str, set[tuple[str, int]]]] = defaultdict(lambda: defaultdict(set))
     for pkt in packets:
@@ -215,7 +213,7 @@ def detect_host_scans(
             try:
                 addrs = sorted(ipaddress.ip_address(h) for h in hosts)
             except ValueError:
-                logger.exception("erreur: ValueError")
+                logger.exception("échec dans detect_host_scans")
                 continue
             # Grouper par /24 et chercher des plages consecutives.
             by_prefix: dict[str, list[int]] = defaultdict(list)
@@ -256,7 +254,6 @@ def detect_brute_force(
     thresholds: LateralMovementThresholds,
 ) -> list[LateralMovementEvent]:
     """Detecte les tentatives de brute force : auth repetee vers N hotes."""
-    logger.debug("detect_brute_force(packets={packets}, thresholds={thresholds})")
     # Issue #346 : une tentative = une SESSION (dst, port source), pas un
     # paquet -- 36 sessions SSH de 4 paquets etaient rapportees comme
     # « 144 tentatives ». On retient l'horodatage du premier paquet.
@@ -316,7 +313,6 @@ def detect_unusual_protocols(
     """Detecte les protocoles inhabituels en interne (SMB, RDP, WinRM).
     Base sur les ports de destination : 445 (SMB), 3389 (RDP), 5985/5986
     (WinRM) depuis un poste utilisateur (port source > 1024)."""
-    logger.debug("detect_unusual_protocols(packets={packets}, thresholds={thresholds})")
     # point -> source -> set of (dst, port_label)
     proto_map: dict[str, dict[str, set[tuple[str, str]]]] = defaultdict(lambda: defaultdict(set))
     for pkt in packets:
@@ -357,7 +353,6 @@ def detect_new_connections(
     thresholds: LateralMovementThresholds,
 ) -> list[LateralMovementEvent]:
     """Detecte les nouvelles connexions internes non presentes dans la baseline."""
-    logger.debug("detect_new_connections(packets={packets}, thresholds={thresholds})")
     baseline = thresholds.new_connection_baseline_pairs
     if not baseline:
         return []  # Sans baseline, tout est nouveau → pas de signal utile.
@@ -408,7 +403,6 @@ def detect_lateral_movement(
     Retourne un :class:`LateralMovementResult` avec les evenements
     detectes et un flag ``suspicious`` si au moins un evenement a ete leve.
     """
-    logger.debug("detect_lateral_movement(packets={packets}, thresholds={thresholds})")
     if thresholds is None:
         thresholds = LateralMovementThresholds()
 
@@ -449,8 +443,5 @@ def detect_lateral_movement(
                 points=(ev.point,) if ev.point else (),
             )
     events = list(deduped.values())
-
-    if events:
-        logger.info("mouvements lateraux : {n} evenement(s) apres dedoublonnage multi-points", n=len(events))
 
     return LateralMovementResult(events=events, suspicious=bool(events))
