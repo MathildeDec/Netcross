@@ -11,7 +11,7 @@
 > Il remplace l'ancienne section 3 de `docs/features-backlog.md`, tenue à la main, qui avait dérivé
 > (voir `docs/sessions/session-36.md`, issue #140).
 
-153 modules · 226 classes · 490 fonctions publiques de module.
+153 modules · 227 classes · 493 fonctions publiques de module.
 
 Conventions : `+` public, `-` privé (préfixe `_`) ; `int?` = `int | None` ; `list~str~` = `list[str]` ;
 `<<module>>` regroupe les fonctions publiques d'un module ; `A --> B : champ` = `A` a un champ annoté
@@ -344,6 +344,7 @@ classDiagram
         +str? http_content_type
         +int? http_content_length
         +int? tcp_len
+        +tuple~str, ...~ dns_answers
         +str? comment
         +str? ip_checksum
         +bool? ip_checksum_bad
@@ -1236,6 +1237,7 @@ classDiagram
         +str? comment
         +tuple~Banner, ...~ service_banners
         +int? tcp_len
+        +tuple~str, ...~ dns_answers
         +str? ip_checksum
         +bool? ip_checksum_bad
         +str? tcp_checksum
@@ -2533,6 +2535,7 @@ classDiagram
         <<dataclass>>
         +int min_ips
         +float window_seconds
+        +int min_responses
         +float nxdomain_ratio_min
         +int nxdomain_min_responses
     }
@@ -3364,6 +3367,14 @@ classDiagram
         +list~str~ points
         +str source
         +str? plugin
+        +str? detector
+    }
+    class DetectorGroup {
+        <<dataclass, slots>>
+        +str? detector
+        +str label
+        +str severity
+        +list items
     }
     class ServiceEntry {
         <<dataclass, slots>>
@@ -3384,6 +3395,8 @@ classDiagram
         +int services_vulnerable
         +int exploits
         +int anomalies
+        +int anomalies_netcross
+        +int anomalies_expert_info
         +int cves
         +dict~str, int~ by_severity
         +int score
@@ -3401,6 +3414,9 @@ classDiagram
     }
     class mod_netcross_report_security_report["netcross_report.security_report"] {
         <<module>>
+        +detector_label(detector) str
+        +is_expert_info(item) bool
+        +group_by_detector(items) list~DetectorGroup~
         +severity_from_cvss(cvss) str
         +build_security_report(report) SecurityReport
         +format_security_report(sr) list~str~

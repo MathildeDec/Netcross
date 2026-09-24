@@ -230,7 +230,26 @@ def extract_dns(layers: dict) -> dict | None:
         "is_response": as_bool(g(dns, "dns_dns_flags_response")),
         "qry_name": qry_name,
         "rcode": hex_or_dec_to_int(g(dns, "dns_dns_flags_rcode")),
+        "answers": _dns_answers(dns),
     }
+
+
+def _dns_answers(dns: dict) -> tuple[str, ...]:
+    """Adresses A/AAAA de la section reponse (issue #344 : fast flux).
+
+    Verifie avec tshark 4.2 (reponse forgee a 3 A + 1 AAAA) : ``dns.a`` et
+    ``dns.aaaa`` sont une chaine quand il n'y a qu'un enregistrement, une
+    liste sinon. Ordre conserve, doublons retires ; tuple vide pour une
+    requete ou une reponse sans A/AAAA (NXDOMAIN, CNAME seul...)."""
+    out: list[str] = []
+    for key in ("dns_dns_a", "dns_dns_aaaa"):
+        val = g(dns, key)
+        if val is None:
+            continue
+        for ip in val if isinstance(val, list) else [val]:
+            if ip and ip not in out:
+                out.append(str(ip))
+    return tuple(out)
 
 
 def extract_http(layers: dict) -> dict | None:
