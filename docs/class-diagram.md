@@ -11,7 +11,7 @@
 > Il remplace l'ancienne section 3 de `docs/features-backlog.md`, tenue à la main, qui avait dérivé
 > (voir `docs/sessions/session-36.md`, issue #140).
 
-151 modules · 223 classes · 488 fonctions publiques de module.
+151 modules · 223 classes · 489 fonctions publiques de module.
 
 Conventions : `+` public, `-` privé (préfixe `_`) ; `int?` = `int | None` ; `list~str~` = `list[str]` ;
 `<<module>>` regroupe les fonctions publiques d'un module ; `A --> B : champ` = `A` a un champ annoté
@@ -2569,6 +2569,7 @@ classDiagram
         +cve_findings(fingerprints, conn) list~dict~str, Any~~
         +dga_findings(alerts) list~dict~str, Any~~
         +fast_flux_findings(alerts) list~dict~str, Any~~
+        +merge_multi_point_findings(findings, points_order) list~dict~str, Any~~
         +apply_security_findings(report, all_packets, detections, cve_conn, tls_policy, known_destinations) None
     }
 
@@ -2579,11 +2580,13 @@ classDiagram
         +int large_packet_threshold
         +float high_entropy_threshold
         +int splt_max_packets
+        +int min_packets
     }
     class FlowStat {
         <<dataclass>>
         +str src
         +str dst
+        +str? point
         +int packet_count
         +int byte_count
         +list~tuple~int, float~~ splt
@@ -3360,6 +3363,7 @@ classDiagram
         +str? point
         +str? plugin
         +str? detector
+        +tuple~str, ...~ points
     }
     class DetectorGroup {
         <<dataclass, slots>>

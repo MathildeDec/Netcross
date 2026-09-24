@@ -28,7 +28,7 @@ import random
 import re
 import shutil
 import subprocess
-from dataclasses import dataclass
+from dataclasses import dataclass, replace
 from datetime import datetime, timezone
 
 import pytest
@@ -52,6 +52,7 @@ from netcross_core.security.findings import (
     fast_flux_findings,
     flow_stats_findings,
     lateral_movement_findings,
+    merge_multi_point_findings,
     tls_audit_findings,
 )
 from netcross_core.security.flow_stats import analyze_flow_stats
@@ -402,7 +403,9 @@ def _where(detail: str, renders: dict[str, str]) -> list[str]:
 def test_chaque_detection_est_rendue_avec_un_texte(name, tmp_path):
     trigger, expected_of = DETECTORS[name]
     pkts = trigger()
-    expected = expected_of(pkts)
+    # meme normalisation que apply_security_findings (issue #343 : cle
+    # d'evenement en texte, liste `points`)
+    expected = merge_multi_point_findings(expected_of(pkts), [POINT])
     assert expected, f"{name} : le declencheur synthetique ne produit aucun constat (test a revoir)"
 
     r = _analyse(pkts, with_plugin=(name == "plugins_runner"))
@@ -498,3 +501,32 @@ def test_libelles_distinguent_detecteurs_netcross_et_expert_info(tmp_path):
     assert d["dashboard"]["anomalies_expert_info"] == 0
     assert d["dashboard"]["anomalies"] == d["dashboard"]["anomalies_netcross"] + d["dashboard"]["anomalies_expert_info"]
     assert {i["detector"] for i in d["anomalies"]} >= {"exfiltration", "beaconing"}
+
+
+def test_meme_evenement_sur_trois_points_donne_un_constat(tmp_path):
+    """#343 : un evenement observe sur LAN, WAN et DC = un constat, 3 points listes."""
+    base = _beaconing() + _exfiltration()
+    pkts = [replace(p, point=pt) for pt in ("LAN", "WAN", "DC") for p in base]
+    r = Report(points=["LAN", "WAN", "DC"])
+    apply_security_findings(r, pkts)
+    for detector in ("beaconing", "exfiltration"):
+        found = [f for f in r.security_findings if f.get("detector") == detector]
+        assert len(found) == 1, f"{detector} : {len(found)} constats au lieu d'un"
+        assert found[0]["points"] == ["LAN", "WAN", "DC"]
+    sr = build_security_report(r)
+    # score calcule sur les evenements uniques
+    assert sr.dashboard.anomalies == len(r.security_findings)
+    text = "\n".join(format_security_report(sr))
+    assert "(points LAN, WAN, DC)" in text
+
+
+def test_fusion_multi_points_garde_le_plus_grave_et_les_constats_sans_cle():
+    findings = [
+        {"severity": "moyenne", "detail": "a", "point": "LAN", "event_key": ("x", 1)},
+        {"severity": "elevee", "detail": "b", "point": "WAN", "event_key": ("x", 1)},
+        {"severity": "faible", "detail": "plugin", "point": "LAN"},
+    ]
+    out = merge_multi_point_findings(findings, ["LAN", "WAN"])
+    assert len(out) == 2
+    assert out[0]["detail"] == "b" and out[0]["points"] == ["LAN", "WAN"] and out[0]["point"] == "WAN"
+    assert out[1] == findings[2]

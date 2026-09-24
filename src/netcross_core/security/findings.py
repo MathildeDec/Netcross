@@ -88,6 +88,16 @@ SUSPICION_SEVERITY: dict[str, str] = {"fuzzing": "moyenne", "overflow": "moyenne
 # Longueur maximale de la description NVD reprise dans le detail d'une CVE.
 MAX_CVE_DETAIL_CHARS = 160
 
+# Issue #343 : cle d'evenement portee par chaque constat natif. Un meme
+# evenement vu depuis plusieurs points de capture (LAN, WAN, DC) produit un
+# constat par point ; `merge_multi_point_findings` les fusionne en un seul,
+# avec la liste `points`. La cle est STRUCTUREE (detecteur + flux, domaine
+# ou cible), jamais le texte `detail` : celui-ci varie d'un point a l'autre
+# (numeros de trame, comptages differents quand un segment perd des
+# paquets). La fenetre temporelle est celle de l'analyse : les points d'une
+# analyse croisee sont des captures simultanees du meme trafic.
+EVENT_KEY = "event_key"
+
 
 def _ellipsis(text: str, limit: int) -> str:
     text = " ".join(text.split())
@@ -137,6 +147,7 @@ def exploit_findings(detections: Iterable[Detection]) -> list[dict[str, Any]]:
                 "signature_id": d.signature_id,
                 "cves": list(d.cves),
                 "_count": 1,
+                EVENT_KEY: ("exploit", d.signature_id, d.src, d.dst, d.dport),
             }
         else:
             entry["_count"] += 1
@@ -174,6 +185,7 @@ def anomaly_findings(suspicions: Iterable[dict]) -> list[dict[str, Any]]:
                 "detector": "expert_info",
                 "detail": detail,
                 "point": s.get("point") or None,
+                EVENT_KEY: ("expert_info", s.get("kind"), s.get("flow")),
             }
         )
     return findings
@@ -220,6 +232,7 @@ def dns_tunnel_findings(suspicions: Iterable[dict]) -> list[dict[str, Any]]:
                 "detector": "dns_tunnel",
                 "detail": detail,
                 "point": s.get("point") or None,
+                EVENT_KEY: ("dns_tunnel", s.get("kind"), s.get("domain"), s.get("src")),
             }
         )
     return findings
@@ -261,6 +274,7 @@ def beaconing_findings(suspicions: Iterable[dict]) -> list[dict[str, Any]]:
                 "detector": "beaconing",
                 "detail": detail,
                 "point": s.get("point") or None,
+                EVENT_KEY: ("beaconing", s.get("src"), s.get("dst"), s.get("dport"), s.get("proto")),
             }
         )
     return findings
@@ -312,6 +326,7 @@ def exfiltration_findings(alerts: Iterable[dict]) -> list[dict[str, Any]]:
                 "detector": "exfiltration",
                 "detail": detail,
                 "point": a.get("point") or None,
+                EVENT_KEY: ("exfiltration", a.get("src"), a.get("dst")),
             }
         )
     return findings
@@ -346,6 +361,7 @@ def tls_audit_findings(audit: TlsAuditResult) -> list[dict[str, Any]]:
                     "host": cert["host"],
                     "port": cert["port"],
                     "point": cert.get("point") or None,
+                    EVENT_KEY: ("tls_audit", cert["host"], cert["port"], cert.get("serial"), issue.detail),
                 }
             )
     return findings
@@ -380,6 +396,7 @@ def lateral_movement_findings(events: list[dict]) -> list[dict[str, Any]]:
                     f"-- source {ev.get('source', '?')}, score {ev.get('score', 0.0)}"
                 ),
                 "point": ev.get("point") or None,
+                EVENT_KEY: ("lateral_movement", ev_type, ev.get("source")),
             }
         )
     return findings
@@ -414,6 +431,8 @@ def flow_stats_findings(flows: list[dict]) -> list[dict[str, Any]]:
                     f"entropie {f.get('entropy', 0.0):.2f}, "
                     f"ratio upload {f.get('upload_ratio', 0.0):.2f})"
                 ),
+                "point": f.get("point") or None,
+                EVENT_KEY: ("flow_stats", f.get("src"), f.get("dst"), cls),
             }
         )
     return findings
@@ -453,6 +472,7 @@ def cve_findings(fingerprints: Iterable[dict], conn) -> list[dict[str, Any]]:
                     "host": fp.get("host"),
                     "port": fp.get("port"),
                     "point": fp.get("point"),
+                    EVENT_KEY: ("cve", *key),
                 }
             )
     return findings
@@ -475,6 +495,7 @@ def dga_findings(alerts: list[dict]) -> list[dict[str, Any]]:
                 "detector": "dga",
                 "detail": (f"domaine DGA suspect : {a.get('domain', '?')} -- score {score} ({a.get('reason', '?')})"),
                 "point": a.get("point") or None,
+                EVENT_KEY: ("dga", a.get("domain")),
             }
         )
     return findings
@@ -497,12 +518,63 @@ def fast_flux_findings(alerts: list[dict]) -> list[dict[str, Any]]:
                     f"-- {a.get('reason', '?')}, score {a.get('score', 0.0)}"
                 ),
                 "point": a.get("point") or None,
+                EVENT_KEY: ("fast_flux", a_type, a.get("domain")),
             }
         )
     return findings
 
 
 # -- assemblage -----------------------------------------------------------
+
+
+def _key_str(parts: tuple) -> str:
+    return "|".join("" if p is None else str(p) for p in parts)
+
+
+def merge_multi_point_findings(
+    findings: list[dict[str, Any]], points_order: Sequence[str] = ()
+) -> list[dict[str, Any]]:
+    """Fusionne les constats d'un meme evenement observe sur plusieurs points
+    (issue #343). Le constat retenu est le plus grave (a gravite egale, celui
+    du premier point dans `points_order`) ; il recoit `points`, la liste
+    ordonnee des points ou l'evenement est observe ; son `point` reste celui
+    dont viennent le texte et les numeros de trame. Un constat sans `event_key` (plugin, source
+    externe) est conserve tel quel. L'ordre d'origine est preserve."""
+    rank = {p: i for i, p in enumerate(points_order)}
+    sev_rank = {"critique": 0, "elevee": 1, "moyenne": 2, "faible": 3}
+    groups: dict[str, list[dict[str, Any]]] = {}
+    out: list[dict[str, Any] | str] = []
+    for f in findings:
+        key = f.get(EVENT_KEY)
+        if not key:
+            out.append(f)
+            continue
+        if isinstance(key, tuple):
+            key = _key_str(key)
+            f = {**f, EVENT_KEY: key}
+        if key not in groups:
+            groups[key] = []
+            out.append(key)
+        groups[key].append(f)
+    merged: list[dict[str, Any]] = []
+    for entry in out:
+        if not isinstance(entry, str):
+            merged.append(entry)
+            continue
+        group = groups[entry]
+
+        def _point_rank(f: dict[str, Any]) -> int:
+            return rank.get(str(f.get("point")), len(rank))
+
+        def _best_rank(f: dict[str, Any]) -> tuple[int, int]:
+            return (sev_rank.get(str(f.get("severity")), 4), _point_rank(f))
+
+        pts = sorted({str(f["point"]) for f in group if f.get("point")}, key=lambda p: (rank.get(p, len(rank)), p))
+        chosen: dict[str, Any] = min(group, key=_best_rank)
+        best = dict(chosen)
+        best["points"] = pts
+        merged.append(best)
+    return merged
 
 
 def apply_security_findings(
@@ -611,6 +683,7 @@ def apply_security_findings(
         dns_tunnel_sources(all_packets, dns_suspicions),
     )
     findings += exfiltration_findings(report.exfiltration_alerts)
+    findings = merge_multi_point_findings(findings, report.points or ())
     report.security_findings = findings
     # Le troisieme compteur annoncait "fingerprints" alors qu'il comptait
     # report.protocol_mismatch_details (issue #259) : la ligne affichait

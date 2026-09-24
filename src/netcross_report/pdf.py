@@ -618,7 +618,7 @@ def _securite_table_constats(items, styles, avec_cve: bool, message_vide: str):
     qu'il n'y en a pas -- jamais une section muette (issue #218)."""
     if not items:
         return Paragraph(message_vide, styles["Normal"])
-    entetes = ["Gravite"] + (["CVE", "CVSS"] if avec_cve else []) + ["Detail", "Service", "Cible", "Point"]
+    entetes = ["Gravite"] + (["CVE", "CVSS"] if avec_cve else []) + ["Detail", "Service", "Cible", "Points"]
     data = [[Paragraph(f"<b>{h}</b>", styles["Cell"]) for h in entetes]]
     highlight = []
     for rang, i in enumerate(items[:MAX_SECURITY_ROWS], start=1):
@@ -636,7 +636,7 @@ def _securite_table_constats(items, styles, avec_cve: bool, message_vide: str):
             Paragraph(i.get("detail") or "-", styles["Cell"]),
             Paragraph(service or "-", styles["Cell"]),
             Paragraph(_securite_cible(i.get("host"), i.get("port")), styles["Cell"]),
-            Paragraph(i.get("point") or "-", styles["Cell"]),
+            Paragraph(", ".join(i.get("points") or []) or "-", styles["Cell"]),
         ]
         data.append(ligne)
         couleur = _SEVERITY_PDF_COLORS.get(i.get("severity"))
@@ -658,7 +658,7 @@ def _securite_table_detecteurs(items, styles, message_vide: str):
 
     if not items:
         return Paragraph(message_vide, styles["Normal"])
-    entetes = ["Gravite", "Detecteur", "Detail", "Cible", "Point"]
+    entetes = ["Gravite", "Detecteur", "Detail", "Cible", "Points"]
     data = [[Paragraph(f"<b>{h}</b>", styles["Cell"]) for h in entetes]]
     highlight = []
     for g in group_by_detector(items):
@@ -670,7 +670,7 @@ def _securite_table_detecteurs(items, styles, message_vide: str):
                     Paragraph(etiquette, styles["Cell"]),
                     Paragraph(i.get("detail") or "-", styles["Cell"]),
                     Paragraph(_securite_cible(i.get("host"), i.get("port")), styles["Cell"]),
-                    Paragraph(i.get("point") or "-", styles["Cell"]),
+                    Paragraph(", ".join(i.get("points") or []) or "-", styles["Cell"]),
                 ]
             )
             couleur = _SEVERITY_PDF_COLORS.get(i.get("severity"))

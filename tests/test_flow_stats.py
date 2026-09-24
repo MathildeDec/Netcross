@@ -227,3 +227,19 @@ def test_custom_small_packet_threshold():
     flow = result.flows[0]
     # Median = 60 > 50, donc pas interactif, pas transfert, pas obfusque -> normal
     assert flow.classification == CLASSIFICATION_NORMAL
+
+
+# -- Issue #346 : flux par point, pas de classification sur 3 paquets ---------
+
+
+def test_flux_calcules_par_point():
+    pkts = [make_pkt(point=pt, src=CLIENT, dst=SERVER, length=60, ts=float(i)) for pt in ("A", "B") for i in range(12)]
+    flows = analyze_flow_stats(pkts).flows
+    assert sorted((f.point, f.packet_count) for f in flows) == [("A", 12), ("B", 12)]
+    assert all(f.to_dict()["point"] in ("A", "B") for f in flows)
+
+
+def test_flux_trop_court_non_classe():
+    """Un SYN/RST de scan (3 paquets) n'est pas une session interactive."""
+    pkts = [make_pkt(src=CLIENT, dst=SERVER, length=60, ts=i * 0.001) for i in range(3)]
+    assert analyze_flow_stats(pkts).flows[0].classification == "normal"

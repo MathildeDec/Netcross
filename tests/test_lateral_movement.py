@@ -121,7 +121,7 @@ def test_host_scan_detecte_plage_dans_meme_24():
 def test_brute_force_ssh_detecte():
     """20 tentatives SSH vers 3 hotes dans 300s -> brute_force."""
     pkts = [
-        make_pkt(src="192.168.1.100", dst=f"192.168.1.{host}", dport=22, ts=float(i), proto="TCP")
+        make_pkt(src="192.168.1.100", dst=f"192.168.1.{host}", sport=40000 + i, dport=22, ts=float(i), proto="TCP")
         for i in range(20)
         for host in [1, 2, 3]
     ]
@@ -133,7 +133,10 @@ def test_brute_force_ssh_detecte():
 
 def test_brute_force_rdp_detecte():
     """15 tentatives RDP (3389) vers 2 hotes -> brute_force."""
-    pkts = [make_pkt(src="192.168.1.100", dst=f"192.168.1.{(i % 2) + 1}", dport=3389, ts=float(i)) for i in range(15)]
+    pkts = [
+        make_pkt(src="192.168.1.100", dst=f"192.168.1.{(i % 2) + 1}", sport=40000 + i, dport=3389, ts=float(i))
+        for i in range(15)
+    ]
     result = detect_lateral_movement(pkts)
     bf = [e for e in result.events if e.event_type == "brute_force"]
     assert len(bf) == 1
@@ -249,7 +252,10 @@ def test_resultat_events_by_type():
         for host in range(1, 6)
         for port in range(1, 21)
     ]
-    pkts.extend(make_pkt(src="192.168.1.200", dst=f"192.168.1.{(i % 2) + 1}", dport=22, ts=float(i)) for i in range(15))
+    pkts.extend(
+        make_pkt(src="192.168.1.200", dst=f"192.168.1.{(i % 2) + 1}", sport=40000 + i, dport=22, ts=float(i))
+        for i in range(15)
+    )
     result = detect_lateral_movement(pkts)
     by_type = result.events_by_type
     assert "port_scan" in by_type
@@ -287,3 +293,56 @@ def test_lateral_movement_event_dataclass():
     assert ev.event_type == "port_scan"
     assert ev.score == 0.5
     assert len(ev.targets) == 2
+
+
+# --- Issue #346 : tentatives = connexions, pas paquets ------------------------
+
+
+def _ssh_session(point, sport, dst, ts):
+    """Session SSH etablie : SYN, ACK, bannière client, FIN (4 paquets client)."""
+    return [
+        make_pkt(point=point, src="10.0.0.10", dst=dst, sport=sport, dport=22, ts=ts, flags="··········S·"),
+        make_pkt(point=point, src="10.0.0.10", dst=dst, sport=sport, dport=22, ts=ts + 0.04, flags="·······A····"),
+        make_pkt(point=point, src="10.0.0.10", dst=dst, sport=sport, dport=22, ts=ts + 0.05, flags="·······AP···"),
+        make_pkt(point=point, src="10.0.0.10", dst=dst, sport=sport, dport=22, ts=ts + 0.1, flags="·······A···F"),
+    ]
+
+
+def test_brute_force_36_sessions_donnent_36_tentatives():
+    pkts = []
+    for k in range(36):
+        pkts += _ssh_session("LAN", 51000 + k, f"10.0.0.{200 + k % 3}", k * 1.0)
+    bf = [e for e in detect_lateral_movement(pkts).events if e.event_type == "brute_force"]
+    assert len(bf) == 1
+    assert "36 tentatives de connexion vers 3 hotes" in bf[0].details
+
+
+def test_brute_force_ignore_les_syn_de_scan_sans_reponse():
+    """Les SYN d'un scan vers le port 22 ne sont pas des tentatives d'authentification."""
+    pkts = []
+    for k in range(36):
+        pkts += _ssh_session("LAN", 51000 + k, f"10.0.0.{200 + k % 3}", 100.0 + k)
+    pkts += [
+        make_pkt(
+            point="LAN",
+            src="10.0.0.10",
+            dst=f"10.0.0.{100 + h}",
+            sport=50000 + h,
+            dport=22,
+            ts=h * 0.01,
+            flags="··········S·",
+        )
+        for h in range(1, 31)
+    ]
+    bf = [e for e in detect_lateral_movement(pkts).events if e.event_type == "brute_force"]
+    assert "36 tentatives de connexion vers 3 hotes" in bf[0].details
+
+
+def test_brute_force_compte_par_point():
+    pkts = []
+    for point in ("LAN", "WAN", "DC"):
+        for k in range(36):
+            pkts += _ssh_session(point, 51000 + k, f"10.0.0.{200 + k % 3}", k * 1.0)
+    bf = [e for e in detect_lateral_movement(pkts).events if e.event_type == "brute_force"]
+    assert sorted(e.point for e in bf) == ["DC", "LAN", "WAN"]
+    assert all("36 tentatives" in e.details for e in bf)

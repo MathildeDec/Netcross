@@ -270,6 +270,9 @@ def protocol_mismatch_findings(
                 "sport": sport,
                 "dport": dport,
                 "proto": detail.get("proto"),
+                # cle d'evenement multi-points (issue #343, voir
+                # security.findings.EVENT_KEY)
+                "event_key": ("protocol_mismatch", detail["detected_proto"], src, sport, dst, dport),
             }
         )
     return findings

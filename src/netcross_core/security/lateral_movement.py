@@ -234,15 +234,35 @@ def detect_brute_force(
     packets: list[Pkt],
     thresholds: LateralMovementThresholds,
 ) -> list[LateralMovementEvent]:
-    """Detecte les tentatives de brute force : auth repetee vers N hotes."""
-    # point -> source -> list of (ts, dst) for auth ports
-    auth_map: dict[str, dict[str, list[tuple[float, str]]]] = defaultdict(lambda: defaultdict(list))
+    """Detecte les tentatives de brute force : auth repetee vers N hotes.
+
+    Issue #346 : une tentative est une CONNEXION (src, port source, dst,
+    port de destination), pas un paquet -- une session SSH de 4 paquets
+    comptait 4 tentatives. Une connexion restee au SYN (scan, refus RST)
+    n'est pas une tentative d'authentification : elle releve de port_scan
+    et host_scan. Sans drapeaux TCP connus (flux importes), chaque
+    connexion distincte compte pour une tentative."""
+    # point -> source -> (dst, dport, sport) -> [ts du premier paquet, etablie]
+    conns: dict[str, dict[str, dict[tuple[str, int, int | None], list]]] = defaultdict(lambda: defaultdict(dict))
     for pkt in packets:
         if pkt.dport not in _AUTH_PORTS:
             continue
         if not _is_internal(pkt.src) or not _is_internal(pkt.dst):
             continue
-        auth_map[pkt.point][pkt.src].append((pkt.ts, pkt.dst))
+        key = (pkt.dst, pkt.dport, pkt.sport)
+        entry = conns[pkt.point][pkt.src].get(key)
+        established = pkt.flags is None or not _is_syn_only(pkt.flags)
+        if entry is None:
+            conns[pkt.point][pkt.src][key] = [pkt.ts, established]
+        else:
+            entry[0] = min(entry[0], pkt.ts)
+            entry[1] = entry[1] or established
+    auth_map: dict[str, dict[str, list[tuple[float, str]]]] = defaultdict(lambda: defaultdict(list))
+    for conn_point, by_source in conns.items():
+        for conn_src, by_conn in by_source.items():
+            for (conn_dst, _dport, _sport), (first_ts, established) in by_conn.items():
+                if established:
+                    auth_map[conn_point][conn_src].append((first_ts, conn_dst))
 
     events: list[LateralMovementEvent] = []
     for point, sources in auth_map.items():
@@ -272,7 +292,7 @@ def detect_brute_force(
                         point=point,
                         source=src,
                         event_type="brute_force",
-                        details=f"brute force : {best_count} tentatives vers {len(best_hosts)} hotes",
+                        details=f"brute force : {best_count} tentatives de connexion vers {len(best_hosts)} hotes",
                         score=round(score, 3),
                         targets=sorted(best_hosts)[:20],
                     )

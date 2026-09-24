@@ -117,6 +117,9 @@ class SecurityItem:
     # detecteur d'origine (issue #348) : cle de DETECTOR_LABELS,
     # "plugin:<nom>" pour un detecteur tiers, None si non renseigne
     detector: str | None = None
+    # points ou l'evenement est observe (issue #343) ; vide = constat
+    # d'un seul point, ou source qui ne le renseigne pas
+    points: tuple[str, ...] = ()
 
 
 def detector_label(detector: str | None) -> str:
@@ -298,6 +301,7 @@ def _to_item(raw) -> SecurityItem | None:
         point=_opt_str(raw.get("point")),
         plugin=plugin,
         detector=detector,
+        points=tuple(str(p) for p in (raw.get("points") or []) if p),
     )
 
 
@@ -436,7 +440,9 @@ def _format_item(item: SecurityItem) -> str:
     line = " ".join(parts)
     if item.detail:
         line += f" -- {item.detail}"
-    if item.point:
+    if len(item.points) > 1:
+        line += f" (points {', '.join(item.points)})"
+    elif item.point:
         line += f" (point {item.point})"
     if item.plugin:
         line += f" [plugin {item.plugin}]"
@@ -635,6 +641,7 @@ def security_report_to_dict(sr: SecurityReport) -> dict:
                     "host": i.host,
                     "port": i.port,
                     "point": i.point,
+                    "points": list(i.points) or ([i.point] if i.point else []),
                     "plugin": i.plugin,
                     "detector": i.detector,
                     "detector_label": detector_label(i.detector) if i.category == CATEGORY_ANOMALY else None,

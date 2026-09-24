@@ -62,6 +62,11 @@ class FlowStatsThresholds:
     large_packet_threshold: int = _LARGE_PACKET_THRESHOLD
     high_entropy_threshold: float = _HIGH_ENTROPY_THRESHOLD
     splt_max_packets: int = _SPLT_MAX_PACKETS
+    # Issue #346 : en dessous de ce nombre de paquets, les statistiques
+    # (mediane, regularite, entropie) n'ont pas de sens -- un SYN/RST de
+    # scan de 3 paquets etait classe « interactif ». Le flux reste liste,
+    # classe `normal`.
+    min_packets: int = 10
 
 
 DEFAULT_THRESHOLDS = FlowStatsThresholds()
@@ -73,6 +78,9 @@ class FlowStat:
 
     src: str
     dst: str
+    # point de capture (issue #346) : les flux sont calcules par point,
+    # un meme flux vu sur 3 points ne se cumule plus en un seul
+    point: str | None = None
     packet_count: int = 0
     byte_count: int = 0
     # SPLT : liste de (taille, delta_t) pour les N premiers paquets
@@ -94,6 +102,7 @@ class FlowStat:
 
     def to_dict(self) -> dict:
         return {
+            "point": self.point,
             "src": self.src,
             "dst": self.dst,
             "packet_count": self.packet_count,
@@ -147,7 +156,9 @@ def _classify_flow(flow: FlowStat, thresholds: FlowStatsThresholds) -> str:
             sd = pstdev(flow.inter_arrivals)
             flow.regularity_cv = sd / m
 
-    # Classification
+    # Classification (metriques ci-dessus calculees dans tous les cas)
+    if flow.packet_count < thresholds.min_packets:
+        return CLASSIFICATION_NORMAL
     if flow.entropy > thresholds.high_entropy_threshold:
         return CLASSIFICATION_OBFUSCATED
     if flow.median_size < thresholds.small_packet_threshold and flow.regularity_cv < 0.5:
@@ -162,21 +173,21 @@ def analyze_flow_stats(
     thresholds: FlowStatsThresholds = DEFAULT_THRESHOLDS,
 ) -> FlowStatsResult:
     """
-    Calcule les statistiques de flux par paire (source, destination).
+    Calcule les statistiques de flux par (point, source, destination).
 
-    Groupe les paquets par (src, dst), calcule SPLT, distribution des
+    Groupe les paquets par (point, src, dst), calcule SPLT, distribution des
     tailles, entropie, ratio up/down, regularite temporelle, et
     classifie chaque flux.
     """
-    flows: dict[tuple[str, str], FlowStat] = {}
+    flows: dict[tuple[str, str, str], FlowStat] = {}
     # Garder les timestamps par flux pour calculer les inter-arrivees
-    flow_timestamps: dict[tuple[str, str], list[float]] = defaultdict(list)
+    flow_timestamps: dict[tuple[str, str, str], list[float]] = defaultdict(list)
 
     for pk in packets:
-        key = (pk.src, pk.dst)
+        key = (pk.point, pk.src, pk.dst)
         flow = flows.get(key)
         if flow is None:
-            flow = FlowStat(src=pk.src, dst=pk.dst)
+            flow = FlowStat(src=pk.src, dst=pk.dst, point=pk.point)
             flows[key] = flow
 
         flow.packet_count += 1
@@ -195,14 +206,14 @@ def analyze_flow_stats(
         flow_timestamps[key].append(pk.ts)
 
         # Download : paquets dans l'autre sens (dst->src)
-        rev_key = (pk.dst, pk.src)
+        rev_key = (pk.point, pk.dst, pk.src)
         rev_flow = flows.get(rev_key)
         if rev_flow is not None:
             rev_flow.download_bytes += pk.length
 
     # Recalculer download pour tous les flux
     for key, flow in flows.items():
-        rev_key = (key[1], key[0])
+        rev_key = (key[0], key[2], key[1])
         if rev_key in flows:
             flow.download_bytes = flows[rev_key].upload_bytes
 

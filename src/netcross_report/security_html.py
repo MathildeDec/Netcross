@@ -218,7 +218,7 @@ def _ligne_constat(i: dict, avec_cve: bool, detecteur: str | None = None) -> str
         + f"<td>{_e(i.get('detail'))}{plugin}</td>"
         f"<td>{_e(service)}</td>"
         f'<td class="mono">{_cible(i.get("host"), i.get("port"))}</td>'
-        f"<td>{_e(i.get('point'))}</td>"
+        f"<td>{_e(', '.join(i.get('points') or []) or None)}</td>"
         "</tr>"
     )
 
@@ -288,7 +288,7 @@ def render_security_html(
         "<h2>Tentatives d'exploitation detectees</h2>",
         _table(
             "t-exploits",
-            ["Severite", "Detail", "Service", "Cible", "Point"],
+            ["Severite", "Detail", "Service", "Cible", "Points"],
             [_ligne_constat(i, avec_cve=False) for i in data["exploits"]],
             "aucune tentative d'exploitation detectee",
         ),
@@ -297,7 +297,7 @@ def render_security_html(
         "<h2>Detecteurs Netcross</h2>",
         _table(
             "t-anomalies",
-            ["Severite", "Detecteur", "Detail", "Service", "Cible", "Point"],
+            ["Severite", "Detecteur", "Detail", "Service", "Cible", "Points"],
             [
                 _ligne_constat(i, avec_cve=False, detecteur=g.label)
                 for g in group_by_detector([i for i in data["anomalies"] if not is_expert_info(i)])
@@ -308,14 +308,14 @@ def render_security_html(
         "<h2>Alertes Expert Info correlees (Wireshark)</h2>",
         _table(
             "t-expert-info",
-            ["Severite", "Detail", "Service", "Cible", "Point"],
+            ["Severite", "Detail", "Service", "Cible", "Points"],
             [_ligne_constat(i, avec_cve=False) for i in data["anomalies"] if is_expert_info(i)],
             "aucune alerte Expert Info correlee",
         ),
         "<h2>CVE confirmees</h2>",
         _table(
             "t-cves",
-            ["Severite", "CVE", "CVSS", "Detail", "Service", "Cible", "Point"],
+            ["Severite", "CVE", "CVSS", "Detail", "Service", "Cible", "Points"],
             [_ligne_constat(i, avec_cve=True) for i in data["cves"]],
             "aucune CVE confirmee",
         ),
