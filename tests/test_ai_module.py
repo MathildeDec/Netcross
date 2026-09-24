@@ -336,7 +336,7 @@ def test_baseline_from_dict_caracteristiques_differentes(tmp_path):
 
     data = {
         "schema": BASELINE_SCHEMA,
-        "features": list(FEATURE_NAMES) + ["extra"],
+        "features": [*FEATURE_NAMES, "extra"],
         "label": "",
         "created_at": "",
         "vectors": [[0.0] * len(FEATURE_NAMES)],
@@ -668,6 +668,7 @@ def test_format_ai_resume_avec_fallback_reason():
 def test_detect_anomalies_baseline_trop_petite(monkeypatch):
     """Line 115 : BaselineError si baseline < MIN_BASELINE_FLOWS (20)."""
     import _fake_sklearn
+
     from netcross_ai.anomaly import Baseline, BaselineError
 
     _fake_sklearn.install()
@@ -684,6 +685,7 @@ def test_detect_anomalies_baseline_trop_petite(monkeypatch):
 def test_flow_classifier_training_set_insuffisant(monkeypatch):
     """Line 106 : TrainingSetError si < MIN_SAMPLES ou < 2 classes."""
     import _fake_sklearn
+
     from netcross_ai.flow_classifier import TrainingSetError
 
     _fake_sklearn.install()

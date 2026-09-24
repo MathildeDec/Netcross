@@ -315,6 +315,7 @@ def test_parse_captures_parallel_capture_en_echec_ne_stoppe_pas(monkeypatch):
 
 def test_parse_live_yield_un_pkt_par_raw(monkeypatch):
     """Line 344 : parse_live yield un Pkt etiquete pour chaque raw."""
+
     def fake_iter_live(interface, bpf_filter=None, stop_event=None):
         yield _raw(ts=1.0, src="10.0.0.1")
         yield _raw(ts=2.0, src="10.0.0.2")

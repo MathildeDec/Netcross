@@ -20,9 +20,8 @@ que pour un contexte spécifique, pas systématiquement.
   le code non couvert), `netcross_report/pdf.py` (32,6 %) et
   `charts.py` (28,8 %), suivis par #246 et ses sous-issues #285 à #288.
   Outillage qualité (`ruff`, `import-linter`) intégralement
-  vert ; `mypy` n'est PAS configuré dans le projet (aucune trace dans
-  `pyproject.toml`, `requirements-dev.txt` ni la CI — voir #281, ne pas
-  supposer le contraire) ; `pre-commit` non exécutable dans cet environnement (zip livré
+  vert ; `mypy` est configuré dans `pyproject.toml` et la CI (job
+  "Types") ; `pre-commit` non exécutable dans cet environnement (zip livré
   sans `.git` — voir Commandes qualité ci-dessous).
 - **Job 34 (issue #154)** : fusion de captures PCAP — nouvelle fonction
   `pcap_parser.capture.merge_captures(paths, output_path, dedup=False)`

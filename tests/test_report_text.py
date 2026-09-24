@@ -502,11 +502,11 @@ def test_print_report_fichiers_extraits_affiches(capsys):
 # On construit des objets Report directement pour cibler les branches
 # rarement atteintes par les scenarios realistes ci-dessus.
 
-from netcross_core.models import Report, SequenceGap
-from netcross_core.report_text import (
+from netcross_core.models import Report, SequenceGap  # noqa: E402
+from netcross_core.report_text import (  # noqa: E402
     SEQ_GAP_CAPTURE_DROP,
-    SEQ_GAP_NETWORK_LOSS,
     SEQ_GAP_INDETERMINATE,
+    SEQ_GAP_NETWORK_LOSS,
 )
 
 
@@ -530,25 +530,35 @@ def test_print_report_linktype_none(capsys):
 
 def test_print_report_capture_infos_complet(capsys):
     """Lines 102-173 : capture_infos avec tous les champs."""
-    r = _r(capture_infos=[{
-        "label": "WAN",
-        "file_type": "pcapng",
-        "version": "1.0",
-        "packet_count": 100,
-        "encapsulation": "ether",
-        "snaplen": 65535,
-        "duration_seconds": 10.5,
-        "hardware": "Intel",
-        "operating_system": "Linux",
-        "application": "dumpcap",
-        "dropped_by_interface": 5,
-        "dropped_by_os": 2,
-        "interfaces": [
-            {"name": "eth0", "linktype": 1, "snaplen": 65535, "received": 1000,
-             "dropped_by_interface": 3, "dropped_by_os": 1},
-            {"name": None, "index": 1, "linktype": 12, "received": 500},
-        ],
-    }])
+    r = _r(
+        capture_infos=[
+            {
+                "label": "WAN",
+                "file_type": "pcapng",
+                "version": "1.0",
+                "packet_count": 100,
+                "encapsulation": "ether",
+                "snaplen": 65535,
+                "duration_seconds": 10.5,
+                "hardware": "Intel",
+                "operating_system": "Linux",
+                "application": "dumpcap",
+                "dropped_by_interface": 5,
+                "dropped_by_os": 2,
+                "interfaces": [
+                    {
+                        "name": "eth0",
+                        "linktype": 1,
+                        "snaplen": 65535,
+                        "received": 1000,
+                        "dropped_by_interface": 3,
+                        "dropped_by_os": 1,
+                    },
+                    {"name": None, "index": 1, "linktype": 12, "received": 500},
+                ],
+            }
+        ]
+    )
     print_report(r)
     out = capsys.readouterr().out
     assert "WAN : pcapng v1.0" in out
@@ -575,8 +585,7 @@ def test_print_report_capture_infos_sans_encap_ni_interfaces(capsys):
 def test_print_report_topology_edges_avec_coverage_faible(capsys):
     """Lines 177-197 : topology_edges, coverage < 0.8, branch/merge points."""
     r = _r(
-        topology_edges=[("A", "B", {"confidence": 0.5, "common_flows": 3,
-                                     "votes": 5, "coverage": 0.5})],
+        topology_edges=[("A", "B", {"confidence": 0.5, "common_flows": 3, "votes": 5, "coverage": 0.5})],
         topology_used_for_order=True,
         topology_branch_points=["A"],
         topology_merge_points=["B"],
@@ -848,16 +857,17 @@ def test_print_report_syn_reply_missing(capsys):
 
 def test_print_report_rtp_streams_complet(capsys):
     """Lines 668-670, 672, 674, 676 : RTP streams avec delta, delay, mos, truncation."""
-    streams = []
-    for i in range(55):
-        streams.append({
+    streams = [
+        {
             "label": f"stream_{i}",
             "loss_pct": {"A": 1.0, "B": 2.5},
             "jitter_ms": {"A": 5.0, "B": 10.0},
             "delay_ms": 50.0,
             "mos": 4.2,
             "r_factor": 90.0,
-        })
+        }
+        for i in range(55)
+    ]
     r = _r(rtp_streams=streams)
     print_report(r)
     out = capsys.readouterr().out
@@ -954,15 +964,17 @@ def test_print_report_sip_failed_calls_long(capsys):
 def test_print_report_voip_calls(capsys):
     """Lines 782-792 : VoIP calls."""
     r = _r(
-        voip_calls=[{
-            "call_id": "call-123",
-            "participants": ["alice", "bob"],
-            "rtp_streams": [{"label": "stream1"}],
-            "quality": "good",
-            "setup_duration_ms": 100.0,
-            "duration_ms": 5000.0,
-            "events": [{"type": "INVITE", "ts": 1.0}],
-        }],
+        voip_calls=[
+            {
+                "call_id": "call-123",
+                "participants": ["alice", "bob"],
+                "rtp_streams": [{"label": "stream1"}],
+                "quality": "good",
+                "setup_duration_ms": 100.0,
+                "duration_ms": 5000.0,
+                "events": [{"type": "INVITE", "ts": 1.0}],
+            }
+        ],
         voip_quality_distribution={"good": 1},
     )
     print_report(r)
@@ -1054,9 +1066,17 @@ def test_print_report_http_missing_long(capsys):
 
 def test_print_report_http_objects_long(capsys):
     """Line 874 : > 50 HTTP objects."""
-    objs = [{"status_code": 200, "method": "GET", "uri": f"/page{i}",
-             "content_type": "text/html", "content_length": 100,
-             "response_time_ms": 10.0} for i in range(55)]
+    objs = [
+        {
+            "status_code": 200,
+            "method": "GET",
+            "uri": f"/page{i}",
+            "content_type": "text/html",
+            "content_length": 100,
+            "response_time_ms": 10.0,
+        }
+        for i in range(55)
+    ]
     r = _r(http_objects=objs)
     print_report(r)
     out = capsys.readouterr().out
@@ -1066,23 +1086,51 @@ def test_print_report_http_objects_long(capsys):
 def test_print_report_sequence_gaps(capsys):
     """Lines 890-918 : print_sequence_gaps."""
     from netcross_core.report_text import print_sequence_gaps
+
     r = _r(
         sequence_gaps=[
-            SequenceGap(point="A", src="10.0.0.1", dst="10.0.0.2",
-                       sport=1, dport=2, start_seq=100, end_seq=200,
-                       missing_bytes=100, ts=1.0, frame_number=5,
-                       cause=SEQ_GAP_CAPTURE_DROP,
-                       evidence="ack but not captured"),
-            SequenceGap(point="A", src="10.0.0.1", dst="10.0.0.2",
-                       sport=3, dport=4, start_seq=300, end_seq=400,
-                       missing_bytes=100, ts=2.0, frame_number=None,
-                       cause=SEQ_GAP_NETWORK_LOSS,
-                       evidence="not acked"),
-            SequenceGap(point="B", src="10.0.0.3", dst="10.0.0.4",
-                       sport=5, dport=6, start_seq=500, end_seq=600,
-                       missing_bytes=100, ts=3.0, frame_number=None,
-                       cause=SEQ_GAP_INDETERMINATE,
-                       evidence="unknown"),
+            SequenceGap(
+                point="A",
+                src="10.0.0.1",
+                dst="10.0.0.2",
+                sport=1,
+                dport=2,
+                start_seq=100,
+                end_seq=200,
+                missing_bytes=100,
+                ts=1.0,
+                frame_number=5,
+                cause=SEQ_GAP_CAPTURE_DROP,
+                evidence="ack but not captured",
+            ),
+            SequenceGap(
+                point="A",
+                src="10.0.0.1",
+                dst="10.0.0.2",
+                sport=3,
+                dport=4,
+                start_seq=300,
+                end_seq=400,
+                missing_bytes=100,
+                ts=2.0,
+                frame_number=None,
+                cause=SEQ_GAP_NETWORK_LOSS,
+                evidence="not acked",
+            ),
+            SequenceGap(
+                point="B",
+                src="10.0.0.3",
+                dst="10.0.0.4",
+                sport=5,
+                dport=6,
+                start_seq=500,
+                end_seq=600,
+                missing_bytes=100,
+                ts=3.0,
+                frame_number=None,
+                cause=SEQ_GAP_INDETERMINATE,
+                evidence="unknown",
+            ),
         ]
     )
     print_sequence_gaps(r)
@@ -1097,13 +1145,24 @@ def test_print_report_sequence_gaps(capsys):
 def test_print_report_sequence_gaps_plus_de_5(capsys):
     """Lines 917-918 : > 5 gaps -> truncation."""
     from netcross_core.report_text import print_sequence_gaps
+
     r = _r(
         sequence_gaps=[
-            SequenceGap(point="A", src="10.0.0.1", dst="10.0.0.2",
-                       sport=1, dport=2, start_seq=i*100, end_seq=(i+1)*100,
-                       missing_bytes=100, ts=float(i), frame_number=i,
-                       cause=SEQ_GAP_CAPTURE_DROP,
-                       evidence="gap") for i in range(7)
+            SequenceGap(
+                point="A",
+                src="10.0.0.1",
+                dst="10.0.0.2",
+                sport=1,
+                dport=2,
+                start_seq=i * 100,
+                end_seq=(i + 1) * 100,
+                missing_bytes=100,
+                ts=float(i),
+                frame_number=i,
+                cause=SEQ_GAP_CAPTURE_DROP,
+                evidence="gap",
+            )
+            for i in range(7)
         ]
     )
     print_sequence_gaps(r)

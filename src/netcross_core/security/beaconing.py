@@ -120,6 +120,9 @@ class BeaconingThresholds:
     office_hours_utc: tuple[int, int] = (7, 19)
     off_hours_ratio: float = 0.8
     external_only: bool = True
+    # Issue #365 : traiter les plages TEST-NET (RFC 5737) comme externes
+    # pour les demonstrations. ipaddress.is_private les considere privees.
+    treat_test_net_as_external: bool = False
     ignored_ports: frozenset[int] = frozenset({53, 67, 68, 123, 137, 138, 1900, 5353})
 
 
@@ -139,6 +142,39 @@ def _is_external(address: str) -> bool:
     except ValueError:
         logger.exception("erreur: ValueError")
         return False
+
+
+# Issue #365 : plages TEST-NET (RFC 5737) utilisees en demonstration.
+# ipaddress.is_private les considere comme privees et is_global comme
+# non-globales, donc beaconing/exfiltration restent muets dessus.
+_TEST_NET_RANGES = [
+    ipaddress.ip_network("192.0.2.0/24"),
+    ipaddress.ip_network("198.51.100.0/24"),
+    ipaddress.ip_network("203.0.113.0/24"),
+]
+
+
+def _is_test_net(address: str) -> bool:
+    """Vrai pour une adresse dans une plage TEST-NET (RFC 5737)."""
+    try:
+        addr = ipaddress.ip_address(address)
+    except ValueError:
+        return False
+    return any(addr in net for net in _TEST_NET_RANGES)
+
+
+def is_external(address: str, *, treat_test_net_as_external: bool = False) -> bool:
+    """Determine si une adresse est externe.
+
+    Issue #365 : les plages TEST-NET (192.0.2.0/24, 198.51.100.0/24,
+    203.0.113.0/24) sont considerees comme privees par la bibliotheque
+    standard, donc beaconing/exfiltration restent muets dessus. L'option
+    ``treat_test_net_as_external=True`` les traite comme externes pour
+    les demonstrations.
+    """
+    if treat_test_net_as_external and _is_test_net(address):
+        return True
+    return _is_external(address)
 
 
 def _payload(pk: Pkt) -> int | None:
@@ -205,7 +241,7 @@ def detect_beaconing(packets: Iterable[Pkt], thresholds: BeaconingThresholds = D
         point, proto, src, dst, dport = key
         if len(raw_events) < t.min_checkins:
             continue
-        if t.external_only and not _is_external(dst):
+        if t.external_only and not is_external(dst, treat_test_net_as_external=t.treat_test_net_as_external):
             continue
         checkins = _checkins(raw_events, t.burst_gap_seconds)
         if len(checkins) < t.min_checkins:

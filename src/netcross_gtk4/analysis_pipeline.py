@@ -45,6 +45,8 @@ class AnalysisOptions:
     triage_topn: int = 10
     tls: bool = False
     quic: bool = False
+    # Issue #357 : analyse de securite (detecteurs, signatures d'exploit, CVE)
+    security: bool = False
     redact: bool = False
     topn: int = 25
     detect_duplicates: bool = False
@@ -265,6 +267,37 @@ def run_analysis_pipeline(
                 print("DIAGNOSTIC QUIC/HTTP3")
                 print("=" * 70)
                 print_quic_diagnostics(quic_findings)
+
+    if options.security:
+        # Issue #357 (#385) : analyse de securite, portee depuis
+        # MainWindow._run_analysis_thread lors de l'extraction du pipeline.
+        _log(
+            "Analyse de securite (beaconing, exfiltration, DGA, fast flux, mouvements lateraux, "
+            "flow_stats, DNS tunnel, TLS audit, CVE)..."
+        )
+        from netcross_core.security.findings import apply_security_findings, scan_capture_exploits
+
+        detections = []
+        for label, path in captures:
+            detections.extend(scan_capture_exploits(label, path))
+        apply_security_findings(report, all_packets, detections=detections)
+        _log(f"  -> {len(report.security_findings)} constat(s) de securite")
+        with contextlib.redirect_stdout(buf):
+            print("\n" + "=" * 70)
+            print("SECURITE")
+            print("=" * 70)
+            for f in report.security_findings:
+                print(f"  [{f.get('severity', '?')}] ({f.get('category', '?')}) {f.get('detail', '?')}")
+            if not report.security_findings:
+                print("  Aucun constat de securite.")
+            if report.asset_inventory:
+                print(f"\n  Inventaire d'actifs : {len(report.asset_inventory)} hote(s)")
+            if report.lateral_movement_events:
+                print(f"  Mouvements lateraux : {len(report.lateral_movement_events)} evenement(s)")
+            if report.dga_alerts:
+                print(f"  DGA : {len(report.dga_alerts)} alerte(s)")
+            if report.fast_flux_alerts:
+                print(f"  Fast flux : {len(report.fast_flux_alerts)} alerte(s)")
 
     text = buf.getvalue()
     _log("Analyse terminée.")

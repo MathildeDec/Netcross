@@ -387,15 +387,16 @@ def test_le_pdf_de_comparaison_supporte_une_liste_de_constats_vide(tmp_path):
 
 # -- couverture des branches manquantes (issue #246) -------------------------
 
-from netcross_core.expert_model import Flow
-from netcross_report.session_objects import SessionObjects
-from netcross_report.sequence_view import SequenceView, SequenceStep
-from netcross_report.synthesis import Finding
+from netcross_core.expert_model import Flow  # noqa: E402
+from netcross_report.sequence_view import SequenceStep, SequenceView  # noqa: E402
+from netcross_report.session_objects import SessionObjects  # noqa: E402
+from netcross_report.synthesis import Finding  # noqa: E402
 
 
 def _make_chart_png(path):
     """Cree un PNG minimal pour les tests d'images."""
     from PIL import Image
+
     img = Image.new("RGB", (100, 100), color="white")
     img.save(path)
 
@@ -403,11 +404,10 @@ def _make_chart_png(path):
 def test_triage_table_avec_segments_convergents():
     """Lines 145-176 : _triage_table avec segments convergents."""
     from netcross_report.triage import SegmentScore
+
     scores = [
-        SegmentScore(segment="A->B", score=75.0, categories=["latence", "perte"],
-                     findings=[], low_confidence=False),
-        SegmentScore(segment="C->D", score=50.0, categories=["qos"],
-                     findings=[], low_confidence=True),
+        SegmentScore(segment="A->B", score=75.0, categories=["latence", "perte"], findings=[], low_confidence=False),
+        SegmentScore(segment="C->D", score=50.0, categories=["qos"], findings=[], low_confidence=True),
     ]
     rendu = _triage_table(scores, _styles())
     assert rendu is not None
@@ -415,26 +415,40 @@ def test_triage_table_avec_segments_convergents():
 
 def test_flow_table_avec_endpoints_vides():
     """Line 338 : _flow_table avec flow sans endpoints -> str(flow.key)."""
-    flow = Flow(key="proto:1.1.1.1:1->2.2.2.2:2", points=["A", "B"],
-                packet_count={"A": 10, "B": 8}, byte_count={"A": 1000, "B": 800},
-                first_ts=1.0, last_ts=2.0, endpoints=())
+    flow = Flow(
+        key="proto:1.1.1.1:1->2.2.2.2:2",
+        points=["A", "B"],
+        packet_count={"A": 10, "B": 8},
+        byte_count={"A": 1000, "B": 800},
+        first_ts=1.0,
+        last_ts=2.0,
+        endpoints=(),
+    )
     rendu = _flow_table([flow], _styles())
     assert rendu is not None
 
 
 def test_flow_table_avec_endpoints():
     """Line 337 : _flow_table avec endpoints."""
-    flow = Flow(key="proto:1.1.1.1:1->2.2.2.2:2", points=["A", "B"],
-                packet_count={"A": 10, "B": 8}, byte_count={"A": 1000, "B": 800},
-                first_ts=1.0, last_ts=2.0, endpoints=("1.1.1.1", "2.2.2.2"))
+    flow = Flow(
+        key="proto:1.1.1.1:1->2.2.2.2:2",
+        points=["A", "B"],
+        packet_count={"A": 10, "B": 8},
+        byte_count={"A": 1000, "B": 800},
+        first_ts=1.0,
+        last_ts=2.0,
+        endpoints=("1.1.1.1", "2.2.2.2"),
+    )
     rendu = _flow_table([flow], _styles())
     assert rendu is not None
 
 
 def test_scaled_image(tmp_path):
     """Lines 455-460 : _scaled_image met a l'echelle."""
-    from netcross_report.pdf import _scaled_image
     from reportlab.platypus import Image as RLImage
+
+    from netcross_report.pdf import _scaled_image
+
     path = tmp_path / "test.png"
     _make_chart_png(path)
     img = _scaled_image(str(path), 5 * 72, 5 * 72)
@@ -444,11 +458,22 @@ def test_scaled_image(tmp_path):
 def test_sequence_section_story_avec_title_et_truncated(tmp_path):
     """Lines 517, 529-530 : sequence_section_story avec title, truncated, chart."""
     from netcross_report.pdf import sequence_section_story
+
     styles = _styles()
     step = SequenceStep(
-        ts=1.0, rel_ms=0.0, delta_ms=0.0, src="10.0.0.1", dst="10.0.0.2",
-        point="A", length=100, proto="TCP", sport=1, dport=2, flags="S",
-        frame_number=1, is_retransmission=False,
+        ts=1.0,
+        rel_ms=0.0,
+        delta_ms=0.0,
+        src="10.0.0.1",
+        dst="10.0.0.2",
+        point="A",
+        length=100,
+        proto="TCP",
+        sport=1,
+        dport=2,
+        flags="S",
+        frame_number=1,
+        is_retransmission=False,
     )
     view = SequenceView(
         title="Flux 1",
@@ -467,11 +492,22 @@ def test_sequence_section_story_avec_title_et_truncated(tmp_path):
 def test_sequence_section_story_sans_title_ni_chart():
     """Lines 517 (no title), 529 (no chart) : branches manquantes."""
     from netcross_report.pdf import sequence_section_story
+
     styles = _styles()
     step = SequenceStep(
-        ts=1.0, rel_ms=0.0, delta_ms=0.0, src="10.0.0.1", dst="10.0.0.2",
-        point="A", length=100, proto="TCP", sport=1, dport=2, flags="S",
-        frame_number=1, is_retransmission=False,
+        ts=1.0,
+        rel_ms=0.0,
+        delta_ms=0.0,
+        src="10.0.0.1",
+        dst="10.0.0.2",
+        point="A",
+        length=100,
+        proto="TCP",
+        sport=1,
+        dport=2,
+        flags="S",
+        frame_number=1,
+        is_retransmission=False,
     )
     view = SequenceView(
         title=None,
@@ -488,10 +524,17 @@ def test_sequence_section_story_sans_title_ni_chart():
 def test_expert_section_story_avec_flows_et_wireshark():
     """Line 575 : expert_section_story avec flows et wireshark_expert_events."""
     from netcross_report.pdf import expert_section_story
+
     styles = _styles()
-    flow = Flow(key="tcp:1->2", points=["A"], packet_count={"A": 10},
-                byte_count={"A": 100}, first_ts=1.0, last_ts=2.0,
-                endpoints=("1.1.1.1", "2.2.2.2"))
+    flow = Flow(
+        key="tcp:1->2",
+        points=["A"],
+        packet_count={"A": 10},
+        byte_count={"A": 100},
+        first_ts=1.0,
+        last_ts=2.0,
+        endpoints=("1.1.1.1", "2.2.2.2"),
+    )
     so = SessionObjects(
         flows=[flow],
         conversations=[],
@@ -507,11 +550,11 @@ def test_expert_section_story_avec_flows_et_wireshark():
 
 def test_expert_section_story_avec_wireshark_events():
     """Line 575 : expert_section_story avec wireshark_expert_events non vide."""
-    from netcross_report.pdf import expert_section_story
     from netcross_core.expert_model import ExpertEvent
+    from netcross_report.pdf import expert_section_story
+
     styles = _styles()
-    ev = ExpertEvent(severity="warning", category="tcp", segment="A->B",
-                    message="Out of order", cause="x", impact="y")
+    ev = ExpertEvent(severity="warning", category="tcp", segment="A->B", message="Out of order", cause="x", impact="y")
     so = SessionObjects(
         flows=[],
         conversations=[],
@@ -562,43 +605,77 @@ def test_generate_pdf_avec_charts(monkeypatch, tmp_path):
     r.zero_window = {"POINT_AMONT": 5, "POINT_AVAL": 0}
     r.dup_ack = {"POINT_AMONT": 2, "POINT_AVAL": 0}
     r.rst_count = {"POINT_AMONT": 1, "POINT_AVAL": 0}
-    r.rtp_streams = [{
-        "label": "RTP stream (SSRC=1234)",
-        "loss_pct": {"POINT_AVAL": 2.5},
-        "delay_ms": 50.0,
-        "mos": 4.2,
-        "jitter_ms": {"POINT_AVAL": 5.0},
-    }]
+    r.rtp_streams = [
+        {
+            "label": "RTP stream (SSRC=1234)",
+            "loss_pct": {"POINT_AVAL": 2.5},
+            "delay_ms": 50.0,
+            "mos": 4.2,
+            "jitter_ms": {"POINT_AVAL": 5.0},
+        }
+    ]
     r.dhcp_msg_count = {"POINT_AMONT": {"DISCOVER": 1, "ACK": 1}, "POINT_AVAL": {}}
     r.sip_msg_count = {"POINT_AMONT": {"INVITE": 1, "200": 1}, "POINT_AVAL": {}}
     r.topn_timeseries = {"POINT_AMONT": {"protocol": [{"bucket": 0, "value": 100}]}}
 
     # Sequence views
     step = SequenceStep(
-        ts=1.0, rel_ms=0.0, delta_ms=0.0, src="10.0.0.1", dst="10.0.0.2",
-        point="A", length=100, proto="TCP", sport=1, dport=2, flags="S",
-        frame_number=1, is_retransmission=False,
+        ts=1.0,
+        rel_ms=0.0,
+        delta_ms=0.0,
+        src="10.0.0.1",
+        dst="10.0.0.2",
+        point="A",
+        length=100,
+        proto="TCP",
+        sport=1,
+        dport=2,
+        flags="S",
+        frame_number=1,
+        is_retransmission=False,
     )
     seq_view = SequenceView(
-        title="Flux test", steps=[step], hosts=["10.0.0.1", "10.0.0.2"],
-        points=["A", "B"], truncated=0, total_steps=1,
+        title="Flux test",
+        steps=[step],
+        hosts=["10.0.0.1", "10.0.0.2"],
+        points=["A", "B"],
+        truncated=0,
+        total_steps=1,
     )
 
     # TLS/QUIC findings
-    tls_finding = Finding(severity="a_surveiller", category="tls", segment="A->B",
-                         message="Certificat expire", sample_size=1, evidence="x")
+    tls_finding = Finding(
+        severity="a_surveiller",
+        category="tls",
+        segment="A->B",
+        message="Certificat expire",
+        sample_size=1,
+        evidence="x",
+    )
 
     chemin = tmp_path / "rapport_complet.pdf"
     pdf_mod.generate_pdf(
-        r, str(chemin),
+        r,
+        str(chemin),
         sequence_views=[seq_view],
         tls_findings=[tls_finding],
         quic_findings=[tls_finding],
         session_objects=SessionObjects(
-            flows=[Flow(key="tcp:1->2", points=["A"], packet_count={"A": 10},
-                       byte_count={"A": 100}, first_ts=1.0, last_ts=2.0,
-                       endpoints=("1.1.1.1", "2.2.2.2"))],
-            conversations=[], expert_events=[], diagnoses=[], compliance=[],
+            flows=[
+                Flow(
+                    key="tcp:1->2",
+                    points=["A"],
+                    packet_count={"A": 10},
+                    byte_count={"A": 100},
+                    first_ts=1.0,
+                    last_ts=2.0,
+                    endpoints=("1.1.1.1", "2.2.2.2"),
+                )
+            ],
+            conversations=[],
+            expert_events=[],
+            diagnoses=[],
+            compliance=[],
             wireshark_expert_events=[],
         ),
     )
@@ -618,12 +695,22 @@ def test_generate_pdf_avec_securite(monkeypatch, tmp_path):
     import netcross_report.pdf as pdf_mod
 
     r = _rapport_garni()
-    flow = Flow(key="tcp:1->2", points=["A"], packet_count={"A": 10},
-                byte_count={"A": 100}, first_ts=1.0, last_ts=2.0,
-                endpoints=("1.1.1.1", "2.2.2.2"))
+    flow = Flow(
+        key="tcp:1->2",
+        points=["A"],
+        packet_count={"A": 10},
+        byte_count={"A": 100},
+        first_ts=1.0,
+        last_ts=2.0,
+        endpoints=("1.1.1.1", "2.2.2.2"),
+    )
     so = SessionObjects(
-        flows=[flow], conversations=[], expert_events=[], diagnoses=[],
-        compliance=[], wireshark_expert_events=[],
+        flows=[flow],
+        conversations=[],
+        expert_events=[],
+        diagnoses=[],
+        compliance=[],
+        wireshark_expert_events=[],
     )
     security = None  # pas de rapport de securite : on teste expert_section_story
     chemin = tmp_path / "rapport_sec.pdf"
@@ -636,6 +723,7 @@ def test_generate_pdf_avec_securite(monkeypatch, tmp_path):
 def test_generate_diff_pdf_avec_tls_et_quic(tmp_path):
     """Lines 1206-1231 : generate_diff_pdf avec TLS et QUIC findings."""
     from netcross_core.tls_diagnostics import TlsFinding
+
     reference, courant = _paire_de_rapports()
     tls_base = [TlsFinding("a_surveiller", "TLS", "A->B", "Certificat expire")]
     tls_cur = [TlsFinding("info", "TLS", "A->B", "OK")]
@@ -645,7 +733,9 @@ def test_generate_diff_pdf_avec_tls_et_quic(tmp_path):
     chemin = tmp_path / "diff_tls_quic.pdf"
     generate_diff_pdf(
         diff_reports(reference, courant),
-        reference, courant, str(chemin),
+        reference,
+        courant,
+        str(chemin),
         tls_findings_baseline=tls_base,
         tls_findings_current=tls_cur,
         quic_findings_baseline=quic_base,
@@ -661,6 +751,7 @@ def test_generate_diff_pdf_avec_tls_et_quic(tmp_path):
 def test_generate_diff_pdf_avec_tls_seulement(tmp_path):
     """Lines 1206-1231 : generate_diff_pdf avec TLS seulement (pas QUIC)."""
     from netcross_core.tls_diagnostics import TlsFinding
+
     reference, courant = _paire_de_rapports()
     tls_base = [TlsFinding("a_surveiller", "TLS", "A->B", "Certificat expire")]
     tls_cur = [TlsFinding("info", "TLS", "A->B", "OK")]
@@ -668,7 +759,9 @@ def test_generate_diff_pdf_avec_tls_seulement(tmp_path):
     chemin = tmp_path / "diff_tls_only.pdf"
     generate_diff_pdf(
         diff_reports(reference, courant),
-        reference, courant, str(chemin),
+        reference,
+        courant,
+        str(chemin),
         tls_findings_baseline=tls_base,
         tls_findings_current=tls_cur,
         quic_findings_baseline=None,
@@ -682,6 +775,7 @@ def test_generate_diff_pdf_avec_tls_seulement(tmp_path):
 def test_generate_diff_pdf_avec_quic_seulement(tmp_path):
     """Lines 1206-1231 : generate_diff_pdf avec QUIC seulement (pas TLS)."""
     from netcross_core.tls_diagnostics import TlsFinding
+
     reference, courant = _paire_de_rapports()
     quic_base = [TlsFinding("anomalie", "QUIC", "A->B", "ClientHello bloque")]
     quic_cur = [TlsFinding("info", "QUIC", "A->B", "QUIC OK")]
@@ -689,7 +783,9 @@ def test_generate_diff_pdf_avec_quic_seulement(tmp_path):
     chemin = tmp_path / "diff_quic_only.pdf"
     generate_diff_pdf(
         diff_reports(reference, courant),
-        reference, courant, str(chemin),
+        reference,
+        courant,
+        str(chemin),
         tls_findings_baseline=None,
         tls_findings_current=None,
         quic_findings_baseline=quic_base,

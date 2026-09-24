@@ -18,16 +18,16 @@ class _FakeIsolationForest:
         self.contamination = contamination
         self.random_state = random_state
 
-    def fit(self, X):
+    def fit(self, X):  # noqa: N803 -- convention scikit-learn
         self._n = len(X)
         return self
 
-    def score_samples(self, X):
+    def score_samples(self, X):  # noqa: N803 -- convention scikit-learn
         # score_samples: more negative = more anomalous (sklearn convention).
         # First sample is anomalous.
         return [-0.6 if i == 0 else 0.3 for i in range(len(X))]
 
-    def predict(self, X):
+    def predict(self, X):  # noqa: N803 -- convention scikit-learn
         # -1 = anomaly, 1 = normal. First sample flagged.
         return [-1 if i == 0 else 1 for i in range(len(X))]
 
@@ -38,12 +38,12 @@ class _FakeRandomForestClassifier:
         self.random_state = random_state
         self.class_weight = class_weight
 
-    def fit(self, X, y):
+    def fit(self, X, y):  # noqa: N803 -- convention scikit-learn
         self._classes = sorted(set(y))
         self.classes_ = self._classes
         return self
 
-    def predict_proba(self, X):
+    def predict_proba(self, X):  # noqa: N803 -- convention scikit-learn
         out = []
         for i in range(len(X)):
             row = [0.1] * len(self._classes)

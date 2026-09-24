@@ -205,6 +205,7 @@ tests/test_correlate.py
 tests/test_cross_capture_duplicates.py
 tests/test_cve_correlation.py
 tests/test_dashboard_context.py
+tests/test_degradation_paths.py
 tests/test_detections_rendered.py
 tests/test_dga_fast_flux.py
 tests/test_diff_cli_coverage.py
@@ -255,11 +256,13 @@ tests/test_path_metrics.py
 tests/test_pcap_parser_public_api.py
 tests/test_pcapng_comments.py
 tests/test_pdf_report.py
+tests/test_pipeline_optional_branches.py
 tests/test_plugins.py
 tests/test_pr_coverage_comment.py
 tests/test_protocol_mismatch.py
 tests/test_protocols.py
 tests/test_quic_diagnostics.py
+tests/test_quic_import_error.py
 tests/test_redact.py
 tests/test_remote_capture.py
 tests/test_replay.py

@@ -342,7 +342,7 @@ def test_decrypt_initial_echec_header_protection_trop_court():
     header_info = {"pn_offset": 5, "remaining_len": 10, "dcid": DCID}
     # payload court : pn_offset + 4 + 16 > len
     client_secret, _ = derive_initial_secrets(DCID)
-    short_payload = b"\xC0" + struct.pack("!I", QUIC_V1) + bytes([0]) + b"\x00" * 5
+    short_payload = b"\xc0" + struct.pack("!I", QUIC_V1) + bytes([0]) + b"\x00" * 5
     assert _decrypt_initial(short_payload, client_secret, header_info) is None
 
 
@@ -441,10 +441,8 @@ def test_parse_quic_capture_avec_capture_vide(monkeypatch):
 def test_parse_quic_capture_paquet_non_udp_ignore(monkeypatch):
     """Lines 320-321 : paquet non-UDP ou sans payload ignore."""
     from netcross_core.quic_diagnostics import parse_quic_capture
-    from pcap_parser.packet import RawPacket
 
-    raw = SimpleNamespace(ts=1.0, proto="TCP", src="10.0.0.1", dst="10.0.0.2",
-                          sport=1, dport=2, length=60, payload=b"")
+    raw = SimpleNamespace(ts=1.0, proto="TCP", src="10.0.0.1", dst="10.0.0.2", sport=1, dport=2, length=60, payload=b"")
     monkeypatch.setattr("pcap_parser.parse_capture", lambda path, raise_on_error=False: [raw])
     events = parse_quic_capture("A", "/fake/tcp.pcap")
     assert events == []
@@ -453,10 +451,10 @@ def test_parse_quic_capture_paquet_non_udp_ignore(monkeypatch):
 def test_parse_quic_capture_paquet_udp_non_quic_ignore(monkeypatch):
     """Lines 324-326 : paquet UDP sans en-tete long QUIC ignore."""
     from netcross_core.quic_diagnostics import parse_quic_capture
-    from pcap_parser.packet import RawPacket
 
-    raw = SimpleNamespace(ts=1.0, proto="UDP", src="10.0.0.1", dst="10.0.0.2",
-                          sport=1, dport=443, length=60, payload=b"\x00" * 10)
+    raw = SimpleNamespace(
+        ts=1.0, proto="UDP", src="10.0.0.1", dst="10.0.0.2", sport=1, dport=443, length=60, payload=b"\x00" * 10
+    )
     monkeypatch.setattr("pcap_parser.parse_capture", lambda path, raise_on_error=False: [raw])
     events = parse_quic_capture("A", "/fake/notquic.pcap")
     assert events == []
@@ -469,8 +467,9 @@ def test_parse_quic_capture_paquet_quic_initial_non_dechiffrable(monkeypatch):
     # paquet Initial valide mais avec un ciphertext aleatoire (non dechiffrable)
     header = _build_initial_header(remaining_len=20)
     payload = header + b"\x00" * 20
-    raw = SimpleNamespace(ts=1.0, proto="UDP", src="10.0.0.1", dst="10.0.0.2",
-                          sport=1234, dport=443, length=len(payload), payload=payload)
+    raw = SimpleNamespace(
+        ts=1.0, proto="UDP", src="10.0.0.1", dst="10.0.0.2", sport=1234, dport=443, length=len(payload), payload=payload
+    )
     monkeypatch.setattr("pcap_parser.parse_capture", lambda path, raise_on_error=False: [raw])
     events = parse_quic_capture("A", "/fake/quic.pcap")
     assert len(events) == 1
@@ -481,13 +480,13 @@ def test_parse_quic_capture_paquet_quic_initial_non_dechiffrable(monkeypatch):
 def test_parse_quic_capture_paquet_quic_initial_dechiffrable(monkeypatch):
     """Lines 347-362 : paquet QUIC Initial dechiffrable -> QuicEvent(decryptable=True)."""
     from netcross_core.quic_diagnostics import parse_quic_capture
-    from pcap_parser.packet import RawPacket
 
     # Utilise le paquet chiffre construit par _build_encrypted_initial
     original_plaintext = b"\x01\x00\x00\x08trame CRYPTO"
     packet = _build_encrypted_initial(original_plaintext, packet_number=2)
-    raw = SimpleNamespace(ts=1.0, proto="UDP", src="10.0.0.1", dst="10.0.0.2",
-                          sport=1234, dport=443, length=len(packet), payload=packet)
+    raw = SimpleNamespace(
+        ts=1.0, proto="UDP", src="10.0.0.1", dst="10.0.0.2", sport=1234, dport=443, length=len(packet), payload=packet
+    )
     monkeypatch.setattr("pcap_parser.parse_capture", lambda path, raise_on_error=False: [raw])
     events = parse_quic_capture("A", "/fake/quic_enc.pcap")
     assert len(events) == 1
@@ -496,7 +495,7 @@ def test_parse_quic_capture_paquet_quic_initial_dechiffrable(monkeypatch):
 
 def test_diagnose_quic_dcid_absent_des_points_order():
     """Line 401 : dcid present dans aucun point de points_order -> continue."""
-    events = [_quic_ev(point="A", dcid=b"\xAA\xBB")]
+    events = [_quic_ev(point="A", dcid=b"\xaa\xbb")]
     # points_order ne contient pas "A" -> present vide -> continue
     findings = diagnose_quic(events, points_order=["X", "Y"])
     # pas de finding de type "vu a tous les points" car present est vide

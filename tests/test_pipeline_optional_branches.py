@@ -372,6 +372,7 @@ class TestDiffQUICBranch:
 
         # Simule l'absence de cryptography : l'import de quic_diagnostics echoue
         import builtins
+
         original_import = builtins.__import__
 
         def blocking_import(name, *args, **kwargs):

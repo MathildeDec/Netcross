@@ -821,6 +821,12 @@ class MainWindow(Gtk.ApplicationWindow):
         )
         self.quic_check = Gtk.CheckButton(label="Diagnostic QUIC/HTTP3")
         self.quic_check.set_tooltip_text("Necessite cryptography. Relit les memes fichiers.")
+        # Issue #357 : analyse de securite dans la GUI
+        self.security_check = Gtk.CheckButton(label="Rapport de securite")
+        self.security_check.set_tooltip_text(
+            "Detecteurs de securite (beaconing, exfiltration, DGA, fast flux, "
+            "mouvements lateraux, flow_stats, tunneling DNS, audit TLS, CVE)."
+        )
         topn_box = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=4)
         topn_box.append(Gtk.Label(label="Top-N graphiques"))
         self.topn_spin = Gtk.SpinButton.new_with_range(1, 20, 1)
@@ -835,6 +841,7 @@ class MainWindow(Gtk.ApplicationWindow):
         single_checks.append(triage_topn_box)
         single_checks.append(self.tls_check)
         single_checks.append(self.quic_check)
+        single_checks.append(self.security_check)
         single_checks.append(topn_box)
         self.single_options_box.append(single_checks)
         page.append(self.single_options_box)
@@ -1207,6 +1214,30 @@ class MainWindow(Gtk.ApplicationWindow):
         self.stats_expander.set_child(stats_box)
         page.append(self.stats_expander)
 
+        # Issue #357 : section securite dans la page resultats
+        self.security_expander = Gtk.Expander(label="Securite")
+        self.security_expander.set_sensitive(False)
+        sec_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+        sec_box.set_margin_top(6)
+        sec_box.set_margin_bottom(6)
+        sec_box.set_margin_start(6)
+        sec_box.set_margin_end(6)
+        self.security_view = Gtk.TextView()
+        self.security_view.set_editable(False)
+        self.security_view.set_monospace(True)
+        self.security_view.set_wrap_mode(Gtk.WrapMode.WORD_CHAR)
+        self.security_view.set_top_margin(8)
+        self.security_view.set_left_margin(8)
+        self.security_view.set_right_margin(8)
+        self.security_view.set_bottom_margin(8)
+        sec_scroller = _visible_scroller()
+        sec_scroller.set_child(self.security_view)
+        sec_scroller.set_vexpand(False)
+        sec_scroller.set_max_content_height(300)
+        sec_box.append(sec_scroller)
+        self.security_expander.set_child(sec_box)
+        page.append(self.security_expander)
+
         bottom = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
         self.status_label = Gtk.Label(label="", halign=Gtk.Align.START, hexpand=True)
         bottom.append(self.status_label)
@@ -1306,6 +1337,7 @@ class MainWindow(Gtk.ApplicationWindow):
             triage_topn = int(self.triage_topn_spin.get_value())
             tls = self.tls_check.get_active()
             quic = self.quic_check.get_active()
+            security = self.security_check.get_active()
             topn = int(self.topn_spin.get_value())
             detect_duplicates = self.detect_duplicates_check.get_active()
             exclude_duplicates = self.exclude_duplicates_check.get_active()
@@ -1323,6 +1355,7 @@ class MainWindow(Gtk.ApplicationWindow):
                     triage_topn,
                     tls,
                     quic,
+                    security,
                     redact,
                     topn,
                     detect_duplicates,
@@ -1596,6 +1629,7 @@ class MainWindow(Gtk.ApplicationWindow):
         triage_topn,
         tls,
         quic,
+        security,
         redact,
         topn,
         detect_duplicates,
@@ -1614,6 +1648,7 @@ class MainWindow(Gtk.ApplicationWindow):
             triage_topn=triage_topn,
             tls=tls,
             quic=quic,
+            security=security,
             redact=redact,
             topn=topn,
             detect_duplicates=detect_duplicates,
@@ -1762,6 +1797,20 @@ class MainWindow(Gtk.ApplicationWindow):
         # exploration statistique (issue #22) : peuple la vue stats
         # depuis les memes flows/report que le dashboard.
         self._refresh_stats()
+        # Issue #357 : peupler la section securite si des constats existent
+        if hasattr(report, "security_findings") and report.security_findings:
+            sec_buf = Gtk.TextBuffer()
+            lines = []
+            for f in report.security_findings:
+                sev = f.get("severity", "?")
+                cat = f.get("category", "?")
+                detail = f.get("detail", "?")
+                lines.append(f"[{sev}] ({cat}) {detail}")
+            sec_buf.set_text("\n".join(lines))
+            self.security_view.set_buffer(sec_buf)
+            self.security_expander.set_sensitive(True)
+        else:
+            self.security_expander.set_sensitive(False)
         self.stack.set_visible_child_name("results")
         return False
 
