@@ -11,7 +11,7 @@
 > Il remplace l'ancienne section 3 de `docs/features-backlog.md`, tenue à la main, qui avait dérivé
 > (voir `docs/sessions/session-36.md`, issue #140).
 
-151 modules · 222 classes · 485 fonctions publiques de module.
+151 modules · 222 classes · 486 fonctions publiques de module.
 
 Conventions : `+` public, `-` privé (préfixe `_`) ; `int?` = `int | None` ; `list~str~` = `list[str]` ;
 `<<module>>` regroupe les fonctions publiques d'un module ; `A --> B : champ` = `A` a un champ annoté
@@ -2310,6 +2310,7 @@ classDiagram
         +tuple~int, int~ office_hours_utc
         +float off_hours_ratio
         +bool external_only
+        +bool treat_test_net_as_external
         +frozenset~int~ ignored_ports
     }
     class BeaconingResult {
@@ -2318,6 +2319,7 @@ classDiagram
     }
     class mod_netcross_core_security_beaconing["netcross_core.security.beaconing"] {
         <<module>>
+        +is_external(address, treat_test_net_as_external) bool
         +detect_beaconing(packets, thresholds) BeaconingResult
     }
 
