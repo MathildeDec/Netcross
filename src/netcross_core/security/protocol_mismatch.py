@@ -257,6 +257,7 @@ def protocol_mismatch_findings(
                 # produites : chaque constat sortait avec un texte vide dans
                 # tous les rendus (audit du 23/09/2026, issues #329/#345).
                 "category": "anomalie",
+                "detector": "protocol_mismatch",
                 "severity": severity,
                 "detail": text,
                 "point": detail.get("point") or None,

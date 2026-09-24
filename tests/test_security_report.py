@@ -276,7 +276,8 @@ def test_rendu_texte_contient_les_quatre_sections_et_le_tableau_de_bord():
     assert "Tableau de bord securite" in text
     assert "Services detectes (classes par criticite)" in text
     assert "Tentatives d'exploitation detectees" in text
-    assert "Anomalies (alertes Expert Info correlees)" in text
+    assert "Detecteurs Netcross" in text
+    assert "Alertes Expert Info correlees (Wireshark)" in text
     assert "CVE confirmees" in text
     assert "Apache/2.4.41 @ 10.0.0.5:80" in text
     assert "CVE-2021-41773 (CVSS 7.5)" in text

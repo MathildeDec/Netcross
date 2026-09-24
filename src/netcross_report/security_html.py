@@ -32,6 +32,8 @@ from pathlib import Path
 from netcross_report.security_report import (
     SEVERITIES,
     SecurityReport,
+    group_by_detector,
+    is_expert_info,
     security_report_to_dict,
 )
 
@@ -200,7 +202,7 @@ def _ligne_service(s: dict) -> str:
     )
 
 
-def _ligne_constat(i: dict, avec_cve: bool) -> str:
+def _ligne_constat(i: dict, avec_cve: bool, detecteur: str | None = None) -> str:
     colonnes_cve = (
         f'<td class="mono">{_e(i.get("cve_id"))}</td><td class="mono">{_e(i.get("cvss"))}</td>' if avec_cve else ""
     )
@@ -212,7 +214,8 @@ def _ligne_constat(i: dict, avec_cve: bool) -> str:
         "<tr>"
         f"<td>{_badge(i.get('severity'))}</td>"
         f"{colonnes_cve}"
-        f"<td>{_e(i.get('detail'))}{plugin}</td>"
+        + (f"<td>{_e(detecteur)}</td>" if detecteur is not None else "")
+        + f"<td>{_e(i.get('detail'))}{plugin}</td>"
         f"<td>{_e(service)}</td>"
         f'<td class="mono">{_cible(i.get("host"), i.get("port"))}</td>'
         f"<td>{_e(i.get('point'))}</td>"
@@ -233,8 +236,10 @@ def _cartes(d: dict) -> str:
         f'<div class="etiquette">services detectes, dont {d["services_vulnerable"]} vulnerable(s)</div></div>',
         f'<div class="carte"><div class="valeur">{d["exploits"]}</div>'
         '<div class="etiquette">tentatives d\'exploitation</div></div>',
-        f'<div class="carte"><div class="valeur">{d["anomalies"]}</div>'
-        '<div class="etiquette">anomalies (Expert Info)</div></div>',
+        f'<div class="carte"><div class="valeur">{d["anomalies_netcross"]}</div>'
+        '<div class="etiquette">constats des detecteurs Netcross</div></div>',
+        f'<div class="carte"><div class="valeur">{d["anomalies_expert_info"]}</div>'
+        '<div class="etiquette">alertes Expert Info correlees</div></div>',
         f'<div class="carte"><div class="valeur">{d["cves"]}</div><div class="etiquette">CVE confirmees</div></div>',
     ]
     repartition = " &middot; ".join(f"{_e(sev)} <strong>{d['by_severity'].get(sev, 0)}</strong>" for sev in SEVERITIES)
@@ -287,12 +292,25 @@ def render_security_html(
             [_ligne_constat(i, avec_cve=False) for i in data["exploits"]],
             "aucune tentative d'exploitation detectee",
         ),
-        "<h2>Anomalies correlees (Expert Info)</h2>",
+        # Issue #348 : detecteurs Netcross et Expert Info separes ; #347 :
+        # colonne Detecteur et tri par groupe (le HTML garde tout, filtrable).
+        "<h2>Detecteurs Netcross</h2>",
         _table(
             "t-anomalies",
+            ["Severite", "Detecteur", "Detail", "Service", "Cible", "Point"],
+            [
+                _ligne_constat(i, avec_cve=False, detecteur=g.label)
+                for g in group_by_detector([i for i in data["anomalies"] if not is_expert_info(i)])
+                for i in g.items
+            ],
+            "aucun constat des detecteurs Netcross",
+        ),
+        "<h2>Alertes Expert Info correlees (Wireshark)</h2>",
+        _table(
+            "t-expert-info",
             ["Severite", "Detail", "Service", "Cible", "Point"],
-            [_ligne_constat(i, avec_cve=False) for i in data["anomalies"]],
-            "aucune anomalie correlee",
+            [_ligne_constat(i, avec_cve=False) for i in data["anomalies"] if is_expert_info(i)],
+            "aucune alerte Expert Info correlee",
         ),
         "<h2>CVE confirmees</h2>",
         _table(
