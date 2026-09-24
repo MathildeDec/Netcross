@@ -408,7 +408,6 @@ def test_chaque_detection_est_rendue_avec_un_texte(name, tmp_path):
         assert seen, f"{name} : detection silencieuse, absente de tous les rendus ({sorted(renders)}) : {detail!r}"
 
 
-@pytest.mark.xfail(strict=True, reason="#347 : troncature texte/PDF par ordre alphabetique, detections masquees")
 def test_rapport_texte_montre_chaque_detecteur_quand_tous_se_declenchent(tmp_path):
     """Scenario combine : 60 domaines DGA (bruit) + exfiltration + beaconing.
     Chaque detecteur ayant produit un constat doit garder au moins une ligne
