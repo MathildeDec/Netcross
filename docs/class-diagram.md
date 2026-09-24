@@ -1403,7 +1403,6 @@ classDiagram
         +list~dict~ dga_alerts
         +list~dict~ fast_flux_alerts
         +list~dict~ lateral_movement_events
-        +list~dict~ exfiltration_alerts
         +list~dict~ plugin_runs
         +list~dict~ flow_anomalies
         +list~tuple~str, str, dict~~ topology_edges
