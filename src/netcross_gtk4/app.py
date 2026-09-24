@@ -1758,9 +1758,14 @@ class MainWindow(Gtk.ApplicationWindow):
                         print_quic_diagnostics(quic_findings)
 
             if security:
-                GLib.idle_add(self._log, "Analyse de securite (beaconing, exfiltration, DGA, fast flux, mouvements lateraux, flow_stats, DNS tunnel, TLS audit, CVE)...")
-                from netcross_core.security.findings import apply_security_findings
+                GLib.idle_add(
+                    self._log,
+                    "Analyse de securite (beaconing, exfiltration, DGA, "
+                    "fast flux, mouvements lateraux, flow_stats, DNS tunnel, "
+                    "TLS audit, CVE)...",
+                )
                 from netcross_core.security import scan_capture_exploits as _scan_exploits
+                from netcross_core.security.findings import apply_security_findings
 
                 detections = []
                 for label, path in captures:
