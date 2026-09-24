@@ -341,6 +341,7 @@ classDiagram
         +float? http_response_time_ms
         +tuple~str, ...~ expert_flags
         +tuple~tuple~str, str?, str?, str?~, ...~ expert_details
+        +float payload_entropy
         +str? http_content_type
         +int? http_content_length
         +int? tcp_len
@@ -890,6 +891,7 @@ classDiagram
         <<dataclass, slots>>
         +bool tls_ccs_seen
         +bool smb_mid64_tree_connect
+        +int http2_rst_count
     }
     class _Detector {
         <<dataclass, frozen>>
@@ -1235,6 +1237,7 @@ classDiagram
         +str? http_content_type
         +int? http_content_length
         +bool is_duplicate
+        +float payload_entropy
         +str? comment
         +tuple~Banner, ...~ service_banners
         +int? tcp_len
@@ -1406,6 +1409,7 @@ classDiagram
         +list~dict~ lateral_movement_events
         +list~dict~ plugin_runs
         +list~dict~ flow_anomalies
+        +list~dict~ asset_inventory
         +list~tuple~str, str, dict~~ topology_edges
         +list~tuple~str, str, str~~ topology_ambiguous
         +list~str~ topology_isolated
@@ -2600,6 +2604,7 @@ classDiagram
         +list~float~ inter_arrivals
         +str classification
         +float entropy
+        +float byte_entropy
         +float median_size
         +float upload_ratio
         +float regularity_cv

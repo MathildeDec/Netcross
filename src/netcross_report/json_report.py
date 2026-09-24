@@ -308,6 +308,12 @@ def generate_json_report(
         # invisible jusqu'ici). Toujours present (liste vide = rien trouve),
         # meme convention que http_objects.
         "extracted_files": list(getattr(r, "extracted_files", [])),
+        # Issue #350 : inventaire d'actifs -- toujours present (liste
+        # vide = rien trouve), meme convention que http_objects.
+        "asset_inventory": list(getattr(r, "asset_inventory", [])),
+        # flow_anomalies et lateral_movement_events : meme convention.
+        "flow_anomalies": list(getattr(r, "flow_anomalies", [])),
+        "lateral_movement_events": list(getattr(r, "lateral_movement_events", [])),
     }
     if getattr(r, "duplicate_count", None):
         # Job 41/issue #161 : cle absente si la detection n'a rien trouve
