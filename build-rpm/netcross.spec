@@ -77,7 +77,6 @@ install -m 755 netcross-diff-wrapper %{buildroot}%{_bindir}/netcross-diff
 install -m 755 netcross-history-wrapper %{buildroot}%{_bindir}/netcross-history
 install -m 755 netcross-batch-wrapper %{buildroot}%{_bindir}/netcross-batch
 install -m 755 netcross-ai-models-wrapper %{buildroot}%{_bindir}/netcross-ai-models
-%{_bindir}/netcross-lua-doc
 install -m 755 netcross-lua-doc-wrapper %{buildroot}%{_bindir}/netcross-lua-doc
 
 %files
@@ -88,6 +87,7 @@ install -m 755 netcross-lua-doc-wrapper %{buildroot}%{_bindir}/netcross-lua-doc
 %{_bindir}/netcross-history
 %{_bindir}/netcross-batch
 %{_bindir}/netcross-ai-models
+%{_bindir}/netcross-lua-doc
 %{_datadir}/locale/*/LC_MESSAGES/netcross.mo
 
 %changelog
