@@ -603,6 +603,7 @@ def apply_security_findings(
     report.lateral_movement_events = [
         {
             "point": ev.point,
+            "points": list(ev.points) if ev.points else ([ev.point] if ev.point else []),
             "source": ev.source,
             "type": ev.event_type,
             "details": ev.details,

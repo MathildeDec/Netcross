@@ -2602,6 +2602,7 @@ classDiagram
         +float median_size
         +float upload_ratio
         +float regularity_cv
+        +list~str~ points
         +to_dict() dict
     }
     class FlowStatsResult {
@@ -2635,6 +2636,8 @@ classDiagram
         +str details
         +float score
         +list~str~ targets
+        +tuple~str, ...~ points
+        +points_list() list~str~
     }
     class LateralMovementResult {
         <<dataclass>>
