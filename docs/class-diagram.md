@@ -342,6 +342,7 @@ classDiagram
         +str? http_content_type
         +int? http_content_length
         +int? tcp_len
+        +tuple~str, ...~ dns_answers
         +str? comment
         +str? ip_checksum
         +bool? ip_checksum_bad
@@ -1234,6 +1235,7 @@ classDiagram
         +str? comment
         +tuple~Banner, ...~ service_banners
         +int? tcp_len
+        +tuple~str, ...~ dns_answers
         +str? ip_checksum
         +bool? ip_checksum_bad
         +str? tcp_checksum
@@ -2529,6 +2531,7 @@ classDiagram
         <<dataclass>>
         +int min_ips
         +float window_seconds
+        +int min_responses
         +float nxdomain_ratio_min
         +int nxdomain_min_responses
     }
