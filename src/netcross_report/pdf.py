@@ -746,13 +746,17 @@ def security_section_story(security_report, styles):
     else:
         story.append(Paragraph("Aucun service identifie dans cette capture.", styles["Normal"]))
 
-    for titre, cle, avec_cve, vide in (
-        ("Tentatives d'exploitation detectees", "exploits", False, "Aucune tentative d'exploitation detectee."),
-        ("Anomalies correlees (Expert Info)", "anomalies", False, "Aucune anomalie correlee."),
-        ("CVE confirmees", "cves", True, "Aucune CVE confirmee."),
+    for titre, cle, avec_cve, vide, source_filter in (
+        ("Tentatives d'exploitation detectees", "exploits", False, "Aucune tentative d'exploitation detectee.", None),
+        ("Anomalies (detecteurs Netcross)", "anomalies", False, "Aucune anomalie detectee.", "netcross"),
+        ("Anomalies correlees (Expert Info)", "anomalies", False, "Aucune anomalie correlee.", "expert_info"),
+        ("CVE confirmees", "cves", True, "Aucune CVE confirmee.", None),
     ):
         story.append(Paragraph(titre, styles["H2b"]))
-        story.append(_securite_table_constats(data[cle], styles, avec_cve, vide))
+        items = data[cle]
+        if source_filter is not None:
+            items = [i for i in items if i.get("source") == source_filter]
+        story.append(_securite_table_constats(items, styles, avec_cve, vide))
 
     tronques = [
         (cle, len(data[cle]))

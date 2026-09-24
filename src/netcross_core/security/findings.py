@@ -156,7 +156,11 @@ def anomaly_findings(suspicions: Iterable[dict]) -> list[dict[str, Any]]:
     """Un constat `anomalie` par suspicion de `Report.exploit_suspicion_flows`
     (fuzzing / overflow / dos). Les paquets malformes isoles
     (`Report.expert_malformed*`) ne sont volontairement PAS remontes ici :
-    seuls les motifs correles constituent un indice d'attaque."""
+    seuls les motifs correles constituent un indice d'attaque.
+
+    `source="expert_info"` : ce constat vient de la correlation d'alertes
+    Expert Info de Wireshark (CVE-3), pas d'un detecteur Netcross -- voir
+    issue #348 (le rapport doit distinguer les deux origines)."""
     findings = []
     for s in suspicions:
         kind = str(s.get("kind", ""))

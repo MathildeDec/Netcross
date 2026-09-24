@@ -77,7 +77,13 @@ _CATEGORY_ALIASES = {
 
 @dataclass(slots=True)
 class SecurityItem:
-    """Un constat de securite normalise (exploit, anomalie ou CVE)."""
+    """Un constat de securite normalise (exploit, anomalie ou CVE).
+
+    `source` distingue, pour les anomalies, un detecteur Netcross natif
+    ("netcross", valeur par defaut) d'une alerte Expert Info de Wireshark
+    correlee ("expert_info", CVE-3, voir `security.findings.anomaly_findings`)
+    -- issue #348 : ce ne sont pas les memes alertes et le rapport ne doit
+    pas laisser croire le contraire."""
 
     category: str
     severity: str

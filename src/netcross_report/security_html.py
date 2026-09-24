@@ -237,7 +237,7 @@ def _cartes(d: dict) -> str:
         f'<div class="carte"><div class="valeur">{d["exploits"]}</div>'
         '<div class="etiquette">tentatives d\'exploitation</div></div>',
         f'<div class="carte"><div class="valeur">{d["anomalies"]}</div>'
-        '<div class="etiquette">anomalies (Expert Info)</div></div>',
+        '<div class="etiquette">anomalies (Expert Info correlees)</div></div>',
         f'<div class="carte"><div class="valeur">{d["cves"]}</div><div class="etiquette">CVE confirmees</div></div>',
     ]
     repartition = " &middot; ".join(f"{_e(sev)} <strong>{d['by_severity'].get(sev, 0)}</strong>" for sev in SEVERITIES)
@@ -293,10 +293,17 @@ def render_security_html(
         ),
         "<h2>Anomalies correlees (Expert Info)</h2>",
         _table(
+            "t-anomalies-expert",
+            ["Severite", "Detail", "Service", "Cible", "Point"],
+            [_ligne_constat(i, avec_cve=False) for i in data["anomalies"] if i.get("source") == "expert_info"],
+            "aucune anomalie correlee",
+        ),
+        "<h2>Anomalies (detecteurs Netcross)</h2>",
+        _table(
             "t-anomalies",
             ["Severite", "Detail", "Service", "Cible", "Point"],
-            [_ligne_constat(i, avec_cve=False) for i in data["anomalies"]],
-            "aucune anomalie correlee",
+            [_ligne_constat(i, avec_cve=False) for i in data["anomalies"] if i.get("source") != "expert_info"],
+            "aucune anomalie detectee",
         ),
         "<h2>CVE confirmees</h2>",
         _table(

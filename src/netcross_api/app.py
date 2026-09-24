@@ -29,7 +29,7 @@ from netcross_api.models import (
 )
 from netcross_api.store import store
 from netcross_core import analyse, correlate, parse_capture
-from netcross_core.security.findings import apply_security_findings
+from netcross_core.security.findings import apply_security_findings, scan_capture_exploits
 
 from netcross_core.logging_config import get_logger
 
@@ -80,19 +80,20 @@ async def upload_capture(
         logger.exception("erreur de parsing: exc")
     try:
         packets = parse_capture(label, tmp_path)
+        if not packets:
+            raise HTTPException(status_code=400, detail="Aucun paquet trouvé dans le fichier")
+
+        # Corrélation + analyse
+        flows = correlate(packets)
+        report = analyse(flows, points_order=[label], all_packets=packets)
+        detections = scan_capture_exploits(label, tmp_path)
+        apply_security_findings(report, packets, detections=detections)
+    except HTTPException:
+        raise
     except Exception as exc:
-        Path(tmp_path).unlink(missing_ok=True)
         raise HTTPException(status_code=400, detail=f"Erreur de parsing: {exc}") from exc
     finally:
         Path(tmp_path).unlink(missing_ok=True)
-
-    if not packets:
-        raise HTTPException(status_code=400, detail="Aucun paquet trouvé dans le fichier")
-
-    # Corrélation + analyse
-    flows = correlate(packets)
-    report = analyse(flows, points_order=[label], all_packets=packets)
-    apply_security_findings(report, packets)
 
     # Stocker l'analyse
     analysis_id = store.add(report, metadata={"filename": file.filename, "label": label})
