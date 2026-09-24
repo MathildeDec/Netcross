@@ -11,7 +11,7 @@
 > Il remplace l'ancienne section 3 de `docs/features-backlog.md`, tenue à la main, qui avait dérivé
 > (voir `docs/sessions/session-36.md`, issue #140).
 
-153 modules · 227 classes · 493 fonctions publiques de module.
+153 modules · 229 classes · 494 fonctions publiques de module.
 
 Conventions : `+` public, `-` privé (préfixe `_`) ; `int?` = `int | None` ; `list~str~` = `list[str]` ;
 `<<module>>` regroupe les fonctions publiques d'un module ; `A --> B : champ` = `A` a un champ annoté
@@ -3594,6 +3594,7 @@ classDiagram
         <<module>>
         +health() HealthResponse
         +upload_capture(file, label, _auth) AnalysisSummary
+        +upload_multi_capture(files, labels, points_order) MultiAnalysisSummary
         +get_analysis(analysis_id, _auth) JSONResponse
         +get_security_report(analysis_id, _auth) SecurityReport
         +list_analyses(_auth) dict
@@ -3633,6 +3634,20 @@ classDiagram
     class ErrorResponse {
         <<BaseModel>>
         +str detail
+    }
+    class MultiCaptureRequest {
+        <<BaseModel>>
+        +list~str~ labels
+        +list~str~? points_order
+    }
+    class MultiAnalysisSummary {
+        <<BaseModel>>
+        +str analysis_id
+        +str status
+        +int point_count
+        +int packet_count
+        +int security_finding_count
+        +list~str~ points
     }
 
     %% ===== netcross_api.store =====

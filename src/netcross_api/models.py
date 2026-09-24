@@ -53,3 +53,21 @@ class ErrorResponse(BaseModel):
     """Réponse d'erreur standard."""
 
     detail: str
+
+
+class MultiCaptureRequest(BaseModel):
+    """Métadonnées pour POST /captures/multi (issue #354)."""
+
+    labels: list[str] = Field(default_factory=list, description="Étiquettes pour chaque fichier, dans l'ordre")
+    points_order: list[str] | None = Field(default=None, description="Ordre des points (ex: ['lan', 'wan', 'dc'])")
+
+
+class MultiAnalysisSummary(BaseModel):
+    """Résumé d'une analyse multi-points (issue #354)."""
+
+    analysis_id: str
+    status: str = "completed"
+    point_count: int = 0
+    packet_count: int = 0
+    security_finding_count: int = 0
+    points: list[str] = Field(default_factory=list)
