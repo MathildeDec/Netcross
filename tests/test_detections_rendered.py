@@ -168,15 +168,24 @@ def _dga():
 
 
 def _fast_flux():
+    # #344 : la rotation se lit dans les reponses DNS (dns_answers), plus
+    # dans les connexions TCP du client.
     domain = "suspicious.example.com"
-    pkts = [
-        make_pkt(point=POINT, src=CLIENT, dns_qry_name=domain, dns_is_response=False, ts=0.0, proto="UDP", dport=53)
-    ]
-    pkts += [
-        make_pkt(point=POINT, src=CLIENT, dst=f"203.0.113.{i + 1}", ts=float(i + 1), proto="TCP", flags="S.......")
+    return [
+        make_pkt(
+            point=POINT,
+            src="10.0.0.53",
+            dst=CLIENT,
+            dns_qry_name=domain,
+            dns_is_response=True,
+            dns_rcode=0,
+            dns_answers=(f"203.0.113.{i + 1}",),
+            ts=float(i * 30),
+            proto="UDP",
+            sport=53,
+        )
         for i in range(6)
     ]
-    return pkts
 
 
 def _lateral_movement():
