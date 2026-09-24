@@ -122,7 +122,7 @@ def inventory_from_packets(label: str, path: str, packets: Iterable) -> CaptureI
     """Construit l'inventaire d'une capture a partir de ses paquets decodes
     (objets exposant ts, src, dst, sport, dport, proto -- `Pkt` ou
     equivalent)."""
-    logger.debug("inventory_from_packets(label={}, path={}, packets={})", label, path, len(packets))
+    logger.debug("inventory_from_packets(label={}, path={})", label, path)
     inv = CaptureInventory(label=label, path=path)
     for pkt in packets:
         inv.packet_count += 1
