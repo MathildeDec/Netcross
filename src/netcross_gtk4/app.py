@@ -71,6 +71,13 @@ from netcross_core.baseline_diff import diff_reports, print_diff_report, write_d
 from netcross_core.bpf_filters import PREDEFINED_BPF_FILTERS, available_bpf_filters, upsert_bpf_filter  # noqa: E402
 from netcross_core.forensic import DEFAULT_DUPLICATE_THRESHOLD_MS, detect_cross_capture_duplicates  # noqa: E402
 from netcross_gtk4 import capture_list, row_labels  # noqa: E402
+from netcross_gtk4.annotations_view import (  # noqa: E402
+    add_annotation,
+    available_tags,
+    filter_by_tags,
+    format_annotation_row,
+    remove_annotation,
+)
 from netcross_gtk4.bpf_panel import (  # noqa: E402
     doit_desolidariser_le_menu,
     indice_du_filtre_nomme,
@@ -592,6 +599,9 @@ class MainWindow(Gtk.ApplicationWindow):
         # GTK ci-dessous ne font que le cabler.
         self.dashboard_selection = DashboardSelection()
 
+        # Issue #363 : annotations (signets sur paquets)
+        self._annotations: list = []
+
         # etat propre a la capture en direct (mode live, voir _begin_live_capture)
         self._live_capturing = False
         self._live_stop_event = None
@@ -896,6 +906,50 @@ class MainWindow(Gtk.ApplicationWindow):
         if self.exclude_duplicates_check.get_active() and not self.detect_duplicates_check.get_active():
             self.detect_duplicates_check.set_active(True)
 
+    def _on_add_annotation(self, _btn):
+        """Issue #363 : ajoute une annotation (tag + commentaire) sur une
+        trame, via le module annotations_view."""
+        frame_text = self.ann_frame_entry.get_text().strip()
+        tag = self.ann_tag_entry.get_text().strip()
+        comment = self.ann_comment_entry.get_text().strip()
+        if not frame_text or not tag:
+            return
+        try:
+            frame_number = int(frame_text)
+        except ValueError:
+            return
+        try:
+            self._annotations = add_annotation(
+                self._annotations, frame_number, tag, comment
+            )
+        except ValueError:
+            return
+        self.ann_frame_entry.set_text("")
+        self.ann_tag_entry.set_text("")
+        self.ann_comment_entry.set_text("")
+        self._refresh_annotations()
+
+    def _refresh_annotations(self):
+        """Reconstruit la liste des annotations affichees."""
+        # Vider la ListBox
+        while True:
+            child = self.annotations_list.get_first_child()
+            if child is None:
+                break
+            self.annotations_list.remove(child)
+        # Peupler
+        for ann in self._annotations:
+            row = Gtk.ListBoxRow()
+            label = Gtk.Label(
+                label=format_annotation_row(ann),
+                halign=Gtk.Align.START,
+                wrap=True,
+                selectable=True,
+            )
+            row.set_child(label)
+            self.annotations_list.append(row)
+        self.annotations_expander.set_sensitive(bool(self._annotations))
+
     def _on_live_toggled(self, _btn):
         if self.live_check.get_active() and self.diff_check.get_active():
             self.diff_check.set_active(False)  # declenche _on_diff_toggled -> resynchronise tout
@@ -1128,6 +1182,45 @@ class MainWindow(Gtk.ApplicationWindow):
 
         self.comm_map_expander.set_child(map_box)
         page.append(self.comm_map_expander)
+
+        # Issue #363 : annotations (#160) -- vue presente mais non raccordee
+        self.annotations_expander = Gtk.Expander(label="Annotations / signets")
+        self.annotations_expander.set_sensitive(False)
+        ann_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+        ann_box.set_margin_top(6)
+        ann_box.set_margin_bottom(6)
+        ann_box.set_margin_start(6)
+        ann_box.set_margin_end(6)
+
+        self.annotations_list = Gtk.ListBox()
+        self.annotations_list.set_selection_mode(Gtk.SelectionMode.NONE)
+        ann_scroller = _visible_scroller()
+        ann_scroller.set_child(self.annotations_list)
+        ann_scroller.set_vexpand(False)
+        ann_scroller.set_max_content_height(200)
+        ann_box.append(ann_scroller)
+
+        # Formulaire d'ajout simple
+        add_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+        self.ann_frame_entry = Gtk.Entry()
+        self.ann_frame_entry.set_placeholder_text("Trame #")
+        self.ann_frame_entry.set_width_chars(8)
+        self.ann_tag_entry = Gtk.Entry()
+        self.ann_tag_entry.set_placeholder_text("Tag")
+        self.ann_tag_entry.set_width_chars(12)
+        self.ann_comment_entry = Gtk.Entry()
+        self.ann_comment_entry.set_placeholder_text("Commentaire (optionnel)")
+        self.ann_comment_entry.set_hexpand(True)
+        add_btn = Gtk.Button(label="Ajouter")
+        add_btn.connect("clicked", self._on_add_annotation)
+        add_row.append(self.ann_frame_entry)
+        add_row.append(self.ann_tag_entry)
+        add_row.append(self.ann_comment_entry)
+        add_row.append(add_btn)
+        ann_box.append(add_row)
+
+        self.annotations_expander.set_child(ann_box)
+        page.append(self.annotations_expander)
 
         # -- dashboard analytique interactif (issue #18, §6.17) --
         # Six vues (timeline, segments, flows, endpoints, protocoles,
