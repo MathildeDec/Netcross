@@ -18,7 +18,10 @@ import threading
 import uuid
 from typing import Any
 
+from netcross_core.logging_config import get_logger
 from netcross_core.models import Report
+
+logger = get_logger(__name__)
 
 
 class AnalysesStore:
@@ -49,6 +52,7 @@ class AnalysesStore:
 
     def add(self, report: Report, metadata: dict | None = None, status: str = "completed") -> str:
         """Enregistre un rapport, retourne l'ID généré."""
+        logger.debug("add(self={self}, report={report}, metadata={metadata})")
         analysis_id = uuid.uuid4().hex[:12]
         entry = {
             "report": report,

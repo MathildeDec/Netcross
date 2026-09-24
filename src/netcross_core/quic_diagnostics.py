@@ -42,8 +42,10 @@ import struct
 from dataclasses import dataclass
 
 import pcap_parser
+from netcross_core.logging_config import get_logger
 from netcross_core.tls_diagnostics import parse_client_hello
 
+logger = get_logger(__name__)
 try:
     from cryptography.exceptions import InvalidTag
     from cryptography.hazmat.primitives import hashes, hmac
@@ -55,6 +57,7 @@ except ImportError as e:
     # installe tant qu'il n'a pas explicitement demande --quic, et
     # afficher son propre message plutot que de voir tout le process
     # mourir a l'import.
+    logger.exception("erreur: e")
     raise ImportError(
         "netcross_core.quic_diagnostics necessite cryptography : pip install cryptography --break-system-packages"
     ) from e
@@ -118,6 +121,7 @@ def _hkdf_expand_label(secret: bytes, label: str, context: bytes, length: int) -
 
 def derive_initial_secrets(dcid: bytes) -> tuple[bytes, bytes]:
     """Renvoie (client_initial_secret, server_initial_secret) pour QUIC v1."""
+    logger.debug("derive_initial_secrets(dcid={dcid})")
     initial_secret = _hkdf_extract(QUIC_V1_INITIAL_SALT, dcid)
     client_secret = _hkdf_expand_label(initial_secret, "client in", b"", 32)
     server_secret = _hkdf_expand_label(initial_secret, "server in", b"", 32)
@@ -126,6 +130,7 @@ def derive_initial_secrets(dcid: bytes) -> tuple[bytes, bytes]:
 
 def derive_packet_protection_keys(secret: bytes) -> tuple[bytes, bytes, bytes]:
     """Renvoie (key, iv, hp) derives d'un secret initial (client ou serveur)."""
+    logger.debug("derive_packet_protection_keys(secret={secret})")
     key = _hkdf_expand_label(secret, "quic key", b"", 16)
     iv = _hkdf_expand_label(secret, "quic iv", b"", 12)
     hp = _hkdf_expand_label(secret, "quic hp", b"", 16)
@@ -256,6 +261,7 @@ def _decrypt_initial(payload: bytes, client_secret: bytes, header_info: dict) ->
     try:
         return AESGCM(key).decrypt(bytes(nonce), ciphertext, header)
     except InvalidTag:
+        logger.exception("erreur: InvalidTag")
         return None
 
 
@@ -305,6 +311,7 @@ def parse_quic_capture(label: str, path: str) -> list[QuicEvent]:
     QuicEvent pour chaque paquet QUIC Initial v1 detecte -- decrypte
     avec succes ou non (decryptable=False et sni=None dans ce dernier
     cas, jamais de donnee inventee)."""
+    logger.debug("parse_quic_capture(label={label}, path={path})")
     events: list[QuicEvent] = []
     raw_packets = pcap_parser.parse_capture(path, raise_on_error=False)
 
@@ -361,6 +368,7 @@ def diagnose_quic(events: list[QuicEvent], points_order: list[str] | None = None
     la connexion QUIC de facon stable meme a travers un NAT qui changerait
     IP/port). Format de sortie compatible netcross_report.triage (severity/
     category/segment/message), comme tls_diagnostics.TlsFinding."""
+    logger.debug("diagnose_quic(events={events}, points_order={points_order})")
     from netcross_core.tls_diagnostics import TlsFinding  # reutilise le meme type de resultat
 
     by_dcid: dict[bytes, dict[str, QuicEvent]] = {}
@@ -431,6 +439,7 @@ def diagnose_quic(events: list[QuicEvent], points_order: list[str] | None = None
 
 
 def print_quic_diagnostics(findings) -> None:
+    logger.debug("print_quic_diagnostics(findings={findings})")
     print("=" * 70)
     print("DIAGNOSTIC QUIC/HTTP3 -- ClientHello vus par point (SNI)")
     print("=" * 70)

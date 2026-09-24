@@ -15,6 +15,7 @@ quand il est disponible) pour absorber d'eventuelles variations.
 
 from __future__ import annotations
 
+from netcross_core.logging_config import get_logger
 from netcross_core.tshark_stats.models import ConversationStat
 from netcross_core.tshark_stats.parse_utils import (
     data_rows,
@@ -24,6 +25,8 @@ from netcross_core.tshark_stats.parse_utils import (
     reconstruct_headers,
     split_fields,
 )
+
+logger = get_logger(__name__)
 
 
 def _split_endpoints(field: str) -> tuple[str, str]:
@@ -55,6 +58,7 @@ def parse_conversations(text: str, protocol: str = "tcp") -> list[ConversationSt
     quel sur chaque record. Retourne une liste vide si la sortie ne
     contient pas de tableau exploitable.
     """
+    logger.debug("parse_conversations(text={text}, protocol={protocol})")
     headers = reconstruct_headers(text)
     out: list[ConversationStat] = []
     for line in data_rows(text):

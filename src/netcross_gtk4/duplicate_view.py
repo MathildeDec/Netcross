@@ -13,8 +13,12 @@ from typing import Any
 def format_duplicate_indicator(report: Any) -> str:
     """Return the compact duplicate status shown by the GTK4 results page.
 
-    The report is intentionally duck-typed so this helper stays independent
-    from GTK and remains usable with lightweight test doubles.
+        The report is intentionally duck-typed so this helper stays independent
+        from GTK and remains usable with lightweight test doubles.
+    from netcross_core.logging_config import get_logger
+
+    logger = get_logger(__name__)
+
     """
     counts: Mapping[tuple[str, str], int] = getattr(report, "duplicate_count", {}) or {}
     total = sum(counts.values())

@@ -33,8 +33,10 @@ from netcross_api.models import (
 )
 from netcross_api.store import store
 from netcross_core import analyse, correlate, parse_capture
+from netcross_core.logging_config import get_logger
 from netcross_core.security.findings import apply_security_findings, scan_capture_exploits
 
+logger = get_logger(__name__)
 # Singleton pour éviter B008 (File() in argument defaults).
 _FILE_REQUIRED = File(default=..., description="Fichier pcap/pcapng à analyser")
 _FILES_REQUIRED = File(default=..., description="Fichiers pcap/pcapng à analyser")
@@ -72,6 +74,7 @@ app = FastAPI(
 @app.get("/health", response_model=HealthResponse, tags=["meta"])
 async def health() -> HealthResponse:
     """Health check du service."""
+    logger.debug("health()")
     return HealthResponse()
 
 
@@ -107,6 +110,7 @@ async def upload_capture(
         tmp.write(content)
         tmp_path = tmp.name
 
+        logger.exception("erreur de parsing: exc")
     try:
         packets = parse_capture(label, tmp_path)
         if not packets:
@@ -219,6 +223,7 @@ async def get_analysis(analysis_id: str, _auth: None = Depends(_verify_api_key))
     Le rapport est sérialisé en dict JSON directement (sans passer par
     generate_json_report qui écrit sur disque).
     """
+    logger.debug("get_analysis(analysis_id={analysis_id})")
     report = store.get_report(analysis_id)
     if report is None:
         raise HTTPException(status_code=404, detail=f"Analyse {analysis_id} introuvable")
@@ -249,6 +254,7 @@ async def get_analysis(analysis_id: str, _auth: None = Depends(_verify_api_key))
 )
 async def get_security_report(analysis_id: str, _auth: None = Depends(_verify_api_key)) -> SecurityReport:
     """Récupère les constats de sécurité d'une analyse."""
+    logger.debug("get_security_report(analysis_id={analysis_id})")
     entry = store.get(analysis_id)
     if entry is None:
         raise HTTPException(status_code=404, detail=f"Analyse {analysis_id} introuvable")
@@ -277,6 +283,7 @@ async def get_security_report(analysis_id: str, _auth: None = Depends(_verify_ap
 @app.get("/analyses", tags=["analyses"])
 async def list_analyses(_auth: None = Depends(_verify_api_key)) -> dict:
     """Liste les IDs d'analyses disponibles."""
+    logger.debug("list_analyses()")
     return {"analyses": store.list_ids()}
 
 

@@ -28,6 +28,10 @@ import os
 import sys
 from pathlib import Path
 
+from netcross_core.logging_config import get_logger
+
+logger = get_logger(__name__)
+
 DOMAIN = "netcross"
 ENV_LANG = "NETCROSS_LANG"
 ENV_LOCALEDIR = "NETCROSS_LOCALEDIR"
@@ -38,6 +42,7 @@ _translation: gettext.NullTranslations | None = None
 
 def locale_dirs() -> list[Path]:
     """Repertoires de catalogues compiles, par priorite decroissante."""
+    logger.debug("locale_dirs()")
     dirs: list[Path] = []
     env = os.environ.get(ENV_LOCALEDIR)
     if env:
@@ -53,6 +58,7 @@ def locale_dirs() -> list[Path]:
 def requested_languages(language: str | None = None) -> list[str] | None:
     """Langues demandees : argument, puis ``$NETCROSS_LANG`` ; ``None``
     laisse gettext lire LANGUAGE/LC_ALL/LC_MESSAGES/LANG."""
+    logger.debug("requested_languages(language={language})")
     value = language or os.environ.get(ENV_LANG)
     if not value:
         return None
@@ -69,6 +75,7 @@ def setup(language: str | None = None) -> gettext.NullTranslations:
         try:
             found = gettext.translation(DOMAIN, localedir=str(localedir), languages=languages)
         except OSError:
+            logger.exception("erreur: OSError")
             continue
         break
     _translation = found
@@ -77,6 +84,7 @@ def setup(language: str | None = None) -> gettext.NullTranslations:
 
 def active_language() -> str | None:
     """Langue du catalogue actif (``None`` : chaines source en francais)."""
+    logger.debug("active_language()")
     info = _current().info()
     return info.get("language") or None
 
@@ -84,6 +92,7 @@ def active_language() -> str | None:
 def available_languages(localedir: Path | None = None) -> list[str]:
     """Locales ayant un catalogue compile, trouvees sur disque (pas de
     liste codee en dur)."""
+    logger.debug("available_languages(localedir={localedir})")
     dirs = [localedir] if localedir else locale_dirs()
     langs: set[str] = set()
     for d in dirs:
@@ -103,11 +112,13 @@ def _(message: str) -> str:
 
 def ngettext(singular: str, plural: str, n: int) -> str:
     """Forme singulier/pluriel selon ``n`` et les regles de la langue."""
+    logger.debug("ngettext(singular={singular}, plural={plural}, n={n})")
     return _current().ngettext(singular, plural, n)
 
 
 def N_(message: str) -> str:  # noqa: N802 -- convention gettext
     """Marque ``message`` pour l'extraction sans le traduire (constantes)."""
+    logger.debug("N_(message={message})")
     return message
 
 

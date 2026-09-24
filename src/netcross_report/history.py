@@ -57,8 +57,11 @@ import sqlite3
 from collections import Counter
 from dataclasses import dataclass
 
+from netcross_core.logging_config import get_logger
 from netcross_report.synthesis import build_findings
 from netcross_report.triage import HEALTH_LABELS, health_label, health_score, rank_segments
+
+logger = get_logger(__name__)
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS runs (
@@ -137,6 +140,7 @@ def _executer_schema(conn, db_path) -> None:
     try:
         conn.executescript(_SCHEMA)
     except sqlite3.DatabaseError as exc:
+        logger.exception("erreur: exc")
         raise HistoryDatabaseError(_message_base_invalide(db_path, exc)) from exc
 
 
@@ -186,6 +190,7 @@ def record_run(r, db_path, findings=None, tls_findings=None, quic_findings=None,
     label : etiquette libre optionnelle (nom de site/scenario) pour
     distinguer plusieurs historiques qui partagent le meme fichier .db.
     """
+    logger.debug("record_run(r={r}, db_path={db_path}, findings={findings}, ...)")
     if findings is None:
         findings = build_findings(r)
     all_findings = list(findings) + list(tls_findings or []) + list(quic_findings or [])
@@ -221,6 +226,7 @@ def record_diff_run(findings, baseline, current, db_path, meta=None, label=None)
     quic_findings_baseline/current : voir docstring de module pour la
     raison (meme choix assume que generate_json_diff/generate_diff_pdf).
     """
+    logger.debug("record_diff_run(findings={findings}, baseline={baseline}, current={current}, ...)")
     ranked = rank_segments(findings)
     score = health_score(ranked)
     conn = _connect(db_path)
@@ -267,6 +273,7 @@ def list_history(db_path, limit=None, label=None, run_type=None) -> list[History
     verification, un simple --history-show sur un chemin qui n'existe pas
     encore creerait une base vide comme effet de bord surprenant.
     """
+    logger.debug("list_history(db_path={db_path}, limit={limit}, label={label}, ...)")
     if not os.path.exists(db_path):
         return []
     conn = sqlite3.connect(db_path)
@@ -315,6 +322,7 @@ def print_history(entries: list[HistoryEntry]) -> None:
     exactement les entrees recues, dans l'ordre recu (deja le plus recent
     d'abord si issues de list_history) ; le nombre affiche se regle en
     amont via l'argument `limit` de list_history, pas ici."""
+    logger.debug("print_history(entries={entries})")
     print("=" * 70)
     print("HISTORIQUE DES RUNS ENREGISTRES")
     print("=" * 70)

@@ -54,7 +54,6 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 # netcross_core/netcross_report importables si ce fichier est lance directement
 # (python3 src/netcross_gtk4/app.py) sans PYTHONPATH=src prealable.
 from netcross_core import (  # noqa: E402
-    AddressRedactor,
     analyse,
     build_wireshark_expert_events,
     correlate,
@@ -62,14 +61,12 @@ from netcross_core import (  # noqa: E402
     parse_captures_parallel,
     parse_live,
     print_report,
-    read_capture_comments,
-    read_capture_infos,
-    redact_packets,
     write_detail_csv,
 )
-from netcross_core.baseline_diff import diff_reports, print_diff_report, write_diff_csv  # noqa: E402
+from netcross_core.baseline_diff import write_diff_csv  # noqa: E402
 from netcross_core.bpf_filters import PREDEFINED_BPF_FILTERS, available_bpf_filters, upsert_bpf_filter  # noqa: E402
 from netcross_core.forensic import DEFAULT_DUPLICATE_THRESHOLD_MS, detect_cross_capture_duplicates  # noqa: E402
+from netcross_core.logging_config import get_logger  # noqa: E402
 from netcross_gtk4 import capture_list, row_labels  # noqa: E402
 from netcross_gtk4.bpf_panel import (  # noqa: E402
     doit_desolidariser_le_menu,
@@ -110,6 +107,8 @@ from netcross_report.comm_map import (  # noqa: E402
     build_comm_map,
     format_comm_map,
 )
+
+logger = get_logger(__name__)
 
 
 def _visible_scroller(vexpand=True):
@@ -364,6 +363,7 @@ class LiveCaptureRow(Gtk.Box):
         try:
             self._on_save_filter(demande.filtre)
         except (OSError, ValueError) as exc:
+            logger.exception("erreur: exc")
             self._save_status.set_text(str(exc))
             return
         self._save_status.set_text("")
@@ -445,6 +445,7 @@ class CaptureListPanel(Gtk.Box):
         try:
             files = dialog.open_multiple_finish(result)
         except GLib.Error:
+            logger.exception("erreur inattendue")
             return
         for i in range(files.get_n_items()):
             gfile = files.get_item(i)
@@ -536,6 +537,7 @@ class LiveCaptureListPanel(Gtk.Box):
             # Fichier sidecar illisible : le catalogue predefini reste
             # utilisable et le fichier n'est PAS touche (upsert_bpf_filter
             # refuse d'ecraser un fichier qu'il ne sait pas relire).
+            logger.exception("erreur: exc")
             print(f"netcross: filtres BPF sauvegardes ignores ({exc})", file=sys.stderr)
             return list(PREDEFINED_BPF_FILTERS)
 
@@ -1479,6 +1481,7 @@ class MainWindow(Gtk.ApplicationWindow):
         except Exception as e:  # noqa: BLE001 -- thread de fond : toute erreur
             # (tshark, interface, permission...) doit remonter au journal GUI
             # plutot que de tuer le thread silencieusement.
+            logger.exception("erreur: e")
             GLib.idle_add(self._log, f"[{label}] ERREUR : {e}")
         GLib.idle_add(self._log, f"[{label}] capture arretee -- {count} paquet(s) au total.")
 
@@ -1559,6 +1562,7 @@ class MainWindow(Gtk.ApplicationWindow):
 
             text = buf.getvalue()
         except Exception as e:  # noqa: BLE001 -- thread de fond (analyse live) : toute erreur doit remonter au journal GUI.
+            logger.exception("erreur: e")
             GLib.idle_add(self._log, f"ERREUR : {e}")
             GLib.idle_add(self._on_analysis_error, str(e))
             GLib.idle_add(self._reset_live_ui)
@@ -1632,182 +1636,47 @@ class MainWindow(Gtk.ApplicationWindow):
         exclude_duplicates,
         duplicate_threshold_ms,
     ):
+        from netcross_gtk4.analysis_pipeline import AnalysisOptions, run_analysis_pipeline
+
+        options = AnalysisOptions(
+            bucket_ms=bucket_ms,
+            rtp_rate=rtp_rate,
+            nat_tolerant=nat_tolerant,
+            parallel=parallel,
+            auto_topology=auto_topology,
+            triage=triage,
+            triage_topn=triage_topn,
+            tls=tls,
+            quic=quic,
+            security=security,
+            redact=redact,
+            topn=topn,
+            detect_duplicates=detect_duplicates,
+            exclude_duplicates=exclude_duplicates,
+            duplicate_threshold_ms=duplicate_threshold_ms,
+        )
+
+        def _on_progress(msg):
+            GLib.idle_add(self._log, msg)
+
         try:
-            points_order = None if auto_topology else [label for label, _ in captures]
-
-            all_packets = self._load_packets(captures, parallel)
-
-            duplicate_counts = None
-            if detect_duplicates:
-                GLib.idle_add(
-                    self._log,
-                    f"Détection des doublons inter-captures (seuil {duplicate_threshold_ms:.1f} ms)...",
-                )
-                duplicate_counts = detect_cross_capture_duplicates(all_packets, duplicate_threshold_ms)
-                duplicate_total = sum(duplicate_counts.values())
-                GLib.idle_add(self._log, f"  -> {duplicate_total} paquet(s) dupliqué(s) détecté(s)")
-
-            if redact:
-                GLib.idle_add(self._log, "Anonymisation des adresses IP/MAC (--redact)...")
-                redactor = redact_packets(all_packets)
-                GLib.idle_add(self._log, f"  -> {len(redactor)} adresse(s) anonymisee(s)")
-
-            GLib.idle_add(self._log, "Correlation des flux entre points de capture...")
-            flows = correlate(all_packets, nat_tolerant, 200, exclude_duplicates)
-            GLib.idle_add(self._log, f"  -> {len(flows)} flux identifies")
-
-            GLib.idle_add(
-                self._log,
-                "Analyse (pertes, latence, TTL, QoS, fragmentation, debit, TCP, VLAN, RTP, DHCP, SIP...)...",
-            )
-            report = analyse(
-                flows,
-                points_order,
-                all_packets,
-                bucket_ms / 1000.0,
-                nat_tolerant,
-                rtp_rate,
-                topn,
-                exclude_duplicates=exclude_duplicates,
-                duplicate_counts=duplicate_counts,
-            )
-
-            # Signaux d'expertise BRUTS tshark : calcules ici, tant que les
-            # paquets sont sous la main. Les exports (JSON/PDF) surviennent
-            # apres la fin du thread, quand `all_packets` a ete libere --
-            # c'est le calcul qu'on avance, pas les paquets qu'on retient
-            # (voir _on_analysis_done).
-            GLib.idle_add(self._log, "Expertise tshark (signaux bruts)...")
-            wireshark_expert_events = build_wireshark_expert_events(all_packets)
-            GLib.idle_add(self._log, f"  -> {len(wireshark_expert_events)} signal(aux) d'expertise")
-
-            # Job 38/issue #158 + Job 39/issue #159 -- metadonnees de
-            # fichier (capture_comments, capture_infos) : lues ici, au
-            # dernier moment avant le rendu, meme discipline que la CLI.
-            if captures:
-                report.capture_comments = read_capture_comments(captures)
-                report.capture_infos = read_capture_infos(captures)
-
-            GLib.idle_add(self._log, "Mise en forme du rapport...")
-            buf = io.StringIO()
-            with contextlib.redirect_stdout(buf):
-                print_report(report)
-
-            findings = None
-            tls_findings = None
-            quic_findings = None
-            if triage:
-                GLib.idle_add(self._log, "Triage des segments...")
-                from netcross_report import (
-                    build_findings,
-                    format_health_line,
-                    health_score,
-                    print_triage,
-                    rank_segments,
-                )
-
-                findings = build_findings(report)
-                ranked = rank_segments(findings)
-                with contextlib.redirect_stdout(buf):
-                    print("\n" + "=" * 70)
-                    print("TRIAGE -- PAR OU COMMENCER")
-                    print("=" * 70)
-                    print_triage(ranked, triage_topn)
-                    print(format_health_line(health_score(ranked)))
-
-            if tls:
-                GLib.idle_add(self._log, "Diagnostic TLS (relecture des captures via tshark)...")
-                from netcross_core.tls_diagnostics import (
-                    build_handshake_status,
-                    diagnose_tls,
-                    parse_tls_capture,
-                    print_tls_diagnostics,
-                )
-
-                tls_events = []
-                for label, path in captures:
-                    tls_events.extend(parse_tls_capture(label, path))
-                status_by_point = build_handshake_status(tls_events)
-                tls_findings = diagnose_tls(status_by_point, report.points)
-                with contextlib.redirect_stdout(buf):
-                    print("\n" + "=" * 70)
-                    print("DIAGNOSTIC TLS")
-                    print("=" * 70)
-                    print_tls_diagnostics(tls_findings)
-
-            if quic:
-                GLib.idle_add(self._log, "Diagnostic QUIC (relecture des captures via tshark)...")
-                try:
-                    from netcross_core.quic_diagnostics import (
-                        diagnose_quic,
-                        parse_quic_capture,
-                        print_quic_diagnostics,
-                    )
-                except ImportError:
-                    with contextlib.redirect_stdout(buf):
-                        print("\n--quic necessite cryptography : pip install cryptography --break-system-packages")
-                else:
-                    quic_events = []
-                    for label, path in captures:
-                        quic_events.extend(parse_quic_capture(label, path))
-                    quic_findings = diagnose_quic(quic_events, report.points)
-                    with contextlib.redirect_stdout(buf):
-                        print("\n" + "=" * 70)
-                        print("DIAGNOSTIC QUIC/HTTP3")
-                        print("=" * 70)
-                        print_quic_diagnostics(quic_findings)
-
-            if security:
-                GLib.idle_add(
-                    self._log,
-                    "Analyse de securite (beaconing, exfiltration, DGA, "
-                    "fast flux, mouvements lateraux, flow_stats, DNS tunnel, "
-                    "TLS audit, CVE)...",
-                )
-                from netcross_core.security import scan_capture_exploits as _scan_exploits
-                from netcross_core.security.findings import apply_security_findings
-
-                detections = []
-                for label, path in captures:
-                    detections.extend(_scan_exploits(label, path))
-                apply_security_findings(report, all_packets, detections=detections)
-                GLib.idle_add(self._log, f"  -> {len(report.security_findings)} constat(s) de securite")
-                with contextlib.redirect_stdout(buf):
-                    print("\n" + "=" * 70)
-                    print("SECURITE")
-                    print("=" * 70)
-                    for f in report.security_findings:
-                        sev = f.get("severity", "?")
-                        cat = f.get("category", "?")
-                        detail = f.get("detail", "?")
-                        print(f"  [{sev}] ({cat}) {detail}")
-                    if not report.security_findings:
-                        print("  Aucun constat de securite.")
-                    if report.asset_inventory:
-                        print(f"\n  Inventaire d'actifs : {len(report.asset_inventory)} hote(s)")
-                    if report.lateral_movement_events:
-                        print(f"  Mouvements lateraux : {len(report.lateral_movement_events)} evenement(s)")
-                    if report.dga_alerts:
-                        print(f"  DGA : {len(report.dga_alerts)} alerte(s)")
-                    if report.fast_flux_alerts:
-                        print(f"  Fast flux : {len(report.fast_flux_alerts)} alerte(s)")
-
-            text = buf.getvalue()
-        except Exception as e:  # noqa: BLE001 -- thread de fond (analyse fichier) : toute erreur doit remonter au journal GUI.
+            result = run_analysis_pipeline(captures, options, on_progress=_on_progress)
+        except Exception as e:  # noqa: BLE001 -- thread de fond
+            logger.exception("erreur: e")
             GLib.idle_add(self._log, f"ERREUR : {e}")
             GLib.idle_add(self._on_analysis_error, str(e))
             return
-        GLib.idle_add(self._log, "Analyse terminee.")
+
         GLib.idle_add(
             self._on_analysis_done,
-            "single",
-            report,
-            flows,
-            findings,
-            text,
-            tls_findings,
-            quic_findings,
-            wireshark_expert_events,
+            result.mode,
+            result.report,
+            result.flows,
+            result.findings,
+            result.text,
+            result.tls_findings,
+            result.quic_findings,
+            result.wireshark_expert_events,
         )
 
     def _run_diff_thread(
@@ -1825,132 +1694,42 @@ class MainWindow(Gtk.ApplicationWindow):
         tls,
         quic,
     ):
+        from netcross_gtk4.diff_pipeline import DiffOptions, run_diff_pipeline
+
+        options = DiffOptions(
+            bucket_ms=bucket_ms,
+            rtp_rate=rtp_rate,
+            nat_tolerant=nat_tolerant,
+            parallel=parallel,
+            auto_topology=auto_topology,
+            loss_min_pp=loss_min_pp,
+            latency_min_ms=latency_min_ms,
+            redact=redact,
+            tls=tls,
+            quic=quic,
+        )
+
+        def _on_progress(msg):
+            GLib.idle_add(self._log, msg)
+
         try:
-            redactor = AddressRedactor() if redact else None
-            points_order = None if auto_topology else [label for label, _ in baseline_captures]
-
-            GLib.idle_add(self._log, "=== CHARGEMENT DU BASELINE ===")
-            baseline_packets = self._load_packets(baseline_captures, parallel)
-            if redactor is not None:
-                redactor.redact(baseline_packets)
-            baseline_flows = correlate(baseline_packets, nat_tolerant, 200)
-            baseline_report = analyse(
-                baseline_flows,
-                points_order,
-                baseline_packets,
-                bucket_ms / 1000.0,
-                nat_tolerant,
-                rtp_rate,
-            )
-
-            points_order_current = None if auto_topology else [label for label, _ in current_captures]
-            GLib.idle_add(self._log, "=== CHARGEMENT DU RUN COURANT ===")
-            current_packets = self._load_packets(current_captures, parallel)
-            if redactor is not None:
-                # meme objet redactor pour baseline ET courant : une adresse
-                # reelle presente des deux cotes doit obtenir le meme
-                # pseudonyme, sans quoi le diff perdrait tout son sens.
-                redactor.redact(current_packets)
-                GLib.idle_add(self._log, f"{len(redactor)} adresse(s) anonymisee(s) (IP/MAC) -- baseline et courant.")
-            current_flows = correlate(current_packets, nat_tolerant, 200)
-            current_report = analyse(
-                current_flows,
-                points_order_current,
-                current_packets,
-                bucket_ms / 1000.0,
-                nat_tolerant,
-                rtp_rate,
-            )
-
-            GLib.idle_add(self._log, "Comparaison baseline / courant...")
-            findings = diff_reports(
-                baseline_report,
-                current_report,
-                loss_min_pp=loss_min_pp,
-                latency_min_ms=latency_min_ms,
-            )
-
-            buf = io.StringIO()
-            with contextlib.redirect_stdout(buf):
-                print_diff_report(findings)
-
-            tls_findings_baseline = tls_findings_current = None
-            quic_findings_baseline = quic_findings_current = None
-
-            if tls:
-                GLib.idle_add(self._log, "Diagnostic TLS (relecture des captures via tshark)...")
-                from netcross_core.tls_diagnostics import (
-                    build_handshake_status,
-                    diagnose_tls,
-                    parse_tls_capture,
-                    print_tls_diagnostics,
-                )
-
-                def _tls_findings(captures):
-                    events = []
-                    for label, path in captures:
-                        events.extend(parse_tls_capture(label, path))
-                    return diagnose_tls(build_handshake_status(events), points_order)
-
-                tls_findings_baseline = _tls_findings(baseline_captures)
-                tls_findings_current = _tls_findings(current_captures)
-                with contextlib.redirect_stdout(buf):
-                    print("\n" + "=" * 70)
-                    print("DIAGNOSTIC TLS -- BASELINE")
-                    print("=" * 70)
-                    print_tls_diagnostics(tls_findings_baseline)
-                    print("\n" + "=" * 70)
-                    print("DIAGNOSTIC TLS -- COURANT")
-                    print("=" * 70)
-                    print_tls_diagnostics(tls_findings_current)
-
-            if quic:
-                GLib.idle_add(self._log, "Diagnostic QUIC (relecture des captures via tshark)...")
-                try:
-                    from netcross_core.quic_diagnostics import (
-                        diagnose_quic,
-                        parse_quic_capture,
-                        print_quic_diagnostics,
-                    )
-                except ImportError:
-                    with contextlib.redirect_stdout(buf):
-                        print("\n--quic necessite cryptography : pip install cryptography --break-system-packages")
-                else:
-
-                    def _quic_findings(captures):
-                        events = []
-                        for label, path in captures:
-                            events.extend(parse_quic_capture(label, path))
-                        return diagnose_quic(events, points_order)
-
-                    quic_findings_baseline = _quic_findings(baseline_captures)
-                    quic_findings_current = _quic_findings(current_captures)
-                    with contextlib.redirect_stdout(buf):
-                        print("\n" + "=" * 70)
-                        print("DIAGNOSTIC QUIC/HTTP3 -- BASELINE")
-                        print("=" * 70)
-                        print_quic_diagnostics(quic_findings_baseline)
-                        print("\n" + "=" * 70)
-                        print("DIAGNOSTIC QUIC/HTTP3 -- COURANT")
-                        print("=" * 70)
-                        print_quic_diagnostics(quic_findings_current)
-
-            text = buf.getvalue()
-        except Exception as e:  # noqa: BLE001 -- thread de fond (comparaison baseline/courant) : idem.
+            result = run_diff_pipeline(baseline_captures, current_captures, options, on_progress=_on_progress)
+        except Exception as e:  # noqa: BLE001 -- thread de fond
+            logger.exception("erreur: e")
             GLib.idle_add(self._log, f"ERREUR : {e}")
             GLib.idle_add(self._on_analysis_error, str(e))
             return
-        GLib.idle_add(self._log, "Comparaison terminee.")
+
         GLib.idle_add(
             self._on_diff_done,
-            findings,
-            baseline_report,
-            current_report,
-            text,
-            tls_findings_baseline,
-            tls_findings_current,
-            quic_findings_baseline,
-            quic_findings_current,
+            result.findings,
+            result.baseline_report,
+            result.current_report,
+            result.text,
+            result.tls_findings_baseline,
+            result.tls_findings_current,
+            result.quic_findings_baseline,
+            result.quic_findings_current,
         )
 
     def _on_analysis_error(self, message):
@@ -2085,6 +1864,7 @@ class MainWindow(Gtk.ApplicationWindow):
         try:
             gfile = dialog.save_finish(result)
         except GLib.Error:
+            logger.exception("erreur inattendue")
             return
         path = gfile.get_path()
         try:
@@ -2093,6 +1873,7 @@ class MainWindow(Gtk.ApplicationWindow):
             else:
                 write_diff_csv(self.last_diff_findings, path)
         except Exception as e:  # noqa: BLE001 -- callback GUI (export CSV) : erreur affichee dans la barre de statut plutot que de faire planter l'appli.
+            logger.exception("erreur: e")
             self.status_label.set_text(f"Erreur CSV : {e}")
             return
         self.status_label.set_text(f"CSV ecrit : {path}")
@@ -2110,6 +1891,7 @@ class MainWindow(Gtk.ApplicationWindow):
         try:
             gfile = dialog.save_finish(result)
         except GLib.Error:
+            logger.exception("erreur inattendue")
             return
         self.export_pdf_to(gfile.get_path())
 
@@ -2231,6 +2013,7 @@ class MainWindow(Gtk.ApplicationWindow):
         try:
             file_obj = dialog.save_finish(result)
         except Exception:
+            logger.exception("erreur: Exception")
             return
         if file_obj is None:
             return
@@ -2245,6 +2028,7 @@ class MainWindow(Gtk.ApplicationWindow):
                 fh.write(export_csv(rows))
             self.status_label.set_text(f"Statistiques exportees : {path}")
         except OSError as exc:
+            logger.exception("erreur: exc")
             self.status_label.set_text(f"Erreur export CSV : {exc}")
 
     def _on_stats_export_json(self, _btn):
@@ -2262,6 +2046,7 @@ class MainWindow(Gtk.ApplicationWindow):
         try:
             file_obj = dialog.save_finish(result)
         except Exception:
+            logger.exception("erreur: Exception")
             return
         if file_obj is None:
             return
@@ -2278,6 +2063,7 @@ class MainWindow(Gtk.ApplicationWindow):
                 json.dump(export_json(rows), fh, indent=2, ensure_ascii=False)
             self.status_label.set_text(f"Statistiques exportees : {path}")
         except OSError as exc:
+            logger.exception("erreur: exc")
             self.status_label.set_text(f"Erreur export JSON : {exc}")
 
     # ================= cartographie des communications (issue #15) =================
@@ -2451,6 +2237,7 @@ class MainWindow(Gtk.ApplicationWindow):
             self.comm_map_picture.set_filename(rendu)
             self.comm_map_label.set_text(format_comm_map(cmap))
         except Exception as e:  # noqa: BLE001 -- dependances de rendu optionnelles, voir docstring
+            logger.exception("erreur: e")
             self.comm_map_picture.set_filename(None)
             self.comm_map_label.set_text(f"Cartographie indisponible : {e}")
         return False
@@ -2509,6 +2296,7 @@ class MainWindow(Gtk.ApplicationWindow):
                     quic_findings_current=self.last_diff_quic_findings_current,
                 )
         except Exception as e:  # noqa: BLE001 -- thread de fond (export PDF) : idem, erreur affichee via GLib.idle_add.
+            logger.exception("erreur: e")
             GLib.idle_add(self._on_pdf_error, str(e))
             return
         GLib.idle_add(self._on_pdf_done, path)
@@ -2538,6 +2326,7 @@ class MainWindow(Gtk.ApplicationWindow):
         try:
             gfile = dialog.save_finish(result)
         except GLib.Error:
+            logger.exception("erreur inattendue")
             return
         self.export_json_to(gfile.get_path())
 
@@ -2573,6 +2362,7 @@ class MainWindow(Gtk.ApplicationWindow):
                     quic_findings_current=self.last_diff_quic_findings_current,
                 )
         except Exception as e:  # noqa: BLE001 -- thread de fond (export JSON) : idem, erreur affichee via GLib.idle_add.
+            logger.exception("erreur: e")
             GLib.idle_add(self._on_json_error, str(e))
             return
         GLib.idle_add(self._on_json_done, path)

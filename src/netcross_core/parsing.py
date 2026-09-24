@@ -33,12 +33,14 @@ import sys
 import pcap_parser
 from netcross_core.application.banners import extract_banners
 from netcross_core.fingerprint.report import compute_pkt_fingerprints
+from netcross_core.logging_config import get_logger
 from netcross_core.models import Pkt
 from pcap_parser.capinfos_source import read_capture_comment
 from pcap_parser.ek_source import TsharkError, TsharkNotFoundError
 from pcap_parser.packet import RawPacket
 from pcap_parser.protocols import compute_mos
 
+logger = get_logger(__name__)
 __all__ = [
     "compute_mos",
     "detect_encapsulation",
@@ -128,6 +130,7 @@ def _to_pkt(label: str, raw: RawPacket) -> Pkt:
         http_content_type=raw.http_content_type,
         http_content_length=raw.http_content_length,
         tcp_len=raw.tcp_len,
+        dns_answers=raw.dns_answers,
         comment=raw.comment,
         ip_checksum=raw.ip_checksum,
         ip_checksum_bad=raw.ip_checksum_bad,
@@ -157,6 +160,7 @@ def parse_capture(label, path, raise_on_error=False) -> list[Pkt]:
     try:
         raw_packets = pcap_parser.parse_capture(path, raise_on_error=True)
     except (TsharkNotFoundError, TsharkError) as e:
+        logger.exception("erreur: e")
         if raise_on_error:
             raise
         print(f"[{label}] impossible de lire {path} : {e}", file=sys.stderr)
@@ -218,6 +222,7 @@ def parse_captures_parallel(captures, max_workers=None) -> tuple[list[Pkt], list
             except Exception as e:  # noqa: BLE001 -- catch-all volontaire : un
                 # fichier en echec (tshark absent, pcap corrompu, permission...)
                 # ne doit jamais interrompre le traitement parallele des autres.
+                logger.exception("erreur: e")
                 per_file_stats.append(
                     {
                         "label": label,
@@ -249,6 +254,7 @@ def read_capture_comments(captures) -> list[str]:
     traitement silencieux (voir read_capture_comment), un commentaire
     reste une annotation facultative, jamais une raison d'interrompre
     l'analyse ni d'exiger --raise-on-error comme parse_capture."""
+    logger.debug("read_capture_comments(captures={captures})")
     comments = []
     for label, path in captures:
         comment = read_capture_comment(path)
@@ -276,6 +282,7 @@ def read_capture_infos(captures) -> list[dict]:
     dropped_by_interface, dropped_by_os, interfaces (liste de dicts
     plats avec index, linktype, snaplen, name, received,
     dropped_by_interface, dropped_by_os). Les cles absentes valent None."""
+    logger.debug("read_capture_infos(captures={captures})")
     from pcap_parser.capinfos_source import read_capture_info
 
     infos = []
@@ -332,6 +339,7 @@ def parse_live(label, interface, bpf_filter=None, stop_event=None):
     thread pour demander l'arret -- voir pcap_parser.iter_live /
     ek_source.iter_ek_records pour le detail (arret reactif y compris
     sans trafic sur l'interface)."""
+    logger.debug("parse_live(label={label}, interface={interface}, bpf_filter={bpf_filter}, ...)")
     for raw in pcap_parser.iter_live(interface, bpf_filter=bpf_filter, stop_event=stop_event):
         yield _to_pkt(label, raw)
 
@@ -351,6 +359,7 @@ def parse_live_multi(interfaces, stop_event=None, *, bpf_filter=None):
     arguments (liste vide, label en double...) leve ValueError des
     l'appel, pas au premier paquet -- utile a un appelant qui lance la
     capture dans un thread (LiveDiffEngine.start_multi)."""
+    logger.debug("parse_live_multi(interfaces={interfaces}, stop_event={stop_event})")
     packets = pcap_parser.iter_live_multi(interfaces, stop_event=stop_event, bpf_filter=bpf_filter)
     return (_to_pkt(label, raw) for label, raw in packets)
 
@@ -360,12 +369,14 @@ def parse_live_multi(interfaces, stop_event=None, *, bpf_filter=None):
 
 
 def parse_rtp(payload: bytes):
+    logger.debug("parse_rtp(payload={payload})")
     from pcap_parser.protocols import _parse_rtp_heuristic
 
     return _parse_rtp_heuristic(payload)
 
 
 def parse_sip(payload: bytes):
+    logger.debug("parse_sip(payload={payload})")
     from pcap_parser.protocols import _parse_sip_heuristic
 
     return _parse_sip_heuristic(payload)
@@ -376,6 +387,7 @@ def detect_encapsulation(layers: dict):
     module : prend desormais le dict "layers" EK d'un paquet (pcap_parser),
     pas un objet de l'ancien decodeur. Fourni pour compat de nom -- voir
     pcap_parser.tunnels.detect_encapsulation pour l'implementation."""
+    logger.debug("detect_encapsulation(layers={layers})")
     from pcap_parser.tunnels import detect_encapsulation as _detect
 
     return _detect(layers)

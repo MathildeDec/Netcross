@@ -23,5 +23,8 @@ options ``--ai-anomalies``/``--ai-classify`` le signalent (voir ``optional``).
 
 from netcross_ai.features import FEATURE_NAMES, flow_features
 from netcross_ai.optional import AIUnavailableError, ml_available, require_ml
+from netcross_core.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 __all__ = ["FEATURE_NAMES", "AIUnavailableError", "flow_features", "ml_available", "require_ml"]

@@ -39,6 +39,10 @@ import json
 from functools import lru_cache
 from pathlib import Path
 
+from netcross_core.logging_config import get_logger
+
+logger = get_logger(__name__)
+
 _DEFAULT_PATH = Path(__file__).with_name("known_fingerprints.json")
 
 
@@ -57,6 +61,7 @@ def load_known_fingerprints(path: str | Path | None = None) -> dict[str, dict]:
     try:
         return _load_cached(str(path or _DEFAULT_PATH))
     except (OSError, json.JSONDecodeError):
+        logger.exception("erreur: e")
         return {"ja4": {}, "hassh": {}}
 
 
@@ -65,6 +70,7 @@ def identify_tool(fingerprint_type: str, fingerprint: str, known: dict[str, dict
     absent de la base (charge la base livree par defaut si `known` n'est
     pas fourni -- eviter de la recharger a chaque paquet quand on traite
     une capture entiere, voir `fingerprint.report`)."""
+    logger.debug("identify_tool(fingerprint_type={fingerprint_type}, fingerprint={fingerprint}, known={known})")
     known = known if known is not None else load_known_fingerprints()
     valeur = known.get(fingerprint_type, {}).get(fingerprint)
     if isinstance(valeur, dict):

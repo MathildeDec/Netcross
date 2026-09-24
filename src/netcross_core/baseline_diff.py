@@ -25,7 +25,10 @@ import statistics
 from dataclasses import dataclass, field
 
 from netcross_core.expert_model import EvidenceLink, PacketEvidence
+from netcross_core.logging_config import get_logger
 from netcross_core.models import Report
+
+logger = get_logger(__name__)
 
 SEVERITY_ORDER = {"regression": 0, "a_verifier": 1, "amelioration": 2, "stable": 3}
 
@@ -118,6 +121,7 @@ def _http_error_evidence(examples: list[str], status_class: int, frames: list[in
         try:
             code = int(ex.rsplit(" ", 1)[-1])
         except ValueError:
+            logger.exception("erreur: ValueError")
             continue
         if code // 100 == status_class:
             texts.append(ex)
@@ -277,6 +281,7 @@ def diff_reports(
     baseline : le scenario de reference (avant le correctif, site A...)
     current  : le scenario a evaluer (apres le correctif, site B...)
     """
+    logger.debug("diff_reports(baseline={baseline}, current={current}, loss_min_pp={loss_min_pp}, ...)")
     common_points, only_before, only_after = _common_points(baseline, current)
 
     findings: list[DiffFinding] = [
@@ -876,6 +881,7 @@ def diff_reports(
 
 
 def print_diff_report(findings: list[DiffFinding]) -> None:
+    logger.debug("print_diff_report(findings={findings})")
     print("=" * 70)
     print("COMPARAISON AVANT / APRES (baseline vs courant)")
     print("=" * 70)

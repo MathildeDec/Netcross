@@ -71,6 +71,10 @@ import csv
 import ipaddress
 import re
 
+from netcross_core.logging_config import get_logger
+
+logger = get_logger(__name__)
+
 _IPV4_DOC_BLOCKS = (
     (192, 0, 2),  # RFC 5737 TEST-NET-1
     (198, 51, 100),  # RFC 5737 TEST-NET-2
@@ -124,6 +128,7 @@ def _ip_kind(value: str) -> str | None:
     try:
         return "ipv6" if ipaddress.ip_address(value).version == 6 else "ipv4"
     except ValueError:
+        logger.exception("erreur: ValueError")
         return None
 
 
@@ -155,6 +160,7 @@ class AddressRedactor:
     def redact(self, packets) -> None:
         """Mutation en place de chaque paquet de `packets` (Pkt ou
         RawPacket, voir docstring de module)."""
+        logger.debug("redact(self={self}, packets={packets})")
         for pk in packets:
             self._redact_one(pk)
 
@@ -193,6 +199,7 @@ class AddressRedactor:
         """Tuples (adresse_reelle, pseudonyme, type), tries par type puis
         par pseudonyme -- ordre stable pour un export reproductible
         (--redact-map, tests)."""
+        logger.debug("entries(self={self})")
         return sorted(
             ((addr, pseudo, kind) for addr, (pseudo, kind) in self._map.items()),
             key=lambda t: (t[2], t[1]),
@@ -205,6 +212,7 @@ class AddressRedactor:
     def mapping(self) -> dict[str, str]:
         """Vue simplifiee adresse_reelle -> pseudonyme (sans le type),
         pour un usage programmatique simple (tests notamment)."""
+        logger.debug("mapping(self={self})")
         return {addr: pseudo for addr, (pseudo, _kind) in self._map.items()}
 
 
@@ -213,6 +221,7 @@ def redact_packets(packets) -> AddressRedactor:
     paquets) : construit un AddressRedactor neuf, redige `packets`,
     renvoie le redacteur (mapping/entries() consultables ensuite,
     notamment pour --redact-map)."""
+    logger.debug("redact_packets(packets={packets})")
     redactor = AddressRedactor()
     redactor.redact(packets)
     return redactor
@@ -225,6 +234,7 @@ def write_redaction_map_csv(redactor: AddressRedactor, path: str) -> None:
     permet de retrouver plus tard a quelle adresse reelle correspond un
     pseudonyme mentionne par un tiers (ex: un support vendeur qui cite
     192.0.2.4 dans sa reponse)."""
+    logger.debug("write_redaction_map_csv(redactor={redactor}, path={path})")
     with open(path, "w", newline="", encoding="utf-8") as fh:
         writer = csv.writer(fh)
         writer.writerow(["adresse_reelle", "pseudonyme", "type"])

@@ -22,7 +22,10 @@ from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
+from netcross_core.logging_config import get_logger
 from netcross_core.support.scrubber import TextScrubber
+
+logger = get_logger(__name__)
 
 SEVERITIES = ("critique", "elevee", "moyenne", "faible")
 DETAIL_LEVELS = ("resume", "complet")
@@ -39,16 +42,19 @@ def severity_rank(severity: str | None) -> int:
     try:
         return SEVERITIES.index(str(severity).lower())
     except ValueError:
+        logger.exception("erreur: ValueError")
         return len(SEVERITIES)
 
 
 def meets_threshold(severity: str | None, threshold: str) -> bool:
     """Vrai si `severity` est au moins aussi grave que `threshold`."""
+    logger.debug("meets_threshold(severity={severity}, threshold={threshold})")
     return severity_rank(severity) <= severity_rank(threshold)
 
 
 def finding_key(finding: Mapping[str, Any]) -> str:
     """Identite stable d'un constat (pour l'anti-repetition)."""
+    logger.debug("finding_key(finding={finding})")
     detail = _VOLATILE.sub("", str(finding.get("detail") or "")).strip()
     parts = [
         str(finding.get(k) or "") for k in ("severity", "category", "cve_id", "signature_id", "host", "port", "point")
@@ -61,6 +67,7 @@ def findings_fingerprint(findings: Iterable[Mapping[str, Any]]) -> str:
     des compteurs volatils : deux analyses de la meme capture -- ou une tache
     planifiee qui retrouve le meme probleme toutes les heures -- donnent la
     meme empreinte."""
+    logger.debug("findings_fingerprint(findings={findings})")
     keys = sorted({finding_key(f) for f in findings})
     return hashlib.sha256(json.dumps(keys, ensure_ascii=False).encode("utf-8")).hexdigest()
 
@@ -95,6 +102,7 @@ class NotificationSummary:
         }
 
     def to_text(self) -> str:
+        logger.debug("to_text(self={self})")
         counts = ", ".join(f"{sev}={self.by_severity.get(sev, 0)}" for sev in SEVERITIES)
         lines = [
             f"{self.title} : niveau {self.level or 'aucun'}, score {self.score}/100",
@@ -140,6 +148,7 @@ def build_summary(
     seul calcul du score dans le projet, pas une seconde formule ici).
     L'empreinte ne porte que sur les constats AU-DESSUS du seuil : un
     constat faible qui change ne doit pas re-notifier une alerte critique."""
+    logger.debug("build_summary(findings={findings})")
     if threshold not in SEVERITIES:
         raise ValueError(f"seuil inconnu : {threshold!r} (attendu : {', '.join(SEVERITIES)})")
     if detail not in DETAIL_LEVELS:
