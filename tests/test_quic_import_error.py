@@ -20,14 +20,14 @@ def test_quic_diagnostics_import_error_sans_cryptography(monkeypatch):
             monkeypatch.delitem(sys.modules, mod, raising=False)
 
     # Empeche l'import de cryptography
+    # Protocole moderne (find_spec) : depuis Python 3.12, sys.meta_path
+    # n'appelle plus find_module/load_module -- un bloqueur a l'ancienne
+    # est ignore et cryptography s'importerait normalement.
     class _BlockCryptography:
-        def find_module(self, name, path=None):
+        def find_spec(self, name, path=None, target=None):
             if name == "cryptography" or name.startswith("cryptography."):
-                return self
+                raise ImportError(f"blocked: {name}")
             return None
-
-        def load_module(self, name):
-            raise ImportError(f"blocked: {name}")
 
     blocker = _BlockCryptography()
     # Insere le blocker au debut de sys.meta_path
