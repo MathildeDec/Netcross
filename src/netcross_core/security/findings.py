@@ -47,6 +47,7 @@ from typing import Any
 
 import pcap_parser
 from netcross_core.application.banners import build_service_fingerprints
+from netcross_core.discovery.assets import build_asset_inventory
 from netcross_core.exploit_signatures import Detection, Signature, detect_exploits
 from netcross_core.fingerprint.report import build_fingerprint_records
 from netcross_core.logging_config import get_logger
@@ -59,7 +60,6 @@ from netcross_core.security.exfiltration import correlate_exfiltration, detect_e
 from netcross_core.security.fast_flux import detect_fast_flux
 from netcross_core.security.flow_stats import analyze_flow_stats
 from netcross_core.security.lateral_movement import detect_lateral_movement
-from netcross_core.discovery.assets import build_asset_inventory
 from netcross_core.security.protocol_mismatch import (
     count_protocol_mismatches,
     detect_protocol_mismatches,
