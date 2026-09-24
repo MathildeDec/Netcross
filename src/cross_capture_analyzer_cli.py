@@ -2778,7 +2778,6 @@ def main():
 
     # Issue #361 : statistiques tshark -- code present mais non raccorde
     if args.tshark_stats:
-        import json
         from dataclasses import asdict
         from netcross_core.tshark_stats import (
             collect_conversations,
@@ -2786,6 +2785,7 @@ def main():
             collect_protocol_hierarchy,
             collect_io_stat,
         )
+        import json
 
         stats = {"captures": []}
         for label, path in captures:
