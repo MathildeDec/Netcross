@@ -11,12 +11,15 @@ from __future__ import annotations
 
 import re
 
+from netcross_core.logging_config import get_logger
 from netcross_core.tshark_stats.models import ResponseTimeStat
 from netcross_core.tshark_stats.parse_utils import (
     is_filter_line,
     is_separator,
     parse_float,
 )
+
+logger = get_logger(__name__)
 
 #: Ligne "etiquette .... nombre" avec unite optionnelle (ms, s...).
 _LABELED_RE = re.compile(r"^\s*(.+?)\s{2,}([\d.,]+)\s*$")
@@ -32,6 +35,7 @@ def parse_response_time(text: str, application: str = "http") -> ResponseTimeSta
 
     Retourne None si aucune metrique identifiable.
     """
+    logger.debug("parse_response_time(text={text}, application={application})")
     count = min_ms = max_ms = mean_ms = median_ms = None
     raw: dict[str, str] = {}
     for line in text.splitlines():

@@ -25,7 +25,10 @@ from __future__ import annotations
 
 import hashlib
 
+from netcross_core.logging_config import get_logger
 from netcross_core.models import ROLE_CLIENT, ROLE_SERVER
+
+logger = get_logger(__name__)
 
 _SSH_MSG_KEXINIT = 20
 _COOKIE_LEN = 16
@@ -61,6 +64,7 @@ def parse_kexinit(payload: bytes) -> dict | None:
     try:
         return _parse_kexinit(payload)
     except (IndexError, UnicodeError):
+        logger.exception("erreur: e")
         return None
 
 
@@ -119,6 +123,7 @@ def compute_hassh(kexinit: dict, role: str = ROLE_CLIENT) -> str:
     HASSHServer (role=ROLE_SERVER, algorithmes cote serveur->client) :
     MD5 de "kex;chiffrement;MAC;compression" (chaque champ = ses
     algorithmes dans l'ordre d'emission, joints par une virgule)."""
+    logger.debug("compute_hassh(kexinit={kexinit}, role={role})")
     if role == ROLE_SERVER:
         enc, mac, comp = (
             kexinit["encryption_algorithms_server_to_client"],
@@ -138,6 +143,7 @@ def compute_hassh(kexinit: dict, role: str = ROLE_CLIENT) -> str:
 def readable_kexinit(kexinit: dict, role: str = ROLE_CLIENT) -> str:
     """Chaine lisible pour un analyste -- pas une norme, format propre a
     ce projet."""
+    logger.debug("readable_kexinit(kexinit={kexinit}, role={role})")
     enc_key = "encryption_algorithms_" + ("server_to_client" if role == ROLE_SERVER else "client_to_server")
     mac_key = "mac_algorithms_" + ("server_to_client" if role == ROLE_SERVER else "client_to_server")
     comp_key = "compression_algorithms_" + ("server_to_client" if role == ROLE_SERVER else "client_to_server")
@@ -155,6 +161,7 @@ def identify(payload: bytes, sport: int | None, dport: int | None) -> tuple[str,
     sinon. `role` suit la meme heuristique que
     `application.banners._ssh_banners` : port serveur (22) cote
     destination -> l'emetteur est le client."""
+    logger.debug("identify(payload={payload}, sport={sport}, dport={dport})")
     kexinit = parse_kexinit(payload)
     if kexinit is None:
         return None

@@ -168,6 +168,17 @@ def analyse(
             first_seen_idx = points.index(present_points[0])
             for idx, p in enumerate(points):
                 if idx > first_seen_idx and p not in per_point and any(points[j] in per_point for j in range(idx)):
+                    # Issue #352 : ne pas confondre un flux hors chemin
+                    # (jamais vu en aval, ni aller ni retour) avec une perte
+                    # reelle. Un flux vu uniquement au point A (scan local LAN)
+                    # ne doit pas etre compte comme perdu a B et C : il n'a
+                    # jamais traverse ces points. On ne compte une perte que
+                    # si le flux etait vu au point IMMEDIATEMENT precedent dans
+                    # le chemin -- c'est le signal que le flux etait bien sur le
+                    # chemin et a disparu entre deux points consecutifs.
+                    prev_point = points[idx - 1]
+                    if prev_point not in per_point:
+                        continue  # flux hors chemin : pas vu au point precedent
                     r.loss_count[p] += 1
                     nearest_j = max(j for j in range(idx) if points[j] in per_point)
                     a_point = points[nearest_j]
@@ -764,6 +775,7 @@ def _parse_tls_cert_date(s: str | None) -> datetime | None:
     try:
         return datetime.strptime(s.removesuffix(" (UTC)"), "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
     except ValueError:
+        logger.exception("erreur: ValueError")
         return None
 
 
@@ -1128,6 +1140,7 @@ def _analyse_saturation(r: Report):
         try:
             p75 = statistics.quantiles(all_vals, n=4)[2] if len(all_vals) >= 4 else statistics.mean(all_vals)
         except statistics.StatisticsError:
+            logger.exception("erreur inattendue")
             p75 = statistics.mean(all_vals)
 
         frac_high = sum(1 for v in loss_vals if v >= p75) / len(loss_vals)

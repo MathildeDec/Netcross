@@ -26,6 +26,9 @@ from pathlib import Path
 
 #: Types d'equipement reconnus (non exhaustif -- tout type est accepte en
 #: entree, la table ne valide pas le vocabulaire).
+from netcross_core.logging_config import get_logger
+
+logger = get_logger(__name__)
 KNOWN_TYPES = ("client", "serveur", "routeur", "firewall", "ap", "autre")
 
 #: Extensions de fichiers reconnues pour la persistance.
@@ -56,6 +59,7 @@ class NameEntry:
         adresses respecte la casse (les adresses IP n'en ont pas, mais les
         noms d'hotes IPv6 ou labels le pourraient).
         """
+        logger.debug("matches(self={self}, address={address}, mac={mac})")
         return (address is not None and self.address == address) or (
             mac is not None and self.mac is not None and self.mac.lower() == mac.lower()
         )
@@ -80,6 +84,7 @@ class NameTable:
     def add(self, entry: NameEntry) -> None:
         """Ajoute une entree. Ecrase une entree precedente pour la meme
         adresse ou MAC."""
+        logger.debug("add(self={self}, entry={entry})")
         if not entry.name:
             raise ValueError("NameEntry.name est requis")
         if entry.address is None and entry.mac is None:
@@ -94,12 +99,14 @@ class NameTable:
 
     def resolve(self, address: str | None) -> NameEntry | None:
         """Retourne l'entree correspondant a une adresse, ou None."""
+        logger.debug("resolve(self={self}, address={address})")
         if address is None:
             return None
         return self._by_address.get(address)
 
     def resolve_mac(self, mac: str | None) -> NameEntry | None:
         """Retourne l'entree correspondant a une MAC, ou None."""
+        logger.debug("resolve_mac(self={self}, mac={mac})")
         if mac is None:
             return None
         return self._by_mac.get(mac.lower())
@@ -108,6 +115,7 @@ class NameTable:
         """Retourne le nom logique d'une adresse, ou l'adresse brute si
         aucune entree ne correspond (ou si l'adresse est None -> chaine
         vide). C'est le point d'entree unique des rendus."""
+        logger.debug("display(self={self}, address={address})")
         if address is None:
             return ""
         entry = self._by_address.get(address)
@@ -117,6 +125,7 @@ class NameTable:
 
     def to_list(self) -> list[dict]:
         """Liste de dictionnaires (ordre stable) pour la serialisation."""
+        logger.debug("to_list(self={self})")
         return [asdict(e) for e in self._entries]
 
     @classmethod
@@ -124,6 +133,7 @@ class NameTable:
         """Construit une table depuis une liste de dictionnaires. Les
         cles manquantes prennent leur valeur par defaut ; ``name`` est
         requis."""
+        logger.debug("from_list(cls={cls}, items={items})")
         entries: list[NameEntry] = []
         for i, item in enumerate(items):
             if "name" not in item or not item["name"]:
@@ -145,6 +155,7 @@ class NameTable:
     def load(cls, path: str | Path) -> NameTable:
         """Charge une table depuis un fichier JSON ou YAML (choix par
         extension). YAML necessite ``pyyaml`` (import lazy)."""
+        logger.debug("load(cls={cls}, path={path})")
         p = Path(path)
         if not p.exists():
             raise FileNotFoundError(f"table des noms introuvable: {path}")
@@ -166,6 +177,7 @@ class NameTable:
 
     def save(self, path: str | Path) -> None:
         """Ecrit la table en JSON ou YAML selon l'extension."""
+        logger.debug("save(self={self}, path={path})")
         p = Path(path)
         items = self.to_list()
         suffix = p.suffix.lower()
@@ -190,6 +202,7 @@ def _load_yaml(text: str):
     try:
         import yaml
     except ImportError as exc:  # pragma: no cover - branche dependante de l'env
+        logger.debug("dépendance optionnelle absente: exc")
         raise ImportError(
             "lecture YAML requiert pyyaml (pip install pyyaml) ; utilisez un fichier .json pour eviter cette dependance"
         ) from exc
@@ -200,6 +213,7 @@ def _dump_yaml(items: list[dict]) -> str:
     try:
         import yaml
     except ImportError as exc:  # pragma: no cover - branche dependante de l'env
+        logger.debug("dépendance optionnelle absente: exc")
         raise ImportError(
             "ecriture YAML requiert pyyaml (pip install pyyaml) ; "
             "utilisez un fichier .json pour eviter cette dependance"

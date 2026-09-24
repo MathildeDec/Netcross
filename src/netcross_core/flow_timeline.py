@@ -15,7 +15,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from netcross_core.logging_config import get_logger
 from netcross_core.models import Pkt
+
+logger = get_logger(__name__)
 
 
 @dataclass
@@ -89,6 +92,7 @@ def build_flow_timeline(
     ``window_s`` : duree de la fenetre glissante pour le calcul du debit
     par troncon (defaut 1.0s).
     """
+    logger.debug("build_flow_timeline(packets={packets}, window_s={window_s})")
     timeline = FlowTimeline()
 
     if not packets:

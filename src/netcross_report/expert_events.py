@@ -29,6 +29,9 @@ defensif : `DiffFinding` ne declare pas ce champ), jamais recalcule ici.
 from __future__ import annotations
 
 from netcross_core.expert_model import Diagnosis, ExpertEvent
+from netcross_core.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 
 def build_expert_events(findings) -> list[ExpertEvent]:
@@ -39,6 +42,7 @@ def build_expert_events(findings) -> list[ExpertEvent]:
     = ev`) -- c'est le "Finding enrichi" de la Session 0 : depuis un
     `Finding` deja affiche, on peut desormais naviguer vers l'ExpertEvent
     qui le represente, meme s'il ne porte pas encore de cause/impact."""
+    logger.debug("build_expert_events(findings={findings})")
     events = []
     for f in findings:
         ev = ExpertEvent(
@@ -59,6 +63,7 @@ def build_diagnoses(events) -> list[Diagnosis]:
     """Regroupe une liste d'`ExpertEvent` (voir build_expert_events()
     ci-dessus) par segment -- un seul `Diagnosis` par segment distinct,
     dans l'ordre de premiere apparition."""
+    logger.debug("build_diagnoses(events={events})")
     by_segment: dict[str, Diagnosis] = {}
     for ev in events:
         diag = by_segment.setdefault(ev.segment, Diagnosis(segment=ev.segment))

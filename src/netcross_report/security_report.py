@@ -32,6 +32,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from netcross_core.logging_config import get_logger
+
+logger = get_logger(__name__)
+
 # Du plus grave au moins grave : l'indice sert de rang de tri.
 SEVERITIES: tuple[str, ...] = ("critique", "elevee", "moyenne", "faible")
 
@@ -45,21 +49,31 @@ CATEGORY_CVE = "cve"
 # Plafond d'affichage par section du rendu texte (meme esprit que les
 # "... N supplementaires" de netcross_core.report_text).
 MAX_ROWS_PER_SECTION = 50
-MAX_ROWS_PER_DETECTOR = 20
 
-# Issue #347 : libelles lisibles pour les detecteurs Netcross.
-_DETECTOR_LABELS = {
-    "dga": "DGA (domain generation algorithm)",
-    "fast_flux": "Fast flux",
-    "dns_tunnel": "Tunneling DNS",
-    "beaconing": "Beaconing C2",
+# Issue #347 : un plafond GLOBAL par section masquait des detections graves
+# (60 domaines DGA suffisaient a pousser exfiltration et beaconing hors des
+# 50 lignes affichees). Les constats des detecteurs sont desormais regroupes
+# par detecteur : chaque detecteur ayant produit un constat a sa ligne de
+# synthese, suivie d'au plus MAX_ROWS_PER_DETECTOR exemples.
+MAX_ROWS_PER_DETECTOR = 3
+
+# Identifiant du detecteur (cle `detector` des constats, issue #348) ->
+# libelle affiche. L'ordre sert de departage metier entre deux groupes de
+# meme gravite : une fuite de donnees passe avant un certificat expire.
+DETECTOR_EXPERT_INFO = "expert_info"
+DETECTOR_LABELS: dict[str, str] = {
     "exfiltration": "Exfiltration de donnees",
-    "lateral_movement": "Mouvements lateraux",
+    "beaconing": "Beaconing C2",
+    "dns_tunnel": "Tunnel DNS",
+    "lateral_movement": "Mouvement lateral",
+    "fast_flux": "Fast flux",
+    "protocol_mismatch": "Incoherence de protocole",
+    "dga": "Domaines generes (DGA)",
+    "tls_audit": "Audit des certificats TLS",
     "flow_stats": "Statistiques de flux",
-    "tls_audit": "Audit TLS",
-    "protocol_mismatch": "Incoherences de protocole",
-    "expert_info": "Alertes Expert Info correlees",
+    DETECTOR_EXPERT_INFO: "Alertes Expert Info correlees (Wireshark)",
 }
+_DETECTOR_PRIORITY = list(DETECTOR_LABELS)
 
 _SEVERITY_ALIASES = {
     "critique": "critique",
@@ -118,11 +132,62 @@ class SecurityItem:
     # nom du detecteur tiers qui a produit le constat (issue #284) ; None
     # pour un constat du coeur
     plugin: str | None = None
-    # Issue #347 : identifiant du detecteur Netcross (dga, fast_flux,
-    # dns_tunnel, beaconing, exfiltration, lateral_movement, flow_stats,
-    # tls_audit, protocol_mismatch, expert_info) pour le regroupement
-    # dans le rendu texte/PDF.
+    # detecteur d'origine (issue #348) : cle de DETECTOR_LABELS,
+    # "plugin:<nom>" pour un detecteur tiers, None si non renseigne
     detector: str | None = None
+
+
+def detector_label(detector: str | None) -> str:
+    """Libelle affiche d'un detecteur (issue #348)."""
+    if detector is None:
+        return "Autres constats"
+    if detector.startswith("plugin:"):
+        return f"Plugin {detector[len('plugin:') :]}"
+    return DETECTOR_LABELS.get(detector, detector)
+
+
+def is_expert_info(item) -> bool:
+    """Vrai pour une alerte Expert Info correlee (dict ou SecurityItem)."""
+    # Issue #348 : `source` est la reference ; `detector` reste un repli pour
+    # les constats plus anciens qui ne portent pas encore `source`.
+    if isinstance(item, dict):
+        source, det = item.get("source"), item.get("detector")
+    else:
+        source, det = getattr(item, "source", None), item.detector
+    return source == "expert_info" or det == DETECTOR_EXPERT_INFO
+
+
+@dataclass(slots=True)
+class DetectorGroup:
+    """Constats d'un meme detecteur, pour les rendus condenses (#347)."""
+
+    detector: str | None
+    label: str
+    severity: str
+    items: list = field(default_factory=list)
+
+
+def group_by_detector(items: list) -> list[DetectorGroup]:
+    """Regroupe des constats (dicts ou SecurityItem) par detecteur, groupes
+    tries par gravite du pire constat, puis par priorite metier du
+    detecteur, puis par libelle. L'ordre interne (gravite, CVSS) est
+    conserve."""
+    groups: dict[str | None, DetectorGroup] = {}
+    for it in items:
+        det = it.get("detector") if isinstance(it, dict) else it.detector
+        sev = (it.get("severity") if isinstance(it, dict) else it.severity) or "faible"
+        g = groups.get(det)
+        if g is None:
+            g = groups[det] = DetectorGroup(det, detector_label(det), sev)
+        elif SEVERITIES.index(sev) < SEVERITIES.index(g.severity):
+            g.severity = sev
+        g.items.append(it)
+
+    def rank(g: DetectorGroup):
+        prio = _DETECTOR_PRIORITY.index(g.detector) if g.detector in _DETECTOR_PRIORITY else len(_DETECTOR_PRIORITY)
+        return (SEVERITIES.index(g.severity), prio, g.label)
+
+    return sorted(groups.values(), key=rank)
 
 
 @dataclass(slots=True)
@@ -163,6 +228,10 @@ class SecurityDashboard:
     services_vulnerable: int = 0
     exploits: int = 0
     anomalies: int = 0
+    # Issue #348 : part des anomalies venant des detecteurs Netcross et part
+    # venant des alertes Expert Info de Wireshark (anomalies = la somme).
+    anomalies_netcross: int = 0
+    anomalies_expert_info: int = 0
     cves: int = 0
     by_severity: dict[str, int] = field(default_factory=lambda: dict.fromkeys(SEVERITIES, 0))
     score: int = 0
@@ -199,6 +268,7 @@ def _opt_int(value) -> int | None:
     try:
         return int(value)
     except (TypeError, ValueError):
+        logger.exception("erreur: e")
         return None
 
 
@@ -206,12 +276,14 @@ def _opt_float(value) -> float | None:
     try:
         return float(value)
     except (TypeError, ValueError):
+        logger.exception("erreur: e")
         return None
 
 
 def severity_from_cvss(cvss: float) -> str:
     """Tranches CVSS v3 de la NVD : >=9.0 critique, >=7.0 elevee, >=4.0
     moyenne, sinon faible (0.0 = 'none' inclus)."""
+    logger.debug("severity_from_cvss(cvss={cvss})")
     if cvss >= 9.0:
         return "critique"
     if cvss >= 7.0:
@@ -236,6 +308,8 @@ def _to_item(raw) -> SecurityItem | None:
     if not isinstance(raw, dict):
         return None
     cvss = _opt_float(raw.get("cvss"))
+    plugin = _opt_str(raw.get("plugin"))
+    detector = _opt_str(raw.get("detector")) or (f"plugin:{plugin}" if plugin else None)
     category = _CATEGORY_ALIASES.get((_opt_str(raw.get("category")) or "").lower(), CATEGORY_ANOMALY)
     return SecurityItem(
         category=category,
@@ -250,8 +324,8 @@ def _to_item(raw) -> SecurityItem | None:
         point=_opt_str(raw.get("point")),
         points=[str(p) for p in raw.get("points", []) if p] if isinstance(raw.get("points"), list) else [],
         source=_opt_str(raw.get("source")) or "netcross",
-        plugin=_opt_str(raw.get("plugin")),
-        detector=_opt_str(raw.get("detector")),
+        plugin=plugin,
+        detector=detector,
     )
 
 
@@ -333,6 +407,7 @@ def build_security_report(report) -> SecurityReport:
     """Consolide `report.service_fingerprints` et `report.security_findings`
     en un `SecurityReport` (sections triees par severite decroissante, puis
     CVSS decroissant) et calcule le tableau de bord."""
+    logger.debug("build_security_report(report={report})")
     items = [i for i in (_to_item(raw) for raw in (report.security_findings or [])) if i is not None]
     exploits = sorted((i for i in items if i.category == CATEGORY_EXPLOIT), key=_item_sort_key)
     anomalies = sorted((i for i in items if i.category == CATEGORY_ANOMALY), key=_item_sort_key)
@@ -344,6 +419,8 @@ def build_security_report(report) -> SecurityReport:
         services_vulnerable=sum(1 for s in services if s.vulnerable),
         exploits=len(exploits),
         anomalies=len(anomalies),
+        anomalies_netcross=sum(1 for i in anomalies if not is_expert_info(i)),
+        anomalies_expert_info=sum(1 for i in anomalies if is_expert_info(i)),
         cves=len(cves),
     )
     for item in items:
@@ -459,6 +536,20 @@ def _section(title: str, rows: list[str], empty_msg: str) -> list[str]:
     return lines
 
 
+def _detector_rows(items: list[SecurityItem]) -> list[str]:
+    """Rendu condense par detecteur (#347) : une ligne de synthese par
+    detecteur, puis ses premiers constats. Aucun detecteur n'est masque,
+    quel que soit le volume des autres."""
+    rows: list[str] = []
+    for g in group_by_detector(items):
+        rows.append(f"  [{g.severity}] {g.label} : {len(g.items)} constat(s)")
+        rows.extend("  " + _format_item(i) for i in g.items[:MAX_ROWS_PER_DETECTOR])
+        rest = len(g.items) - MAX_ROWS_PER_DETECTOR
+        if rest > 0:
+            rows.append(f"      ... {rest} autre(s) constat(s) {g.label} (liste complete : --json-report ou HTML)")
+    return rows
+
+
 def _bar(score: int, width: int = 20) -> str:
     filled = round(width * score / 100)
     return "#" * filled + "-" * (width - filled)
@@ -467,6 +558,7 @@ def _bar(score: int, width: int = 20) -> str:
 def format_security_report(sr: SecurityReport) -> list[str]:
     """Rendu texte du rapport, une chaine par ligne (jamais de `print()`
     ici, meme separation que `netcross_report.session_objects`)."""
+    logger.debug("format_security_report(sr={sr})")
     d = sr.dashboard
     lines = ["=" * 70, "RAPPORT DE SECURITE (detection passive de vulnerabilites)", "=" * 70]
 
@@ -475,7 +567,8 @@ def format_security_report(sr: SecurityReport) -> list[str]:
     lines.append(f"  score de risque global : {d.score}/100 [{_bar(d.score)}] (niveau : {level})")
     lines.append(f"  services detectes : {d.services_total} (dont {d.services_vulnerable} vulnerable(s))")
     lines.append(f"  exploits detectes : {d.exploits}")
-    lines.append(f"  anomalies (Expert Info) : {d.anomalies}")
+    lines.append(f"  constats des detecteurs Netcross : {d.anomalies_netcross}")
+    lines.append(f"  alertes Expert Info correlees : {d.anomalies_expert_info}")
     lines.append(f"  CVE confirmees : {d.cves}")
     lines.append("  repartition par severite : " + ", ".join(f"{sev}={d.by_severity[sev]}" for sev in SEVERITIES))
 
@@ -489,34 +582,18 @@ def format_security_report(sr: SecurityReport) -> list[str]:
         [_format_item(i) for i in sr.exploits],
         "aucune tentative d'exploitation detectee",
     )
-    # Issue #347 : grouper les anomalies Netcross par detecteur pour
-    # eviter qu'un detecteur volumineux (DGA, fast_flux) masque les autres.
-    # Chaque detecteur a sa propre sous-section avec un plafond dedie.
+    # Issue #348 : deux origines distinctes, jamais melangees -- un
+    # detecteur Netcross (DGA, fast flux, mouvements lateraux, tunneling
+    # DNS, beaconing, audit TLS, incoherences de protocole) n'est PAS une
+    # alerte Expert Info de Wireshark correlee (CVE-3). #347 : les constats
+    # Netcross sont regroupes par detecteur, du plus grave au moins grave.
     netcross_anomalies = [i for i in sr.anomalies if i.source != "expert_info"]
     expert_info_anomalies = [i for i in sr.anomalies if i.source == "expert_info"]
-    # tri par severite puis par detecteur pour un rendu deterministe
-    sev_rank = {s: i for i, s in enumerate(SEVERITIES)}
-    netcross_anomalies.sort(key=lambda i: (sev_rank.get(i.severity, 99), i.detector or "", i.detail))
-    # regroupement par detecteur, ordre = severite max du groupe
-    detector_groups: dict[str, list[SecurityItem]] = {}
-    for item in netcross_anomalies:
-        key = item.detector or "autre"
-        detector_groups.setdefault(key, []).append(item)
-    # tri des groupes par severite max (plus grave en premier)
-    group_order = sorted(detector_groups, key=lambda k: min(sev_rank.get(i.severity, 99) for i in detector_groups[k]))
-    if group_order:
-        lines += ["", "-- Anomalies (detecteurs Netcross) --"]
-        for det in group_order:
-            items = detector_groups[det]
-            label = _DETECTOR_LABELS.get(det, det)
-            lines.append(f"  [{label}] ({len(items)} constat(s))")
-            rows = [_format_item(i) for i in items]
-            lines.extend(rows[:MAX_ROWS_PER_DETECTOR])
-            if len(rows) > MAX_ROWS_PER_DETECTOR:
-                n = len(rows) - MAX_ROWS_PER_DETECTOR
-                lines.append(f"    ... {n} ligne(s) supplementaire(s)")
-    else:
-        lines += ["", "-- Anomalies (detecteurs Netcross) --", "  aucune anomalie detectee"]
+    lines += _section(
+        "Anomalies (detecteurs Netcross)",
+        _detector_rows(netcross_anomalies),
+        "aucune anomalie detectee",
+    )
     lines += _section(
         "Anomalies (alertes Expert Info correlees)",
         [_format_item(i) for i in expert_info_anomalies],
@@ -536,6 +613,7 @@ def format_security_report(sr: SecurityReport) -> list[str]:
 
 def print_security_report(sr: SecurityReport) -> None:
     """Ecrit `format_security_report()` sur stdout."""
+    logger.debug("print_security_report(sr={sr})")
     for line in format_security_report(sr):
         print(line)
 
@@ -557,6 +635,7 @@ def security_report_to_dict(sr: SecurityReport) -> dict:
     du projet veut qu'une information absente soit dite, pas passee sous
     silence.
     """
+    logger.debug("security_report_to_dict(sr={sr})")
     return {
         "dashboard": {
             "score": sr.dashboard.score,
@@ -565,6 +644,8 @@ def security_report_to_dict(sr: SecurityReport) -> dict:
             "services_vulnerable": sr.dashboard.services_vulnerable,
             "exploits": sr.dashboard.exploits,
             "anomalies": sr.dashboard.anomalies,
+            "anomalies_netcross": sr.dashboard.anomalies_netcross,
+            "anomalies_expert_info": sr.dashboard.anomalies_expert_info,
             "cves": sr.dashboard.cves,
             "by_severity": dict(sr.dashboard.by_severity),
         },
@@ -604,6 +685,7 @@ def security_report_to_dict(sr: SecurityReport) -> dict:
                     "source": i.source,
                     "plugin": i.plugin,
                     "detector": i.detector,
+                    "detector_label": detector_label(i.detector) if i.category == CATEGORY_ANOMALY else None,
                 }
                 for i in items
             ]
