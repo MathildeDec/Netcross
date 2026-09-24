@@ -259,13 +259,37 @@ class TestQUICBranch:
 class TestDiffPipelineOptionalBranches:
     """Branches optionnelles du pipeline de diff."""
 
+    def test_diff_parallel_mode(self, monkeypatch):
+        """parallel=True utilise load_packets avec parallel=True (pas parse_capture en boucle)."""
+        captured = {"parallel_args": []}
+
+        original_load = None
+
+        def fake_load(captures, parallel, on_progress=None):
+            captured["parallel_args"].append(parallel)
+            return [make_pkt(src="10.0.0.1", dst="10.0.0.2")]
+
+        monkeypatch.setattr("netcross_gtk4.analysis_pipeline.load_packets", fake_load)
+
+        run_diff_pipeline(
+            [("A", "/fake/a.pcap")],
+            [("B", "/fake/b.pcap")],
+            DiffOptions(parallel=True),
+            on_progress=lambda msg: None,
+        )
+
+        # load_packets doit etre appelee deux fois (baseline + courant),
+        # chaque fois avec parallel=True
+        assert len(captured["parallel_args"]) == 2
+        assert all(captured["parallel_args"])
+
     def test_diff_redact_enabled(self, monkeypatch):
         """redact=True dans le diff utilise un AddressRedactor partagé."""
         captured = {}
 
         monkeypatch.setattr(
-            "netcross_gtk4.diff_pipeline.parse_capture",
-            lambda label, path: [make_pkt(src="10.0.0.1", dst="10.0.0.2")],
+            "netcross_gtk4.analysis_pipeline.load_packets",
+            lambda captures, parallel, on_progress=None: [make_pkt(src="10.0.0.1", dst="10.0.0.2")],
         )
         monkeypatch.setattr(
             "netcross_core.redact.AddressRedactor.redact",
@@ -288,8 +312,8 @@ class TestDiffPipelineOptionalBranches:
         import netcross_core.tls_diagnostics as tls_mod
 
         monkeypatch.setattr(
-            "netcross_gtk4.diff_pipeline.parse_capture",
-            lambda label, path: [make_pkt(src="10.0.0.1", dst="10.0.0.2")],
+            "netcross_gtk4.analysis_pipeline.load_packets",
+            lambda captures, parallel, on_progress=None: [make_pkt(src="10.0.0.1", dst="10.0.0.2")],
         )
         monkeypatch.setattr(tls_mod, "parse_tls_capture", lambda label, path: captured.setdefault("tls_calls", []).append(label) or [])
         monkeypatch.setattr(tls_mod, "build_handshake_status", lambda e: {})

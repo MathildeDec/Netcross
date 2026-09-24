@@ -75,16 +75,14 @@ def run_diff_pipeline(
 
     from netcross_core.analysis import analyse
     from netcross_core.redact import AddressRedactor
+    from netcross_gtk4.analysis_pipeline import load_packets
 
     redactor = AddressRedactor() if options.redact else None
     points_order = None if options.auto_topology else [label for label, _ in baseline_captures]
 
     # 1. Baseline
     _log("=== CHARGEMENT DU BASELINE ===")
-    baseline_packets = []
-    for label, path in baseline_captures:
-        packets = parse_capture(label, path)
-        baseline_packets.extend(packets)
+    baseline_packets = load_packets(baseline_captures, options.parallel, on_progress)
     if redactor is not None:
         redactor.redact(baseline_packets)
     baseline_flows = correlate(baseline_packets, options.nat_tolerant, 200)
@@ -100,10 +98,7 @@ def run_diff_pipeline(
     # 2. Courant
     points_order_current = None if options.auto_topology else [label for label, _ in current_captures]
     _log("=== CHARGEMENT DU RUN COURANT ===")
-    current_packets = []
-    for label, path in current_captures:
-        packets = parse_capture(label, path)
-        current_packets.extend(packets)
+    current_packets = load_packets(current_captures, options.parallel, on_progress)
     if redactor is not None:
         redactor.redact(current_packets)
         _log(f"{len(redactor)} adresse(s) anonymisée(s) (IP/MAC) -- baseline et courant.")
