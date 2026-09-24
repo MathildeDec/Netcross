@@ -231,7 +231,6 @@ def _to_item(raw) -> SecurityItem | None:
         points=[str(p) for p in raw.get("points", []) if p] if isinstance(raw.get("points"), list) else [],
         source=_opt_str(raw.get("source")) or "netcross",
         plugin=_opt_str(raw.get("plugin")),
-        source=_opt_str(raw.get("source")) or "netcross",
     )
 
 
@@ -566,7 +565,6 @@ def security_report_to_dict(sr: SecurityReport) -> dict:
                     "points": list(i.points),
                     "source": i.source,
                     "plugin": i.plugin,
-                    "source": i.source,
                 }
                 for i in items
             ]

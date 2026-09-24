@@ -196,7 +196,6 @@ def detect_protocol_mismatches(packets: list[Pkt]) -> list[dict[str, Any]]:
             details.append(
                 {
                     "frame_number": pkt.frame_number,
-                    "point": pkt.point,
                     "proto": pkt.proto,
                     "src": pkt.src,
                     "dst": pkt.dst,
