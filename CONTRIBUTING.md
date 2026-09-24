@@ -90,6 +90,10 @@ docs(#216): documentation CLAUDE.md
   compréhensions de liste.
 - `dict()` déclenche `C408` — utiliser des littéraux `{}`.
 - Lancer : `PYTHONPATH=src python -m pytest tests/ -v`
+- Seuil de couverture : la CI échoue sous `fail_under` (`pyproject.toml`,
+  80 %). Vérifier en local avec `uv run pytest --cov -q`. Le seuil se relève
+  quand la base monte, il ne se baisse pas pour faire passer une PR — voir
+  `docs/quality/seuil-couverture.md`.
 
 ### Ajouter un détecteur de sécurité
 
@@ -102,6 +106,13 @@ docs(#216): documentation CLAUDE.md
 3. Ajouter les champs correspondants sur `Report` dans `models.py`.
 4. Écrire les tests dans `tests/test_nom_module.py`.
 5. Documenter dans le canvas de l'issue.
+
+### Chaînes traduisibles
+
+Les textes affichés à l'utilisateur passent par `netcross_core.i18n`
+(`_()`, `ngettext()`, `N_()`) ; après en avoir ajouté ou modifié, lancer
+`scripts/i18n-update.sh` et committer `lang/`. Voir
+[docs/i18n.md](docs/i18n.md).
 
 ## Releases
 

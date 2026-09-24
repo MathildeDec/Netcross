@@ -49,6 +49,7 @@ from loguru import logger
 from pcap_parser.capfile import detect_format, first_timestamp, format_extension, has_packets, split_by_size
 from pcap_parser.ek_source import TsharkError, TsharkNotFoundError, iter_ek_records
 from pcap_parser.packet import RawPacket, build_packet
+from pcap_parser.remote import CaptureSource, parse_source
 
 
 def parse_capture(path: str, raise_on_error: bool = False) -> list[RawPacket]:
@@ -149,9 +150,15 @@ def parse_captures_parallel(
     return all_packets, per_file_stats
 
 
+def _source_kwargs(source: CaptureSource) -> dict:
+    """Arguments tshark propres a une source distante (vide pour une interface locale)."""
+    return {"extra_args": source.extra_args} if source.extra_args else {}
+
+
 def iter_live(interface: str, bpf_filter: str | None = None, stop_event=None) -> Iterator[RawPacket]:
     """
-    Capture en direct sur `interface` (ex: "eth0") et yield un RawPacket
+    Capture en direct sur `interface` (ex: "eth0", ou une source distante
+    rpcap://, sshdump://, pipe:// -- voir pcap_parser.remote) et yield un RawPacket
     au fil de l'eau. Meme pipeline de dissection que parse_capture, la
     seule difference est la source tshark (-i au lieu de -r) : aucune
     duplication de logique de decodage entre batch et live.
@@ -166,7 +173,11 @@ def iter_live(interface: str, bpf_filter: str | None = None, stop_event=None) ->
     pour le detail (utile pour un bouton "Arreter" reactif meme sur une
     interface sans trafic).
     """
-    for record in iter_ek_records(interface=interface, bpf_filter=bpf_filter, stop_event=stop_event):
+    source = parse_source(interface)
+    records = iter_ek_records(
+        interface=source.interface, bpf_filter=bpf_filter, stop_event=stop_event, **_source_kwargs(source)
+    )
+    for record in records:
         pkt = build_packet(record.ts, record.layers)
         if pkt is not None:
             yield pkt
@@ -632,6 +643,13 @@ def _validate_live_sources(interfaces: Sequence[tuple[str, str]]) -> list[tuple[
         raise ValueError(
             f"iter_live_multi : label(s) en double ({', '.join(duplicates)}) -- un label distinct par interface"
         )
+    # sources distantes (#166) : URL invalide -> CaptureSourceError (ValueError)
+    # des l'appel ; une seule source peut lire l'entree standard.
+    stdin_labels = [label for label, interface in sources if parse_source(interface).uses_stdin]
+    if len(stdin_labels) > 1:
+        raise ValueError(
+            f"iter_live_multi : une seule source peut lire l'entree standard (pipe://-) : {', '.join(stdin_labels)}"
+        )
     return sources
 
 
@@ -648,7 +666,10 @@ def _live_source_worker(
     processus tshark, la lecture voit l'EOF (apres avoir rendu les paquets
     deja recus) et la boucle se termine d'elle-meme."""
     try:
-        records = iter_ek_records(interface=interface, bpf_filter=bpf_filter, stop_event=halt)
+        source = parse_source(interface)
+        records = iter_ek_records(
+            interface=source.interface, bpf_filter=bpf_filter, stop_event=halt, **_source_kwargs(source)
+        )
         try:
             for record in records:
                 pkt = build_packet(record.ts, record.layers)
@@ -1039,9 +1060,20 @@ _CSV_FIELDS = [
     "frame.time_epoch",
     "ip.src",
     "ip.dst",
+    "ipv6.src",
+    "ipv6.dst",
     "_ws.col.Protocol",
     "frame.len",
 ]
+
+
+def _check_in_out(path_in: str, path_out: str) -> None:
+    """Source existante et distincte de la sortie : ``-w`` sur le fichier
+    lu le tronquerait avant lecture (capture perdue)."""
+    if not os.path.isfile(path_in):
+        raise FileNotFoundError(f"capture introuvable : {path_in}")
+    if os.path.exists(path_out) and os.path.samefile(path_in, path_out):
+        raise ValueError(f"la sortie {path_out} est le fichier source : choisir un autre chemin.")
 
 
 def convert_capture(path_in: str, path_out: str, fmt: str = "pcapng") -> None:
@@ -1052,15 +1084,14 @@ def convert_capture(path_in: str, path_out: str, fmt: str = "pcapng") -> None:
     Leve FileNotFoundError (capture absente), TsharkNotFoundError (tshark
     absent), TsharkError (echec de tshark), ValueError (format non supporte).
     """
-    if not os.path.isfile(path_in):
-        raise FileNotFoundError(f"capture introuvable : {path_in}")
+    _check_in_out(path_in, path_out)
     fmt_lower = fmt.lower()
     if fmt_lower not in _SUPPORTED_FORMATS:
         raise ValueError(f"format non supporte : {fmt!r}. Formats reconnus : {', '.join(sorted(_SUPPORTED_FORMATS))}.")
     from pcap_parser.ek_source import _tshark_path
 
     tshark = _tshark_path()
-    args = [tshark, "-r", path_in, "-F", fmt_lower, "-w", path_out]
+    args = [tshark, "-n", "-r", path_in, "-F", fmt_lower, "-w", path_out]
     proc = subprocess.run(args, capture_output=True, text=True, check=False)
     if proc.returncode != 0:
         raise TsharkError(
@@ -1078,16 +1109,20 @@ def export_csv(path_in: str, path_out: str) -> None:
 
     Leve FileNotFoundError, TsharkNotFoundError, TsharkError.
     """
-    if not os.path.isfile(path_in):
-        raise FileNotFoundError(f"capture introuvable : {path_in}")
+    _check_in_out(path_in, path_out)
     from pcap_parser.ek_source import _tshark_path
 
     tshark = _tshark_path()
-    args = [tshark, "-r", path_in, "-T", "fields", "-E", "header=y", "-E", "separator=,"]
+    # quote=d : un champ contenant une virgule reste une seule colonne ;
+    # occurrence=f : une seule valeur par champ (IP-dans-IP, ICMP d'erreur).
+    args = [tshark, "-n", "-r", path_in, "-T", "fields"]
+    args += ["-E", "header=y", "-E", "separator=,", "-E", "quote=d", "-E", "occurrence=f"]
     for field in _CSV_FIELDS:
         args += ["-e", field]
     with open(path_out, "w", encoding="utf-8") as fh:
-        proc = subprocess.run(args, capture_output=True, text=True, check=False, stdout=fh)
+        # stdout vers le fichier : capture_output=True est interdit avec
+        # stdout=... (ValueError), seul stderr est capture.
+        proc = subprocess.run(args, stdout=fh, stderr=subprocess.PIPE, text=True, check=False)
     if proc.returncode != 0:
         raise TsharkError(
             f"tshark a echoue lors de l'export CSV (code {proc.returncode}) : {proc.stderr.strip()}",
@@ -1103,14 +1138,13 @@ def export_json(path_in: str, path_out: str) -> None:
 
     Leve FileNotFoundError, TsharkNotFoundError, TsharkError.
     """
-    if not os.path.isfile(path_in):
-        raise FileNotFoundError(f"capture introuvable : {path_in}")
+    _check_in_out(path_in, path_out)
     from pcap_parser.ek_source import _tshark_path
 
     tshark = _tshark_path()
-    args = [tshark, "-r", path_in, "-T", "json"]
+    args = [tshark, "-n", "-r", path_in, "-T", "json"]
     with open(path_out, "w", encoding="utf-8") as fh:
-        proc = subprocess.run(args, capture_output=True, text=True, check=False, stdout=fh)
+        proc = subprocess.run(args, stdout=fh, stderr=subprocess.PIPE, text=True, check=False)
     if proc.returncode != 0:
         raise TsharkError(
             f"tshark a echoue lors de l'export JSON (code {proc.returncode}) : {proc.stderr.strip()}",

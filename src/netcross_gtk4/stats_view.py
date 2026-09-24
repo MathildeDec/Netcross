@@ -15,47 +15,48 @@ from __future__ import annotations
 from typing import Any
 
 from netcross_core.expert_model import Flow
+from netcross_core.i18n import N_, _
 from netcross_core.models import Report
 from netcross_core.stats import GROUP_BY, SORT_BY, StatRow, StatsQuery, compute_stats
 
 # -- Formatage pour affichage -----------------------------------------------
 
 _SORT_LABELS: dict[str, str] = {
-    "packets": "Paquets",
-    "bytes": "Octets",
-    "duration_ms": "Duree (ms)",
-    "throughput_bps": "Debit (bps)",
-    "latency_ms": "Latence (ms)",
-    "events": "Evenements",
+    "packets": N_("Paquets"),
+    "bytes": N_("Octets"),
+    "duration_ms": N_("Duree (ms)"),
+    "throughput_bps": N_("Debit (bps)"),
+    "latency_ms": N_("Latence (ms)"),
+    "events": N_("Evenements"),
 }
 
 _GROUP_LABELS: dict[str, str] = {
-    "endpoint": "Endpoint",
-    "protocol": "Protocole",
-    "segment": "Segment",
-    "flow": "Flux",
+    "endpoint": N_("Endpoint"),
+    "protocol": N_("Protocole"),
+    "segment": N_("Segment"),
+    "flow": N_("Flux"),
 }
 
 
 def sort_options() -> list[tuple[str, str]]:
     """Options de tri pour un DropDown : (valeur, etiquette)."""
-    return [(s, _SORT_LABELS.get(s, s)) for s in SORT_BY]
+    return [(s, _(_SORT_LABELS[s]) if s in _SORT_LABELS else s) for s in SORT_BY]
 
 
 def group_options() -> list[tuple[str, str]]:
     """Options de regroupement pour un DropDown : (valeur, etiquette)."""
-    return [(g, _GROUP_LABELS.get(g, g)) for g in GROUP_BY]
+    return [(g, _(_GROUP_LABELS[g]) if g in _GROUP_LABELS else g) for g in GROUP_BY]
 
 
 def format_bytes(n: int) -> str:
     """Formate un nombre d'octets en unite lisible."""
     if n < 1024:
-        return f"{n} o"
+        return _("{n} o").format(n=n)
     if n < 1024 * 1024:
-        return f"{n / 1024:.1f} Ko"
+        return _("{v:.1f} Ko").format(v=n / 1024)
     if n < 1024 * 1024 * 1024:
-        return f"{n / (1024 * 1024):.1f} Mo"
-    return f"{n / (1024 * 1024 * 1024):.1f} Go"
+        return _("{v:.1f} Mo").format(v=n / (1024 * 1024))
+    return _("{v:.1f} Go").format(v=n / (1024 * 1024 * 1024))
 
 
 def format_bps(bps: float) -> str:
@@ -74,16 +75,16 @@ def format_row(row: StatRow) -> str:
     Les champs None (latence) sont omis.
     """
     parts = [row.label]
-    parts.append(f"paquets={row.packets}")
-    parts.append(f"octets={format_bytes(row.bytes)}")
+    parts.append(_("paquets={n}").format(n=row.packets))
+    parts.append(_("octets={v}").format(v=format_bytes(row.bytes)))
     if row.duration_ms > 0:
-        parts.append(f"duree={row.duration_ms:.0f}ms")
+        parts.append(_("duree={v:.0f}ms").format(v=row.duration_ms))
     if row.throughput_bps > 0:
-        parts.append(f"debit={format_bps(row.throughput_bps)}")
+        parts.append(_("debit={v}").format(v=format_bps(row.throughput_bps)))
     if row.latency_ms is not None:
-        parts.append(f"latence={row.latency_ms:.1f}ms")
+        parts.append(_("latence={v:.1f}ms").format(v=row.latency_ms))
     if row.events > 0:
-        parts.append(f"evenements={row.events}")
+        parts.append(_("evenements={n}").format(n=row.events))
     return " | ".join(parts)
 
 
@@ -111,7 +112,9 @@ def format_flow_summary(flow: Flow) -> str:
     total_bytes = sum(flow.byte_count.values())
     points = " -> ".join(flow.points) if flow.points else "?"
     endpoints = " <-> ".join(flow.endpoints) if flow.endpoints else "?"
-    return f"{points} | {endpoints} | {total_pkts} pkts | {format_bytes(total_bytes)}"
+    return _("{points} | {endpoints} | {packets} pkts | {size}").format(
+        points=points, endpoints=endpoints, packets=total_pkts, size=format_bytes(total_bytes)
+    )
 
 
 # -- Construction de la requete depuis les entrees UI -------------------------

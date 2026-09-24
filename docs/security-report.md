@@ -9,6 +9,7 @@ qui consolide les modules de détection passive de vulnérabilités (parent #133
 | Tentatives d'exploitation | signatures Log4Shell, Shellshock, Heartbleed, EternalBlue, compression TLS (CVE-2, #136) | `netcross_core.exploit_signatures` |
 | Anomalies | alertes Expert Info corrélées : fuzzing, overflow, dos (CVE-3, #137) | `netcross_core.security.expert_correlation` |
 | Anomalies | tunneling DNS : sous-domaines à haute entropie, labels/noms trop longs, volume DNS anormal (FLOW-3, #144) | `netcross_core.security.dns_tunnel` |
+| Anomalies | exfiltration : transferts sortants volumineux/asymétriques vers l'extérieur, corrélés au beaconing et au tunneling DNS, score de risque 0-100 (SCENARIO-2, #148) | `netcross_core.security.exfiltration` |
 | Anomalies | audit des certificats TLS : expirés, auto-signés, MD5/SHA-1, clés faibles, validité excessive, chaîne incomplète, noms suspects, avec un score de risque TLS par serveur (SCENARIO-7, #153) | `netcross_core.security.tls_audit` |
 | CVE confirmées | version exacte + CVE-ID + score CVSS (CVE-4, #138) | `netcross_core.security` (base SQLite locale) |
 
@@ -90,6 +91,18 @@ constats (remplacement, pas ajout : deux appels donnent le même résultat).
   depuis 2020 ; il ne s'applique qu'aux certificats publiquement approuvés et baisse par paliers
   (200 jours depuis le 15/03/2026, 100 en 2027, 47 en 2029) — d'où un seuil configurable et une
   sévérité faible.
+- **Exfiltration** (`exfiltration.py`, seuils dans `ExfiltrationThresholds`) : par point puis par
+  couple orienté (source, destination), **uniquement** d'une source non routable (RFC 1918, ULA…)
+  vers une destination routable globalement — un téléchargement entrant ou une sauvegarde vers un
+  NAS interne ne lèvent donc rien. Signaux *forts* : octets envoyés > 10 Mo, ou envoi/réception
+  > 10:1 avec au moins 1 Mo envoyé (le plancher écarte un POST de formulaire). Signaux *faibles*
+  (n'aggravent qu'une alerte déjà levée) : ≥ 50 % des octets hors 8h-18h UTC, destination absente
+  de la baseline `--known-destinations` (liste JSON d'IP ; sans baseline, jamais émis), plus de
+  1 Mo en DNS/ICMP, même hôte en beaconing vers la même destination (#147), même hôte interrogeant
+  un domaine suspect de tunneling DNS (#144). Score de risque 0-100 (volume 35, ratio 25, horaire
+  10, destination/protocole/corrélations 15 chacun) : ≥ 60 → élevée, sinon moyenne. Détail complet
+  dans `Report.exfiltration_alerts`. Limite : « HTTP POST vers un stockage cloud » n'est pas
+  identifié comme tel (corps HTTP non disponible), il remonte par le volume et le ratio.
 - **CVE** : sévérité NVD reprise telle quelle (repli sur les tranches CVSS v3).
 
 ## Aucun faux positif sur trafic normal

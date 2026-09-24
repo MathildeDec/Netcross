@@ -1,0 +1,80 @@
+# mkdocs.yml -- documentation navigable (issue #282).
+#
+# MkDocs Material : la doc existante est deja en Markdown, aucune
+# conversion necessaire. Les fichiers sont referencees la ou ils sont
+# (README.md inclus depuis la racine via docs/index.md, pas de copie).
+#
+# En local : uv run --with mkdocs-material mkdocs serve
+# En CI : mkdocs build --strict (bloque sur lien mort)
+
+site_name: Netcross
+site_description: >-
+  Analyse croisée de captures réseau multi-points — pcap_parser/tshark,
+  netcross_core, netcross_report, CLI, GUI GTK4.
+site_url: https://mathildedec.github.io/Netcross/
+repo_url: https://github.com/MathildeDec/Netcross
+repo_name: MathildeDec/Netcross
+docs_dir: docs
+
+theme:
+  name: material
+  language: fr
+  features:
+    - navigation.tabs
+    - navigation.sections
+    - navigation.expand
+    - navigation.top
+    - search.suggest
+    - search.highlight
+    - content.code.copy
+  palette:
+    - scheme: default
+      primary: indigo
+      toggle:
+        icon: material/weather-night
+        name: Mode sombre
+    - scheme: slate
+      primary: indigo
+      toggle:
+        icon: material/weather-sunny
+        name: Mode clair
+
+markdown_extensions:
+  - admonition
+  - codehilite:
+      guess_lang: false
+  - toc:
+      permalink: true
+  - pymdownx.superfences
+  - pymdownx.tabbed:
+      alternate_style: true
+
+nav:
+  - Accueil: index.md
+  - Utilisation:
+      - API REST: api-rest.md
+      - Filtres BPF: bpf-filters.md
+      - Mode batch: batch-mode.md
+      - Capture distante: capture-distante.md
+  - Analyses:
+      - Rapport de sécurité: security-report.md
+      - Export SIEM (CEF, LEEF, STIX): siem-export.md
+      - Notifications: notifications.md
+      - Plugins: plugins.md
+      - Empreintes JA4/HASSH: fingerprints-ja4-hassh.md
+      - Tickets de support: support-tickets.md
+      - Extraction des contenus: extraction-contenus.md
+      - Rapport temps réel: live-report.md
+      - Conversion de formats: conversion-formats.md
+      - Module IA local: module-ia.md
+      - Rule engine: architecture-rule-engine.md
+  - Architecture:
+      - Diagramme de classes: class-diagram.md
+      - Internationalisation: i18n.md
+      - Décisions d'architecture: adr/netflow-sflow-architecture.md
+      - Qualité: quality/anonymization-plan.md
+      - Couverture de la GUI: quality/gui-app-coverage.md
+  - Référence:
+      - Roadmap: roadmap.md
+      - Backlog: features-backlog.md
+      - Seuil de couverture: quality/seuil-couverture.md

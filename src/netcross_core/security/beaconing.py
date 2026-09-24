@@ -76,7 +76,10 @@ from collections.abc import Iterable
 from dataclasses import dataclass, field
 from statistics import mean, median, pstdev
 
+from netcross_core.logging_config import get_logger
 from netcross_core.models import Pkt
+
+logger = get_logger(__name__)
 
 KIND_BEACON = "beacon"
 
@@ -196,6 +199,7 @@ def detect_beaconing(packets: Iterable[Pkt], thresholds: BeaconingThresholds = D
             replied[(pk.point, pk.proto, pk.dst, pk.src, pk.sport)] += size
 
     result = BeaconingResult()
+    logger.debug("beaconing : {} flux candidats a analyser", len(events))
     for key, raw_events in sorted(events.items()):
         point, proto, src, dst, dport = key
         if len(raw_events) < t.min_checkins:
@@ -262,4 +266,5 @@ def detect_beaconing(packets: Iterable[Pkt], thresholds: BeaconingThresholds = D
             }
         )
 
+    logger.info("beaconing : {} suspicion(s) levee(s) sur {} flux candidats", len(result.suspicions), len(events))
     return result

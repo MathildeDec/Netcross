@@ -18,6 +18,8 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
+from pcap_parser.remote import CaptureSourceError, parse_source
+
 
 def split_interfaces(text: str) -> list[str]:
     """Decoupe le champ interface d'une ligne en noms d'interface.
@@ -69,3 +71,29 @@ def duplicate_labels(points: Sequence[tuple[str, str, str | None]]) -> list[str]
     """
     labels = [label for label, _interface, _bpf in points]
     return sorted({label for label in labels if labels.count(label) > 1})
+
+
+def invalid_sources(points: Sequence[tuple[str, str, str | None]]) -> list[str]:
+    """Messages d'erreur des sources de capture invalides (issue #166).
+
+    Une interface peut etre une source distante (rpcap://, sshdump://,
+    pipe://) : l'URL est validee avant de lancer la capture, pour un
+    message clair au lieu d'une erreur tshark. Une seule source peut lire
+    l'entree standard (pipe://-). Les points sans interface sont ignores
+    (signales a part par l'appelant).
+    """
+    errors: list[str] = []
+    stdin_labels: list[str] = []
+    for label, interface, _bpf in points:
+        if not interface:
+            continue
+        try:
+            source = parse_source(interface)
+        except CaptureSourceError as exc:
+            errors.append(f"{label} : {exc}")
+            continue
+        if source.uses_stdin:
+            stdin_labels.append(label)
+    if len(stdin_labels) > 1:
+        errors.append(f"une seule source peut lire l'entree standard (pipe://-) : {', '.join(stdin_labels)}")
+    return errors

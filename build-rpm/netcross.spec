@@ -16,11 +16,17 @@ Requires:       python3
 # d'autres distributions RPM, il peut s'agir du paquet "wireshark" complet
 Requires:       wireshark-cli
 Requires:       python3-cryptography
+# loguru est obligatoire depuis l'issue #245 (EPEL sur RHEL/Rocky)
+Requires:       python3-loguru
 Requires:       python3-reportlab
 Requires:       python3-matplotlib
 Requires:       python3-networkx
 Recommends:     python3-gobject
 Recommends:     gtk4
+# API REST (netcross_api) et IA locale (netcross_ai) : optionnels
+Suggests:       python3-fastapi
+Suggests:       python3-uvicorn
+Suggests:       python3-scikit-learn
 
 %description
 netcross correle plusieurs captures reseau (.pcap/.pcapng) prises en
@@ -47,17 +53,26 @@ rm -rf %{buildroot}
 mkdir -p %{buildroot}%{_datadir}/netcross
 mkdir -p %{buildroot}%{_bindir}
 
+cp -r pcap_parser %{buildroot}%{_datadir}/netcross/
 cp -r netcross_core %{buildroot}%{_datadir}/netcross/
 cp -r netcross_report %{buildroot}%{_datadir}/netcross/
 cp -r netcross_gtk4 %{buildroot}%{_datadir}/netcross/
+cp -r netcross_api %{buildroot}%{_datadir}/netcross/
+cp -r netcross_ai %{buildroot}%{_datadir}/netcross/
 cp cross_capture_analyzer_cli.py %{buildroot}%{_datadir}/netcross/
 cp cross_capture_diff_cli.py %{buildroot}%{_datadir}/netcross/
 cp cross_history_cli.py %{buildroot}%{_datadir}/netcross/
+cp cross_capture_batch_cli.py %{buildroot}%{_datadir}/netcross/
+cp netcross_ai_models_cli.py %{buildroot}%{_datadir}/netcross/
+mkdir -p %{buildroot}%{_datadir}/locale
+cp -r locale/* %{buildroot}%{_datadir}/locale/
 
 install -m 755 netcross-wrapper %{buildroot}%{_bindir}/netcross
 install -m 755 netcross-gui-wrapper %{buildroot}%{_bindir}/netcross-gui
 install -m 755 netcross-diff-wrapper %{buildroot}%{_bindir}/netcross-diff
 install -m 755 netcross-history-wrapper %{buildroot}%{_bindir}/netcross-history
+install -m 755 netcross-batch-wrapper %{buildroot}%{_bindir}/netcross-batch
+install -m 755 netcross-ai-models-wrapper %{buildroot}%{_bindir}/netcross-ai-models
 
 %files
 %{_datadir}/netcross/
@@ -65,6 +80,9 @@ install -m 755 netcross-history-wrapper %{buildroot}%{_bindir}/netcross-history
 %{_bindir}/netcross-gui
 %{_bindir}/netcross-diff
 %{_bindir}/netcross-history
+%{_bindir}/netcross-batch
+%{_bindir}/netcross-ai-models
+%{_datadir}/locale/*/LC_MESSAGES/netcross.mo
 
 %changelog
 * Mon Aug 17 2026 Mathilde Deuscher <149895843+MathildeDec@users.noreply.github.com> - 1.0.0-1

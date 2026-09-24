@@ -15,19 +15,19 @@ from netcross_core.application.models import ApplicationTransaction
 from netcross_core.models import Pkt
 
 
-def _flow_key(pkt: Pkt) -> tuple[str, str, int, int]:
+def _flow_key(pkt: Pkt) -> tuple[str, str, int | None, int | None]:
     """Clé directionnelle client -> serveur pour apparier HTTP."""
     return (pkt.src, pkt.dst, pkt.sport, pkt.dport)
 
 
-def _reverse_flow_key(pkt: Pkt) -> tuple[str, str, int, int]:
+def _reverse_flow_key(pkt: Pkt) -> tuple[str, str, int | None, int | None]:
     """Clé inverse serveur -> client pour trouver la requête correspondante."""
     return (pkt.dst, pkt.src, pkt.dport, pkt.sport)
 
 
 def build_http_transactions(
     packets: list[Pkt],
-    network_signals: dict[tuple[str, str, int, int], list[str]] | None = None,
+    network_signals: dict[tuple[str, str, int | None, int | None], list[str]] | None = None,
 ) -> list[ApplicationTransaction]:
     """Construit les transactions HTTP en apparieant requêtes et réponses.
 
@@ -44,7 +44,7 @@ def build_http_transactions(
     if network_signals is None:
         network_signals = {}
 
-    pending: dict[tuple[str, str, int, int], deque[Pkt]] = defaultdict(deque)
+    pending: dict[tuple[str, str, int | None, int | None], deque[Pkt]] = defaultdict(deque)
     transactions: list[ApplicationTransaction] = []
 
     for pkt in packets:
@@ -87,7 +87,7 @@ def build_http_transactions(
 def _build_http_transaction(
     request: Pkt,
     response: Pkt,
-    network_signals: dict[tuple[str, str, int, int], list[str]],
+    network_signals: dict[tuple[str, str, int | None, int | None], list[str]],
 ) -> ApplicationTransaction:
     """Construit une transaction HTTP appariée."""
     total_ms = (response.ts - request.ts) * 1000.0 if response.ts and request.ts else None

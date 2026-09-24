@@ -210,17 +210,26 @@ class DgaThresholds:
 
 @dataclass
 class DgaAlert:
-    """Une alerte DGA pour un domaine suspect."""
+    """Une alerte DGA pour un domaine suspect.
 
-    point: str
+    Issue #343 : un domaine DGA vu depuis plusieurs points de capture est
+    UN evenement, pas un par point -- `points` liste tous les points ou
+    il a ete observe (`point` reste expose comme alias retro-compatible :
+    le premier point trie, ou None si `points` est vide)."""
+
     domain: str
     score: float  # 0.0 a 1.0
     reason: str
+    points: tuple[str, ...] = ()
     entropy: float = 0.0
     consonant_ratio: float = 0.0
     rare_bigram_ratio: float = 0.0
     length: int = 0
     nxdomain_ratio: float = 0.0
+
+    @property
+    def point(self) -> str | None:
+        return self.points[0] if self.points else None
 
 
 @dataclass
@@ -413,19 +422,18 @@ def detect_dga(
         )
 
         if score >= thresholds.score_threshold:
-            alerts.extend(
+            alerts.append(
                 DgaAlert(
-                    point=point,
                     domain=domain,
                     score=score,
                     reason=reason,
+                    points=tuple(sorted(domain_points[domain])),
                     entropy=round(entropy, 3),
                     consonant_ratio=round(c_ratio, 3),
                     rare_bigram_ratio=round(rare_ratio, 3),
                     length=len(sub),
                     nxdomain_ratio=round(nxdomain_ratio, 3),
                 )
-                for point in sorted(domain_points[domain])
             )
 
     domain_scores.sort(key=lambda d: (-d["score"], d["domain"]))

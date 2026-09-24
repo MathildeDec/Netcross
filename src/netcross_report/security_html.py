@@ -207,11 +207,12 @@ def _ligne_constat(i: dict, avec_cve: bool) -> str:
     service = i.get("service")
     if service and i.get("version"):
         service = f"{service} {i['version']}"
+    plugin = f' <span class="mono">[plugin {_e(i["plugin"])}]</span>' if i.get("plugin") else ""
     return (
         "<tr>"
         f"<td>{_badge(i.get('severity'))}</td>"
         f"{colonnes_cve}"
-        f"<td>{_e(i.get('detail'))}</td>"
+        f"<td>{_e(i.get('detail'))}{plugin}</td>"
         f"<td>{_e(service)}</td>"
         f'<td class="mono">{_cible(i.get("host"), i.get("port"))}</td>'
         f"<td>{_e(i.get('point'))}</td>"
@@ -233,7 +234,7 @@ def _cartes(d: dict) -> str:
         f'<div class="carte"><div class="valeur">{d["exploits"]}</div>'
         '<div class="etiquette">tentatives d\'exploitation</div></div>',
         f'<div class="carte"><div class="valeur">{d["anomalies"]}</div>'
-        '<div class="etiquette">anomalies (Expert Info)</div></div>',
+        '<div class="etiquette">anomalies (Expert Info correlees)</div></div>',
         f'<div class="carte"><div class="valeur">{d["cves"]}</div><div class="etiquette">CVE confirmees</div></div>',
     ]
     repartition = " &middot; ".join(f"{_e(sev)} <strong>{d['by_severity'].get(sev, 0)}</strong>" for sev in SEVERITIES)
@@ -288,10 +289,17 @@ def render_security_html(
         ),
         "<h2>Anomalies correlees (Expert Info)</h2>",
         _table(
+            "t-anomalies-expert",
+            ["Severite", "Detail", "Service", "Cible", "Point"],
+            [_ligne_constat(i, avec_cve=False) for i in data["anomalies"] if i.get("source") == "expert_info"],
+            "aucune anomalie correlee",
+        ),
+        "<h2>Anomalies (detecteurs Netcross)</h2>",
+        _table(
             "t-anomalies",
             ["Severite", "Detail", "Service", "Cible", "Point"],
-            [_ligne_constat(i, avec_cve=False) for i in data["anomalies"]],
-            "aucune anomalie correlee",
+            [_ligne_constat(i, avec_cve=False) for i in data["anomalies"] if i.get("source") != "expert_info"],
+            "aucune anomalie detectee",
         ),
         "<h2>CVE confirmees</h2>",
         _table(
@@ -300,6 +308,8 @@ def render_security_html(
             [_ligne_constat(i, avec_cve=True) for i in data["cves"]],
             "aucune CVE confirmee",
         ),
+        _notifications(data.get("notifications") or []),
+        _plugins(data.get("plugins") or []),
         '<p class="pied">Netcross &mdash; analyse passive : aucun paquet n\'a ete emis vers les '
         "hotes listes. Une empreinte ou une banniere peut etre forgee&nbsp;; un service absent de "
         "ce rapport n'est pas un service absent du reseau, seulement un service qui n'a pas parle "
@@ -314,6 +324,23 @@ def render_security_html(
         + "\n".join(p for p in corps if p)
         + f"\n<script>{_JS}</script></body></html>\n"
     )
+
+
+def _notifications(items: list[dict]) -> str:
+    """Tracabilite des notifications sortantes (issue #280) ; rien si aucune
+    notification n'a ete demandee."""
+    if not items:
+        return ""
+    lignes = "".join(f"<li>{_e(i.get('line', ''))}</li>" for i in items)
+    return f'<h2>Notifications</h2><ul id="notifications">{lignes}</ul>'
+
+
+def _plugins(items: list[dict]) -> str:
+    """Tracabilite des plugins (issue #284) ; rien si aucun plugin demande."""
+    if not items:
+        return ""
+    lignes = "".join(f"<li>{_e(i.get('line', ''))}</li>" for i in items)
+    return f'<h2>Plugins</h2><ul id="plugins">{lignes}</ul>'
 
 
 def generate_security_html(

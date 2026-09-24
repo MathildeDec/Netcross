@@ -15,8 +15,9 @@ Appel :
         --pr-number 123
 
 Volontairement stdlib seule (urllib), meme modele que le reste du
-projet (voir scripts/generate_class_diagram.py). Aucun seuil bloquant :
-la decision de calibrer --cov-fail-under reste a une issue de suivi.
+projet (voir scripts/generate_class_diagram.py). Le seuil bloquant
+(``fail_under`` de pyproject.toml, issue #246) est applique par ci.yml ;
+ce script le rappelle et signale une PR qui passe dessous.
 """
 
 from __future__ import annotations
@@ -24,6 +25,7 @@ from __future__ import annotations
 import argparse
 import json
 import os
+import re
 import sys
 import urllib.request
 
@@ -32,6 +34,26 @@ import urllib.request
 MARQUEUR = "<!-- netcross:couverture-pr -->"
 
 API = "https://api.github.com"
+
+PYPROJECT = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "pyproject.toml")
+
+
+def lire_seuil(chemin: str = PYPROJECT) -> float | None:
+    """``fail_under`` de la section [tool.coverage.report], ou None.
+
+    Lecture par expression reguliere plutot que tomllib : le script tourne
+    avec le python3 systeme du runner et reste compatible 3.9 (cible ruff).
+    """
+    try:
+        with open(chemin, encoding="utf-8") as f:
+            texte = f.read()
+    except OSError:
+        return None
+    section = re.search(r"^\[tool\.coverage\.report\]\s*$(.*?)(?=^\[|\Z)", texte, re.M | re.S)
+    if section is None:
+        return None
+    valeur = re.search(r"^fail_under\s*=\s*([0-9.]+)\s*$", section.group(1), re.M)
+    return float(valeur.group(1)) if valeur else None
 
 
 def _lire_totaux(chemin: str) -> dict:
@@ -50,7 +72,15 @@ def _delta(pr: float, base: float) -> str:
     return f"{pr - base:+.1f} pt"
 
 
-def _construire_commentaire(totaux_pr: dict, totaux_base: dict) -> str:
+def _ligne_seuil(pourcentage_pr: float, seuil: float | None) -> str:
+    if seuil is None:
+        return "Aucun seuil bloquant configuré (`fail_under` absent de pyproject.toml)."
+    if pourcentage_pr < seuil:
+        return f"**Sous le seuil bloquant** de {_pct(seuil)} (`fail_under`, #246) : le job Tests de la CI échouera."
+    return f"Seuil bloquant : {_pct(seuil)} (`fail_under`, #246), marge {pourcentage_pr - seuil:.1f} pt."
+
+
+def _construire_commentaire(totaux_pr: dict, totaux_base: dict, seuil: float | None = None) -> str:
     """Construit le corps du commentaire de couverture (Markdown)."""
     lignes = [
         MARQUEUR,
@@ -71,7 +101,7 @@ def _construire_commentaire(totaux_pr: dict, totaux_base: dict) -> str:
         f"{totaux_pr['covered_branches']}/{totaux_pr['num_branches']} | "
         f"{totaux_pr['covered_branches'] - totaux_base['covered_branches']:+d} |",
         "",
-        "Aucun seuil bloquant (voir #224) : la base de référence du 2026-09-21 est de 76,7 %.",
+        _ligne_seuil(totaux_pr["percent_covered"], seuil),
     ]
     return "\n".join(lignes)
 
@@ -130,6 +160,7 @@ def main(argv: list[str]) -> int:
     corps = _construire_commentaire(
         _lire_totaux(arguments.pr_json),
         _lire_totaux(arguments.base_json),
+        lire_seuil(),
     )
     print(_publier(repo, arguments.pr_number, corps, token))
     return 0

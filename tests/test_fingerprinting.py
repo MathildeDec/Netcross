@@ -5,7 +5,10 @@ netcross_core.fingerprint -- tests de l'empreinte JA4 (TLS) et HASSH
 Tout est synthetique : ClientHello TLS et SSH_MSG_KEXINIT fabriques
 octet par octet (RFC 8446 §4.1.2, RFC 4253 §7.1), aucune capture ni
 tshark -- comme le reste de la suite (voir conftest.py et
-tests/test_banners.py).
+tests/test_banners.py). Exception assumee : la section "verification
+croisee sur capture reelle" ci-dessous, qui rejoue deux vraies charges
+utiles TCP capturees pendant l'audit de septembre 2026 (voir issue #259
+et `known_fingerprints.json` pour la verification de reference).
 """
 
 from __future__ import annotations
@@ -194,6 +197,101 @@ def test_identify_sur_client_hello_renvoie_ja4_et_forme_lisible():
 
 def test_identify_sur_payload_sans_tls_renvoie_none():
     assert tls_ja4.identify(b"\x00" * 20) is None
+
+
+# -- edge cases JA4_c (issue #259, PR #303) -----------------------------------
+
+
+def test_ja4_sans_signature_algorithms_pas_de_underscore_final():
+    # Regression (issue #259) : trouve par comparaison avec ja4plus (implementation
+    # tierce validee contre les vecteurs de test officiels FoxIO) -- sans extension
+    # signature_algorithms, JA4_c hache la liste d'extensions SEULE, sans "_" final.
+    hello = _client_hello_record([0x1301, 0xC02F], _supported_versions_ext([0x0303]))
+    ch = tls_ja4.parse_client_hello(hello)
+    ja4 = tls_ja4.compute_ja4(ch)
+    assert ja4 == "t12i020100_c1929292aa6b_b9a491fefe05"
+
+
+def test_ja4_sans_extension_ni_sigalgs_sentinelle_zero():
+    # Regression (issue #259) : quand il ne reste rien a hacher pour JA4_c
+    # (aucune extension hors SNI/ALPN/GREASE, pas de signature_algorithms),
+    # la reference n'utilise PAS le SHA256 d'une chaine vide mais la
+    # sentinelle "000000000000".
+    hello = _client_hello_record([0x1301], b"")
+    ch = tls_ja4.parse_client_hello(hello)
+    ja4 = tls_ja4.compute_ja4(ch)
+    assert ja4.endswith("_000000000000")
+
+
+def test_ja4_sans_ciphers_sentinelle_zero():
+    hello = _client_hello_record([], _sni_ext())
+    ch = tls_ja4.parse_client_hello(hello)
+    ja4 = tls_ja4.compute_ja4(ch)
+    parts = ja4.split("_")
+    assert parts[1] == "000000000000"
+
+
+# -- verification croisee sur capture reelle (issue #259, PR #304) -------------
+#
+# `known_fingerprints.json` (issue #259) verifie deja JA4 sur boucle locale
+# contre tshark 4.6.4. Les deux charges utiles ci-dessous sont une SECONDE
+# verification, independante : capturees en direct pendant l'audit de
+# septembre 2026 (curl et openssl s_client vers de vrais serveurs HTTPS
+# publics -- pypi.org --, tshark 4.2.2, PAS la meme version que celle
+# utilisee par le script de #259). Objectif : confirmer que la concordance
+# ne depend pas d'une particularite d'une seule version de tshark.
+# Contrairement aux fabriques ci-dessus, ces deux charges utiles incluent
+# l'en-tete d'enregistrement TLS (5 octets : content type 0x16, version,
+# longueur) -- parse_client_hello() le lit lui-meme (voir _parse_client_hello),
+# comme sur une vraie charge utile TCP. Capturees telles quelles (longueur
+# tcp.len exacte, y compris l'extension TLS "padding" 0x0015 de curl -- pas
+# un artefact de decoupe).
+_CURL_PYPI_ORG_TLS13_CLIENT_HELLO = bytes.fromhex(
+    "1603010200010001fc03039616affac74f8d2c6c7172fd97e188d5d2805f30973647"
+    "040202a4d0cc77c393207411460590951a57c897570d945d9aa22d6ccea4221492a8"
+    "3f643d2ecb732ce3003e130213031301c02cc030009fcca9cca8ccaac02bc02f009e"
+    "c024c028006bc023c0270067c00ac0140039c009c0130033009d009c003d003c0035"
+    "002f00ff010001750000000d000b000008707970692e6f7267000b00040300010200"
+    "0a00160014001d0017001e00190018010001010102010301040010000e000c026832"
+    "08687474702f312e31001600000017000000310000000d002a002804030503060308"
+    "0708080809080a080b08040805080604010501060103030301030204020502060200"
+    "2b00050403040303002d00020101003300260024001d0020aabb0c740ad8069bb845"
+    "728d17f5a459bcd34756f6a9832fadd530581e6bd050001500b90000000000000000"
+    "00000000000000000000000000000000000000000000000000000000000000000000"
+    "00000000000000000000000000000000000000000000000000000000000000000000"
+    "00000000000000000000000000000000000000000000000000000000000000000000"
+    "00000000000000000000000000000000000000000000000000000000000000000000"
+    "00000000000000000000000000000000000000000000000000000000000000000000"
+    "00000000000000000000000000000000000000000000000000000000000000000000"
+    "00000000000000000000000000000000000000000000000000000000000000000000"
+    "00000000000000"
+)
+_CURL_PYPI_ORG_TLS13_JA4 = "t13d3112h2_e8f1e7e78f70_b26ce05bbdd6"
+
+_OPENSSL_PYPI_ORG_TLS12_CLIENT_HELLO = bytes.fromhex(
+    "16030100c8010000c4030379a435d5d2bdbe283b8acc397c1979f0c28f15b04f22ed"
+    "ae97746666758d8c0e000038c02cc030009fcca9cca8ccaac02bc02f009ec024c028"
+    "006bc023c0270067c00ac0140039c009c0130033009d009c003d003c0035002f00ff"
+    "010000630000000d000b000008707970692e6f7267000b000403000102000a000c00"
+    "0a001d0017001e00190018002300000016000000170000000d002a00280403050306"
+    "03080708080809080a080b0804080508060401050106010303030103020402050206"
+    "02"
+)
+_OPENSSL_PYPI_ORG_TLS12_JA4 = "t12d280700_d943125447b4_e7e480e5a997"
+
+
+def test_ja4_concorde_avec_tshark_sur_capture_reelle_curl_tls13():
+    ch = tls_ja4.parse_client_hello(_CURL_PYPI_ORG_TLS13_CLIENT_HELLO)
+    assert ch is not None
+    ja4 = tls_ja4.compute_ja4(ch)
+    assert ja4 == _CURL_PYPI_ORG_TLS13_JA4
+
+
+def test_ja4_concorde_avec_tshark_sur_capture_reelle_openssl_tls12():
+    ch = tls_ja4.parse_client_hello(_OPENSSL_PYPI_ORG_TLS12_CLIENT_HELLO)
+    assert ch is not None
+    ja4 = tls_ja4.compute_ja4(ch)
+    assert ja4 == _OPENSSL_PYPI_ORG_TLS12_JA4
 
 
 # -- HASSH --------------------------------------------------------------------

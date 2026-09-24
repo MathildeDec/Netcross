@@ -60,7 +60,6 @@ def test_construire_commentaire_valeurs_et_delta(pcc):
     assert "| Couverture | 76.7 % | 77.1 % | +0.3 pt |" in commentaire
     assert "| Instructions couvertes | 9391/12255 | 9431/12255 | +40 |" in commentaire
     assert "| Branches couvertes | 4322/4728 | 4361/4728 | +39 |" in commentaire
-    assert "76,7 %" in commentaire  # rappel de la base de reference #224
 
 
 def test_construire_commentaire_delta_negatif(pcc):
@@ -77,3 +76,70 @@ def test_lire_totaux_lit_le_rapport_coverage(pcc, tmp_path):
 def test_lire_totaux_fichier_absent_message_clair(pcc):
     with pytest.raises(FileNotFoundError):
         pcc._lire_totaux("/inexistant/coverage.json")
+
+
+# -- seuil bloquant (issue #246) -------------------------------------------------
+
+
+def test_lire_seuil_du_depot(pcc):
+    """Le seuil lu par le script est celui qu'applique la CI : un seul chiffre."""
+    import tomllib
+
+    config = tomllib.loads((REPO_ROOT / "pyproject.toml").read_text(encoding="utf-8"))
+    assert pcc.lire_seuil() == float(config["tool"]["coverage"]["report"]["fail_under"])
+
+
+def test_lire_seuil_ignore_les_autres_sections(pcc, tmp_path):
+    fichier = tmp_path / "pyproject.toml"
+    fichier.write_text(
+        "[tool.autre]\nfail_under = 99\n\n"
+        "[tool.coverage.report]\nprecision = 1\nfail_under = 75.5\n\n"
+        "[tool.x]\ny = 1\n",
+        encoding="utf-8",
+    )
+    assert pcc.lire_seuil(str(fichier)) == 75.5
+
+
+@pytest.mark.parametrize(
+    "contenu",
+    ["[tool.coverage.report]\nprecision = 1\n", "[tool.autre]\nfail_under = 80\n", ""],
+)
+def test_lire_seuil_absent(pcc, tmp_path, contenu):
+    fichier = tmp_path / "pyproject.toml"
+    fichier.write_text(contenu, encoding="utf-8")
+    assert pcc.lire_seuil(str(fichier)) is None
+
+
+def test_lire_seuil_fichier_absent(pcc, tmp_path):
+    assert pcc.lire_seuil(str(tmp_path / "absent.toml")) is None
+
+
+def test_commentaire_au_dessus_du_seuil_indique_la_marge(pcc):
+    commentaire = pcc._construire_commentaire(TOTAUX_REFERENCE, TOTAUX_REFERENCE, 70.0)
+    assert "Seuil bloquant : 70.0 %" in commentaire
+    assert "marge 6.7 pt" in commentaire
+    assert "Sous le seuil" not in commentaire
+
+
+def test_commentaire_sous_le_seuil_annonce_l_echec(pcc):
+    commentaire = pcc._construire_commentaire(TOTAUX_REFERENCE, TOTAUX_REFERENCE, 80.0)
+    assert "Sous le seuil bloquant" in commentaire
+    assert "échouera" in commentaire
+
+
+def test_commentaire_sans_seuil(pcc):
+    assert "Aucun seuil bloquant configuré" in pcc._construire_commentaire(TOTAUX_REFERENCE, TOTAUX_REFERENCE)
+
+
+def test_les_workflows_de_couverture_restent_coherents():
+    """ci.yml doit appliquer le seuil (pas de --cov-fail-under qui le
+    contredirait) ; pr-coverage.yml doit le neutraliser, sinon une PR sous le
+    seuil ne recevrait jamais le commentaire qui l'explique."""
+    ci = (REPO_ROOT / ".github" / "workflows" / "ci.yml").read_text(encoding="utf-8")
+    pr = (REPO_ROOT / ".github" / "workflows" / "pr-coverage.yml").read_text(encoding="utf-8")
+    assert "uv run pytest --cov " in ci
+    assert "--cov-fail-under" not in ci.split("run: uv run pytest --cov", 1)[1].splitlines()[0]
+    lancements = [ligne for ligne in pr.splitlines() if "uv run pytest --cov" in ligne]
+    assert len(lancements) == 3
+    # Les lancements PR et base ont --cov-fail-under=0 ; le run AI extra
+    # collecte juste la couverture sans seuil bloquant.

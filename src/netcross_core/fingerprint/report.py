@@ -67,7 +67,7 @@ def _add(
     point: str,
     host: str,
     port: int | None,
-    role: str,
+    role: str | None,
     service: str,
     fingerprint: str,
     banner: str | None,
@@ -99,7 +99,7 @@ def compute_pkt_fingerprints(proto: str, sport: int | None, dport: int | None, p
     les valeurs sont None quand `proto` n'est pas TCP ou que rien n'est
     decodable (charge utile absente, tronquee, ou ne portant ni
     ClientHello TLS ni SSH_MSG_KEXINIT)."""
-    empty = {
+    empty: dict[str, str | None] = {
         "tls_ja4": None,
         "tls_ja4_readable": None,
         "ssh_hassh": None,

@@ -107,6 +107,27 @@ def _tshark_path() -> str:
     return path
 
 
+_SECRET_PREF_RE = re.compile(r"^(extcap\.[^.:]+\.[a-z]*(?:password|passphrase)):.*$")
+
+
+def redact_args(args: Sequence[str]) -> list:
+    """Copie de `args` sans secret, pour les journaux (issue #166) :
+    valeur de `-A utilisateur:mot_de_passe` (rpcap) et preferences extcap
+    de mot de passe/phrase secrete (sshdump) masquees."""
+    out = []
+    mask_next = False
+    for arg in args:
+        if mask_next:
+            user = str(arg).split(":", 1)[0]
+            out.append(f"{user}:***")
+            mask_next = False
+            continue
+        match = _SECRET_PREF_RE.match(str(arg))
+        out.append(f"{match.group(1)}:***" if match else arg)
+        mask_next = arg == "-A"
+    return out
+
+
 def _build_args(
     *,
     path: str | None = None,
@@ -225,7 +246,7 @@ def iter_ek_records(
         extra_args=extra_args,
         lua_scripts=lua_scripts,
     )
-    logger.debug("tshark args : {}", args)
+    logger.debug("tshark args : {}", redact_args(args))
 
     proc = subprocess.Popen(
         args,

@@ -119,8 +119,11 @@ from netcross_core import (
     adjust_timestamps,
     analyse,
     compare_clients,
+    convert_capture,
     correlate,
+    export_csv,
     export_filtered,
+    export_json,
     merge_captures,
     parse_capture,
     parse_captures_parallel,
@@ -136,6 +139,7 @@ from netcross_core import (
     write_detail_csv,
     write_redaction_map_csv,
 )
+from netcross_core.discovery import load_baseline_hosts
 from netcross_core.forensic import DEFAULT_DUPLICATE_THRESHOLD_MS, detect_cross_capture_duplicates
 from netcross_core.logging_config import get_logger
 from netcross_core.security import close_db, connect_cve_db
@@ -153,24 +157,44 @@ from netcross_core.support import (
 )
 from netcross_report.security_report import build_security_report, print_security_report
 from pcap_parser.ek_source import TsharkError, TsharkNotFoundError
+from pcap_parser.remote import CaptureSourceError, parse_source, split_live_target
 
 logger = get_logger(__name__)
 
 
 def _parse_live_spec(spec):
     """LABEL:INTERFACE[:FILTRE_BPF] -> (label, interface, bpf_ou_None).
-    maxsplit=2 : un filtre BPF contenant lui-meme des ':' (adresse IPv6,
-    par exemple) reste intact, seuls les 2 premiers ':' sont significatifs."""
-    parts = spec.split(":", 2)
-    if len(parts) < 2 or not parts[0] or not parts[1]:
+    Un filtre BPF contenant lui-meme des ':' (adresse IPv6, par exemple)
+    reste intact, seuls les 2 premiers ':' sont significatifs. INTERFACE
+    peut etre une source distante (issue #166) : les ':' de son hote/port
+    ne comptent pas -- voir pcap_parser.remote.split_live_target."""
+    label, sep, rest = spec.partition(":")
+    iface, bpf = split_live_target(rest) if sep else ("", None)
+    if not label or not iface:
         print(
-            f"Format invalide pour --live: {spec} (attendu LABEL:INTERFACE[:FILTRE_BPF])",
+            f"Format invalide pour --live: {spec} (attendu LABEL:INTERFACE[:FILTRE_BPF], INTERFACE pouvant "
+            "etre une source distante rpcap://, sshdump:// ou pipe://)",
             file=sys.stderr,
         )
         sys.exit(1)
-    label, iface = parts[0], parts[1]
-    bpf = parts[2] if len(parts) > 2 else None
-    return label, iface, bpf
+    try:
+        parse_source(iface)
+    except CaptureSourceError as exc:
+        print(f"Source invalide pour --live {label} : {exc}", file=sys.stderr)
+        sys.exit(1)
+    return label, iface, bpf or None
+
+
+def _check_single_stdin(points):
+    """Une seule source pipe://- (entree standard) par execution : deux
+    lecteurs se partageraient les octets du meme flux pcap."""
+    stdin_labels = [label for label, iface, _bpf in points if parse_source(iface).uses_stdin]
+    if len(stdin_labels) > 1:
+        print(
+            f"Une seule source peut lire l'entree standard (pipe://-) : {', '.join(stdin_labels)}",
+            file=sys.stderr,
+        )
+        sys.exit(1)
 
 
 def _parse_client_group_spec(spec):
@@ -255,6 +279,39 @@ def _run_merge(capture_specs, output_path, dedup):
         + (" (paquets identiques dedupliques)" if dedup else "")
         + "."
     )
+
+
+def _run_convert(capture_specs, output_path, fmt):
+    """--convert : convertit UN fichier de capture vers un autre format
+    (pcap, pcapng, erf) ou exporte en CSV/JSON structure, puis s'arrete
+    sans lancer d'analyse. Comme --merge/--split, ne lance aucune analyse."""
+    if not capture_specs:
+        print("--convert necessite --capture (fichier source).", file=sys.stderr)
+        sys.exit(1)
+    paths = []
+    for spec in capture_specs:
+        _label, spec_paths = _parse_capture_spec(spec, "--capture")
+        paths.extend(spec_paths)
+    if len(paths) != 1:
+        print(
+            f"--convert convertit UN fichier a la fois (recu {len(paths)} fichier(s) via --capture) -- "
+            "fusionnez d'abord avec --merge si besoin.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    path_in = paths[0]
+    try:
+        if fmt in ("csv", "json"):
+            if fmt == "csv":
+                export_csv(path_in, output_path)
+            else:
+                export_json(path_in, output_path)
+        else:
+            convert_capture(path_in, output_path, fmt=fmt)
+    except (OSError, ValueError, RuntimeError) as e:
+        print(f"--convert : {e}", file=sys.stderr)
+        sys.exit(1)
+    print(f"Converti {path_in} -> {output_path} (format: {fmt}).")
 
 
 def _run_export(capture_specs, output_path, bpf_filter, time_start, time_end, endpoints):
@@ -448,7 +505,7 @@ def _run_replay(capture_specs, interface, speed, loop):
     print(f"{paths[0]} rejoue sur {interface} (speed={speed}, loop={loop}).")
 
 
-def _run_live_captures(live_specs, duration):
+def _run_live_captures(live_specs, duration, reporter=None):
     """Capture en direct sur un ou plusieurs points simultanement (un thread
     par point, comme l'interface graphique -- voir netcross_gtk4.app
     _begin_live_capture/_live_capture_worker) jusqu'a Ctrl+C ou
@@ -456,8 +513,12 @@ def _run_live_captures(live_specs, duration):
 
     Un point en erreur (tshark absent, interface invalide, permission...)
     n'arrete pas les autres points : meme choix assume que sur la GUI,
-    ou seul l'utilisateur (ou la duree max) met fin a la session complete."""
+    ou seul l'utilisateur (ou la duree max) met fin a la session complete.
+
+    ``reporter`` (issue #274, --live-report) : LiveReporter alimente paquet
+    par paquet et publie a intervalle regulier pendant la capture."""
     points = [_parse_live_spec(s) for s in live_specs]
+    _check_single_stdin(points)
     stop_event = threading.Event()
     packets_by_point = {label: [] for label, _iface, _bpf in points}
     lock = threading.Lock()
@@ -469,6 +530,8 @@ def _run_live_captures(live_specs, duration):
             for pkt in parse_live(label, iface, bpf_filter=bpf, stop_event=stop_event):
                 with lock:
                     packets_by_point[label].append(pkt)
+                if reporter is not None:
+                    reporter.add(pkt)
                 count += 1
                 now = time.monotonic()
                 if now - last_log >= 2.0:
@@ -477,6 +540,11 @@ def _run_live_captures(live_specs, duration):
         except Exception as e:  # noqa: BLE001 -- thread de fond : une erreur sur
             # ce point doit etre rapportee sans arreter les autres points en cours.
             print(f"[{label}] ERREUR : {e}", file=sys.stderr)
+            if reporter is not None:
+                reporter.aggregator.set_status(label, "erreur", str(e))
+        else:
+            if reporter is not None:
+                reporter.aggregator.set_status(label, "arrete")
         print(f"[{label}] capture arretee -- {count} paquet(s) au total.")
 
     def _on_sigint(_signum, _frame):
@@ -501,6 +569,10 @@ def _run_live_captures(live_specs, duration):
             + "... (Ctrl+C pour arreter)"
         )
     threads = [threading.Thread(target=_worker, args=(label, iface, bpf), daemon=True) for label, iface, bpf in points]
+    if reporter is not None:
+        for label, _iface, _bpf in points:
+            reporter.aggregator.register(label)
+        reporter.start()
     for t in threads:
         t.start()
 
@@ -517,6 +589,8 @@ def _run_live_captures(live_specs, duration):
         if timer:
             timer.cancel()
         signal.signal(signal.SIGINT, old_handler)
+        if reporter is not None:
+            reporter.stop()
 
     all_packets = []
     for label, _iface, _bpf in points:
@@ -589,6 +663,407 @@ def _parse_support_markers(specs) -> dict[str, str]:
     return markers
 
 
+# -- estimation memoire / avertissement avant analyse (issue #283, Etape 2) -
+#
+# Ordre de grandeur retenu pour l'octet-par-paquet en memoire de travail,
+# base sur scripts/bench_memory.py (voir la courbe consignee dans l'issue
+# #283) : un Pkt (dataclass a slots, ~25 champs scalaires) plus les
+# structures accumulees par correlate()/analyse() (flux, historiques de
+# latence/hop_delta, index de correlation...) qui, elles, croissent avec le
+# nombre de paquets et pas seulement avec leur taille sur le fil -- d'ou une
+# estimation basee sur le NOMBRE de paquets (capinfos "Number of packets"),
+# pas sur la taille du fichier (un fichier de 4 Go avec des trames courtes
+# comporte largement plus de paquets, donc plus de memoire de travail,
+# qu'un fichier de 4 Go avec des trames pleines). Volontairement
+# conservateur (arrondi au superieur) : une estimation trop basse laisserait
+# l'OOM-killer faire le travail que cette fonction doit eviter.
+_ESTIMATED_BYTES_PER_PACKET = 350
+
+
+def _format_go(n_bytes: float) -> str:
+    """``4_200_000_000`` -> ``"4.2 Go"`` (Go decimal = 10**9, comme le
+    reste de ce fichier pour les tailles de fichier -- voir _parse_size)."""
+    return f"{n_bytes / 1_000_000_000:.1f} Go"
+
+
+def _format_paquets(n: int) -> str:
+    """``18300000`` -> ``"18,3 M paquets"`` (arrondi au dixieme de
+    million, lisible dans un avertissement -- pas une valeur exacte)."""
+    if n >= 1_000_000:
+        return f"{n / 1_000_000:.1f} M paquets".replace(".", ",")
+    return f"{n} paquets"
+
+
+def _available_memory_bytes() -> int | None:
+    """Memoire disponible en octets, ou None si indeterminable.
+
+    Lit /proc/meminfo ("MemAvailable", present depuis Linux 3.14 -- estime
+    par le noyau lui-meme la memoire reellement recuperable pour une
+    nouvelle allocation, cache/buffers inclus, contrairement a "MemFree"
+    qui sous-estime largement sur une machine dont le cache disque est
+    charge) plutot qu'un paquet tiers (psutil, absent des dependances de ce
+    projet -- voir pyproject.toml) : suffisant sur Linux, seule plateforme
+    visee par install.sh. Aucune exception ne remonte : une plateforme sans
+    /proc/meminfo (autre qu'Linux) degrade simplement vers "indeterminable",
+    l'avertissement est alors omis plutot que de bloquer l'analyse."""
+    try:
+        with open("/proc/meminfo") as f:
+            for line in f:
+                if line.startswith("MemAvailable:"):
+                    # Format : "MemAvailable:    3145728 kB"
+                    parts = line.split()
+                    if len(parts) >= 2:
+                        return int(parts[1]) * 1024
+    except (OSError, ValueError):
+        return None
+    return None
+
+
+def _estimate_memory_bytes(packet_count: int) -> int:
+    """Memoire de travail estimee pour analyser ``packet_count`` paquets --
+    voir _ESTIMATED_BYTES_PER_PACKET pour la justification de la constante.
+    Multiplie par 4 : all_packets, flows/conversations (correlate()) et les
+    accumulateurs de Report (analyse()) coexistent tous en memoire en meme
+    temps sur le chemin actuel (pas de flux, voir Etape 4 de l'issue #283
+    -- non traitee par cette PR), plus une marge pour le tas Python
+    lui-meme (fragmentation, objets intermediaires de tshark -T ek)."""
+    return packet_count * _ESTIMATED_BYTES_PER_PACKET * 4
+
+
+def _memory_warning(label: str, file_size: int, packet_count: int) -> str | None:
+    """Avertissement memoire pour UN point de capture (POINT_A dans
+    l'exemple de l'issue #283), ou None si la memoire disponible n'a pas pu
+    etre determinee ou si l'estimation ne depasse pas le disponible --
+    aucune raison d'avertir dans ce cas, meme discipline que
+    read_capture_comment (silence plutot que faux positif)."""
+    available = _available_memory_bytes()
+    if available is None:
+        return None
+    estimated = _estimate_memory_bytes(packet_count)
+    if estimated <= available:
+        return None
+    return (
+        f"{label} : {_format_go(file_size)}, {_format_paquets(packet_count)} -> environ "
+        f"{_format_go(estimated)} de memoire estimes, {_format_go(available)} disponibles. "
+        "Analyse complete probablement impossible. Utiliser --max-packets, --sample ou --stream."
+    )
+
+
+def _check_memory_before_analysis(captures) -> None:
+    """Imprime sur stderr un avertissement memoire (voir _memory_warning)
+    pour chaque fichier de ``captures`` (paires (label, path)) dont la
+    metadonnee capinfos est lisible et dont l'estimation depasse la
+    memoire disponible. N'interrompt jamais l'analyse (comme le reste des
+    metadonnees capinfos dans ce fichier) : avertir, pas bloquer -- a
+    l'analyste de decider (--max-packets/--sample/Ctrl+C), voir issue
+    #283 Etape 2 : "un outil qui annonce sa limite est utilisable"."""
+    from pcap_parser.capinfos_source import read_capture_info
+
+    for label, path in captures:
+        info = read_capture_info(path)
+        if info is None or info.packet_count is None:
+            # capinfos absent, fichier illisible, ou format sans compteur
+            # fiable (pcap classique tronque...) : pas d'estimation possible,
+            # meme tolerance silencieuse que read_capture_comment/
+            # read_capture_info eux-memes.
+            continue
+        if info.file_size is not None:
+            file_size = info.file_size
+        elif os.path.isfile(path):
+            file_size = os.path.getsize(path)
+        else:
+            file_size = 0
+        warning = _memory_warning(label, file_size, info.packet_count)
+        if warning:
+            print(f"\nATTENTION memoire -- {warning}", file=sys.stderr)
+
+
+def _parse_sample_spec(spec: str) -> int:
+    """``"1/50"`` -> ``50`` (garder 1 paquet sur 50). Rejette toute autre
+    forme (0, negatif, denominateur manquant) : une valeur invalide ici
+    tronquerait silencieusement l'analyse sans que l'utilisateur s'en
+    rende compte, inacceptable pour la meme raison que la troncature
+    elle-meme doit toujours etre annoncee (voir Report.truncation_note)."""
+    m = re.fullmatch(r"1\s*/\s*(\d+)", spec.strip())
+    if not m or int(m.group(1)) <= 0:
+        print(
+            f"--sample : format attendu 1/N avec N entier > 0, recu {spec!r} (ex: --sample 1/50).",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    return int(m.group(1))
+
+
+def _apply_packet_limits(all_packets, max_packets, sample_n):
+    """Applique --max-packets/--sample (issue #283, Etape 3) a la liste de
+    paquets DEJA CHARGEE (tous les fichiers de --capture sont toujours lus
+    integralement par parse_capture -- limiter la LECTURE elle-meme est le
+    travail de l'Etape 4/traitement en flux, hors perimetre de cette PR) et
+    renvoie ``(paquets_retenus, note_ou_None)``. --sample est applique
+    AVANT --max-packets quand les deux sont fournis ensemble (echantillonner
+    puis plafonner le resultat) : l'ordre inverse laisserait --sample sans
+    effet visible si --max-packets est plus restrictif. ``note`` vaut None
+    si aucune limite n'a reellement tronque quoi que ce soit (fichier plus
+    petit que la limite demandee) -- Report.truncated ne doit jamais
+    devenir True sans raison, meme discipline que duplicates_excluded."""
+    total = len(all_packets)
+    kept = all_packets
+    notes = []
+    if sample_n and sample_n > 1:
+        kept = kept[::sample_n]
+        notes.append(f"echantillonnage 1 paquet sur {sample_n} ({len(kept)} retenus sur {total})")
+    if max_packets is not None and len(kept) > max_packets:
+        before = len(kept)
+        kept = kept[:max_packets]
+        notes.append(f"analyse limitee aux {max_packets:,} premiers paquets sur {before:,}".replace(",", " "))
+    if not notes:
+        return kept, None
+    return kept, "analyse tronquee -- " + " ; ".join(notes) + " -- les constats ne couvrent pas la capture entiere."
+
+
+def _send_notifications(args, report, security_report_obj) -> list[dict]:
+    """Notifications sortantes (issue #280). Ne leve jamais : un canal en
+    echec est une ligne de tracabilite du rapport, pas un echec d'analyse."""
+    from pathlib import Path
+
+    from netcross_core.config import load_config
+    from netcross_core.notify import build_summary, run_notifications
+
+    dash = security_report_obj.dashboard
+    report_path = args.security_html or args.json_report or args.pdf_report
+    results = run_notifications(
+        lambda threshold: build_summary(
+            report.security_findings or [],
+            score=dash.score,
+            level=dash.level,
+            threshold=threshold,
+            report_path=os.path.abspath(report_path) if report_path else None,
+            detail=args.notify_detail,
+        ),
+        threshold=args.notify_on,
+        cfg=load_config().notify,
+        webhook=args.notify_webhook,
+        slack=args.notify_slack,
+        email_to=args.notify_email,
+        state_path=Path(args.notify_state) if args.notify_state else None,
+        silence_hours=args.notify_silence,
+    )
+    return [res.to_dict() for res in results]
+
+
+def _list_plugins(authorized: list[str], plugin_paths: list[str]) -> int:
+    """--list-plugins : installes ET locaux, en disant lesquels sont
+    autorises -- un plugin installe n'est pas un plugin autorise."""
+    from netcross_core.plugins import list_plugins
+
+    rows = list_plugins(authorized, plugin_paths)
+    if not rows:
+        print("Aucun plugin installe (entry points netcross.detectors / netcross.exporters) ni --plugin-path.")
+        return 0
+    print(f"{'NOM':<24} {'TYPE':<10} {'AUTORISE':<9} ORIGINE")
+    for row in rows:
+        allowed = "oui" if row["authorized"] else "non"
+        print(f"{row['name']:<24} {row['kind']:<10} {allowed:<9} {row['origin']}")
+        if row["error"]:
+            print(f"  !! {row['error']}")
+    unknown = [n for n in authorized if n not in {r["name"] for r in rows}]
+    if unknown:
+        print(f"Demande(s) dans --plugins mais introuvable(s) : {', '.join(unknown)}")
+    return 0
+
+
+def _parse_plugin_exports(specs: list[str], authorized: list[str]) -> list[tuple[str, str]]:
+    targets = []
+    for spec in specs:
+        name, sep, path = spec.partition("=")
+        if not sep or not name.strip() or not path.strip():
+            print(f"--plugin-export : format attendu NOM=FICHIER, recu {spec!r}.", file=sys.stderr)
+            sys.exit(1)
+        if name.strip() not in authorized:
+            print(f"--plugin-export {name.strip()} : exporteur absent de --plugins.", file=sys.stderr)
+            sys.exit(1)
+        targets.append((name.strip(), path.strip()))
+    return targets
+
+
+def _check_extraction_args(args) -> tuple[str, ...]:
+    """Validations de l'issue #278 ; renvoie les types a extraire."""
+    from netcross_core.extract.contents import parse_kinds
+
+    if args.extract_kinds and not args.extract_contents:
+        print("--extract-kinds necessite --extract-contents.", file=sys.stderr)
+        sys.exit(1)
+    if not (args.media_quality or args.extract_contents):
+        return ()
+    if args.live:
+        print(
+            "--media-quality/--extract-contents relisent les fichiers passes a --capture : indisponibles avec --live.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    if args.redact and args.extract_contents:
+        print(
+            "--extract-contents est incompatible avec --redact : une voix, une video ou un document "
+            "extrait ne peut pas etre anonymise, le combiner a un rapport anonymise serait trompeur.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    try:
+        kinds = parse_kinds(args.extract_kinds)
+    except ValueError as exc:
+        print(f"--extract-kinds : {exc}", file=sys.stderr)
+        sys.exit(1)
+    if args.extract_contents:
+        out = args.extract_contents
+        if os.path.exists(out) and (not os.path.isdir(out) or os.listdir(out)):
+            print(
+                f"--extract-contents : {out} existe deja et n'est pas un repertoire vide "
+                "(une extraction par repertoire, pour un manifeste fidele).",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+    return kinds
+
+
+def _run_content_extraction(captures, out_dir, kinds) -> None:
+    """Analyse qualitative / extraction des contenus (issue #278)."""
+    from netcross_core.extract.contents import USAGE_REMINDER, format_extraction, run_extraction
+
+    print("\n" + "=" * 70)
+    print("CONTENUS AUDIO/VIDEO/DOCUMENTS (relit les memes fichiers)")
+    print("=" * 70)
+    if out_dir:
+        print(USAGE_REMINDER, file=sys.stderr)
+        logger.warning("extraction de contenus vers {} (types : {})", out_dir, ", ".join(kinds))
+    result = run_extraction(captures, out_dir=out_dir, kinds=kinds if out_dir else ())
+    for line in format_extraction(result):
+        print(line)
+
+
+def _check_live_report_args(args) -> None:
+    """Validations de l'issue #274."""
+    if (args.live_report_serve is not None or args.live_report_interval != 5.0) and not args.live_report:
+        print("--live-report-interval/--live-report-serve necessitent --live-report.", file=sys.stderr)
+        sys.exit(1)
+    if not args.live_report:
+        return
+    if not args.live:
+        print("--live-report necessite --live (pour une capture existante, --json-report suffit).", file=sys.stderr)
+        sys.exit(1)
+    if args.live_report_interval < 1:
+        print("--live-report-interval : 1 seconde minimum.", file=sys.stderr)
+        sys.exit(1)
+    if args.live_report_serve is not None and not 1 <= args.live_report_serve <= 65535:
+        print("--live-report-serve : port entre 1 et 65535.", file=sys.stderr)
+        sys.exit(1)
+    if os.path.exists(args.live_report) and not os.path.isdir(args.live_report):
+        print(f"--live-report : {args.live_report} n'est pas un repertoire.", file=sys.stderr)
+        sys.exit(1)
+
+
+def _start_live_report(args):
+    """(LiveReporter | None, serveur HTTP | None) pour --live-report."""
+    if not args.live_report:
+        return None, None
+    from netcross_core.live_report import LiveReporter, LiveReportWriter
+    from netcross_report.live_html import render_live_html
+
+    writer = LiveReportWriter(args.live_report, render_live_html, args.live_report_interval)
+    print(f"Rapport temps reel : {writer.html_path} (releve toutes les {args.live_report_interval:g} s)")
+    server = None
+    if args.live_report_serve is not None:
+        import functools
+        from http.server import SimpleHTTPRequestHandler, ThreadingHTTPServer
+
+        class _Quiet(SimpleHTTPRequestHandler):
+            def log_message(self, format, *args):  # noqa: A002 -- signature imposee par http.server
+                pass
+
+        handler = functools.partial(_Quiet, directory=str(writer.out_dir))
+        try:
+            server = ThreadingHTTPServer(("127.0.0.1", args.live_report_serve), handler)
+        except OSError as exc:
+            print(
+                f"--live-report-serve : impossible d'ecouter sur le port {args.live_report_serve} ({exc}).",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        threading.Thread(target=server.serve_forever, name="netcross-live-http", daemon=True).start()
+        print(f"Page servie sur http://127.0.0.1:{server.server_address[1]}/ (?mode=completive pour le journal)")
+    return LiveReporter(writer), server
+
+
+def _check_ai_args(args):
+    """Validations de l'issue #146, AVANT l'analyse (echec immediat plutot
+    qu'apres de longues minutes de lecture de capture)."""
+    requested = (
+        args.ai_baseline_save or args.ai_anomalies or args.ai_training_export or args.ai_classify or args.ai_summary
+    )
+    if not requested:
+        if args.ai_report or args.ai_endpoint or args.ai_baseline_label:
+            print(
+                "--ai-report/--ai-endpoint/--ai-baseline-label necessitent une option --ai-* d'analyse.",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        return None
+    from netcross_ai.optional import AIUnavailableError, require_ml
+    from netcross_ai.pipeline import AIOptions
+    from netcross_ai.report_writer import WriterConfigError, parse_engine
+
+    if args.ai_baseline_label and not args.ai_baseline_save:
+        print("--ai-baseline-label necessite --ai-baseline-save.", file=sys.stderr)
+        sys.exit(1)
+    if args.ai_endpoint and not args.ai_summary:
+        print("--ai-endpoint necessite --ai-summary.", file=sys.stderr)
+        sys.exit(1)
+    for flag, path in (("--ai-anomalies", args.ai_anomalies), ("--ai-classify", args.ai_classify)):
+        if path and not os.path.isfile(path):
+            print(f"{flag} : fichier introuvable : {path}", file=sys.stderr)
+            sys.exit(1)
+    try:
+        if args.ai_anomalies:
+            require_ml("--ai-anomalies")
+        if args.ai_classify:
+            require_ml("--ai-classify")
+        if args.ai_summary:
+            parse_engine(args.ai_summary, args.ai_endpoint)
+    except (AIUnavailableError, WriterConfigError) as exc:
+        print(f"Module IA : {exc}", file=sys.stderr)
+        sys.exit(1)
+    return AIOptions(
+        baseline_path=args.ai_anomalies,
+        baseline_save=args.ai_baseline_save,
+        baseline_label=args.ai_baseline_label,
+        training_path=args.ai_classify,
+        training_export=args.ai_training_export,
+        summary_engine=args.ai_summary,
+        endpoint=args.ai_endpoint,
+    )
+
+
+def _run_ai(args, ai_options, report, all_packets) -> None:
+    import json
+
+    from netcross_ai.pipeline import format_ai, run_ai
+
+    flows = report.flow_anomalies
+    if not flows:
+        from netcross_core.security.flow_stats import analyze_flow_stats
+
+        flows = [f.to_dict() for f in analyze_flow_stats(all_packets).flows]
+    try:
+        result = run_ai(report, flows, ai_options)
+    except (RuntimeError, ValueError, OSError) as exc:
+        print(f"Module IA : {exc}", file=sys.stderr)
+        sys.exit(1)
+    print(format_ai(result))
+    if args.ai_report:
+        with open(args.ai_report, "w", encoding="utf-8") as fh:
+            json.dump(result, fh, ensure_ascii=False, indent=2)
+        print(f"\nResultats du module IA ecrits dans {args.ai_report}")
+
+
 def main():
     ap = argparse.ArgumentParser(description="Analyse croisee de captures Wireshark multi-points")
     ap.add_argument(
@@ -609,13 +1084,36 @@ def main():
         "pcap existants (repetable pour plusieurs points simultanes, un "
         "thread par point comme sur l'interface graphique). S'arrete sur "
         "Ctrl+C ou --live-duration. Mutuellement exclusif avec --capture/"
-        "--parallel/--tls/--quic (memes limitations assumees que sur la GUI).",
+        "--parallel/--tls/--quic (memes limitations assumees que sur la GUI). "
+        "INTERFACE peut etre une source distante : rpcap://hote[:port]/eth0, "
+        "sshdump://utilisateur@hote/eth0, pipe:///fifo ou pipe://- (voir docs/capture-distante.md).",
     )
     ap.add_argument(
         "--live-duration",
         type=int,
         default=None,
         help="Duree maximale en secondes pour --live (defaut: illimitee, s'arrete uniquement sur Ctrl+C)",
+    )
+    ap.add_argument(
+        "--live-report",
+        metavar="REPERTOIRE",
+        help="Avec --live : rapport temps reel (issue #274) publie pendant la capture dans REPERTOIRE : "
+        "live.json (instantane complet, remplace atomiquement), live.jsonl (journal en ajout seul, une "
+        "ligne par releve) et index.html (relecture successive ou completive). Voir docs/live-report.md.",
+    )
+    ap.add_argument(
+        "--live-report-interval",
+        type=float,
+        default=5.0,
+        metavar="SECONDES",
+        help="Avec --live-report : intervalle entre deux releves (defaut 5, minimum 1).",
+    )
+    ap.add_argument(
+        "--live-report-serve",
+        type=int,
+        metavar="PORT",
+        help="Avec --live-report : sert REPERTOIRE en HTTP sur 127.0.0.1:PORT (localhost seulement) pour que "
+        "la page se mette a jour sans rechargement.",
     )
     ap.add_argument(
         "--split",
@@ -752,6 +1250,28 @@ def main():
         "marque doublon.",
     )
     ap.add_argument(
+        "--max-packets",
+        type=int,
+        default=None,
+        metavar="N",
+        help="Limite l'analyse aux N premiers paquets (tous points confondus, "
+        "apres --sample si les deux sont fournis) -- utile sur une capture trop "
+        "volumineuse pour la memoire disponible (voir l'avertissement memoire "
+        "affiche avant l'analyse). La troncature est ecrite dans le rapport "
+        "(Report.truncated/truncation_note) : jamais silencieuse, issue #283.",
+    )
+    ap.add_argument(
+        "--sample",
+        metavar="1/N",
+        default=None,
+        help="Echantillonne 1 paquet sur N (tous points confondus) avant "
+        "analyse, ex: --sample 1/50 pour garder 2%% des paquets -- reduit la "
+        "memoire necessaire au prix d'une vue partielle (utile pour un premier "
+        "apercu d'une capture trop volumineuse). Applique AVANT --max-packets "
+        "si les deux sont fournis. Meme obligation de tracabilite que "
+        "--max-packets (issue #283).",
+    )
+    ap.add_argument(
         "--bucket-ms",
         type=int,
         default=1000,
@@ -832,6 +1352,95 @@ def main():
         "scripts/import_nvd.py) pour la correlation version -> CVE. Doit "
         "designer un fichier existant (aucune base vide n'est creee).",
     )
+    notify = ap.add_argument_group(
+        "notifications (issue #280)",
+        "Un resume par analyse (jamais un message par constat) quand le pire constat atteint le seuil. "
+        "Secrets SMTP et URL de webhook de preference dans .netcross.toml ([notify]) ou en variables "
+        "d'environnement (NETCROSS_SLACK_WEBHOOK, NETCROSS_SMTP_*). Voir docs/notifications.md.",
+    )
+    notify.add_argument(
+        "--notify-on",
+        choices=("critique", "elevee", "moyenne", "faible"),
+        help="Avec --security-report : notifie si le niveau atteint ce seuil. Sans cette option, "
+        "AUCUNE notification (aucun appel reseau), meme si des canaux sont configures.",
+    )
+    notify.add_argument("--notify-webhook", metavar="URL", help="POST JSON du resume vers cette URL.")
+    notify.add_argument("--notify-slack", metavar="URL", help="Webhook entrant Slack (Block Kit).")
+    notify.add_argument(
+        "--notify-email",
+        metavar="DEST[,DEST...]",
+        help="Destinataires du courriel (serveur et identifiants SMTP : .netcross.toml ou NETCROSS_SMTP_*).",
+    )
+    notify.add_argument(
+        "--notify-detail",
+        choices=("resume", "complet"),
+        default="resume",
+        help="`resume` (defaut) : adresses, noms d'hote et chemins anonymises ; `complet` : texte brut "
+        "des constats -- a n'utiliser que vers un canal de confiance.",
+    )
+    notify.add_argument(
+        "--notify-silence",
+        type=float,
+        metavar="HEURES",
+        help="Fenetre anti-repetition : le meme lot de constats n'est pas re-notifie pendant cette "
+        "duree (defaut 24, 0 = desactive).",
+    )
+    notify.add_argument(
+        "--notify-state",
+        metavar="FICHIER",
+        help="Fichier d'etat anti-repetition (defaut ~/.cache/netcross/notify-state.json).",
+    )
+    ap.add_argument(
+        "--known-destinations",
+        metavar="FICHIER.json",
+        help="Avec --security-report : baseline des destinations connues pour la detection "
+        "d'exfiltration (issue #148) -- liste JSON d'IP, ou objet avec une cle `hosts`. "
+        "Un transfert suspect vers une IP absente de la liste est aggrave (signal "
+        "`new_destination`) ; sans baseline, ce signal n'est jamais emis.",
+    )
+    ap.add_argument(
+        "--siem-export",
+        choices=("cef", "leef", "stix"),
+        help="Avec --security-report et --siem-output : exporte les constats pour un SIEM -- "
+        "`cef` (ArcSight/Splunk/ELK), `leef` (QRadar, LEEF 2.0) ou `stix` (bundle STIX 2.1 "
+        "pour MISP/OpenCTI, deterministe). Voir docs/siem-export.md.",
+    )
+    ap.add_argument(
+        "--siem-output",
+        metavar="FICHIER",
+        help="Fichier de sortie de --siem-export.",
+    )
+    plug = ap.add_argument_group(
+        "plugins (issue #284)",
+        "Detecteurs et sorties tierces. Chargement EXPLICITE : un plugin installe n'est execute que "
+        "s'il est nomme dans --plugins. Code tiers execute dans le processus : voir docs/plugins.md.",
+    )
+    plug.add_argument(
+        "--plugins",
+        metavar="NOM[,NOM...]",
+        help="Plugins autorises a s'executer (entry points netcross.detectors / netcross.exporters "
+        "ou definis dans un --plugin-path). Les detecteurs necessitent --security-report.",
+    )
+    plug.add_argument(
+        "--plugin-path",
+        action="append",
+        default=[],
+        metavar="FICHIER.py",
+        help="Fichier plugin local (DETECTORS = [...] / EXPORTERS = [...]). Repetable. Le fichier est "
+        "importe, mais ses plugins ne s'executent que s'ils sont nommes dans --plugins.",
+    )
+    plug.add_argument(
+        "--plugin-export",
+        action="append",
+        default=[],
+        metavar="NOM=FICHIER",
+        help="Execute l'exporteur NOM (autorise par --plugins) vers FICHIER. Repetable.",
+    )
+    plug.add_argument(
+        "--list-plugins",
+        action="store_true",
+        help="Liste les plugins installes et locaux, autorises ou NON par --plugins, puis quitte.",
+    )
     ap.add_argument(
         "--security-html",
         help="Avec --security-report : chemin de sortie pour un rendu HTML "
@@ -862,6 +1471,47 @@ def main():
         "Independant du chemin procedural (build_findings) -- les deux "
         "chemins coexistent, le moteur declaratif ne le remplace pas encore.",
     )
+    ai = ap.add_argument_group(
+        'module IA local (issue #146, optionnel : pip install "netcross[ai]")',
+        "Tout tourne sur cette machine ; voir docs/module-ia.md.",
+    )
+    ai.add_argument(
+        "--ai-baseline-save",
+        metavar="FICHIER.json",
+        help="Ajoute les flux de cette capture (supposee NORMALE) a la baseline FICHIER (creee si absente).",
+    )
+    ai.add_argument("--ai-baseline-label", metavar="ETIQUETTE", default="", help="Avec --ai-baseline-save : nom libre.")
+    ai.add_argument(
+        "--ai-anomalies",
+        metavar="BASELINE.json",
+        help="Detection d'anomalies de flux (Isolation Forest) par rapport a la baseline. Necessite scikit-learn.",
+    )
+    ai.add_argument(
+        "--ai-training-export",
+        metavar="FICHIER.json",
+        help="Exporte les flux pre-etiquetes par les regles FLOW-4, a corriger pour --ai-classify.",
+    )
+    ai.add_argument(
+        "--ai-classify",
+        metavar="ENTRAINEMENT.json",
+        help="Classe les flux (foret aleatoire entrainee sur ce jeu etiquete) avec un score de confiance. "
+        "Necessite scikit-learn.",
+    )
+    ai.add_argument(
+        "--ai-summary",
+        metavar="MOTEUR",
+        nargs="?",
+        const="template",
+        help="Resume executif, correlations et recommandations en francais : template (defaut, sans modele), "
+        "ollama:MODELE ou llamacpp (modele local).",
+    )
+    ai.add_argument(
+        "--ai-endpoint",
+        metavar="URL",
+        help="Avec --ai-summary ollama/llamacpp : point d'acces local (defaut http://127.0.0.1:11434 ou :8080). "
+        "Toute adresse hors boucle locale est refusee.",
+    )
+    ai.add_argument("--ai-report", metavar="FICHIER.json", help="Ecrit les resultats du module IA en JSON.")
     ap.add_argument(
         "--expert-section",
         action="store_true",
@@ -976,6 +1626,26 @@ def main():
         "integralement (defaut: 1, une seule passe). Doit etre >= 1.",
     )
     ap.add_argument(
+        "--convert",
+        metavar="SORTIE",
+        help="Convertit le fichier passe a --capture (un seul) vers un autre "
+        "format, puis s'arrete SANS lancer d'analyse. Le format de sortie "
+        "depend de --convert-format (defaut: pcapng). Pour un export "
+        "structure (CSV/JSON), utiliser --convert-format csv ou json. "
+        "Incompatible avec --live/--merge/--split/--replay et avec les "
+        "options d'analyse/de rapport.",
+    )
+    ap.add_argument(
+        "--convert-format",
+        default="pcapng",
+        choices=["pcap", "pcapng", "erf", "csv", "json"],
+        metavar="FORMAT",
+        help="Avec --convert : format de sortie (defaut: pcapng). Formats de "
+        "capture : pcap, pcapng, erf (via tshark -F). Exports structures : "
+        "csv (un paquet par ligne, colonnes timestamp/src/dst/proto/length), "
+        "json (un objet par paquet avec tous les champs EK).",
+    )
+    ap.add_argument(
         "--redact",
         action="store_true",
         help="Anonymise les adresses IP (RFC 5737/3849, plages de documentation) "
@@ -1072,7 +1742,35 @@ def main():
         "sur --history-label si elle est fournie, sinon montre tous les "
         "runs de la base.",
     )
+    ext = ap.add_argument_group(
+        "extraction des contenus (issue #278)",
+        "Analyse qualitative des flux audio/video (note de degradation due au transport) et, sur demande "
+        "explicite, extraction du son, de la video et des documents. Rappel d'usage raisonne : "
+        "voir docs/extraction-contenus.md.",
+    )
+    ext.add_argument(
+        "--media-quality",
+        action="store_true",
+        help="Analyse qualitative des flux RTP (pertes, rafales, gigue, MOS, images endommagees, note de "
+        "degradation 0-100). N'ecrit AUCUN contenu : a privilegier quand elle suffit.",
+    )
+    ext.add_argument(
+        "--extract-contents",
+        metavar="REPERTOIRE",
+        help="Extrait les contenus dans REPERTOIRE (cree en 0700, doit etre absent ou vide) : audio G.711 "
+        "-> WAV, video H.264 -> .h264, documents via tshark --export-objects (HTTP, SMB, courriel, TFTP, "
+        "FTP-DATA), plus manifest.json (SHA-256, flux d'origine, degradation). Inclut --media-quality.",
+    )
+    ext.add_argument(
+        "--extract-kinds",
+        metavar="TYPE[,TYPE]",
+        help="Avec --extract-contents : restreint l'extraction a audio, video et/ou documents (defaut : tous).",
+    )
     args = ap.parse_args()
+
+    plugin_names = [n.strip() for n in (args.plugins or "").split(",") if n.strip()]
+    if args.list_plugins:
+        sys.exit(_list_plugins(plugin_names, args.plugin_path))
 
     if not args.capture and not args.live:
         print("Il faut fournir au moins un --capture ou un --live.", file=sys.stderr)
@@ -1092,9 +1790,73 @@ def main():
     if args.cve_db and not args.security_report:
         print("--cve-db necessite --security-report.", file=sys.stderr)
         sys.exit(1)
+    known_destinations = None
+    if args.known_destinations:
+        if not args.security_report:
+            print("--known-destinations necessite --security-report.", file=sys.stderr)
+            sys.exit(1)
+        if not os.path.isfile(args.known_destinations):
+            print(f"--known-destinations : fichier introuvable : {args.known_destinations}", file=sys.stderr)
+            sys.exit(1)
+        hosts = load_baseline_hosts(args.known_destinations)
+        if not hosts:
+            # load_baseline_hosts avale les erreurs de lecture : une baseline
+            # vide ferait passer TOUTE destination pour nouvelle. On refuse.
+            print(
+                f"--known-destinations : aucune IP lue dans {args.known_destinations} (JSON invalide ou liste vide).",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        known_destinations = frozenset(hosts)
     # Meme discipline que --cve-db : echouer tot et clairement plutot que
     # de produire un fichier HTML vide, ou de ne rien ecrire en silence --
     # l'utilisateur croirait avoir un rapport (issue #218).
+    if bool(args.siem_export) != bool(args.siem_output):
+        print("--siem-export et --siem-output vont ensemble (format + fichier).", file=sys.stderr)
+        sys.exit(1)
+    if args.siem_export and not args.security_report:
+        print("--siem-export necessite --security-report.", file=sys.stderr)
+        sys.exit(1)
+    notify_extras = [
+        opt
+        for opt, given in (
+            ("--notify-webhook", args.notify_webhook),
+            ("--notify-slack", args.notify_slack),
+            ("--notify-email", args.notify_email),
+            ("--notify-detail", args.notify_detail != "resume"),
+            ("--notify-silence", args.notify_silence is not None),
+            ("--notify-state", args.notify_state),
+        )
+        if given
+    ]
+    if notify_extras and not args.notify_on:
+        # jamais un canal sortant active a l'insu de l'utilisateur, et jamais
+        # une option ignoree en silence : on le dit
+        print(
+            f"{', '.join(notify_extras)} sans --notify-on : aucun seuil, aucune notification. "
+            "Ajoutez --notify-on critique|elevee|moyenne|faible.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
+    if args.notify_on and not args.security_report:
+        print("--notify-on necessite --security-report.", file=sys.stderr)
+        sys.exit(1)
+    if args.notify_silence is not None and args.notify_silence < 0:
+        print("--notify-silence doit etre >= 0.", file=sys.stderr)
+        sys.exit(1)
+    plugin_targets = _parse_plugin_exports(args.plugin_export, plugin_names)
+    if args.plugin_path and not plugin_names:
+        print("--plugin-path sans --plugins : aucun plugin autorise, rien ne s'executerait.", file=sys.stderr)
+        sys.exit(1)
+    loaded_plugins = None
+    if plugin_names:
+        from netcross_core.plugins import load_plugins
+
+        loaded_plugins = load_plugins(plugin_names, args.plugin_path)
+        if loaded_plugins.detectors and not args.security_report:
+            names = ", ".join(d.name for d in loaded_plugins.detectors)
+            print(f"detecteur(s) de plugin {names} : --security-report requis.", file=sys.stderr)
+            sys.exit(1)
     if args.security_html and not args.security_report:
         print("--security-html necessite --security-report.", file=sys.stderr)
         sys.exit(1)
@@ -1154,6 +1916,13 @@ def main():
             file=sys.stderr,
         )
         sys.exit(1)
+    if args.convert and (args.merge or args.split or args.replay or args.export_pcap or args.adjust_time_output):
+        print(
+            "--convert est exclusif avec --merge/--split/--replay/--export-pcap/--adjust-time : "
+            "une seule operation a la fois.",
+            file=sys.stderr,
+        )
+        sys.exit(1)
     if (args.replay_loop != 1 or args.replay_speed != "1.0") and not args.replay:
         print("--replay-speed/--replay-loop necessitent --replay.", file=sys.stderr)
         sys.exit(1)
@@ -1193,7 +1962,11 @@ def main():
                 ("--quic", args.quic),
                 ("--security-report", args.security_report),
                 ("--cve-db", args.cve_db),
+                ("--media-quality", args.media_quality),
+                ("--extract-contents", args.extract_contents),
                 ("--parallel", args.parallel),
+                ("--max-packets", args.max_packets),
+                ("--sample", args.sample),
             )
             if given
         ]
@@ -1204,6 +1977,46 @@ def main():
             )
             sys.exit(1)
         _run_merge(args.capture, args.merge, args.merge_dedup)
+        return
+
+    if args.convert:
+        if not args.capture:
+            print("--convert necessite --capture (fichier source).", file=sys.stderr)
+            sys.exit(1)
+        if args.live:
+            print("--convert convertit un fichier (--capture) : incompatible avec --live.", file=sys.stderr)
+            sys.exit(1)
+        # --convert est un mode utilitaire qui s'arrete apres la conversion :
+        # toute autre option (analyse, rapport...) serait silencieusement ignoree.
+        ignored = sorted(
+            flag
+            for flag, given in (
+                ("--pdf-report", args.pdf_report),
+                ("--json-report", args.json_report),
+                ("--detail-csv", args.detail_csv),
+                ("--history-db", args.history_db),
+                ("--client-group", args.client_group),
+                ("--redact", args.redact),
+                ("--triage", args.triage),
+                ("--tls", args.tls),
+                ("--quic", args.quic),
+                ("--security-report", args.security_report),
+                ("--cve-db", args.cve_db),
+                ("--media-quality", args.media_quality),
+                ("--extract-contents", args.extract_contents),
+                ("--parallel", args.parallel),
+                ("--max-packets", args.max_packets),
+                ("--sample", args.sample),
+            )
+            if given
+        )
+        if ignored:
+            print(
+                f"--convert convertit le fichier sans lancer d'analyse : incompatible avec {', '.join(ignored)}.",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        _run_convert(args.capture, args.convert, args.convert_format)
         return
 
     if args.split_output_dir and not args.split:
@@ -1292,7 +2105,11 @@ def main():
                 ("--quic", args.quic),
                 ("--security-report", args.security_report),
                 ("--cve-db", args.cve_db),
+                ("--media-quality", args.media_quality),
+                ("--extract-contents", args.extract_contents),
                 ("--parallel", args.parallel),
+                ("--max-packets", args.max_packets),
+                ("--sample", args.sample),
             )
             if given
         ]
@@ -1378,9 +2195,12 @@ def main():
             )
             sys.exit(1)
 
+    ai_options = _check_ai_args(args)
     if args.redact_map and not args.redact:
         print("--redact-map necessite --redact.", file=sys.stderr)
         sys.exit(1)
+    extract_kinds = _check_extraction_args(args)
+    _check_live_report_args(args)
     if args.redact and (args.tls or args.quic or args.client_group):
         print(
             "--redact n'est pas disponible avec --tls/--quic/--client-group : ces "
@@ -1438,9 +2258,24 @@ def main():
         label, paths = _parse_capture_spec(c, "--capture")
         captures.extend((label, path) for path in paths)
 
+    # Avertissement memoire (issue #283, Etape 2) : AVANT toute lecture de
+    # paquets -- une fois parse_capture() lance sur une capture trop
+    # volumineuse, il est deja trop tard (c'est precisement le moment ou
+    # l'OOM-killer intervient). Sans effet avec --live (rien a lire dans un
+    # fichier existant, capinfos n'a pas de sens sur une interface).
+    if captures and not args.live:
+        _check_memory_before_analysis(captures)
+
+    sample_n = _parse_sample_spec(args.sample) if args.sample else None
+
     all_packets = []
     if args.live:
-        all_packets = _run_live_captures(args.live, args.live_duration)
+        reporter, server = _start_live_report(args)
+        try:
+            all_packets = _run_live_captures(args.live, args.live_duration, reporter)
+        finally:
+            if server is not None:
+                server.shutdown()
         print(f"\n{len(all_packets)} paquet(s) captures au total, analyse en cours...")
     elif args.parallel:
         _cpu_count = os.cpu_count() or 1
@@ -1540,6 +2375,20 @@ def main():
                 "(a conserver en prive, ne pas transmettre avec le rapport)."
             )
 
+    # --max-packets/--sample (issue #283, Etape 3) : appliques ici, sur
+    # all_packets DEJA CHARGE en entier (voir _apply_packet_limits pour la
+    # justification -- limiter la LECTURE elle-meme est hors perimetre de
+    # cette PR), AVANT la detection de doublons et la correlation, pour que
+    # tout l'aval (flows, Report, --detail-csv, --json-report...) voie la
+    # meme population reduite -- une troncature appliquee seulement au
+    # rendu final laisserait les compteurs intermediaires incoherents avec
+    # le rapport affiche.
+    truncation_note = None
+    if args.max_packets is not None or sample_n:
+        all_packets, truncation_note = _apply_packet_limits(all_packets, args.max_packets, sample_n)
+        if truncation_note:
+            print(f"\nATTENTION : {truncation_note}", file=sys.stderr)
+
     points_order = args.order.split(",") if args.order else None
     duplicate_counts = None
     if args.detect_duplicates or args.exclude_duplicates:
@@ -1579,7 +2428,18 @@ def main():
     if captures:
         r.capture_comments = read_capture_comments(captures)
         r.capture_infos = read_capture_infos(captures)
+    # Report.truncated/truncation_note (issue #283, Etape 3) : ecrit ici, pas
+    # dans analyse() -- meme discipline que capture_comments/capture_infos
+    # ci-dessus, la troncature est une decision de l'appelant (CLI), pas un
+    # resultat de l'analyse elle-meme. Une troncature silencieuse produirait
+    # un rapport FAUX (l'analyste croirait couvrir toute la capture) : le
+    # critere d'acceptation de l'issue #283 l'exige explicitement.
+    if truncation_note:
+        r.truncated = True
+        r.truncation_note = truncation_note
     print_report(r)
+    if r.truncated:
+        print(f"\nATTENTION : {r.truncation_note}")
 
     # --security-report (issue #139) : consolidation des quatre detecteurs
     # (CVE-1 a CVE-4) sur le rapport deja rempli par analyse(), puis rendu
@@ -1601,12 +2461,20 @@ def main():
                 all_packets,
                 detections=security_detections,
                 cve_conn=cve_conn,
+                known_destinations=known_destinations,
             )
             # Conserve pour les sorties PDF/JSON/HTML (issue #218) :
             # jusqu'ici l'objet etait construit, imprime, puis perdu -- les
             # constats de securite n'atteignaient donc aucune sortie
             # machine, meme quand --json-report etait demande.
+            if loaded_plugins is not None:
+                from netcross_core.plugins import load_error_runs, run_detectors
+
+                r.plugin_runs += load_error_runs(loaded_plugins.errors)
+                r.plugin_runs += run_detectors(loaded_plugins.detectors, all_packets, r)
             security_report_obj = build_security_report(r)
+            if args.notify_on:
+                security_report_obj.notifications = _send_notifications(args, r, security_report_obj)
             print_security_report(security_report_obj)
             if args.security_html:
                 from netcross_report.security_html import generate_security_html
@@ -1617,6 +2485,24 @@ def main():
                     meta={"Anonymisation": "adresses IP/MAC anonymisees (--redact)"} if args.redact else None,
                 )
                 print(f"Rapport de securite HTML ecrit dans {args.security_html}")
+            if args.siem_export:
+                from netcross_report.siem_export import write_siem
+
+                # bornes de la capture : datent les objets STIX (jamais
+                # l'heure de l'export -- determinisme, issue #279)
+                timestamps = [p.ts for p in all_packets if p.ts]
+                bounds = (
+                    (
+                        datetime.fromtimestamp(min(timestamps), tz=timezone.utc),
+                        datetime.fromtimestamp(max(timestamps), tz=timezone.utc),
+                    )
+                    if timestamps
+                    else (None, None)
+                )
+                written = write_siem(
+                    r, args.siem_output, args.siem_export, observed_from=bounds[0], observed_until=bounds[1]
+                )
+                print(f"Export SIEM ({args.siem_export}) ecrit dans {written}")
         finally:
             # issue #217 (suite PR #212) : close_db() dans un finally pour
             # garantir la fermeture de la connexion SQLite meme si
@@ -1626,6 +2512,9 @@ def main():
             # sinon (ressource SQLite laissee ouverte).
             if cve_conn is not None:
                 close_db(cve_conn)
+
+    if ai_options is not None:
+        _run_ai(args, ai_options, r, all_packets)
 
     if client_group:
         comparison = compare_clients(
@@ -1721,6 +2610,9 @@ def main():
         quic_findings = diagnose_quic(quic_events, r.points)
         print_quic_diagnostics(quic_findings)
 
+    if args.media_quality or args.extract_contents:
+        _run_content_extraction(captures, args.extract_contents, extract_kinds)
+
     if args.detail_csv:
         write_detail_csv(args.detail_csv, flows, r.points, names=names)
         print(f"\nDetail par flux ecrit dans {args.detail_csv}")
@@ -1778,6 +2670,18 @@ def main():
             meta={"Anonymisation": "adresses IP/MAC anonymisees (--redact)"} if args.redact else None,
         )
         print(f"Rapport PDF ecrit dans {args.pdf_report}")
+
+    if loaded_plugins is not None:
+        from netcross_core.plugins import load_error_runs, run_exporters
+
+        if not args.security_report:
+            # sinon deja traces dans le rapport de securite
+            r.plugin_runs += load_error_runs(loaded_plugins.errors)
+            for run in r.plugin_runs:
+                print(f"Plugins : {run['line']}")
+        for run in run_exporters(loaded_plugins.exporters, plugin_targets, r):
+            r.plugin_runs.append(run)
+            print(f"Plugins : {run['line']}")
 
     if args.json_report:
         from netcross_report import generate_json_report

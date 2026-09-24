@@ -254,6 +254,25 @@ def test_score_plafonne_a_100():
     assert d.score == 100
 
 
+def test_anomalies_netcross_et_expert_info_dans_des_sections_distinctes():
+    """Issue #348 : un detecteur Netcross (ex. DGA) n'est pas une alerte
+    Expert Info correlee (ex. fuzzing CVE-3) -- deux sections distinctes,
+    jamais melangees."""
+    findings = [
+        {"category": "anomalie", "severity": "moyenne", "detail": "domaine DGA suspect : x.example"},
+        {"category": "anomalie", "severity": "moyenne", "detail": "suspicion de fuzzing", "source": "expert_info"},
+    ]
+    sr = build_security_report(_report(findings=findings))
+    assert sr.anomalies[0].source == "netcross"
+    assert sr.anomalies[1].source == "expert_info"
+    text = "\n".join(format_security_report(sr))
+    idx_netcross = text.index("Anomalies (detecteurs Netcross)")
+    idx_expert = text.index("Anomalies (alertes Expert Info correlees)")
+    idx_dga = text.index("domaine DGA suspect")
+    idx_fuzzing = text.index("suspicion de fuzzing")
+    assert idx_netcross < idx_dga < idx_expert < idx_fuzzing
+
+
 def test_niveau_global_est_la_pire_severite():
     findings = [
         {"category": "anomalie", "severity": "moyenne", "detail": "a"},
@@ -276,7 +295,7 @@ def test_rendu_texte_contient_les_quatre_sections_et_le_tableau_de_bord():
     assert "Tableau de bord securite" in text
     assert "Services detectes (classes par criticite)" in text
     assert "Tentatives d'exploitation detectees" in text
-    assert "Anomalies (alertes Expert Info correlees)" in text
+    assert "Anomalies (alertes Expert Info correlees)" in text or "Anomalies (detecteurs Netcross)" in text
     assert "CVE confirmees" in text
     assert "Apache/2.4.41 @ 10.0.0.5:80" in text
     assert "CVE-2021-41773 (CVSS 7.5)" in text

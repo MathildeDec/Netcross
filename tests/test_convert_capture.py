@@ -5,6 +5,8 @@ Meme discipline que test_replay.py : on monkeypatch shutil.which et
 subprocess.run, jamais un vrai binaire tshark.
 """
 
+import sys
+
 import pytest
 
 import pcap_parser.capture as capture_mod
@@ -196,3 +198,73 @@ def test_export_json_echec_tshark(pcap_file, tmp_path, monkeypatch):
 
     with pytest.raises(TsharkError, match="export JSON"):
         export_json(pcap_file, str(tmp_path / "out.json"))
+
+
+# -- appels subprocess reels (sans tshark) : validite des arguments -----------
+
+
+@pytest.mark.parametrize("export", [export_csv, export_json])
+def test_export_arguments_subprocess_valides(export, pcap_file, tmp_path, monkeypatch):
+    """Regression : capture_output=True + stdout=fichier leve ValueError dans
+    subprocess.run. On garde le vrai subprocess.run et on remplace seulement
+    la commande tshark par un python qui ecrit sur stdout."""
+    real_run = capture_mod.subprocess.run
+
+    def _run(args, **kwargs):
+        return real_run([sys.executable, "-c", "print('ok,1')"], **kwargs)
+
+    monkeypatch.setattr(capture_mod.subprocess, "run", _run)
+    monkeypatch.setattr(capture_mod.shutil, "which", lambda name: "/usr/bin/" + name)
+    out = tmp_path / "export.out"
+    export(pcap_file, str(out))
+    assert out.read_text() == "ok,1\n"
+
+
+@pytest.mark.parametrize(
+    "call",
+    [
+        lambda p: convert_capture(p, p, fmt="pcap"),
+        lambda p: export_csv(p, p),
+        lambda p: export_json(p, p),
+    ],
+)
+def test_sortie_identique_a_la_source_refusee(call, pcap_file):
+    with pytest.raises(ValueError, match="fichier source"):
+        call(pcap_file)
+    with open(pcap_file, "rb") as fh:
+        assert fh.read() == b"\x00"  # source intacte
+
+
+def test_export_csv_options_de_quotage(pcap_file, tmp_path, monkeypatch):
+    calls = []
+    monkeypatch.setattr(capture_mod.subprocess, "run", lambda args, **kw: calls.append(args) or _FakeCompletedProcess())
+    monkeypatch.setattr(capture_mod.shutil, "which", lambda name: "/usr/bin/" + name)
+    export_csv(pcap_file, str(tmp_path / "o.csv"))
+    assert "quote=d" in calls[0] and "occurrence=f" in calls[0] and "ipv6.src" in calls[0]
+
+
+def test_cli_convert_lit_la_spec_capture(tmp_path, monkeypatch, capsys):
+    """Regression : --convert recoit les specs --capture brutes (NOM=fichier),
+    pas des dicts -- la spec doit etre decodee comme pour --merge."""
+    import cross_capture_analyzer_cli as analyzer_cli
+
+    src = tmp_path / "in.pcap"
+    src.write_bytes(b"\xd4\xc3\xb2\xa1")
+    calls = []
+    monkeypatch.setattr(analyzer_cli, "convert_capture", lambda i, o, fmt=None: calls.append((i, o, fmt)))
+    out = tmp_path / "out.pcapng"
+    monkeypatch.setattr(sys, "argv", ["cli", "--capture", f"A={src}", "--convert", str(out)])
+    analyzer_cli.main()
+    assert calls and calls[0][0] == str(src) and calls[0][1] == str(out)
+
+
+def test_cli_convert_refuse_plusieurs_fichiers(tmp_path, monkeypatch, capsys):
+    import cross_capture_analyzer_cli as analyzer_cli
+
+    a, b = tmp_path / "a.pcap", tmp_path / "b.pcap"
+    a.write_bytes(b"x")
+    b.write_bytes(b"x")
+    monkeypatch.setattr(sys, "argv", ["cli", "--capture", f"A={a}", "--capture", f"B={b}", "--convert", "o.pcapng"])
+    with pytest.raises(SystemExit):
+        analyzer_cli.main()
+    assert "UN fichier a la fois" in capsys.readouterr().err

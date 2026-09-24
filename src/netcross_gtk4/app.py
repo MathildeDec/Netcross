@@ -70,10 +70,9 @@ from netcross_core import (  # noqa: E402
 from netcross_core.baseline_diff import diff_reports, print_diff_report, write_diff_csv  # noqa: E402
 from netcross_core.bpf_filters import PREDEFINED_BPF_FILTERS, available_bpf_filters, upsert_bpf_filter  # noqa: E402
 from netcross_core.forensic import DEFAULT_DUPLICATE_THRESHOLD_MS, detect_cross_capture_duplicates  # noqa: E402
-from netcross_gtk4 import row_labels  # noqa: E402
+from netcross_gtk4 import capture_list, row_labels  # noqa: E402
 from netcross_gtk4.bpf_panel import (  # noqa: E402
     doit_desolidariser_le_menu,
-    indice_apres_deplacement,
     indice_du_filtre_nomme,
     infobulle_du_menu,
     noms_du_menu,
@@ -84,7 +83,7 @@ from netcross_gtk4.dashboard_context import (  # noqa: E402
     DashboardSelection,
     build_dashboard_snapshot,
 )
-from netcross_gtk4.live_capture_points import duplicate_labels, expand_live_points  # noqa: E402
+from netcross_gtk4.live_capture_points import duplicate_labels, expand_live_points, invalid_sources  # noqa: E402
 from netcross_gtk4.panel_state import (  # noqa: E402
     apply_dashboard_selection,
     comm_map_filters,
@@ -129,26 +128,13 @@ def _visible_scroller(vexpand=True):
 # Separes des methodes MainWindow pour rester testables sans instancier GTK.
 
 
-def _nombre_de_lignes(listbox):
-    """Nombre de lignes d'un `Gtk.ListBox`.
-
-    GTK n'expose pas de compteur : on avance jusqu'a ce que
-    `get_row_at_index` renvoie None. Isole ici pour que les bornes de
-    deplacement s'appuient sur le vrai nombre de lignes plutot que sur le
-    comportement d'insertion du conteneur (cf. `indice_apres_deplacement`).
-    """
-    nombre = 0
-    while listbox.get_row_at_index(nombre) is not None:
-        nombre += 1
-    return nombre
-
-
 class CaptureRow(Gtk.Box):
     """Une ligne = un point de capture (nom + fichier), reordonnable."""
 
-    def __init__(self, path, default_label):
+    def __init__(self, path, default_label, on_change=None):
         super().__init__(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
         self.path = path
+        self._on_change = on_change
         self.set_margin_top(4)
         self.set_margin_bottom(4)
         self.set_margin_start(8)
@@ -188,26 +174,12 @@ class CaptureRow(Gtk.Box):
         self._deplacer(vers_le_haut=False)
 
     def _deplacer(self, *, vers_le_haut):
-        """Deplace la ligne d'un cran, ou ne fait rien si elle est au bord.
-
-        Les deux sens partagent maintenant la meme borne : l'ancien code
-        gardait la montee (`if idx > 0`) mais pas la descente, qui ne restait
-        en place que parce que GTK append quand la position depasse la
-        longueur. Voir `indice_apres_deplacement`.
-        """
-        row = self.get_parent()
-        listbox = row.get_parent()
-        cible = indice_apres_deplacement(row.get_index(), _nombre_de_lignes(listbox), vers_le_haut)
-        if cible is None:
-            return
-        listbox.remove(row)
-        listbox.insert(row, cible)
-        listbox.select_row(row)
+        """Deplace la ligne d'un cran, ou ne fait rien si elle est au bord
+        (voir `capture_list.deplacer_ligne`)."""
+        capture_list.deplacer_ligne(self.get_parent(), vers_le_haut=vers_le_haut)
 
     def _on_remove(self, _btn):
-        row = self.get_parent()
-        listbox = row.get_parent()
-        listbox.remove(row)
+        capture_list.retirer_ligne(self.get_parent(), self._on_change)
 
     @property
     def label(self):
@@ -242,6 +214,7 @@ class LiveCaptureRow(Gtk.Box):
         on_save_filter=None,
     ):
         super().__init__(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        self._on_change = on_change
         self.set_margin_top(4)
         self.set_margin_bottom(4)
         self.set_margin_start(8)
@@ -260,13 +233,16 @@ class LiveCaptureRow(Gtk.Box):
             # bouton depend du contenu du champ, pas seulement du nombre de lignes
             self.interface_entry.connect("changed", lambda _entry: on_change())
         self.interface_entry.set_width_chars(10)
-        self.interface_entry.set_placeholder_text("eth0 ou eth0, eth1...")
+        self.interface_entry.set_placeholder_text("eth0, eth0, eth1 ou rpcap://hote/eth0")
         self.interface_entry.set_tooltip_text(
             "Nom de l'interface reseau a capturer (voir `tshark -D` ou "
             "`ip link` pour lister les interfaces disponibles). Plusieurs "
             "interfaces separees par des virgules (ex: eth0, eth1) sont "
             "capturees simultanement : chacune devient un point "
-            "'NOM:interface', dans l'ordre saisi (= chemin physique reseau)."
+            "'NOM:interface', dans l'ordre saisi (= chemin physique reseau). "
+            "Source distante possible : rpcap://hote[:port]/eth0 (rpcapd), "
+            "sshdump://utilisateur@hote/eth0 (tcpdump via SSH), pipe:///chemin/fifo "
+            "ou pipe://- (entree standard)."
         )
         self.interface_entry.set_hexpand(True)
         self.append(self.interface_entry)
@@ -401,26 +377,13 @@ class LiveCaptureRow(Gtk.Box):
             self._select_filter_index(indice)
 
     def _on_up(self, _btn):
-        row = self.get_parent()
-        listbox = row.get_parent()
-        idx = row.get_index()
-        if idx > 0:
-            listbox.remove(row)
-            listbox.insert(row, idx - 1)
-            listbox.select_row(row)
+        capture_list.deplacer_ligne(self.get_parent(), vers_le_haut=True)
 
     def _on_down(self, _btn):
-        row = self.get_parent()
-        listbox = row.get_parent()
-        idx = row.get_index()
-        listbox.remove(row)
-        listbox.insert(row, idx + 1)
-        listbox.select_row(row)
+        capture_list.deplacer_ligne(self.get_parent(), vers_le_haut=False)
 
     def _on_remove(self, _btn):
-        row = self.get_parent()
-        listbox = row.get_parent()
-        listbox.remove(row)
+        capture_list.retirer_ligne(self.get_parent(), self._on_change)
 
     @property
     def label(self):
@@ -491,29 +454,21 @@ class CaptureListPanel(Gtk.Box):
         """Expose separement du callback du selecteur pour pouvoir etre
         pilote sans dialogue (tests automatises, appel programmatique)."""
         if default_label is None:
-            default_label = os.path.splitext(os.path.basename(path))[0].upper()
-        row = CaptureRow(path, default_label)
+            default_label = capture_list.nom_par_defaut_fichier(path)
+        row = CaptureRow(path, default_label, on_change=self._on_change)
         self.listbox.append(row)
         if self._on_change:
             self._on_change()
         return row
 
     def rows(self):
-        rows = []
-        i = 0
-        while True:
-            row = self.listbox.get_row_at_index(i)
-            if row is None:
-                break
-            rows.append(row.get_child())
-            i += 1
-        return rows
+        return capture_list.lignes(self.listbox)
 
     def captures(self):
         """Liste de (label, path) dans l'ordre visuel courant -- cet ordre
         sert de topologie physique quand la deduction automatique est
         desactivee (voir MainWindow.auto_topology_check)."""
-        return [(row.label or f"POINT{i + 1}", row.path) for i, row in enumerate(self.rows())]
+        return capture_list.captures_fichiers(self.rows())
 
 
 class LiveCaptureListPanel(Gtk.Box):
@@ -560,7 +515,7 @@ class LiveCaptureListPanel(Gtk.Box):
 
     def add_row(self, default_label=None, interface="", bpf_filter=""):
         if default_label is None:
-            default_label = f"POINT{len(self.rows()) + 1}"
+            default_label = capture_list.nom_par_defaut_live(len(self.rows()))
         row = LiveCaptureRow(
             default_label,
             interface,
@@ -593,22 +548,14 @@ class LiveCaptureListPanel(Gtk.Box):
             row.set_filters(self._filters)
 
     def rows(self):
-        rows = []
-        i = 0
-        while True:
-            row = self.listbox.get_row_at_index(i)
-            if row is None:
-                break
-            rows.append(row.get_child())
-            i += 1
-        return rows
+        return capture_list.lignes(self.listbox)
 
     def captures(self):
         """Liste de (label, interface, bpf_filter) dans l'ordre visuel
         courant -- meme role que CaptureListPanel.captures() pour la
         source live. `interface` est le texte brut du champ, qui peut
         contenir plusieurs interfaces : voir expand_live_points()."""
-        return [(row.label or f"POINT{i + 1}", row.interface, row.bpf_filter) for i, row in enumerate(self.rows())]
+        return capture_list.captures_live(self.rows())
 
 
 class MainWindow(Gtk.ApplicationWindow):
@@ -1402,6 +1349,11 @@ class MainWindow(Gtk.ApplicationWindow):
                 f"Interface manquante pour : {', '.join(missing)} -- "
                 f"capture annulee (renseignez une interface par point)."
             )
+            return
+        source_errors = invalid_sources(rows_data)
+        if source_errors:
+            self.stack.set_visible_child_name("log")
+            self._log(f"Source de capture invalide -- capture annulee : {'; '.join(source_errors)}")
             return
         duplicates = duplicate_labels(rows_data)
         if duplicates:

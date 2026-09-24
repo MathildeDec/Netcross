@@ -6,7 +6,7 @@
 # (_build/) qui reunit src/, debian/ et les wrappers, lance
 # dpkg-buildpackage dedans, puis recupere le .deb resultant.
 #
-# Prerequis : debhelper, dpkg-dev (apt-get install debhelper dpkg-dev)
+# Prerequis : debhelper, dpkg-dev, gettext (apt-get install debhelper dpkg-dev gettext)
 #
 # Usage : ./build-deb/build.sh
 
@@ -24,6 +24,10 @@ mkdir -p "$BUILD_DIR"
 cp -r "$REPO_ROOT/src" "$BUILD_DIR/src"
 cp -r "$SCRIPT_DIR/debian" "$BUILD_DIR/debian"
 cp -r "$SCRIPT_DIR/wrappers" "$BUILD_DIR/wrappers"
+
+# catalogues de traduction (issue #299) : toutes les locales de lang/LINGUAS,
+# installees dans /usr/share/locale/<locale>/LC_MESSAGES/netcross.mo
+"$REPO_ROOT/scripts/i18n-update.sh" --compile "$BUILD_DIR/locale"
 
 # nettoyage des residus de compilation Python eventuellement presents
 find "$BUILD_DIR/src" -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true

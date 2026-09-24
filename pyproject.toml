@@ -31,6 +31,10 @@ dev = [
     "ruff==0.16.4",
     "import-linter>=2.13",
     "pre-commit>=4.0",
+    "mypy>=1.10",
+    # validation des bundles STIX 2.1 dans les tests (issue #279) ; 3.3.x est
+    # publie sans les schemas OASIS (schemas-2.1 absent du wheel)
+    "stix2-validator>=3.2,<3.3",
 ]
 # API REST (issue #209) : jamais obligatoire pour le cœur ou les rapports.
 # Installé avec : pip install -e ".[api]" ou uv sync --extra api
@@ -39,6 +43,19 @@ api = [
     "uvicorn>=0.20",
     "python-multipart>=0.0.6",
     "httpx>=0.24",  # pour TestClient dans les tests
+]
+# Module IA/ML local (issue #146) : jamais obligatoire -- sans lui, seules
+# les options --ai-anomalies/--ai-classify le signalent.
+# Installe avec : pip install -e ".[ai]" ou uv sync --extra ai
+ai = [
+    "scikit-learn>=1.5",
+]
+# Documentation navigable (issue #282) : MkDocs Material + extensions.
+# Installe avec : uv sync --extra docs
+docs = [
+    "mkdocs>=1.6",
+    "mkdocs-material>=9.5",
+    "pymdown-extensions>=10.7",
 ]
 
 [tool.uv]
@@ -71,7 +88,7 @@ ignore = ["RUF100"]
 ban-relative-imports = "all"
 
 [tool.importlinter]
-root_packages = ["netcross_gtk4", "netcross_report", "netcross_api", "netcross_core", "pcap_parser"]
+root_packages = ["netcross_gtk4", "netcross_report", "netcross_api", "netcross_ai", "netcross_core", "pcap_parser"]
 include_external_packages = true
 
 [[tool.importlinter.contracts]]
@@ -81,9 +98,37 @@ layers = [
     "netcross_gtk4",
     "netcross_report",
     "netcross_api",
+    "netcross_ai",
     "netcross_core",
     "pcap_parser",
 ]
+
+[tool.mypy]
+# Configuration permissive de base (issue #281) : le code est largement
+# annote mais rien ne le verifiait. On active mypy en CI de facon NON
+# BLOQUANTE d abord, avec une baseline progressive par module.
+# Les modules migres en strict sont listes ci-dessous -- la liste ne
+# recule jamais.
+python_version = "3.14"
+files = ["src"]
+ignore_missing_imports = true
+warn_unused_ignores = true
+warn_redundant_casts = true
+# Exclut les stubs numpy (incompatibles avec certaines versions Python).
+exclude = [".venv/"]
+
+# Etat de reference (22/09/2026, Python 3.14) : 13 erreurs sur 7 fichiers.
+#   netcross_core : 12 erreurs (analysis, application/dns, application/http,
+#     fingerprint/report, naming, security/lateral_movement)
+#   pcap_parser : 1 erreur (capfile, no-redef)
+# Objectif : migrer module par module, du plus stable au plus mouvant.
+
+[[tool.mypy.overrides]]
+# Aucun module en strict pour l instant -- cette section grandira
+# au fur et a mesure des migrations.
+module = []
+disallow_untyped_defs = true
+strict_optional = true
 
 [tool.coverage.run]
 # Mesure la couverture du code source uniquement (pas des tests eux-memes).
@@ -94,6 +139,14 @@ branch = true
 
 [tool.coverage.report]
 precision = 1
+# Seuil bloquant (issue #246), decide APRES le traitement de app.py (#285)
+# comme le demandait l'issue : 82,2 % mesures sur dev le 2026-09-23, avec
+# ou sans tshark. Deux points de marge pour absorber une PR qui ajoute du
+# code GTK non testable, pas davantage : au-dela, le seuil ne retiendrait
+# plus rien. Ne s'applique qu'aux executions avec --cov (la CI) ; relever
+# ce chiffre quand la base monte, ne jamais le baisser pour faire passer
+# une PR. Detail : docs/quality/seuil-couverture.md.
+fail_under = 80
 exclude_lines = [
     "pragma: no cover",
     "if TYPE_CHECKING:",

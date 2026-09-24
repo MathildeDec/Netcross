@@ -2,4 +2,4 @@
 # Wrapper installe dans /usr/bin/netcross-diff par le paquet Debian/RPM.
 # Comparaison avant/apres entre deux jeux de captures.
 export PYTHONPATH="/usr/share/netcross:${PYTHONPATH:-}"
-exec python3 /usr/share/netcross/cross_capture_diff_cli.py "$@"
+exec /usr/bin/python3 /usr/share/netcross/cross_capture_diff_cli.py "$@"

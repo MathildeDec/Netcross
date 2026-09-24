@@ -6,17 +6,26 @@ heures ouvrables, destination nouvelle, protocole inhabituel.
 
 from __future__ import annotations
 
+import json
+
+import pytest
 from conftest import make_pkt
 
+from netcross_core.models import Report
 from netcross_core.security.exfiltration import (
     SIGNAL_ASYMMETRIC_RATIO,
+    SIGNAL_CORRELATED_BEACONING,
+    SIGNAL_CORRELATED_DNS_TUNNEL,
     SIGNAL_HIGH_VOLUME,
     SIGNAL_NEW_DESTINATION,
     SIGNAL_OFF_HOURS,
     SIGNAL_UNUSUAL_PROTOCOL,
     ExfiltrationThresholds,
+    correlate_exfiltration,
     detect_exfiltration,
+    dns_tunnel_sources,
 )
+from netcross_core.security.findings import apply_security_findings, exfiltration_findings
 
 CLIENT = "192.168.1.10"
 SERVER = "10.0.0.1"
@@ -222,3 +231,131 @@ def test_empty_input():
     result = detect_exfiltration([])
     assert result.alerts == []
     assert result.flow_stats == []
+
+
+# -- Integration #148 : sens, anti faux positifs, score, correlations -------------
+
+
+def test_download_http_normal_aucun_faux_positif():
+    """Gros telechargement externe -> interne : le flux serveur->client est
+    tres asymetrique mais entrant -- aucune alerte."""
+    pkts = _download(CLIENT, EXTERNAL, count=200, size=1400) + _upload(CLIENT, EXTERNAL, count=5, size=60)
+    result = detect_exfiltration(pkts, thresholds=_thresholds())
+    assert result.alerts == []
+
+
+def test_transfert_interne_ignore_par_defaut():
+    pkts = _upload(CLIENT, SERVER, count=100, size=1400)
+    assert detect_exfiltration(pkts, thresholds=_thresholds()).alerts == []
+    assert detect_exfiltration(pkts, thresholds=_thresholds(external_only=False)).alerts
+
+
+def test_petit_post_sous_le_plancher_de_ratio():
+    """20 Ko envoyes, 1 Ko recu : ratio 20:1 mais volume derisoire."""
+    pkts = _upload(CLIENT, EXTERNAL, count=20, size=1000) + _download(CLIENT, EXTERNAL, count=10, size=100)
+    assert detect_exfiltration(pkts).alerts == []
+
+
+def test_multi_points_volume_non_double():
+    pkts = _upload(CLIENT, EXTERNAL, count=100, size=1400)
+    vu_en_b = [make_pkt(point="B", src=p.src, dst=p.dst, length=p.length, ts=p.ts) for p in pkts]
+    result = detect_exfiltration(pkts + vu_en_b, thresholds=_thresholds())
+    assert sorted(a["point"] for a in result.alerts) == ["A", "B"]
+    assert {a["upload_bytes"] for a in result.alerts} == {140_000}
+
+
+def test_off_hours_minoritaire_non_signale():
+    nuit = [make_pkt(src=CLIENT, dst=EXTERNAL, length=1400, ts=7200.0 + i) for i in range(30)]
+    jour = _upload(CLIENT, EXTERNAL, count=70, size=1400)
+    alert = detect_exfiltration(nuit + jour, thresholds=_thresholds()).alerts[0]
+    assert SIGNAL_OFF_HOURS not in alert["signals"]
+    assert alert["off_hours_fraction"] == pytest.approx(0.3)
+
+
+def test_score_et_severite():
+    pkts = _upload(CLIENT, EXTERNAL, count=100, size=1400)
+    alert = detect_exfiltration(pkts, thresholds=_thresholds()).alerts[0]
+    assert alert["signals"] == [SIGNAL_HIGH_VOLUME, SIGNAL_ASYMMETRIC_RATIO]
+    assert alert["score"] == 60 and alert["severity"] == "elevee"
+    assert alert["ratio"] is None  # aucun retour
+    json.dumps(alert)  # serialisable (pas d'inf)
+    ratio_seul = detect_exfiltration(
+        pkts + _download(CLIENT, EXTERNAL, count=2, size=100),
+        thresholds=_thresholds(min_volume_bytes=10_000_000, min_upload_for_ratio=100_000),
+    ).alerts[0]
+    assert ratio_seul["signals"] == [SIGNAL_ASYMMETRIC_RATIO]
+    assert ratio_seul["score"] == 25 and ratio_seul["severity"] == "moyenne"
+
+
+def test_correlation_beaconing_et_dns():
+    alert = detect_exfiltration(_upload(CLIENT, EXTERNAL, count=100, size=1400), thresholds=_thresholds()).alerts[0]
+    dns_pkts = [
+        make_pkt(src=CLIENT, dst="10.0.0.53", sport=5000, dport=53, proto="DNS", dns_qry_name="a1b2.tunnel.example"),
+        make_pkt(src="192.168.1.99", dst="10.0.0.53", sport=5000, dport=53, proto="DNS", dns_qry_name="www.ok.test"),
+    ]
+    sources = dns_tunnel_sources(dns_pkts, [{"point": "A", "domain": "tunnel.example"}])
+    assert sources == {("A", CLIENT)}
+    (out,) = correlate_exfiltration([alert], [{"point": "A", "src": CLIENT, "dst": EXTERNAL}], sources)
+    assert SIGNAL_CORRELATED_BEACONING in out["signals"] and SIGNAL_CORRELATED_DNS_TUNNEL in out["signals"]
+    assert out["score"] == 90
+    assert alert["score"] == 60  # entree non modifiee
+    (autre_point,) = correlate_exfiltration([alert], [{"point": "B", "src": CLIENT, "dst": EXTERNAL}])
+    assert SIGNAL_CORRELATED_BEACONING not in autre_point["signals"]
+    assert dns_tunnel_sources(dns_pkts, []) == set()
+
+
+def test_findings_texte():
+    alert = detect_exfiltration(_upload(CLIENT, EXTERNAL, count=100, size=1400), thresholds=_thresholds()).alerts[0]
+    (f,) = exfiltration_findings([alert])
+    assert f["severity"] == "elevee" and f["category"] == "anomalie" and f["point"] == "A"
+    assert "suspicion d'exfiltration de 192.168.1.10 vers 93.184.216.34" in f["detail"]
+    assert "140.0 Ko envoyes" in f["detail"] and "aucun retour" in f["detail"] and "60/100" in f["detail"]
+
+
+def test_apply_security_findings_remplit_le_rapport():
+    pkts = [make_pkt(src=CLIENT, dst=EXTERNAL, length=1400, ts=43200.0 + i * 0.01) for i in range(8000)]
+    r = Report(points=["A"])
+    apply_security_findings(r, pkts, known_destinations=frozenset({SERVER}))
+    assert len(r.exfiltration_alerts) == 1
+    assert SIGNAL_NEW_DESTINATION in r.exfiltration_alerts[0]["signals"]
+    assert any("suspicion d'exfiltration" in f["detail"] for f in r.security_findings)
+    r2 = Report(points=["A"])
+    apply_security_findings(r2, _upload(CLIENT, EXTERNAL, count=10, size=100))
+    assert r2.exfiltration_alerts == []
+
+
+# -- CLI : --known-destinations ---------------------------------------------------
+
+
+def _analyzer(monkeypatch, *argv):
+    import sys
+
+    import cross_capture_analyzer_cli as cli
+
+    monkeypatch.setattr(sys, "argv", ["cross_capture_analyzer_cli.py", *map(str, argv)])
+    with pytest.raises(SystemExit) as exc:
+        cli.main()
+    return exc.value.code
+
+
+def test_cli_known_destinations_sans_security_report(tmp_path, monkeypatch, capsys):
+    f = tmp_path / "k.json"
+    f.write_text('["1.2.3.4"]')
+    assert _analyzer(monkeypatch, "--capture", "A=x.pcap", "--known-destinations", f) == 1
+    assert "--known-destinations necessite --security-report" in capsys.readouterr().err
+
+
+def test_cli_known_destinations_fichier_absent(tmp_path, monkeypatch, capsys):
+    code = _analyzer(
+        monkeypatch, "--capture", "A=x.pcap", "--security-report", "--known-destinations", tmp_path / "nope.json"
+    )
+    assert code == 1
+    assert "fichier introuvable" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("contenu", ["[]", "pas du json", '{"autre": 1}'])
+def test_cli_known_destinations_vide_ou_invalide(tmp_path, monkeypatch, capsys, contenu):
+    f = tmp_path / "k.json"
+    f.write_text(contenu)
+    assert _analyzer(monkeypatch, "--capture", "A=x.pcap", "--security-report", "--known-destinations", f) == 1
+    assert "aucune IP lue" in capsys.readouterr().err

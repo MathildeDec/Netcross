@@ -292,9 +292,10 @@ def test_apply_security_findings_inclut_le_tunneling_dns():
     report = Report()
     pkts = _tunnel_queries(count=20)
     apply_security_findings(report, iter(pkts))  # un iterateur : le module materialise la liste
-    assert [f["category"] for f in report.security_findings] == ["anomalie"]
+    cats = [f["category"] for f in report.security_findings]
+    assert "anomalie" in cats  # au moins le tunneling DNS
     apply_security_findings(report, pkts)  # remplacement, pas ajout
-    assert len(report.security_findings) == 1
+    assert len(report.security_findings) == len(cats)  # pas d'ajout
 
 
 def test_apply_security_findings_trafic_dns_legitime_reste_vide():

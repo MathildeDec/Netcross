@@ -30,7 +30,7 @@ jobs:
           echo "wireshark-common wireshark-common/install-setuid boolean false" \
             | sudo debconf-set-selections
           sudo DEBIAN_FRONTEND=noninteractive apt-get update -qq
-          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq tshark poppler-utils
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq tshark poppler-utils gettext
           tshark --version | head -1
           editcap --version | head -1
           # poppler-utils fournit pdftotext, utilise par tests/test_security_outputs.py
@@ -49,10 +49,10 @@ jobs:
           enable-cache: true
 
       - name: Installation de Python
-        run: uv python install
+        run: uv python install 3.14
 
-      - name: Installation des dépendances (extras dev + api)
-        run: uv sync --extra dev --extra api
+      - name: Installation des dépendances (extras dev + api + ai)
+        run: uv sync --extra dev --extra api --extra ai
 
       - name: Lint (ruff check)
         run: uv run ruff check .
@@ -82,9 +82,9 @@ jobs:
       - name: Tests (pytest + couverture)
         # --cov sans chemin : source lue depuis [tool.coverage.run] (source =
         # ["src"]) dans pyproject.toml. term-missing dans les logs CI,
-        # coverage.xml publie comme artifact (issue #224). Pas de seuil
-        # bloquant (--cov-fail-under) tant que la base de reference n'est
-        # pas calibree -- a decider dans une issue de suivi.
+        # coverage.xml publie comme artifact (issue #224). Seuil bloquant :
+        # fail_under dans [tool.coverage.report] (issue #246), l'etape echoue
+        # si la couverture totale passe dessous.
         run: uv run pytest --cov --cov-report=term-missing --cov-report=xml
 
       - name: Aucun test sauté silencieusement (issues #261/#262)
@@ -127,4 +127,75 @@ jobs:
           name: coverage-report
           path: coverage.xml
           retention-days: 14
+          if-no-files-found: warn
+
+  types:
+    # Verification statique des types (issue #281).
+    # NON BLOQUANT pour l instant : continue-on-error = true.
+    # Deviendra bloquant des que la baseline atteint 0 sur les modules
+    # stricts (bascule : retirer continue-on-error + ajouter les modules
+    # dans [[tool.mypy.overrides]] de pyproject.toml).
+    name: Types (mypy)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout du dépôt
+        uses: actions/checkout@v7
+
+      - name: Installation de uv
+        uses: astral-sh/setup-uv@08807647e7069bb48b6ef5acd8ec9567f424441b # v8.1.0
+        with:
+          enable-cache: true
+
+      - name: Installation de Python
+        run: uv python install 3.14
+
+      - name: Installation des dépendances (extras dev)
+        run: uv sync --extra dev
+
+      - name: Vérification des types (mypy)
+        run: uv run mypy
+
+  packaging:
+    # Issue #342 : la casse du .deb (#336, sous-paquets et pcap_parser non
+    # installes) est passee inapercue faute de job qui construise PUIS
+    # installe le paquet. Ce job teste le paquet tel que l'utilisateur le
+    # recoit : installation apt, --help de chaque lanceur, import de chaque
+    # module avec /usr/bin/python3, analyse reelle d'une capture.
+    name: Paquets (deb installé, rpm vérifié)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout du dépôt
+        uses: actions/checkout@v7
+
+      - name: Outils de construction (debhelper, rpm) et tshark
+        run: |
+          echo "wireshark-common wireshark-common/install-setuid boolean false" \
+            | sudo debconf-set-selections
+          sudo DEBIAN_FRONTEND=noninteractive apt-get update -qq
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \
+            build-essential debhelper dpkg-dev gettext rpm tshark
+
+      - name: Construction du .deb
+        run: ./build-deb/build.sh
+
+      - name: Test de fumée du .deb installé
+        run: ./scripts/smoke-test-packages.sh deb build-deb/dist/netcross_*_all.deb
+
+      - name: Construction du .rpm
+        run: ./build-rpm/build.sh
+
+      - name: Vérification du contenu du .rpm
+        run: ./scripts/smoke-test-packages.sh rpm build-rpm/dist/netcross-*.noarch.rpm
+
+      - name: Publication des paquets (artifact)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: paquets
+          path: |
+            build-deb/dist/*.deb
+            build-rpm/dist/*.rpm
+          retention-days: 7
           if-no-files-found: warn

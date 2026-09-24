@@ -1,0 +1,33 @@
+# lang/LINGUAS -- seule liste des langues de Netcross (issue #299).
+# Une locale par ligne (code ISO 639, variante POSIX si besoin : pt_BR).
+# Ajouter une langue : ajouter son code ici puis lancer
+# scripts/i18n-update.sh, qui cree lang/<code>.po. Aucun code a modifier.
+ar
+bn
+cs
+da
+de
+el
+en
+fa
+fi
+fr
+he
+hi
+hu
+id
+it
+ja
+ko
+nb
+nl
+pl
+pt
+ro
+ru
+sv
+th
+tr
+uk
+vi
+zh

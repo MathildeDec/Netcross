@@ -38,3 +38,10 @@ import-linter>=2.13
 # Gestionnaire des hooks .pre-commit-config.yaml (ruff, ruff-format,
 # import-linter). Installer les hooks une fois par clone : `pre-commit install`.
 pre-commit>=4.0
+
+# mypy : verification statique des types (issue #281). Config permissive
+# dans pyproject.toml ([tool.mypy]), CI non bloquante pour l instant.
+mypy>=1.10
+# stix2-validator : validation des bundles STIX 2.1 dans les tests (issue
+# #279). 3.3.x est publie sans les schemas OASIS, d'ou la borne haute.
+stix2-validator>=3.2,<3.3

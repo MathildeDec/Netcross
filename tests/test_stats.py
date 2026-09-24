@@ -379,3 +379,223 @@ def test_events_count_with_index():
     query = StatsQuery(group_by="segment", sort_by="events", top_n=10)
     rows = compute_stats(flows, report, packets, query, events_by_segment=events_by_segment)
     assert any(r.events > 0 for r in rows)
+
+
+# -- Tests de couverture des branches partielles (issue #288) ------------------
+
+
+def test_duration_s_property():
+    """StatRow.duration_s convertit les ms en secondes (ligne 68)."""
+    from netcross_core.stats import StatRow
+
+    row = StatRow(label="test", group_by="endpoint", duration_ms=2000.0)
+    assert row.duration_s == 2.0
+
+
+def test_flow_label_short_key():
+    """_flow_label avec une cle trop courte pour le format long (ligne 157)."""
+    from netcross_core.expert_model import Flow
+    from netcross_core.stats import _flow_label
+
+    f = Flow(key=("TCP",), points=["LAN"], endpoints=("10.0.0.1", "10.0.0.2"))
+    label = _flow_label(f, "flow")
+    assert label == str(("TCP",))
+
+
+def test_flow_label_endpoint_unknown():
+    """_flow_label avec endpoints vides (ligne 161)."""
+    from netcross_core.expert_model import Flow
+    from netcross_core.stats import _flow_label
+
+    f = Flow(key=("TCP", "10.0.0.1", 80, "10.0.0.2", 443), points=["LAN"], endpoints=())
+    label = _flow_label(f, "endpoint")
+    assert label == "endpoints inconnus"
+
+
+def test_flow_label_segment_unknown():
+    """_flow_label avec points vides (ligne 167)."""
+    from netcross_core.expert_model import Flow
+    from netcross_core.stats import _flow_label
+
+    f = Flow(key=("TCP", "10.0.0.1", 80, "10.0.0.2", 443), points=[], endpoints=("a", "b"))
+    label = _flow_label(f, "segment")
+    assert label == "segment inconnu"
+
+
+def test_flow_duration_ms_zero_sans_timestamps():
+    """_flow_duration_ms renvoie 0.0 sans timestamps (ligne 124-127)."""
+    from netcross_core.expert_model import Flow
+    from netcross_core.stats import _flow_duration_ms
+
+    f = Flow(key=("TCP", "a", 1, "b", 2), points=["LAN"])
+    assert _flow_duration_ms(f) == 0.0
+
+
+def test_flow_throughput_zero_with_zero_duration():
+    """_flow_throughput_bps renvoie 0.0 avec duree nulle (lignes 140-143)."""
+    from netcross_core.expert_model import Flow
+    from netcross_core.stats import _flow_throughput_bps
+
+    f = Flow(key=("TCP", "a", 1, "b", 2), points=["LAN"])
+    assert _flow_throughput_bps(f) == 0.0
+
+
+def test_flow_throughput_nonzero_with_data():
+    """_flow_throughput_bps calcule un debit non nul avec des donnees."""
+    from netcross_core.expert_model import Flow
+    from netcross_core.stats import _flow_throughput_bps
+
+    f = Flow(
+        key=("TCP", "10.0.0.1", 80, "10.0.0.2", 443),
+        points=["LAN"],
+        first_ts={"LAN": 1.0},
+        last_ts={"LAN": 2.0},
+        byte_count={"LAN": 1250},
+    )
+    bps = _flow_throughput_bps(f)
+    # 1250 octets * 8 bits / 1.0 seconde = 10000 bps
+    assert bps == 10000.0
+
+
+def test_time_filter_empty_packets():
+    """_time_filter avec liste vide renvoie vide (ligne 112-113)."""
+    from netcross_core.expert_model import Flow
+    from netcross_core.stats import _time_filter
+
+    f = Flow(key=("TCP",), points=["LAN"])
+    assert _time_filter([], f) == []
+
+
+def test_time_filter_no_timestamps():
+    """_time_filter sans timestamps renvoie les paquets intacts (ligne 115-116)."""
+    from netcross_core.expert_model import Flow
+    from netcross_core.stats import _time_filter
+
+    f = Flow(key=("TCP",), points=["LAN"])
+    pkts = [_pkt(ts=1.0), _pkt(ts=2.0)]
+    result = _time_filter(pkts, f)
+    assert len(result) == 2
+
+
+def test_time_filter_with_timestamps():
+    """_time_filter filtre par fenetre temporelle du flux (lignes 117-119)."""
+    from netcross_core.expert_model import Flow
+    from netcross_core.stats import _time_filter
+
+    f = Flow(
+        key=("TCP",),
+        points=["LAN"],
+        first_ts={"LAN": 1.5},
+        last_ts={"LAN": 3.5},
+    )
+    pkts = [_pkt(ts=1.0), _pkt(ts=2.0), _pkt(ts=3.0), _pkt(ts=4.0)]
+    result = _time_filter(pkts, f)
+    # Seuls les paquets entre 1.5 et 3.5 doivent passer
+    assert all(1.5 <= p.ts <= 3.5 for p in result)
+
+
+def test_aggregate_group_latency():
+    """_aggregate_group calcule la latence depuis report.latency (lignes 211-215)."""
+    from netcross_core.expert_model import Flow
+    from netcross_core.models import Report
+    from netcross_core.stats import StatsQuery, _aggregate_group
+
+    f = Flow(
+        key=("TCP", "10.0.0.1", 80, "10.0.0.2", 443),
+        points=["LAN"],
+        endpoints=("10.0.0.1", "10.0.0.2"),
+        first_ts={"LAN": 1.0},
+        last_ts={"LAN": 2.0},
+        packet_count={"LAN": 5},
+        byte_count={"LAN": 1000},
+    )
+    report = Report(points=["LAN"])
+    report.latency[("LAN", "WAN")] = [10.0, 20.0, 30.0]
+    query = StatsQuery(group_by="endpoint", sort_by="bytes")
+    row = _aggregate_group("test", "endpoint", [f], report, [], query)
+    assert row.latency_ms is not None
+    assert row.latency_ms == 20.0  # moyenne de [10, 20, 30]
+
+
+def test_compute_stats_time_filter_excludes_flows_before_start():
+    """compute_stats filtre les flux avant time_start (ligne 268)."""
+    flows, packets = _make_flows()
+    report = Report(points=["LAN", "WAN"])
+    query = StatsQuery(
+        group_by="flow",
+        sort_by="bytes",
+        top_n=None,
+        time_start=10.0,  # apres tous les paquets
+    )
+    rows = compute_stats(flows, report, packets, query)
+    assert len(rows) == 0
+
+
+def test_compute_stats_time_filter_excludes_flows_after_end():
+    """compute_stats filtre les flux apres time_end (ligne 270)."""
+    flows, packets = _make_flows()
+    report = Report(points=["LAN", "WAN"])
+    query = StatsQuery(
+        group_by="flow",
+        sort_by="bytes",
+        top_n=None,
+        time_end=0.5,  # avant tous les paquets
+    )
+    rows = compute_stats(flows, report, packets, query)
+    assert len(rows) == 0
+
+
+def test_compute_stats_time_filter_with_only_start():
+    """compute_stats avec time_start seul (branche 265->272)."""
+    flows, packets = _make_flows()
+    report = Report(points=["LAN", "WAN"])
+    query = StatsQuery(
+        group_by="flow",
+        sort_by="bytes",
+        top_n=None,
+        time_start=2.5,  # garde les flux qui durent apres 2.5
+    )
+    rows = compute_stats(flows, report, packets, query)
+    # Au moins un flux devrait passer (ceux avec paquets apres t=2.5)
+    assert len(rows) >= 1
+
+
+def test_flow_packets_filters_by_point():
+    """_flow_packets filtre les paquets par point (ligne 103)."""
+    from netcross_core.expert_model import Flow
+    from netcross_core.stats import _flow_packets
+
+    f = Flow(key=("TCP",), points=["LAN"])
+    pkts = [_pkt(point="LAN", ts=1.0), _pkt(point="WAN", ts=2.0)]
+    result = _flow_packets(f, pkts)
+    assert len(result) == 1
+    assert result[0].point == "LAN"
+
+
+def test_flow_label_nat_key_flow():
+    """_flow_label gere les cles NAT dans le groupe flow (lignes 151-156)."""
+    from netcross_core.expert_model import Flow
+    from netcross_core.stats import _flow_label
+
+    f = Flow(
+        key=("NAT", "TCP", 80, "10.0.0.2", 443),
+        points=["LAN"],
+        endpoints=("10.0.0.1", "10.0.0.2"),
+    )
+    label = _flow_label(f, "flow")
+    assert "TCP" in label
+    assert "NAT:80" in label
+
+
+def test_flow_label_nat_key_protocol():
+    """_flow_label gere les cles NAT dans le groupe protocol (ligne 164)."""
+    from netcross_core.expert_model import Flow
+    from netcross_core.stats import _flow_label
+
+    f = Flow(
+        key=("NAT", "TCP", 80, "10.0.0.2", 443),
+        points=["LAN"],
+        endpoints=("10.0.0.1", "10.0.0.2"),
+    )
+    label = _flow_label(f, "protocol")
+    assert label == "TCP"

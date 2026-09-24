@@ -38,7 +38,10 @@ d'analyse simple -- d'un fichier partage entre plusieurs sites) :
 import argparse
 import sys
 
+from netcross_core.logging_config import get_logger
 from netcross_report import HistoryDatabaseError, list_history, print_history
+
+logger = get_logger(__name__)
 
 
 def main():
