@@ -849,6 +849,8 @@ def _send_notifications(args, report, security_report_obj) -> list[dict]:
         silence_hours=args.notify_silence,
     )
     return [res.to_dict() for res in results]
+
+
 def _list_plugins(authorized: list[str], plugin_paths: list[str]) -> int:
     """--list-plugins : installes ET locaux, en disant lesquels sont
     autorises -- un plugin installe n'est pas un plugin autorise."""
@@ -882,6 +884,8 @@ def _parse_plugin_exports(specs: list[str], authorized: list[str]) -> list[tuple
             sys.exit(1)
         targets.append((name.strip(), path.strip()))
     return targets
+
+
 def _check_extraction_args(args) -> tuple[str, ...]:
     """Validations de l'issue #278 ; renvoie les types a extraire."""
     from netcross_core.extract.contents import parse_kinds
@@ -934,6 +938,8 @@ def _run_content_extraction(captures, out_dir, kinds) -> None:
     result = run_extraction(captures, out_dir=out_dir, kinds=kinds if out_dir else ())
     for line in format_extraction(result):
         print(line)
+
+
 def _check_live_report_args(args) -> None:
     """Validations de l'issue #274."""
     if (args.live_report_serve is not None or args.live_report_interval != 5.0) and not args.live_report:
@@ -985,6 +991,8 @@ def _start_live_report(args):
         threading.Thread(target=server.serve_forever, name="netcross-live-http", daemon=True).start()
         print(f"Page servie sur http://127.0.0.1:{server.server_address[1]}/ (?mode=completive pour le journal)")
     return LiveReporter(writer), server
+
+
 def _check_ai_args(args):
     """Validations de l'issue #146, AVANT l'analyse (echec immediat plutot
     qu'apres de longues minutes de lecture de capture)."""

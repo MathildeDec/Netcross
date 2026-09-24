@@ -234,6 +234,8 @@ def test_pcap_sans_notify_on_aucun_appel_reseau(monkeypatch, capsys, tmp_path, c
     out = _run_security_report(monkeypatch, capsys, pcap, cve_db)
     assert "(niveau : critique)" in out
     assert "Notifications" not in out
+
+
 # -- plugins (issue #284) sur la chaine complete ------------------------------------
 
 

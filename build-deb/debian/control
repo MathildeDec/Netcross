@@ -13,10 +13,12 @@ Depends: ${misc:Depends},
  python3,
  tshark,
  python3-cryptography,
+ python3-loguru,
  python3-reportlab,
  python3-matplotlib,
  python3-networkx
 Recommends: python3-gi, gir1.2-gtk-4.0
+Suggests: python3-fastapi, python3-uvicorn, python3-multipart, python3-sklearn
 Description: Analyse croisee de captures Wireshark multi-points
  netcross correle plusieurs captures reseau (.pcap/.pcapng) prises en
  differents points d'un chemin reseau pour du depannage : pertes,
@@ -26,6 +28,7 @@ Description: Analyse croisee de captures Wireshark multi-points
  .
  Fournit un CLI (netcross), un CLI de comparaison avant/apres
  (netcross-diff), un CLI d'interrogation de l'historique --history-db
- (netcross-history), un generateur de rapport PDF, et une interface
+ (netcross-history), un CLI de traitement par lots (netcross-batch),
+ un CLI de gestion des modeles IA locaux (netcross-ai-models), un generateur de rapport PDF, et une interface
  graphique GTK4 optionnelle (netcross-gui, necessite les paquets
  Recommends python3-gi et gir1.2-gtk-4.0).

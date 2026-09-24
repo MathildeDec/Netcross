@@ -155,3 +155,47 @@ jobs:
 
       - name: Vérification des types (mypy)
         run: uv run mypy
+
+  packaging:
+    # Issue #342 : la casse du .deb (#336, sous-paquets et pcap_parser non
+    # installes) est passee inapercue faute de job qui construise PUIS
+    # installe le paquet. Ce job teste le paquet tel que l'utilisateur le
+    # recoit : installation apt, --help de chaque lanceur, import de chaque
+    # module avec /usr/bin/python3, analyse reelle d'une capture.
+    name: Paquets (deb installé, rpm vérifié)
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout du dépôt
+        uses: actions/checkout@v7
+
+      - name: Outils de construction (debhelper, rpm) et tshark
+        run: |
+          echo "wireshark-common wireshark-common/install-setuid boolean false" \
+            | sudo debconf-set-selections
+          sudo DEBIAN_FRONTEND=noninteractive apt-get update -qq
+          sudo DEBIAN_FRONTEND=noninteractive apt-get install -y -qq \
+            build-essential debhelper dpkg-dev gettext rpm tshark
+
+      - name: Construction du .deb
+        run: ./build-deb/build.sh
+
+      - name: Test de fumée du .deb installé
+        run: ./scripts/smoke-test-packages.sh deb build-deb/dist/netcross_*_all.deb
+
+      - name: Construction du .rpm
+        run: ./build-rpm/build.sh
+
+      - name: Vérification du contenu du .rpm
+        run: ./scripts/smoke-test-packages.sh rpm build-rpm/dist/netcross-*.noarch.rpm
+
+      - name: Publication des paquets (artifact)
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: paquets
+          path: |
+            build-deb/dist/*.deb
+            build-rpm/dist/*.rpm
+          retention-days: 7
+          if-no-files-found: warn

@@ -22,17 +22,20 @@ RUN apt-get update && \
 # Répertoire de travail
 WORKDIR /app
 
-# Copier d'abord les fichiers de dépendances pour optimiser le cache Docker
-COPY pyproject.toml uv.lock* ./
+# Copier d'abord les dependances d'execution pour optimiser le cache Docker.
+# pyproject.toml declare `package = false` sans build-system : un
+# `pip install -e .` n'a pas de sens ici. On installe uniquement les
+# dependances d'execution (miroir de [project.dependencies]), jamais
+# l'outillage de dev ni les tests.
+COPY requirements.txt ./
+RUN pip install --no-cache-dir -r requirements.txt
 
-# Installer les dépendances Python
-RUN pip install --no-cache-dir -e ".[dev]"
-
-# Copier le code source
+# Copier le code source uniquement (pas de tests/ ni scripts/ en production)
 COPY src/ ./src/
-COPY tests/ ./tests/
-COPY install.sh ./
-COPY scripts/ ./scripts/
+
+# Execution sans privileges root
+RUN useradd --create-home --uid 10001 netcross
+USER netcross
 
 # PYTHONPATH nécessaire car package = false (voir pyproject.toml)
 ENV PYTHONPATH=/app/src
