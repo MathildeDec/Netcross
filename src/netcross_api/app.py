@@ -145,7 +145,7 @@ async def get_analysis(analysis_id: str, _auth: None = Depends(_verify_api_key))
     Le rapport est sérialisé en dict JSON directement (sans passer par
     generate_json_report qui écrit sur disque).
     """
-    logger.debug("get_analysis(analysis_id={analysis_id})")
+    logger.debug("get_analysis(analysis_id={})", analysis_id)
     report = store.get_report(analysis_id)
     if report is None:
         raise HTTPException(status_code=404, detail=f"Analyse {analysis_id} introuvable")
@@ -176,7 +176,7 @@ async def get_analysis(analysis_id: str, _auth: None = Depends(_verify_api_key))
 )
 async def get_security_report(analysis_id: str, _auth: None = Depends(_verify_api_key)) -> SecurityReport:
     """Récupère les constats de sécurité d'une analyse."""
-    logger.debug("get_security_report(analysis_id={analysis_id})")
+    logger.debug("get_security_report(analysis_id={})", analysis_id)
     entry = store.get(analysis_id)
     if entry is None:
         raise HTTPException(status_code=404, detail=f"Analyse {analysis_id} introuvable")

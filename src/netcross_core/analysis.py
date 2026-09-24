@@ -775,7 +775,7 @@ def _parse_tls_cert_date(s: str | None) -> datetime | None:
     try:
         return datetime.strptime(s.removesuffix(" (UTC)"), "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
     except ValueError:
-        logger.exception("erreur: ValueError")
+        logger.exception("échec dans _parse_tls_cert_date")
         return None
 
 
@@ -1140,7 +1140,7 @@ def _analyse_saturation(r: Report):
         try:
             p75 = statistics.quantiles(all_vals, n=4)[2] if len(all_vals) >= 4 else statistics.mean(all_vals)
         except statistics.StatisticsError:
-            logger.exception("erreur inattendue")
+            logger.exception("échec dans _analyse_saturation")
             p75 = statistics.mean(all_vals)
 
         frac_high = sum(1 for v in loss_vals if v >= p75) / len(loss_vals)

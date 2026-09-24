@@ -176,7 +176,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         return int(args.func(args))
     except (ModelPackError, BaselineError, TrainingSetError, OSError) as exc:
-        logger.exception("erreur: exc")
+        logger.exception(f"échec dans main: {exc}")
         print(f"Erreur : {exc}", file=sys.stderr)
         return 1
 

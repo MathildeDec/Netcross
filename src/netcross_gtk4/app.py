@@ -363,7 +363,7 @@ class LiveCaptureRow(Gtk.Box):
         try:
             self._on_save_filter(demande.filtre)
         except (OSError, ValueError) as exc:
-            logger.exception("erreur: exc")
+            logger.exception(f"échec dans _on_save_filter_clicked: {exc}")
             self._save_status.set_text(str(exc))
             return
         self._save_status.set_text("")
@@ -445,7 +445,7 @@ class CaptureListPanel(Gtk.Box):
         try:
             files = dialog.open_multiple_finish(result)
         except GLib.Error:
-            logger.exception("erreur inattendue")
+            logger.exception("échec dans _on_files_chosen")
             return
         for i in range(files.get_n_items()):
             gfile = files.get_item(i)
@@ -537,7 +537,7 @@ class LiveCaptureListPanel(Gtk.Box):
             # Fichier sidecar illisible : le catalogue predefini reste
             # utilisable et le fichier n'est PAS touche (upsert_bpf_filter
             # refuse d'ecraser un fichier qu'il ne sait pas relire).
-            logger.exception("erreur: exc")
+            logger.exception(f"échec dans _initial_filters: {exc}")
             print(f"netcross: filtres BPF sauvegardes ignores ({exc})", file=sys.stderr)
             return list(PREDEFINED_BPF_FILTERS)
 
@@ -1481,7 +1481,7 @@ class MainWindow(Gtk.ApplicationWindow):
         except Exception as e:  # noqa: BLE001 -- thread de fond : toute erreur
             # (tshark, interface, permission...) doit remonter au journal GUI
             # plutot que de tuer le thread silencieusement.
-            logger.exception("erreur: e")
+            logger.exception(f"échec dans _live_capture_worker: {e}")
             GLib.idle_add(self._log, f"[{label}] ERREUR : {e}")
         GLib.idle_add(self._log, f"[{label}] capture arretee -- {count} paquet(s) au total.")
 
@@ -1562,7 +1562,7 @@ class MainWindow(Gtk.ApplicationWindow):
 
             text = buf.getvalue()
         except Exception as e:  # noqa: BLE001 -- thread de fond (analyse live) : toute erreur doit remonter au journal GUI.
-            logger.exception("erreur: e")
+            logger.exception(f"échec dans _join_live_and_analyze: {e}")
             GLib.idle_add(self._log, f"ERREUR : {e}")
             GLib.idle_add(self._on_analysis_error, str(e))
             GLib.idle_add(self._reset_live_ui)
@@ -1662,7 +1662,7 @@ class MainWindow(Gtk.ApplicationWindow):
         try:
             result = run_analysis_pipeline(captures, options, on_progress=_on_progress)
         except Exception as e:  # noqa: BLE001 -- thread de fond
-            logger.exception("erreur: e")
+            logger.exception(f"échec dans _on_progress: {e}")
             GLib.idle_add(self._log, f"ERREUR : {e}")
             GLib.idle_add(self._on_analysis_error, str(e))
             return
@@ -1715,7 +1715,7 @@ class MainWindow(Gtk.ApplicationWindow):
         try:
             result = run_diff_pipeline(baseline_captures, current_captures, options, on_progress=_on_progress)
         except Exception as e:  # noqa: BLE001 -- thread de fond
-            logger.exception("erreur: e")
+            logger.exception(f"échec dans _on_progress: {e}")
             GLib.idle_add(self._log, f"ERREUR : {e}")
             GLib.idle_add(self._on_analysis_error, str(e))
             return
@@ -1864,7 +1864,7 @@ class MainWindow(Gtk.ApplicationWindow):
         try:
             gfile = dialog.save_finish(result)
         except GLib.Error:
-            logger.exception("erreur inattendue")
+            logger.exception("échec dans _on_csv_path_chosen")
             return
         path = gfile.get_path()
         try:
@@ -1873,7 +1873,7 @@ class MainWindow(Gtk.ApplicationWindow):
             else:
                 write_diff_csv(self.last_diff_findings, path)
         except Exception as e:  # noqa: BLE001 -- callback GUI (export CSV) : erreur affichee dans la barre de statut plutot que de faire planter l'appli.
-            logger.exception("erreur: e")
+            logger.exception(f"échec dans _on_csv_path_chosen: {e}")
             self.status_label.set_text(f"Erreur CSV : {e}")
             return
         self.status_label.set_text(f"CSV ecrit : {path}")
@@ -1891,7 +1891,7 @@ class MainWindow(Gtk.ApplicationWindow):
         try:
             gfile = dialog.save_finish(result)
         except GLib.Error:
-            logger.exception("erreur inattendue")
+            logger.exception("échec dans _on_pdf_path_chosen")
             return
         self.export_pdf_to(gfile.get_path())
 
@@ -2013,7 +2013,7 @@ class MainWindow(Gtk.ApplicationWindow):
         try:
             file_obj = dialog.save_finish(result)
         except Exception:
-            logger.exception("erreur: Exception")
+            logger.exception("échec dans _on_stats_csv_saved")
             return
         if file_obj is None:
             return
@@ -2028,7 +2028,7 @@ class MainWindow(Gtk.ApplicationWindow):
                 fh.write(export_csv(rows))
             self.status_label.set_text(f"Statistiques exportees : {path}")
         except OSError as exc:
-            logger.exception("erreur: exc")
+            logger.exception(f"échec dans _on_stats_csv_saved: {exc}")
             self.status_label.set_text(f"Erreur export CSV : {exc}")
 
     def _on_stats_export_json(self, _btn):
@@ -2046,7 +2046,7 @@ class MainWindow(Gtk.ApplicationWindow):
         try:
             file_obj = dialog.save_finish(result)
         except Exception:
-            logger.exception("erreur: Exception")
+            logger.exception("échec dans _on_stats_json_saved")
             return
         if file_obj is None:
             return
@@ -2063,7 +2063,7 @@ class MainWindow(Gtk.ApplicationWindow):
                 json.dump(export_json(rows), fh, indent=2, ensure_ascii=False)
             self.status_label.set_text(f"Statistiques exportees : {path}")
         except OSError as exc:
-            logger.exception("erreur: exc")
+            logger.exception(f"échec dans _on_stats_json_saved: {exc}")
             self.status_label.set_text(f"Erreur export JSON : {exc}")
 
     # ================= cartographie des communications (issue #15) =================
@@ -2237,7 +2237,7 @@ class MainWindow(Gtk.ApplicationWindow):
             self.comm_map_picture.set_filename(rendu)
             self.comm_map_label.set_text(format_comm_map(cmap))
         except Exception as e:  # noqa: BLE001 -- dependances de rendu optionnelles, voir docstring
-            logger.exception("erreur: e")
+            logger.exception(f"échec dans _refresh_comm_map: {e}")
             self.comm_map_picture.set_filename(None)
             self.comm_map_label.set_text(f"Cartographie indisponible : {e}")
         return False
@@ -2296,7 +2296,7 @@ class MainWindow(Gtk.ApplicationWindow):
                     quic_findings_current=self.last_diff_quic_findings_current,
                 )
         except Exception as e:  # noqa: BLE001 -- thread de fond (export PDF) : idem, erreur affichee via GLib.idle_add.
-            logger.exception("erreur: e")
+            logger.exception(f"échec dans _generate_pdf_thread: {e}")
             GLib.idle_add(self._on_pdf_error, str(e))
             return
         GLib.idle_add(self._on_pdf_done, path)
@@ -2326,7 +2326,7 @@ class MainWindow(Gtk.ApplicationWindow):
         try:
             gfile = dialog.save_finish(result)
         except GLib.Error:
-            logger.exception("erreur inattendue")
+            logger.exception("échec dans _on_json_path_chosen")
             return
         self.export_json_to(gfile.get_path())
 
@@ -2362,7 +2362,7 @@ class MainWindow(Gtk.ApplicationWindow):
                     quic_findings_current=self.last_diff_quic_findings_current,
                 )
         except Exception as e:  # noqa: BLE001 -- thread de fond (export JSON) : idem, erreur affichee via GLib.idle_add.
-            logger.exception("erreur: e")
+            logger.exception(f"échec dans _generate_json_thread: {e}")
             GLib.idle_add(self._on_json_error, str(e))
             return
         GLib.idle_add(self._on_json_done, path)

@@ -235,7 +235,6 @@ def evaluate_compliance(report, references=None) -> list[ComplianceResult]:
     Statuts produits : CONFORME, DEVIATION (ecart mineur dans la marge
     de tolerance), VIOLATION, INDETERMINE.
     """
-    logger.debug("evaluate_compliance(report={report}, references={references})")
     if references is None:
         references = DEFAULT_REFERENCES
     results = []

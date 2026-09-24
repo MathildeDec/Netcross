@@ -100,7 +100,6 @@ def available_protocols(flows) -> list[str]:
     """Protocoles presents dans le dict `flows` de `correlate()`, tries --
     sert a remplir la liste deroulante de filtrage de la GUI sans que
     celle-ci ait a parcourir les paquets elle-meme."""
-    logger.debug("available_protocols(flows={flows})")
     protos = set()
     for per_point in (flows or {}).values():
         for pkts in (per_point or {}).values():
@@ -140,7 +139,6 @@ def build_comm_map(flows, protocols=None, top_n=None, only_anomalies=False) -> C
     afficherait des hotes sans arete laisserait croire a une communication
     filtree alors qu'il s'agit d'un residu du filtre.
     """
-    logger.debug("build_comm_map(flows={flows}, protocols={protocols}, top_n={top_n}, ...)")
     wanted = {p for p in (protocols or []) if p}
     edges: dict[tuple[str, str], CommEdge] = {}
     protos_seen = set()
@@ -197,7 +195,6 @@ def format_comm_map(cmap, top_n=DEFAULT_TOP_N) -> str:
     """Rendu texte de la cartographie -- utilise par la GUI pour legender
     le graphe (et lisible sans interface graphique, ce qui rend la vue
     verifiable en console pendant le developpement)."""
-    logger.debug("format_comm_map(cmap={cmap}, top_n={top_n})")
     if not cmap.edges:
         return "Aucune communication a afficher avec ces filtres."
     lignes = [f"{len(cmap.edges)} arete(s) affichee(s) sur {cmap.total_edges}, {len(cmap.nodes)} hote(s)."]

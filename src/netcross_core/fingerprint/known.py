@@ -61,7 +61,7 @@ def load_known_fingerprints(path: str | Path | None = None) -> dict[str, dict]:
     try:
         return _load_cached(str(path or _DEFAULT_PATH))
     except (OSError, json.JSONDecodeError):
-        logger.exception("erreur: e")
+        logger.exception("échec dans load_known_fingerprints")
         return {"ja4": {}, "hassh": {}}
 
 
@@ -70,7 +70,6 @@ def identify_tool(fingerprint_type: str, fingerprint: str, known: dict[str, dict
     absent de la base (charge la base livree par defaut si `known` n'est
     pas fourni -- eviter de la recharger a chaque paquet quand on traite
     une capture entiere, voir `fingerprint.report`)."""
-    logger.debug("identify_tool(fingerprint_type={fingerprint_type}, fingerprint={fingerprint}, known={known})")
     known = known if known is not None else load_known_fingerprints()
     valeur = known.get(fingerprint_type, {}).get(fingerprint)
     if isinstance(valeur, dict):

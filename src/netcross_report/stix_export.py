@@ -108,7 +108,6 @@ def _sdo_id(stix_type: str, content: Mapping[str, Any]) -> str:
 
 def format_timestamp(when: _dt.datetime) -> str:
     """Horodatage STIX : UTC, precision milliseconde, suffixe ``Z``."""
-    logger.debug("format_timestamp(when={when})")
     if when.tzinfo is None:
         when = when.replace(tzinfo=_dt.UTC)
     when = when.astimezone(_dt.UTC)
@@ -144,7 +143,6 @@ class _Builder:
         self.skipped: dict[str, int] = {}
 
     def add(self, obj: dict[str, Any]) -> str:
-        logger.debug("add(self={self}, obj={obj})")
         self.objects.setdefault(obj["id"], obj)
         return obj["id"]
 
@@ -152,7 +150,6 @@ class _Builder:
         self.skipped[reason] = self.skipped.get(reason, 0) + 1
 
     def sdo(self, stix_type: str, content: dict[str, Any], *, confidence: int | None = None) -> dict[str, Any]:
-        logger.debug("sdo(self={self}, stix_type={stix_type}, content={content})")
         obj: dict[str, Any] = {
             "type": stix_type,
             "spec_version": SPEC_VERSION,
@@ -172,14 +169,13 @@ class _Builder:
         try:
             addr = ipaddress.ip_address(str(value))
         except ValueError:
-            logger.exception("erreur: ValueError")
+            logger.exception("échec dans ip")
             return None
         stix_type = "ipv4-addr" if addr.version == 4 else "ipv6-addr"
         props = {"value": str(addr)}
         return self.add({"type": stix_type, "spec_version": SPEC_VERSION, "id": _sco_id(stix_type, props), **props})
 
     def software(self, name: str, version: Any) -> str:
-        logger.debug("software(self={self}, name={name}, version={version})")
         props: dict[str, Any] = {"name": str(name)}
         if version:
             props["version"] = str(version)
@@ -188,7 +184,6 @@ class _Builder:
     def traffic(
         self, *, dst_ref: str, dst_port: Any = None, src_ref: str | None = None, protocol: Any = None
     ) -> str | None:
-        logger.debug("traffic(self={self})")
         props: dict[str, Any] = {"dst_ref": dst_ref, "protocols": ["tcp", str(protocol).lower()] if protocol else []}
         if src_ref:
             props["src_ref"] = src_ref
@@ -203,7 +198,6 @@ class _Builder:
         )
 
     def observed(self, refs: list[str], point: Any) -> str:
-        logger.debug("observed(self={self}, refs={refs}, point={point})")
         content: dict[str, Any] = {
             "first_observed": self.first,
             "last_observed": self.last,
@@ -269,7 +263,7 @@ def exploit_pattern(f: Mapping[str, Any]) -> str | None:
         try:
             addr = ipaddress.ip_address(str(value))
         except ValueError:
-            logger.exception("erreur: ValueError")
+            logger.exception("échec dans exploit_pattern")
             continue
         parts.append(f"network-traffic:{prop}.value = '{_escape_pattern(str(addr))}'")
     if not parts:
@@ -337,7 +331,6 @@ def to_stix_bundle(
     l'heure de l'export, sinon deux exports differeraient. Absentes :
     l'epoque Unix (bundle toujours deterministe, mais date non significative).
     """
-    logger.debug("to_stix_bundle(report={report})")
     first = format_timestamp(observed_from or _EPOCH)
     last = format_timestamp(observed_until or observed_from or _EPOCH)
     b = _Builder(first, last)
@@ -380,7 +373,6 @@ def export_stix(
 ) -> str:
     """Bundle STIX 2.1 serialise (JSON indente, cles triees, determinisme
     octet pour octet)."""
-    logger.debug("export_stix(report={report})")
     bundle = to_stix_bundle(report, observed_from=observed_from, observed_until=observed_until)
     return json.dumps(bundle, indent=2, sort_keys=True, ensure_ascii=False) + "\n"
 
@@ -393,7 +385,6 @@ def write_stix(
     observed_until: _dt.datetime | None = None,
 ) -> str:
     """Ecrit le bundle dans un fichier ; retourne son chemin absolu."""
-    logger.debug("write_stix(report={report}, output_path={output_path})")
     path = Path(output_path)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(export_stix(report, observed_from=observed_from, observed_until=observed_until), encoding="utf-8")

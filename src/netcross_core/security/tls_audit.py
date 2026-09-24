@@ -164,7 +164,7 @@ def parse_cert_date(value: str | None) -> datetime | None:
     try:
         return datetime.strptime(value.removesuffix(" (UTC)"), "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
     except ValueError:
-        logger.exception("erreur: ValueError")
+        logger.exception("échec dans parse_cert_date")
         return None
 
 
@@ -212,7 +212,6 @@ def audit_certificate(pk: Pkt, policy: TlsAuditPolicy = DEFAULT_POLICY) -> list[
     """Problemes releves sur le certificat feuille porte par `pk` (liste vide
     si le certificat est sain ou si `pk` n'en porte pas). L'horodatage de
     reference est celui du paquet."""
-    logger.debug("audit_certificate(pk={pk}, policy={policy})")
     if pk.tls_cert_serial is None:
         return []
     raw: list[tuple[str, str]] = []
@@ -254,7 +253,6 @@ def audit_certificate(pk: Pkt, policy: TlsAuditPolicy = DEFAULT_POLICY) -> list[
 
 def audit_tls_certificates(packets: Iterable[Pkt], policy: TlsAuditPolicy = DEFAULT_POLICY) -> TlsAuditResult:
     """Applique les controles de la docstring du module a `packets`."""
-    logger.debug("audit_tls_certificates(packets={packets}, policy={policy})")
     # (point, hote, port, serie, sujet) -> premier paquet + nombre d'occurrences
     first: dict[tuple, Pkt] = {}
     count: dict[tuple, int] = {}

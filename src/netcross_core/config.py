@@ -153,7 +153,6 @@ def load_config(config_path: str | Path | None = None) -> NetcrossConfig:
     Retourne une ``NetcrossConfig`` avec les valeurs par défaut si aucun
     fichier n'est trouvé (pas d'erreur).
     """
-    logger.debug("load_config(config_path={config_path})")
     if tomllib is None:
         return NetcrossConfig()
 

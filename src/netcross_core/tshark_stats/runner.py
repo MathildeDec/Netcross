@@ -49,7 +49,7 @@ def run_tshark_stat(
             check=False,
         )
     except FileNotFoundError as exc:
-        logger.exception("erreur: exc")
+        logger.exception(f"échec dans run_tshark_stat: {exc}")
         raise TsharkUnavailableError(
             f"tshark introuvable sur le chemin ({tshark_bin!r}) -- installez "
             "Wireshark/tshark pour utiliser les statistiques -z"

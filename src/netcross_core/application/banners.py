@@ -391,7 +391,7 @@ def extract_banners(proto: str, sport: int | None, dport: int | None, payload: b
             banners = _dns_banners(payload, proto)
         return tuple(banners[:MAX_BANNERS_PER_PACKET])
     except (ValueError, IndexError, struct.error, UnicodeError):
-        logger.exception("erreur: e")
+        logger.exception("échec dans extract_banners")
         return ()
 
 

@@ -113,7 +113,6 @@ def detect_cross_capture_duplicates(
     Raises ValueError si `threshold_ms` est negatif (0 est accepte et ne
     detecte rien : le critere est un delta STRICTEMENT inferieur).
     """
-    logger.debug("detect_cross_capture_duplicates(packets={packets}, threshold_ms={threshold_ms})")
     if threshold_ms < 0:
         raise ValueError(f"threshold_ms doit etre >= 0, recu {threshold_ms!r}")
 
@@ -208,7 +207,6 @@ class ForensicIndex:
         2. paquets d'evidence → flow_key
         3. flows passant par le segment (point ou paire "A -> B")
         """
-        logger.debug("event_to_flows(self={self}, event={event})")
         flows: list[Flow] = []
         seen_keys: set[tuple] = set()
 
@@ -251,7 +249,6 @@ class ForensicIndex:
         """Retourne les paquets qui justifient un ExpertEvent : d'abord
         ceux references dans evidence/packet_evidence, puis les paquets
         des flows lies (complement)."""
-        logger.debug("event_to_packets(self={self}, event={event})")
         pkts: list[PacketEvidence] = []
         seen: set[tuple[str, int]] = set()
 
@@ -288,7 +285,6 @@ class ForensicIndex:
     def packet_to_flow(self, point: str, frame_number: int) -> Flow | None:
         """Retourne le flow auquel appartient un paquet (point + numero
         de trame), ou None si le paquet n'est pas indexe."""
-        logger.debug("packet_to_flow(self={self}, point={point}, frame_number={frame_number})")
         pk_key = (point, frame_number)
         fk = self._packet_to_key.get(pk_key)
         if fk is None:
@@ -300,7 +296,6 @@ class ForensicIndex:
     def flow_to_events(self, flow: Flow) -> list[ExpertEvent]:
         """Retourne les evenements lies a un flow : d'abord par flow_keys
         direct (tshark), puis par segment (les points du flow)."""
-        logger.debug("flow_to_events(self={self}, flow={flow})")
         events: list[ExpertEvent] = []
         seen: set[int] = set()
 
@@ -325,7 +320,6 @@ class ForensicIndex:
     def flow_to_packets(self, flow: Flow) -> list[Pkt]:
         """Retourne tous les paquets d'un flow, tous points confondus,
         dans l'ordre de point puis d'arrivee."""
-        logger.debug("flow_to_packets(self={self}, flow={flow})")
         per_point = self._packets_by_key.get(flow.key, {})
         result: list[Pkt] = []
         for point in flow.points:
@@ -352,7 +346,6 @@ def annotations_sidecar_path(capture_path: str) -> str:
 
     Ne verifie PAS l'existence du fichier -- utiliser `read_annotations`
     pour une lecture tolerante a l'absence."""
-    logger.debug("annotations_sidecar_path(capture_path={capture_path})")
     return f"{capture_path}.annotations.json"
 
 
@@ -363,7 +356,6 @@ def read_annotations(capture_path: str) -> list[PacketAnnotation]:
     -- une capture sans annotation est le cas courant, pas une erreur.
     Un sidecar present mais illisible (JSON invalide) est en revanche une
     erreur reelle (fichier corrompu) et remonte l'exception."""
-    logger.debug("read_annotations(capture_path={capture_path})")
     path = annotations_sidecar_path(capture_path)
     if not os.path.exists(path):
         return []
@@ -387,7 +379,6 @@ def write_annotations(capture_path: str, annotations: list[PacketAnnotation]) ->
     l'appelant est responsable de relire puis de composer la liste
     complete avant d'ecrire, meme discipline que les autres sidecars/
     exports de ce projet (pas d'etat cache cote disque)."""
-    logger.debug("write_annotations(capture_path={capture_path}, annotations={annotations})")
     path = annotations_sidecar_path(capture_path)
     payload = [
         {
@@ -406,7 +397,6 @@ def annotations_by_tag(annotations: list[PacketAnnotation]) -> dict[str, list[Pa
     """Regroupe des annotations par etiquette, pour la vue GUI filtrable
     par tag (voir netcross_gtk4.annotations_view) et pour la section
     annotations du rapport texte."""
-    logger.debug("annotations_by_tag(annotations={annotations})")
     grouped: dict[str, list[PacketAnnotation]] = defaultdict(list)
     for ann in annotations:
         grouped[ann.tag].append(ann)
@@ -512,7 +502,6 @@ def _track_stream(ordered: list[Pkt]) -> list[_OpenGap]:
     last_ts = 0.0
 
     def close_epoch(ts: float) -> None:
-        logger.debug("close_epoch(ts={ts})")
         for gap in open_gaps:
             gap.epoch_end_ts = ts
         finished.extend(open_gaps)
@@ -607,7 +596,6 @@ def detect_sequence_gaps(packets: Iterable[Pkt]) -> list[SequenceGap]:
     est deja traitee par l'analyse RTP).
 
     Liste triee par (point, horodatage du segment qui revele le trou)."""
-    logger.debug("detect_sequence_gaps(packets={packets})")
     streams: dict[_StreamKey, list[Pkt]] = defaultdict(list)
     for pk in packets:
         if pk.proto == "TCP" and pk.seq is not None and pk.sport is not None and pk.dport is not None:
@@ -681,7 +669,6 @@ def validate_checksums(packets: Iterable[Pkt]) -> list[ChecksumError]:
     statut "Unverified" si la validation tshark est desactivee) n'est
     jamais signale : l'absence de donnee n'est pas une preuve
     d'invalidite."""
-    logger.debug("validate_checksums(packets={packets})")
     errors: list[ChecksumError] = []
     for pk in packets:
         for protocol, checksum, is_bad in (
