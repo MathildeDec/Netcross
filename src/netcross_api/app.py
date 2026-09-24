@@ -56,6 +56,7 @@ def _verify_api_key(api_key: str | None = Depends(_api_key_header)) -> None:
     if _API_TOKEN and api_key != _API_TOKEN:
         raise HTTPException(status_code=401, detail="Jeton d'authentification invalide ou manquant")
 
+
 app = FastAPI(
     title="Netcross API",
     description="Analyse croisée de captures réseau — service REST",
