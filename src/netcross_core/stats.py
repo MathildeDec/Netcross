@@ -18,7 +18,10 @@ import io
 from dataclasses import asdict, dataclass, field
 
 from netcross_core.expert_model import Flow
+from netcross_core.logging_config import get_logger
 from netcross_core.models import Pkt, Report
+
+logger = get_logger(__name__)
 
 # -- Types d'enumeration (chaines pour serialisation simple) -----------------
 
@@ -65,6 +68,7 @@ class StatRow:
     @property
     def duration_s(self) -> float:
         """Duree en secondes."""
+        logger.debug("duration_s(self={self})")
         return self.duration_ms / 1000.0
 
 
@@ -87,6 +91,7 @@ class StatsQuery:
     segment: str | None = None
 
     def __post_init__(self):
+        logger.debug("__post_init__(self={self})")
         if self.group_by not in GROUP_BY:
             raise ValueError(f"group_by doit etre dans {GROUP_BY}, recu: {self.group_by!r}")
         if self.sort_by not in SORT_BY:
@@ -253,6 +258,7 @@ def compute_stats(
     Retourne une liste de StatRow triee par sort_by decroissant, limitee
     a top_n.
     """
+    logger.debug("compute_stats(flows={flows}, report={report}, all_packets={all_packets}, ...)")
     # Filtre temporel sur les flux
     filtered_flows: list[Flow] = []
     for f in flows:
@@ -319,6 +325,7 @@ def export_csv(rows: list[StatRow]) -> str:
     Les flow_keys sont serialises en representation Python (tuple) car un CSV
     ne supporte pas les listes nativement.
     """
+    logger.debug("export_csv(rows={rows})")
     if not rows:
         return ""
 
@@ -345,6 +352,7 @@ def export_csv(rows: list[StatRow]) -> str:
 
 def export_json(rows: list[StatRow]) -> list[dict]:
     """Exporte les lignes en liste de dicts (serialisable en JSON)."""
+    logger.debug("export_json(rows={rows})")
     result = []
     for row in rows:
         d = asdict(row)

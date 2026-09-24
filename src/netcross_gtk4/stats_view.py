@@ -16,8 +16,11 @@ from typing import Any
 
 from netcross_core.expert_model import Flow
 from netcross_core.i18n import N_, _
+from netcross_core.logging_config import get_logger
 from netcross_core.models import Report
 from netcross_core.stats import GROUP_BY, SORT_BY, StatRow, StatsQuery, compute_stats
+
+logger = get_logger(__name__)
 
 # -- Formatage pour affichage -----------------------------------------------
 

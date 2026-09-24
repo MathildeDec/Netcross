@@ -16,8 +16,11 @@ les champs non derivables du FlowRecord sont mis a leur valeur neutre
 
 from __future__ import annotations
 
+from netcross_core.logging_config import get_logger
 from netcross_core.models import Pkt
 from netcross_core.netflow.models import FlowRecord
+
+logger = get_logger(__name__)
 
 # Numeros de protocole IP (IANA) vers le nom utilise par Pkt.proto
 # ailleurs dans netcross_core (pcap_parser.packet produit les memes
@@ -34,6 +37,7 @@ def flow_record_to_pkt(flow: FlowRecord, point: str | None = None) -> Pkt:
     Pkt synthetique ne doit donc pas etre melange avec de vrais
     paquets multi-points sans en avoir conscience.
     """
+    logger.debug("flow_record_to_pkt(flow={flow}, point={point})")
     proto = _PROTO_NAMES.get(flow.protocol, str(flow.protocol))
     avg_length = flow.octets // flow.packets if flow.packets else flow.octets
 
@@ -123,4 +127,5 @@ def flow_record_to_pkt(flow: FlowRecord, point: str | None = None) -> Pkt:
 def flow_records_to_pkts(flows: list[FlowRecord], point: str | None = None) -> list[Pkt]:
     """Convertit une liste de FlowRecord en liste de Pkt synthetiques,
     meme convention que parsing.parse_capture (voir cette fonction)."""
+    logger.debug("flow_records_to_pkts(flows={flows}, point={point})")
     return [flow_record_to_pkt(flow, point=point) for flow in flows]

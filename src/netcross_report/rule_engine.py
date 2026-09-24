@@ -645,8 +645,11 @@ import statistics
 
 from netcross_core.expert_model import EvidenceLink, PacketEvidence
 from netcross_core.expert_rules import Rule, get_rule
+from netcross_core.logging_config import get_logger
 from netcross_core.models import Report
 from netcross_report.synthesis import Finding
+
+logger = get_logger(__name__)
 
 
 def _pct(n: int, d: int) -> float:
@@ -700,6 +703,7 @@ def _http_error_evidence(
         try:
             code = int(ex.rsplit(" ", 1)[-1])
         except ValueError:
+            logger.exception("erreur: ValueError")
             continue
         if code // 100 == status_class:
             texts.append(ex)
@@ -2225,6 +2229,7 @@ def evaluate(rule_id: str, report: Report) -> list[Finding]:
     "regle inconnue" (erreur d'appelant) et "regle connue mais pilote
     pas encore etendu jusque-la" (limite documentee -- voir docstring de
     module), plutot qu'une seule exception ambigue pour les deux cas."""
+    logger.debug("evaluate(rule_id={rule_id}, report={report})")
     rule = get_rule(rule_id)
     if rule is None:
         raise KeyError(f"regle inconnue du catalogue expert_rules : {rule_id!r}")
@@ -2241,4 +2246,5 @@ def available_rule_ids() -> list[str]:
     """Ids des regles du catalogue ayant deja un evaluateur enregistre
     ici -- pour un appelant qui veut savoir ce que ce pilote couvre
     aujourd'hui sans provoquer `NotImplementedError`."""
+    logger.debug("available_rule_ids()")
     return list(_EVALUATORS)

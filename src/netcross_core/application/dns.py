@@ -11,7 +11,10 @@ from __future__ import annotations
 from collections import defaultdict, deque
 
 from netcross_core.application.models import ApplicationTransaction
+from netcross_core.logging_config import get_logger
 from netcross_core.models import Pkt
+
+logger = get_logger(__name__)
 
 
 def _dns_key(pkt: Pkt) -> tuple[str, str, str, int | None, int | None, str | int]:

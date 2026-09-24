@@ -31,7 +31,10 @@ import ipaddress
 import struct
 from collections.abc import Iterator
 
+from netcross_core.logging_config import get_logger
 from netcross_core.netflow.models import FlowRecord
+
+logger = get_logger(__name__)
 
 _HEADER = struct.Struct("!HHIIIIBBH")
 _RECORD = struct.Struct("!IIIHHIIIIHHBBBBHHBBH")
@@ -62,6 +65,7 @@ def parse_netflow_v5_packet(data: bytes, exporter: str) -> list[FlowRecord]:
     le collecteur -- mieux vaut echouer fort que produire des
     FlowRecord silencieusement corrompus).
     """
+    logger.debug("parse_netflow_v5_packet(data={data}, exporter={exporter})")
     if len(data) < _HEADER.size:
         raise NetflowV5Error(f"datagramme trop court pour un en-tete NetFlow v5 : {len(data)} octets")
 
@@ -148,6 +152,7 @@ def iter_netflow_v5_file(path: str, exporter: str | None = None) -> Iterator[Flo
     propre en-tete (count) ; un fichier est simplement la concatenation
     de N datagrammes de ce type, sans separateur.
     """
+    logger.debug("iter_netflow_v5_file(path={path}, exporter={exporter})")
     with open(path, "rb") as fh:
         data = fh.read()
     label = exporter or path

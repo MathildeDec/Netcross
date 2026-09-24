@@ -11,7 +11,7 @@
 > Il remplace l'ancienne section 3 de `docs/features-backlog.md`, tenue à la main, qui avait dérivé
 > (voir `docs/sessions/session-36.md`, issue #140).
 
-151 modules · 222 classes · 485 fonctions publiques de module.
+153 modules · 227 classes · 493 fonctions publiques de module.
 
 Conventions : `+` public, `-` privé (préfixe `_`) ; `int?` = `int | None` ; `list~str~` = `list[str]` ;
 `<<module>>` regroupe les fonctions publiques d'un module ; `A --> B : champ` = `A` a un champ annoté
@@ -34,14 +34,14 @@ flowchart TD
     pcap_parser["pcap_parser"]
     CLI -->|"17 imports"| netcross_report
     CLI -->|"8 imports"| netcross_ai
-    CLI -->|"31 imports"| netcross_core
+    CLI -->|"32 imports"| netcross_core
     CLI -->|"5 imports"| pcap_parser
     netcross_gtk4 -->|"10 imports"| netcross_report
-    netcross_gtk4 -->|"20 imports"| netcross_core
-    netcross_gtk4 -->|"1 import"| pcap_parser
-    netcross_api -->|"3 imports"| netcross_core
-    netcross_report -->|"13 imports"| netcross_core
-    netcross_ai -->|"1 import"| netcross_core
+    netcross_gtk4 -->|"48 imports"| netcross_core
+    netcross_gtk4 -->|"2 imports"| pcap_parser
+    netcross_api -->|"7 imports"| netcross_core
+    netcross_report -->|"32 imports"| netcross_core
+    netcross_ai -->|"10 imports"| netcross_core
     netcross_core -->|"17 imports"| pcap_parser
 ```
 
@@ -54,6 +54,7 @@ du graphe de dépendances ci-dessus (qui ne compte que des `import`).
 
 ```mermaid
 flowchart LR
+    AnalysisResult["netcross_gtk4.analysis_pipeline.AnalysisResult"]
     BPFFilter["netcross_core.models.BPFFilter"]
     Baseline["netcross_ai.anomaly.Baseline"]
     CaptureInfo["pcap_parser.capinfos_source.CaptureInfo"]
@@ -80,6 +81,7 @@ flowchart LR
     StreamQuality["netcross_core.extract.media.StreamQuality"]
     _Detector["netcross_core.exploit_signatures._Detector"]
     netcross_core_security_expert_correlation__FlowState["netcross_core.security.expert_correlation._FlowState"]
+    AnalysisResult -->|report| Report
     CaptureInfo -->|interfaces| InterfaceRecord
     ClientReport -->|report| Report
     ContentExtraction -->|media| StreamQuality
@@ -342,6 +344,7 @@ classDiagram
         +str? http_content_type
         +int? http_content_length
         +int? tcp_len
+        +tuple~str, ...~ dns_answers
         +str? comment
         +str? ip_checksum
         +bool? ip_checksum_bad
@@ -1234,6 +1237,7 @@ classDiagram
         +str? comment
         +tuple~Banner, ...~ service_banners
         +int? tcp_len
+        +tuple~str, ...~ dns_answers
         +str? ip_checksum
         +bool? ip_checksum_bad
         +str? tcp_checksum
@@ -2310,6 +2314,7 @@ classDiagram
         +tuple~int, int~ office_hours_utc
         +float off_hours_ratio
         +bool external_only
+        +bool treat_test_net_as_external
         +frozenset~int~ ignored_ports
     }
     class BeaconingResult {
@@ -2318,6 +2323,7 @@ classDiagram
     }
     class mod_netcross_core_security_beaconing["netcross_core.security.beaconing"] {
         <<module>>
+        +is_external(address, treat_test_net_as_external) bool
         +detect_beaconing(packets, thresholds) BeaconingResult
     }
 
@@ -2529,6 +2535,7 @@ classDiagram
         <<dataclass>>
         +int min_ips
         +float window_seconds
+        +int min_responses
         +float nxdomain_ratio_min
         +int nxdomain_min_responses
     }
@@ -2595,6 +2602,7 @@ classDiagram
         +float median_size
         +float upload_ratio
         +float regularity_cv
+        +list~str~ points
         +to_dict() dict
     }
     class FlowStatsResult {
@@ -2628,6 +2636,8 @@ classDiagram
         +str details
         +float score
         +list~str~ targets
+        +tuple~str, ...~ points
+        +points_list() list~str~
     }
     class LateralMovementResult {
         <<dataclass>>
@@ -3360,6 +3370,14 @@ classDiagram
         +list~str~ points
         +str source
         +str? plugin
+        +str? detector
+    }
+    class DetectorGroup {
+        <<dataclass, slots>>
+        +str? detector
+        +str label
+        +str severity
+        +list items
     }
     class ServiceEntry {
         <<dataclass, slots>>
@@ -3380,6 +3398,8 @@ classDiagram
         +int services_vulnerable
         +int exploits
         +int anomalies
+        +int anomalies_netcross
+        +int anomalies_expert_info
         +int cves
         +dict~str, int~ by_severity
         +int score
@@ -3397,6 +3417,9 @@ classDiagram
     }
     class mod_netcross_report_security_report["netcross_report.security_report"] {
         <<module>>
+        +detector_label(detector) str
+        +is_expert_info(item) bool
+        +group_by_detector(items) list~DetectorGroup~
         +severity_from_cvss(cvss) str
         +build_security_report(report) SecurityReport
         +format_security_report(sr) list~str~
@@ -3552,7 +3575,7 @@ classDiagram
 | `netcross_api` | service REST FastAPI pour exposer les analyses Netcross (issue #209). |
 | `netcross_api.app` | application FastAPI pour exposer les analyses Netcross (issue #209). |
 | `netcross_api.models` | modèles Pydantic pour les requêtes/réponses API (issue #209). |
-| `netcross_api.store` | store en mémoire des analyses (issue #209). |
+| `netcross_api.store` | store des analyses avec statut et persistance optionnelle. |
 
 ### Diagramme
 
@@ -3564,10 +3587,11 @@ classDiagram
     class mod_netcross_api_app["netcross_api.app"] {
         <<module>>
         +health() HealthResponse
-        +upload_capture(file, label) AnalysisSummary
-        +get_analysis(analysis_id) JSONResponse
-        +get_security_report(analysis_id) SecurityReport
-        +list_analyses() dict
+        +upload_capture(file, label, _auth) AnalysisSummary
+        +get_analysis(analysis_id, _auth) JSONResponse
+        +get_security_report(analysis_id, _auth) SecurityReport
+        +list_analyses(_auth) dict
+        +get_analysis_status(analysis_id, _auth) dict
     }
 
     %% ===== netcross_api.models =====
@@ -3607,9 +3631,13 @@ classDiagram
 
     %% ===== netcross_api.store =====
     class AnalysesStore {
-        +add(report, metadata) str
+        +add(report, metadata, status) str
+        +add_pending(metadata) str
+        +complete(analysis_id, report) None
+        +fail(analysis_id, error) None
         +get(analysis_id) dict?
         +get_report(analysis_id) Report?
+        +get_status(analysis_id) str?
         +exists(analysis_id) bool
         +list_ids() list~str~
     }
@@ -3623,11 +3651,13 @@ classDiagram
 | Module | Rôle |
 |---|---|
 | `netcross_gtk4` | — |
+| `netcross_gtk4.analysis_pipeline` | pipeline d'analyse extrait de MainWindow (issue #246, #285 -- lot supplémentaire). |
 | `netcross_gtk4.annotations_view` | logique de presentation pour l'etiquetage/signets sur paquets (Job 40 / issue #160, section "Metadonnees et annotation"). |
 | `netcross_gtk4.app` | interface GTK4 pour netcross_core / netcross_report. |
 | `netcross_gtk4.bpf_panel` | Decisions du panneau de filtres BPF de la capture live, sorties de ``netcross_gtk4/app.py`` (issue #285, quatrieme lot). |
 | `netcross_gtk4.capture_list` | Enumeration, ordre et retrait des lignes des panneaux de captures, sortis de ``netcross_gtk4/app.py`` (issue #285, cinquieme lot). |
 | `netcross_gtk4.dashboard_context` | contexte d'analyse partage pour le dashboard analytique interactif (issue #18, section 6.17). |
+| `netcross_gtk4.diff_pipeline` | pipeline de comparaison baseline/courant extrait de MainWindow._run_diff_thread (issue #246, #285 -- lot supplémentaire). |
 | `netcross_gtk4.duplicate_view` | Presentation helpers for cross-capture duplicate detection (Job 41). |
 | `netcross_gtk4.live_capture_points` | points de capture en direct de la GUI (Job 48, issue #168) : une ligne du panneau de capture live peut porter PLUSIEURS interfaces d'une meme machine ("eth0, eth1"), chacune devenant son propre point… |
 | `netcross_gtk4.panel_state` | decisions de visibilite, de sensibilite et de selection des panneaux de la GUI (issue #285, troisieme lot). |
@@ -3640,6 +3670,42 @@ classDiagram
 ```mermaid
 classDiagram
     direction LR
+
+    %% ===== netcross_gtk4.analysis_pipeline =====
+    class AnalysisOptions {
+        <<dataclass>>
+        +float bucket_ms
+        +int rtp_rate
+        +bool nat_tolerant
+        +bool parallel
+        +bool auto_topology
+        +bool triage
+        +int triage_topn
+        +bool tls
+        +bool quic
+        +bool security
+        +bool redact
+        +int topn
+        +bool detect_duplicates
+        +bool exclude_duplicates
+        +float duplicate_threshold_ms
+    }
+    class AnalysisResult {
+        <<dataclass>>
+        +str mode
+        +Report? report
+        +list flows
+        +list? findings
+        +str text
+        +list? tls_findings
+        +list? quic_findings
+        +list wireshark_expert_events
+    }
+    class mod_netcross_gtk4_analysis_pipeline["netcross_gtk4.analysis_pipeline"] {
+        <<module>>
+        +load_packets(captures, parallel, on_progress) list
+        +run_analysis_pipeline(captures, options, on_progress) AnalysisResult
+    }
 
     %% ===== netcross_gtk4.annotations_view =====
     class mod_netcross_gtk4_annotations_view["netcross_gtk4.annotations_view"] {
@@ -3762,6 +3828,37 @@ classDiagram
         +select_bucket(selection, bucket) DashboardSelection
         +select_event(selection, event_id, events) DashboardSelection
         +build_dashboard_snapshot(report, flows, findings, tls_findings, quic_findings, wireshark_expert_events, selection) DashboardSnapshot
+    }
+
+    %% ===== netcross_gtk4.diff_pipeline =====
+    class DiffOptions {
+        <<dataclass>>
+        +float bucket_ms
+        +int rtp_rate
+        +bool nat_tolerant
+        +bool parallel
+        +bool auto_topology
+        +float loss_min_pp
+        +float latency_min_ms
+        +bool redact
+        +bool tls
+        +bool quic
+    }
+    class DiffResult {
+        <<dataclass>>
+        +str mode
+        +list findings
+        +Any baseline_report
+        +Any current_report
+        +str text
+        +list? tls_findings_baseline
+        +list? tls_findings_current
+        +list? quic_findings_baseline
+        +list? quic_findings_current
+    }
+    class mod_netcross_gtk4_diff_pipeline["netcross_gtk4.diff_pipeline"] {
+        <<module>>
+        +run_diff_pipeline(baseline_captures, current_captures, options, on_progress) DiffResult
     }
 
     %% ===== netcross_gtk4.duplicate_view =====

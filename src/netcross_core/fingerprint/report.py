@@ -19,7 +19,10 @@ from collections.abc import Iterable
 
 from netcross_core.fingerprint import ssh_hassh, tls_ja4
 from netcross_core.fingerprint.known import identify_tool, load_known_fingerprints
+from netcross_core.logging_config import get_logger
 from netcross_core.models import ROLE_CLIENT, ROLE_SERVER, Pkt
+
+logger = get_logger(__name__)
 
 
 def build_fingerprint_records(packets: Iterable[Pkt], known: dict | None = None) -> list[dict]:
@@ -28,6 +31,7 @@ def build_fingerprint_records(packets: Iterable[Pkt], known: dict | None = None)
     correspondances de `fingerprint.known.load_known_fingerprints` (la
     base livree par defaut si None -- chargee une seule fois ici, pas par
     paquet)."""
+    logger.debug("build_fingerprint_records(packets={packets}, known={known})")
     known = known if known is not None else load_known_fingerprints()
     found: dict[tuple, dict] = {}
     for pk in packets:
@@ -99,6 +103,7 @@ def compute_pkt_fingerprints(proto: str, sport: int | None, dport: int | None, p
     les valeurs sont None quand `proto` n'est pas TCP ou que rien n'est
     decodable (charge utile absente, tronquee, ou ne portant ni
     ClientHello TLS ni SSH_MSG_KEXINIT)."""
+    logger.debug("compute_pkt_fingerprints(proto={proto}, sport={sport}, dport={dport}, ...)")
     empty: dict[str, str | None] = {
         "tls_ja4": None,
         "tls_ja4_readable": None,

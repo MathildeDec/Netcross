@@ -36,6 +36,7 @@ from collections.abc import Callable, Sequence
 from dataclasses import dataclass
 from typing import Any
 
+from netcross_core.logging_config import get_logger
 from netcross_gtk4.dashboard_context import (
     select_bucket,
     select_endpoint,
@@ -44,6 +45,8 @@ from netcross_gtk4.dashboard_context import (
     select_point,
     select_protocol,
 )
+
+logger = get_logger(__name__)
 
 #: Nombre minimal de points de capture pour lancer une analyse croisee.
 #: Deux, par definition : l'outil compare ce que plusieurs points ont vu du

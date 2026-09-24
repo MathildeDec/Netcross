@@ -41,6 +41,9 @@ import statistics
 from dataclasses import dataclass
 
 from netcross_core.baseline_profile import build_baseline_profile
+from netcross_core.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 
 @dataclass
@@ -79,6 +82,7 @@ class SegmentMetrics:
         """Libelle du segment, identique a celui des Finding
         (`f"{a} -> {b}"`) : le lecteur doit pouvoir rapprocher une ligne de
         ce tableau d'un constat du triage sans traduction mentale."""
+        logger.debug("label(self={self})")
         return f"{self.upstream} -> {self.downstream}"
 
     @property
@@ -87,6 +91,7 @@ class SegmentMetrics:
         segment non mesure est affiche quand meme (son absence de donnees
         est une information), mais il ne participe pas au classement des
         degradations."""
+        logger.debug("measured(self={self})")
         return self.samples > 0 or self.loss_count > 0 or bool(self.dscp_changes or self.frag_new)
 
 
@@ -154,6 +159,7 @@ def build_path_metrics(report) -> list[SegmentMetrics]:
     """Une entree par segment de `report.pairs`, ordonnee le long du chemin
     observe. Pure fonction de regroupement : aucune capture relue, aucun
     seuil applique."""
+    logger.debug("build_path_metrics(report={report})")
     metrics = []
     for a, b in _ordered_pairs(report):
         delays = list(report.latency.get((a, b), []) or [])
@@ -195,6 +201,7 @@ def rank_path_segments(metrics) -> list[SegmentMetrics]:
     les classer les mettrait a egalite avec des segments sains alors qu'on
     ne sait rien d'eux.
     """
+    logger.debug("rank_path_segments(metrics={metrics})")
     return sorted(
         (seg for seg in metrics if seg.measured),
         key=lambda seg: (
@@ -210,6 +217,7 @@ def degradation_summary(metrics) -> str:
     """Phrase de tete de section : ou la qualite se degrade-t-elle ?
     Descriptive et chiffree, jamais prescriptive -- les recommandations
     restent du ressort des Finding/ExpertEvent."""
+    logger.debug("degradation_summary(metrics={metrics})")
     ranked = rank_path_segments(metrics)
     if not metrics:
         return "Aucun segment exploitable : la topologie n'a pas pu etre deduite de ces captures."
