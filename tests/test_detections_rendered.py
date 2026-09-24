@@ -476,7 +476,6 @@ def test_fichiers_extraits_rendus(tmp_path):
     assert _where(sha, _renders(r, tmp_path, pdf=False))
 
 
-@pytest.mark.xfail(strict=True, reason="#350 / #151 : inventaire d'actifs jamais appele ni porte par Report")
 def test_inventaire_d_actifs_porte_par_le_report():
     r = _analyse(_lateral_movement())
     assert getattr(r, "asset_inventory", None)

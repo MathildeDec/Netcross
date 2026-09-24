@@ -91,6 +91,9 @@ class FlowStat:
     classification: str = CLASSIFICATION_NORMAL
     # Metriques derivees
     entropy: float = 0.0
+    # Issue #351 : entropie sur les octets du payload (plus fiable que
+    # l'entropie sur les tailles de paquets pour detecter le trafic chiffre).
+    byte_entropy: float = 0.0
     median_size: float = 0.0
     upload_ratio: float = 0.0
     regularity_cv: float = 0.0  # coefficient de variation des intervalles
@@ -110,6 +113,7 @@ class FlowStat:
             "inter_arrivals": list(self.inter_arrivals),
             "classification": self.classification,
             "entropy": self.entropy,
+            "byte_entropy": self.byte_entropy,
             "median_size": self.median_size,
             "upload_ratio": self.upload_ratio,
             "regularity_cv": self.regularity_cv,
@@ -154,7 +158,11 @@ def _classify_flow(flow: FlowStat, thresholds: FlowStatsThresholds) -> str:
             sd = pstdev(flow.inter_arrivals)
             flow.regularity_cv = sd / m
 
-    # Classification
+    # Issue #351 : byte_entropy > 5.5 bits = payload a forte entropie
+    # (chiffre/compresse). Signal plus fiable que l'entropie sur les tailles
+    # de paquets, qui peut etre elevee pour du trafic normal varie.
+    if flow.byte_entropy > 5.5:
+        return CLASSIFICATION_OBFUSCATED
     if flow.entropy > thresholds.high_entropy_threshold:
         return CLASSIFICATION_OBFUSCATED
     if flow.median_size < thresholds.small_packet_threshold and flow.regularity_cv < 0.5:
@@ -202,7 +210,11 @@ def analyze_flow_stats(
 
         # Upload/download
         flow.upload_bytes += pk.length
-
+        # Issue #351 : entropie sur les octets du payload (max sur tous
+        # les paquets du flux -- un seul paquet chiffre suffit a signaler
+        # un flux potentiellement obfusque).
+        if pk.payload_entropy > flow.byte_entropy:
+            flow.byte_entropy = pk.payload_entropy
         # Timestamps pour inter-arrivees
         flow_timestamps[key].append(pk.ts)
 

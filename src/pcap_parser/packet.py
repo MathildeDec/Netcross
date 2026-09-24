@@ -14,6 +14,7 @@ si besoin.
 from __future__ import annotations
 
 import hashlib
+import math
 import sys
 from dataclasses import dataclass
 
@@ -62,6 +63,27 @@ def _intern(value: str | None) -> str | None:
     valeur est generalement unique et l'interning n'apporterait rien
     (juste le cout d'une recherche dans la table globale d'interning)."""
     return value if value is None else sys.intern(value)
+
+
+def _byte_entropy(data: bytes) -> float:
+    """Issue #351 : entropie de Shannon sur les octets d'un payload.
+
+    Retourne 0.0 pour un payload vide, jusqu'a 8.0 pour des octets
+    uniformement distribues (trafic chiffre/compresse). Le calcul se fait
+    pendant le parsing car Pkt ne conserve pas le payload brut.
+    """
+    if not data:
+        return 0.0
+    counts = [0] * 256
+    for b in data:
+        counts[b] += 1
+    total = len(data)
+    entropy = 0.0
+    for c in counts:
+        if c > 0:
+            p = c / total
+            entropy -= p * math.log2(p)
+    return entropy
 
 
 @dataclass(slots=True)
@@ -268,6 +290,8 @@ class RawPacket:
     # defaut que expert_flags -- les deux champs sont toujours calcules
     # ensemble, a partir des memes couches.
     expert_details: tuple[tuple[str, str | None, str | None, str | None], ...]
+    # Issue #351 : entropie de Shannon sur les octets du payload
+    payload_entropy: float = 0.0
     http_content_type: str | None = None
     http_content_length: int | None = None
     tcp_len: int | None = None
@@ -749,6 +773,8 @@ def build_packet(ts_seconds: float, layers: dict) -> RawPacket | None:
 
     key_id = seq if proto == "TCP" else ip_id
     phash = hashlib.md5(payload).hexdigest() if payload else None
+    # Issue #351 : entropie de Shannon sur les octets du payload
+    pentropy = _byte_entropy(payload) if payload else 0.0
 
     return RawPacket(
         ts=ts_seconds,
@@ -769,6 +795,7 @@ def build_packet(ts_seconds: float, layers: dict) -> RawPacket | None:
         key_id=key_id,
         payload_hash=phash,
         payload=payload,
+        payload_entropy=pentropy,
         ip_id=ip_id,
         is_fragment=bool(is_fragment),
         df=df,
