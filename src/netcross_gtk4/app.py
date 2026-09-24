@@ -73,10 +73,7 @@ from netcross_core.forensic import DEFAULT_DUPLICATE_THRESHOLD_MS, detect_cross_
 from netcross_gtk4 import capture_list, row_labels  # noqa: E402
 from netcross_gtk4.annotations_view import (  # noqa: E402
     add_annotation,
-    available_tags,
-    filter_by_tags,
     format_annotation_row,
-    remove_annotation,
 )
 from netcross_gtk4.bpf_panel import (  # noqa: E402
     doit_desolidariser_le_menu,

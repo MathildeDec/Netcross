@@ -2396,7 +2396,7 @@ def main():
 
     # Issue #362 : ingestion NetFlow v5 -- code present mais non raccorde
     if args.netflow:
-        from netcross_core.netflow import iter_netflow_v5_file, flow_records_to_pkts
+        from netcross_core.netflow import flow_records_to_pkts, iter_netflow_v5_file
 
         try:
             flow_records = list(iter_netflow_v5_file(args.netflow))
@@ -2758,8 +2758,9 @@ def main():
     # Issue #359 : vue temporelle de flux -- code present mais non raccorde
     if args.flow_timeline:
         import json
-        from netcross_core.flow_timeline import build_flow_timeline
         from collections import defaultdict
+
+        from netcross_core.flow_timeline import build_flow_timeline
 
         flows_by_key: dict[tuple[str, str, str], list] = defaultdict(list)
         for pkt in all_packets:
@@ -2779,6 +2780,7 @@ def main():
     if args.tshark_stats:
         import json
         from dataclasses import asdict
+
         from netcross_core.tshark_stats import (
             collect_conversations,
             collect_endpoints,
@@ -2804,8 +2806,9 @@ def main():
     # Issue #360 : recherche forensique -- code present mais non raccorde
     if args.forensic_search:
         import json
-        from netcross_core.forensic_search import ForensicSearchIndex, ForensicSearchQuery
         from dataclasses import asdict
+
+        from netcross_core.forensic_search import ForensicSearchIndex, ForensicSearchQuery
 
         index = ForensicSearchIndex(all_packets)
         query = ForensicSearchQuery(
