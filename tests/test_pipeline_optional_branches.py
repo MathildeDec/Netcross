@@ -332,3 +332,66 @@ class TestDiffPipelineOptionalBranches:
         assert "current" in captured.get("tls_calls", [])
         assert result.tls_findings_baseline == ["tls_finding"]
         assert result.tls_findings_current == ["tls_finding"]
+
+
+class TestDiffQUICBranch:
+    """Branche quic du pipeline de diff (lines 163-191)."""
+
+    def test_diff_quic_success(self, monkeypatch):
+        """Lines 175-191 : quic=True avec import reussi -> diagnose_quic appele."""
+        captured = {}
+
+        monkeypatch.setattr(
+            "netcross_gtk4.analysis_pipeline.load_packets",
+            lambda captures, parallel, on_progress=None: [make_pkt(src="10.0.0.1", dst="10.0.0.2")],
+        )
+
+        mock_quic = MagicMock()
+        mock_quic.parse_quic_capture = lambda label, path: captured.setdefault("quic_calls", []).append(label) or []
+        mock_quic.diagnose_quic = lambda events, points: captured.__setitem__("diagnose_quic", True) or ["quic_finding"]
+        mock_quic.print_quic_diagnostics = lambda f: None
+        monkeypatch.setitem(sys.modules, "netcross_core.quic_diagnostics", mock_quic)
+
+        result = run_diff_pipeline(
+            [("baseline", "/fake/base.pcap")],
+            [("current", "/fake/cur.pcap")],
+            DiffOptions(quic=True, auto_topology=False),
+            on_progress=lambda msg: None,
+        )
+
+        assert captured.get("diagnose_quic") is True
+        assert result.quic_findings_baseline == ["quic_finding"]
+        assert result.quic_findings_current == ["quic_finding"]
+
+    def test_diff_quic_import_error(self, monkeypatch):
+        """Lines 170-173 : quic=True mais ImportError -> message d'avertissement."""
+        monkeypatch.setattr(
+            "netcross_gtk4.analysis_pipeline.load_packets",
+            lambda captures, parallel, on_progress=None: [make_pkt(src="10.0.0.1", dst="10.0.0.2")],
+        )
+
+        # Simule l'absence de cryptography : l'import de quic_diagnostics echoue
+        import builtins
+        original_import = builtins.__import__
+
+        def blocking_import(name, *args, **kwargs):
+            if name == "netcross_core.quic_diagnostics":
+                raise ImportError("cryptography absent")
+            return original_import(name, *args, **kwargs)
+
+        # Retire quic_diagnostics du cache
+        monkeypatch.delitem(sys.modules, "netcross_core.quic_diagnostics", raising=False)
+        monkeypatch.setattr("builtins.__import__", blocking_import)
+
+        result = run_diff_pipeline(
+            [("baseline", "/fake/base.pcap")],
+            [("current", "/fake/cur.pcap")],
+            DiffOptions(quic=True, auto_topology=False),
+            on_progress=lambda msg: None,
+        )
+
+        # Les findings QUIC restent None
+        assert result.quic_findings_baseline is None
+        assert result.quic_findings_current is None
+        # Le texte contient le message d'avertissement
+        assert "cryptography" in result.text
