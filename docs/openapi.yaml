@@ -32,6 +32,8 @@ paths:
 
         exécutée et le rapport est stocké en mémoire.'
       operationId: upload_capture_captures_post
+      security:
+      - APIKeyHeader: []
       parameters:
       - name: label
         in: query
@@ -115,6 +117,8 @@ paths:
 
         generate_json_report qui écrit sur disque).'
       operationId: get_analysis_analyses__analysis_id__get
+      security:
+      - APIKeyHeader: []
       parameters:
       - name: analysis_id
         in: path
@@ -147,6 +151,8 @@ paths:
       summary: Get Security Report
       description: Récupère les constats de sécurité d'une analyse.
       operationId: get_security_report_analyses__analysis_id__security_get
+      security:
+      - APIKeyHeader: []
       parameters:
       - name: analysis_id
         in: path
@@ -189,6 +195,49 @@ paths:
                 additionalProperties: true
                 type: object
                 title: Response List Analyses Analyses Get
+      security:
+      - APIKeyHeader: []
+  /analyses/{analysis_id}/status:
+    get:
+      tags:
+      - analyses
+      summary: Get Analysis Status
+      description: 'Retourne le statut d''une analyse (issue #356).
+
+
+        Statuts possibles : ``pending``, ``completed``, ``failed``.'
+      operationId: get_analysis_status_analyses__analysis_id__status_get
+      security:
+      - APIKeyHeader: []
+      parameters:
+      - name: analysis_id
+        in: path
+        required: true
+        schema:
+          type: string
+          title: Analysis Id
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+                title: Response Get Analysis Status Analyses  Analysis Id  Status
+                  Get
+        '404':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Not Found
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
 components:
   schemas:
     AnalysisSummary:
@@ -401,3 +450,8 @@ components:
       - msg
       - type
       title: ValidationError
+  securitySchemes:
+    APIKeyHeader:
+      type: apiKey
+      in: header
+      name: X-API-Key

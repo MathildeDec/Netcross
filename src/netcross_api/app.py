@@ -15,11 +15,13 @@ JSON). FastAPI/uvicorn sont en dépendance optionnelle (extra ``api``).
 
 from __future__ import annotations
 
+import os
 import tempfile
 from pathlib import Path
 
-from fastapi import FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import Depends, FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import JSONResponse
+from fastapi.security import APIKeyHeader
 
 from netcross_api.models import (
     AnalysisSummary,
@@ -38,6 +40,27 @@ _FILE_REQUIRED = File(default=..., description="Fichier pcap/pcapng à analyser"
 _FILES_REQUIRED = File(default=..., description="Fichiers pcap/pcapng à analyser")
 _LABELS_FORM = Form(default="", description="Étiquettes séparées par virgule (ex: lan,wan,dc)")
 _POINTS_ORDER_FORM = Form(default="", description="Ordre des points séparé par virgule (ex: lan,wan,dc)")
+
+# Issue #356 : authentification par jeton configurable via env var.
+# Si NETCROSS_API_TOKEN n'est pas défini, l'authentification est désactivée
+# (mode développement local).
+_API_TOKEN = os.environ.get("NETCROSS_API_TOKEN")
+_api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
+
+# Limite d'upload configurable (défaut 100 Mo).
+_MAX_UPLOAD_BYTES = int(os.environ.get("NETCROSS_MAX_UPLOAD_MB", "100")) * 1024 * 1024
+
+
+def _verify_api_key(api_key: str | None = Depends(_api_key_header)) -> None:
+    """Dépendance FastAPI : vérifie le jeton d'authentification.
+
+    Issue #356 : si NETCROSS_API_TOKEN est défini, toutes les routes
+    nécessitent l'en-tête X-API-Key. Sinon, l'authentification est
+    désactivée (mode développement local).
+    """
+    if _API_TOKEN and api_key != _API_TOKEN:
+        raise HTTPException(status_code=401, detail="Jeton d'authentification invalide ou manquant")
+
 
 app = FastAPI(
     title="Netcross API",
@@ -62,6 +85,7 @@ async def health() -> HealthResponse:
 async def upload_capture(
     file: UploadFile = _FILE_REQUIRED,
     label: str = "capture",
+    _auth: None = Depends(_verify_api_key),
 ) -> AnalysisSummary:
     """Upload d'un fichier pcap, lancement de l'analyse.
 
@@ -72,9 +96,14 @@ async def upload_capture(
     if not file.filename:
         raise HTTPException(status_code=400, detail="Nom de fichier manquant")
 
+    # Issue #356 : limite de taille d'upload configurable
+    content = await file.read()
+    if len(content) > _MAX_UPLOAD_BYTES:
+        max_mb = _MAX_UPLOAD_BYTES // 1024 // 1024
+        raise HTTPException(status_code=413, detail=f"Fichier trop volumineux (max {max_mb} Mo)")
+
     # Écrire le fichier uploadé sur disque (tshark lit des fichiers, pas des streams)
     with tempfile.NamedTemporaryFile(suffix=".pcap", delete=False) as tmp:
-        content = await file.read()
         tmp.write(content)
         tmp_path = tmp.name
 
@@ -184,7 +213,7 @@ async def upload_multi_capture(
     tags=["analyses"],
     responses={404: {"model": ErrorResponse}},
 )
-async def get_analysis(analysis_id: str) -> JSONResponse:
+async def get_analysis(analysis_id: str, _auth: None = Depends(_verify_api_key)) -> JSONResponse:
     """Récupère le rapport complet d'une analyse (JSON).
 
     Le rapport est sérialisé en dict JSON directement (sans passer par
@@ -218,7 +247,7 @@ async def get_analysis(analysis_id: str) -> JSONResponse:
     tags=["analyses"],
     responses={404: {"model": ErrorResponse}},
 )
-async def get_security_report(analysis_id: str) -> SecurityReport:
+async def get_security_report(analysis_id: str, _auth: None = Depends(_verify_api_key)) -> SecurityReport:
     """Récupère les constats de sécurité d'une analyse."""
     entry = store.get(analysis_id)
     if entry is None:
@@ -246,6 +275,26 @@ async def get_security_report(analysis_id: str) -> SecurityReport:
 
 
 @app.get("/analyses", tags=["analyses"])
-async def list_analyses() -> dict:
+async def list_analyses(_auth: None = Depends(_verify_api_key)) -> dict:
     """Liste les IDs d'analyses disponibles."""
     return {"analyses": store.list_ids()}
+
+
+@app.get(
+    "/analyses/{analysis_id}/status",
+    tags=["analyses"],
+    responses={404: {"model": ErrorResponse}},
+)
+async def get_analysis_status(analysis_id: str, _auth: None = Depends(_verify_api_key)) -> dict:
+    """Retourne le statut d'une analyse (issue #356).
+
+    Statuts possibles : ``pending``, ``completed``, ``failed``.
+    """
+    status = store.get_status(analysis_id)
+    if status is None:
+        raise HTTPException(status_code=404, detail="Analyse introuvable")
+    entry = store.get(analysis_id)
+    result: dict = {"analysis_id": analysis_id, "status": status}
+    if status == "failed" and entry and entry.get("error"):
+        result["error"] = entry["error"]
+    return result
