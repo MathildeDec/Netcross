@@ -417,14 +417,13 @@ def test_chaque_detection_est_rendue_avec_un_texte(name, tmp_path):
         assert seen, f"{name} : detection silencieuse, absente de tous les rendus ({sorted(renders)}) : {detail!r}"
 
 
-@pytest.mark.xfail(strict=True, reason="#347 : troncature texte/PDF par ordre alphabetique, detections masquees")
 def test_rapport_texte_montre_chaque_detecteur_quand_tous_se_declenchent(tmp_path):
-    """Scenario combine : 60 domaines DGA (bruit) + exfiltration + beaconing.
-    Chaque detecteur ayant produit un constat doit garder au moins une ligne
-    dans le rapport texte, meme quand la section est tronquee."""
+    """Scenario combine (critere de #347) : 75 domaines DGA (bruit) +
+    exfiltration + beaconing. Chaque detecteur ayant produit un constat doit
+    garder au moins une ligne dans le rapport texte ET dans le PDF."""
     rng = random.Random(7)
     noise = []
-    for i in range(60):
+    for i in range(75):
         n = "".join(rng.choice("bcdfghjklmnpqrstvwxz") for _ in range(12)) + ".com"
         noise.append(
             make_pkt(point=POINT, ts=float(i), proto="UDP", src=CLIENT, dport=53, dns_qry_name=n, dns_is_response=False)
@@ -443,10 +442,16 @@ def test_rapport_texte_montre_chaque_detecteur_quand_tous_se_declenchent(tmp_pat
         )
     pkts = noise + _exfiltration() + _beaconing()
     r = _analyse(pkts)
-    text = _renders(r, tmp_path, pdf=False)["texte"]
-    for name in ("exfiltration", "beaconing"):
-        for finding in DETECTORS[name][1](DETECTORS[name][0]()):
-            assert _norm(finding["detail"])[:40] in text, f"{name} masque par la troncature du rapport texte"
+    renders = _renders(r, tmp_path)
+    for rendu in ("texte", "pdf"):
+        if rendu not in renders:
+            continue
+        for name in ("exfiltration", "beaconing"):
+            for finding in DETECTORS[name][1](DETECTORS[name][0]()):
+                assert _norm(finding["detail"])[:40] in renders[rendu], f"{name} masque dans le rendu {rendu}"
+        # le bruit reste visible, mais resume : une ligne de synthese DGA
+        assert "Domaines generes (DGA)" in renders[rendu]
+    assert "autre(s) constat(s) Domaines generes (DGA)" in renders["texte"]
 
 
 def test_fichiers_extraits_rendus(tmp_path):
@@ -475,3 +480,24 @@ def test_fichiers_extraits_rendus(tmp_path):
 def test_inventaire_d_actifs_porte_par_le_report():
     r = _analyse(_lateral_movement())
     assert getattr(r, "asset_inventory", None)
+
+
+def test_libelles_distinguent_detecteurs_netcross_et_expert_info(tmp_path):
+    """#348 : les constats des detecteurs Netcross ne sont plus presentes
+    sous le libelle « anomalies (Expert Info) »."""
+    pkts = _exfiltration() + _beaconing()
+    r = _analyse(pkts)
+    renders = _renders(r, tmp_path)
+    for rendu in ("texte", "pdf"):
+        if rendu not in renders:
+            continue
+        assert "anomalies (expert info)" not in renders[rendu].lower()
+        assert "Anomalies (detecteurs Netcross)" in renders[rendu]
+        assert "Anomalies (alertes Expert Info correlees)" in renders[rendu]
+    from netcross_report.security_report import build_security_report, security_report_to_dict
+
+    d = security_report_to_dict(build_security_report(r))
+    assert d["dashboard"]["anomalies_netcross"] >= 2
+    assert d["dashboard"]["anomalies_expert_info"] == 0
+    assert d["dashboard"]["anomalies"] == d["dashboard"]["anomalies_netcross"] + d["dashboard"]["anomalies_expert_info"]
+    assert {i["detector"] for i in d["anomalies"]} >= {"exfiltration", "beaconing"}

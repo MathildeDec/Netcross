@@ -11,7 +11,7 @@
 > Il remplace l'ancienne section 3 de `docs/features-backlog.md`, tenue à la main, qui avait dérivé
 > (voir `docs/sessions/session-36.md`, issue #140).
 
-151 modules · 222 classes · 485 fonctions publiques de module.
+151 modules · 223 classes · 488 fonctions publiques de module.
 
 Conventions : `+` public, `-` privé (préfixe `_`) ; `int?` = `int | None` ; `list~str~` = `list[str]` ;
 `<<module>>` regroupe les fonctions publiques d'un module ; `A --> B : champ` = `A` a un champ annoté
@@ -3363,6 +3363,14 @@ classDiagram
         +list~str~ points
         +str source
         +str? plugin
+        +str? detector
+    }
+    class DetectorGroup {
+        <<dataclass, slots>>
+        +str? detector
+        +str label
+        +str severity
+        +list items
     }
     class ServiceEntry {
         <<dataclass, slots>>
@@ -3383,6 +3391,8 @@ classDiagram
         +int services_vulnerable
         +int exploits
         +int anomalies
+        +int anomalies_netcross
+        +int anomalies_expert_info
         +int cves
         +dict~str, int~ by_severity
         +int score
@@ -3400,6 +3410,9 @@ classDiagram
     }
     class mod_netcross_report_security_report["netcross_report.security_report"] {
         <<module>>
+        +detector_label(detector) str
+        +is_expert_info(item) bool
+        +group_by_detector(items) list~DetectorGroup~
         +severity_from_cvss(cvss) str
         +build_security_report(report) SecurityReport
         +format_security_report(sr) list~str~
