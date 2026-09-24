@@ -503,10 +503,7 @@ def format_security_report(sr: SecurityReport) -> list[str]:
         key = item.detector or "autre"
         detector_groups.setdefault(key, []).append(item)
     # tri des groupes par severite max (plus grave en premier)
-    def _group_severity(k: str) -> int:
-        return min(sev_rank.get(i.severity, 99) for i in detector_groups[k])
-
-    group_order = sorted(detector_groups.keys(), key=_group_severity)
+    group_order = sorted(detector_groups, key=lambda k: min(sev_rank.get(i.severity, 99) for i in detector_groups[k]))
     if group_order:
         lines += ["", "-- Anomalies (detecteurs Netcross) --"]
         for det in group_order:
