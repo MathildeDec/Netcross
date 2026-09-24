@@ -292,8 +292,9 @@ cd netcross
 ### Paquet système (.deb / .rpm)
 
 Voir [Construire les paquets .deb / .rpm](#construire-les-paquets-deb--rpm).
-Installe les commandes `netcross`, `netcross-diff`, `netcross-history`
-et `netcross-gui` directement dans `/usr/bin`.
+Installe les commandes `netcross`, `netcross-diff`, `netcross-history`,
+`netcross-batch`, `netcross-ai-models`, `netcross-lua-doc` et
+`netcross-gui` directement dans `/usr/bin`.
 
 ### Manuelle (pip)
 
@@ -674,6 +675,48 @@ netcross-history --db suivi_partage.db --run-type diff
   Combinable avec `--label`.
 - `--limit N` : nombre maximum de runs affichés (défaut : tous), les
   plus récents en premier.
+
+### Documentation de l'API Lua Wireshark hors ligne
+
+`netcross-lua-doc` (`netcross_lua_doc_cli.py`, aussi accessible par
+`netcross lua-doc`) consulte l'API Lua de Wireshark sans connexion :
+classes, méthodes, fonctions globales et attributs, avec arguments,
+valeurs de retour, erreurs, version d'apparition et exemples.
+
+```bash
+# recherche libre (plein texte) : signature + résumé de chaque résultat
+netcross lua-doc tvb range
+netcross-lua-doc "source port"
+
+# fiche complète d'une classe (méthodes, arguments, retours, exemples, attributs)
+netcross-lua-doc --class Tvb
+
+# détail complet de chaque résultat, liste des classes
+netcross-lua-doc --full ProtoField.uint32
+netcross-lua-doc --classes
+
+# sortie JSON pour les scripts
+netcross-lua-doc --json --class Pinfo | jq -r '.classe.attributs[].nom_complet'
+```
+
+- Codes de retour : `0` résultat affiché, `1` aucun résultat, classe
+  inconnue ou JSON introuvable, `2` erreur d'usage.
+- `--limit N` (défaut 20), `--full`, `--json`, `--class NOM` (insensible
+  à la casse), `--classes`.
+- La banque SQLite est construite au premier appel dans
+  `~/.cache/netcross/lua_api.db` depuis `data/lua_api.json` (dépôt) ou
+  `/usr/share/netcross/data/lua_api.json` (paquet), puis reconstruite
+  automatiquement quand ce JSON change. `--source` ou
+  `NETCROSS_LUA_API_JSON` désignent un autre JSON, `--db` une autre base.
+
+Chaîne de régénération pour une nouvelle version de Wireshark :
+
+```bash
+# 1. JSON depuis la doc AsciiDoc officielle (tools/make-wsluarm.py de Wireshark)
+python3 tools/extract_lua_api.py --tag v4.6.9          # ou --wireshark-src DIR
+# 2. (facultatif) base SQLite explicite ; sinon construite à la volée
+python3 scripts/build_lua_db.py --input data/lua_api.json --db data/lua_api.db
+```
 
 ### Interface graphique
 

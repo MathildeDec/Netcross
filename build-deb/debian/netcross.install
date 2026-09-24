@@ -9,10 +9,13 @@ src/cross_capture_diff_cli.py usr/share/netcross/
 src/cross_history_cli.py usr/share/netcross/
 src/cross_capture_batch_cli.py usr/share/netcross/
 src/netcross_ai_models_cli.py usr/share/netcross/
+src/netcross_lua_doc_cli.py usr/share/netcross/
+data/lua_api.json usr/share/netcross/data/
 wrappers/netcross usr/bin/
 wrappers/netcross-gui usr/bin/
 wrappers/netcross-diff usr/bin/
 wrappers/netcross-history usr/bin/
 wrappers/netcross-batch usr/bin/
 wrappers/netcross-ai-models usr/bin/
+wrappers/netcross-lua-doc usr/bin/
 locale/* usr/share/locale/
