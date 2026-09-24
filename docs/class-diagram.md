@@ -331,7 +331,6 @@ classDiagram
         +bool dns_is_response
         +str? dns_qry_name
         +int? dns_rcode
-        +float payload_entropy
         +bool http_is_request
         +bool http_is_response
         +str? http_method
@@ -340,6 +339,7 @@ classDiagram
         +float? http_response_time_ms
         +tuple~str, ...~ expert_flags
         +tuple~tuple~str, str?, str?, str?~, ...~ expert_details
+        +float payload_entropy
         +str? http_content_type
         +int? http_content_length
         +int? tcp_len
@@ -1221,7 +1221,6 @@ classDiagram
         +bool dns_is_response
         +str? dns_qry_name
         +int? dns_rcode
-        +float payload_entropy
         +bool http_is_request
         +bool http_is_response
         +str? http_method
@@ -1233,6 +1232,7 @@ classDiagram
         +str? http_content_type
         +int? http_content_length
         +bool is_duplicate
+        +float payload_entropy
         +str? comment
         +tuple~Banner, ...~ service_banners
         +int? tcp_len

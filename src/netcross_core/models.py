@@ -134,11 +134,6 @@ class Pkt:
     dns_is_response: bool
     dns_qry_name: str | None
     dns_rcode: int | None
-    # Issue #351 : entropie de Shannon sur les octets de la charge utile,
-    # calculee pendant le parsing (Pkt ne garde pas le payload brut).
-    # 0.0 = pas de payload, 8.0 = octets uniformement distribues (chiffre/
-    # compresse). Plus fiable que l'entropie sur les tailles de paquets.
-    payload_entropy: float = 0.0
     http_is_request: bool
     http_is_response: bool
     http_method: str | None
@@ -164,6 +159,11 @@ class Pkt:
     # `threshold_ms` (port miroir qui renvoie le trafic, par exemple).
     # False par defaut : aucun constructeur existant n'a a le passer.
     is_duplicate: bool = False
+    # Issue #351 : entropie de Shannon sur les octets de la charge utile,
+    # calculee pendant le parsing (Pkt ne garde pas le payload brut).
+    # 0.0 = pas de payload, 8.0 = octets uniformement distribues (chiffre/
+    # compresse). Plus fiable que l'entropie sur les tailles de paquets.
+    payload_entropy: float = 0.0
     # Commentaire de paquet pcapng (Enhanced Packet Block, option
     # opt_comment -- Job 39, issue #159). Reporte a l'identique depuis
     # pcap_parser.packet.RawPacket.comment (voir sa docstring pour

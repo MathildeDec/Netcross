@@ -250,8 +250,6 @@ class RawPacket:
     dns_is_response: bool
     dns_qry_name: str | None
     dns_rcode: int | None
-    # Issue #351 : entropie de Shannon sur les octets du payload
-    payload_entropy: float = 0.0
     # HTTP/1.x -- present sur TCP uniquement (voir extract_http), absents
     # (None/False) sur tout paquet qui n'est pas du HTTP/1.x (HTTP/2/3
     # hors perimetre, dissecteurs tshark distincts, voir extract_http)
@@ -286,6 +284,8 @@ class RawPacket:
     # defaut que expert_flags -- les deux champs sont toujours calcules
     # ensemble, a partir des memes couches.
     expert_details: tuple[tuple[str, str | None, str | None, str | None], ...]
+    # Issue #351 : entropie de Shannon sur les octets du payload
+    payload_entropy: float = 0.0
     http_content_type: str | None = None
     http_content_length: int | None = None
     tcp_len: int | None = None
