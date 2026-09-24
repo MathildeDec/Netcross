@@ -2387,15 +2387,16 @@ classDiagram
     }
     class DgaAlert {
         <<dataclass>>
-        +str point
         +str domain
         +float score
         +str reason
+        +tuple~str, ...~ points
         +float entropy
         +float consonant_ratio
         +float rare_bigram_ratio
         +int length
         +float nxdomain_ratio
+        +point() str?
     }
     class DgaResult {
         <<dataclass>>
@@ -2533,13 +2534,14 @@ classDiagram
     }
     class FastFluxAlert {
         <<dataclass>>
-        +str point
         +str domain
         +str alert_type
         +float score
         +str reason
+        +tuple~str, ...~ points
         +list~str~ ips
         +float nxdomain_ratio
+        +point() str?
     }
     class FastFluxResult {
         <<dataclass>>
@@ -3355,6 +3357,7 @@ classDiagram
         +str? host
         +int? port
         +str? point
+        +list~str~ points
         +str source
         +str? plugin
     }

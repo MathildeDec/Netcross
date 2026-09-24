@@ -333,6 +333,8 @@ def _notifications(items: list[dict]) -> str:
         return ""
     lignes = "".join(f"<li>{_e(i.get('line', ''))}</li>" for i in items)
     return f'<h2>Notifications</h2><ul id="notifications">{lignes}</ul>'
+
+
 def _plugins(items: list[dict]) -> str:
     """Tracabilite des plugins (issue #284) ; rien si aucun plugin demande."""
     if not items:

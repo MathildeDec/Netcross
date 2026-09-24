@@ -21,3 +21,12 @@ coverage.xml
 htmlcov/
 site/
 src/netcross_core/locale/
+
+# artefacts de construction des paquets (build-deb/build.sh, build-rpm/build.sh)
+build-deb/_build/
+build-deb/dist/
+build-deb/*.buildinfo
+build-deb/*.changes
+build-deb/*.deb
+build-rpm/_build/
+build-rpm/dist/

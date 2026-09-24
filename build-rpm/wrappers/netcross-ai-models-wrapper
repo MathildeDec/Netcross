@@ -1,0 +1,4 @@
+#!/bin/sh
+# Wrapper installe dans /usr/bin/netcross-ai-models par le paquet Debian/RPM.
+export PYTHONPATH="/usr/share/netcross:${PYTHONPATH:-}"
+exec /usr/bin/python3 /usr/share/netcross/netcross_ai_models_cli.py "$@"

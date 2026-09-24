@@ -184,8 +184,8 @@ def detect_protocol_mismatches(packets: list[Pkt]) -> list[dict[str, Any]]:
 
     Returns:
         Liste de dictionnaires avec les détails de chaque mismatch :
-        ``{"frame_number", "proto", "sport", "dport", "detected_proto",
-        "description"}``.
+        ``{"frame_number", "point", "proto", "src", "dst", "sport", "dport",
+        "detected_proto", "description"}``.
     """
     details: list[dict[str, Any]] = []
     logger.debug("protocol_mismatch : analyse de {} paquet(s)", len(packets))
@@ -196,7 +196,10 @@ def detect_protocol_mismatches(packets: list[Pkt]) -> list[dict[str, Any]]:
             details.append(
                 {
                     "frame_number": pkt.frame_number,
+                    "point": pkt.point,
                     "proto": pkt.proto,
+                    "src": pkt.src,
+                    "dst": pkt.dst,
                     "sport": pkt.sport,
                     "dport": pkt.dport,
                     "detected_proto": proto_name,
@@ -236,17 +239,37 @@ def protocol_mismatch_findings(
     findings: list[dict[str, Any]] = []
     for detail in mismatches:
         severity = "elevee" if detail["detected_proto"] == "ICMP_TUNNEL" else "moyenne"
+        src, dst = detail.get("src"), detail.get("dst")
+        sport, dport = detail.get("sport"), detail.get("dport")
+        flow = ""
+        if src or dst:
+            flow = f" -- {src or '?'}{f':{sport}' if sport is not None else ''} -> {dst or '?'}"
+            flow += f":{dport}" if dport is not None else ""
+        frame = detail.get("frame_number")
+        text = f"incoherence de protocole : {detail['description']}{flow}"
+        if frame is not None:
+            text += f" -- trame {frame}"
         findings.append(
             {
+                # format commun des constats (category/severity/detail/point),
+                # celui que lisent build_security_report, le JSON, le HTML,
+                # le PDF et les exports SIEM. Les cles historiques ci-dessous
+                # (type/description/frame_number...) etaient les seules
+                # produites : chaque constat sortait avec un texte vide dans
+                # tous les rendus (audit du 23/09/2026, issues #329/#345).
                 "category": "anomalie",
                 "severity": severity,
-                "detail": detail["description"],
+                "detail": text,
+                "point": detail.get("point") or None,
+                "host": dst,
+                "port": dport,
+                "type": "protocol_mismatch",
                 "detected_proto": detail["detected_proto"],
-                "frame_number": detail["frame_number"],
-                "sport": detail["sport"],
-                "dport": detail["dport"],
-                "proto": detail["proto"],
-                "point": detail.get("point"),
+                "description": detail["description"],
+                "frame_number": frame,
+                "sport": sport,
+                "dport": dport,
+                "proto": detail.get("proto"),
             }
         )
     return findings

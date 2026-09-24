@@ -4,4 +4,4 @@
 # python3-gobject + gtk4 (RHEL/Rocky) -- voir README.md.
 export PYTHONPATH="/usr/share/netcross:${PYTHONPATH:-}"
 cd /usr/share/netcross || exit 1
-exec python3 -m netcross_gtk4.app "$@"
+exec /usr/bin/python3 -m netcross_gtk4.app "$@"

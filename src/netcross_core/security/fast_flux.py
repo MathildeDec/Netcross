@@ -57,15 +57,24 @@ class FastFluxThresholds:
 
 @dataclass
 class FastFluxAlert:
-    """Une alerte fast flux pour un domaine suspect."""
+    """Une alerte fast flux pour un domaine suspect.
 
-    point: str
+    Issue #343 : un domaine suspect vu depuis plusieurs points de capture
+    est UN evenement -- `points` liste tous les points ou il a ete
+    observe (`point` reste un alias retro-compatible : premier point
+    trie, ou None si `points` est vide)."""
+
     domain: str
     alert_type: str  # ip_rotation | high_nxdomain
     score: float  # 0.0 a 1.0
     reason: str
+    points: tuple[str, ...] = ()
     ips: list[str] = field(default_factory=list)
     nxdomain_ratio: float = 0.0
+
+    @property
+    def point(self) -> str | None:
+        return self.points[0] if self.points else None
 
 
 @dataclass
@@ -172,9 +181,8 @@ def detect_fast_flux(
                 unique_ips = {ip for ip in all_ips if ip != source}
                 if len(unique_ips) >= thresholds.min_ips:
                     score = min(1.0, len(unique_ips) / (thresholds.min_ips * 2))
-                    alerts.extend(
+                    alerts.append(
                         FastFluxAlert(
-                            point=point,
                             domain=full_domain,
                             alert_type="ip_rotation",
                             score=round(score, 3),
@@ -182,9 +190,9 @@ def detect_fast_flux(
                                 f"rotation d'IPs : {len(unique_ips)} IPs differentes "
                                 f"en {thresholds.window_seconds:.0f}s"
                             ),
+                            points=tuple(sorted(info["points"])),
                             ips=sorted(unique_ips)[:20],
                         )
-                        for point in sorted(info["points"])
                     )
                     break  # une alerte par domaine suffit
 
@@ -193,18 +201,17 @@ def detect_fast_flux(
             nxdomain_ratio = info["nxdomain"] / info["responses"]
             if nxdomain_ratio >= thresholds.nxdomain_ratio_min:
                 score = min(1.0, nxdomain_ratio)
-                alerts.extend(
+                alerts.append(
                     FastFluxAlert(
-                        point=point,
                         domain=full_domain,
                         alert_type="high_nxdomain",
                         score=round(score, 3),
                         reason=(
                             f"ratio NXDOMAIN eleve : {info['nxdomain']}/{info['responses']} ({nxdomain_ratio:.2f})"
                         ),
+                        points=tuple(sorted(info["points"])),
                         nxdomain_ratio=round(nxdomain_ratio, 3),
                     )
-                    for point in sorted(info["points"])
                 )
 
     return FastFluxResult(alerts=alerts)

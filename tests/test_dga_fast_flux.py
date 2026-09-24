@@ -268,10 +268,10 @@ def test_fast_flux_thresholds_configurables():
 
 def test_dga_alert_dataclass():
     alert = DgaAlert(
-        point="A",
         domain="xkqjfwbvt.com",
         score=0.75,
         reason="entropie 3.5",
+        points=("A",),
         entropy=3.5,
         consonant_ratio=0.7,
         rare_bigram_ratio=0.6,
@@ -284,11 +284,11 @@ def test_dga_alert_dataclass():
 
 def test_fast_flux_alert_dataclass():
     alert = FastFluxAlert(
-        point="A",
         domain="suspicious.example.com",
         alert_type="ip_rotation",
         score=0.8,
         reason="rotation d'IPs",
+        points=("A",),
         ips=["1.2.3.4", "5.6.7.8"],
         nxdomain_ratio=0.0,
     )
@@ -300,7 +300,7 @@ def test_fast_flux_alert_dataclass():
 def test_dga_result_suspicious():
     result = DgaResult()
     assert result.suspicious is False
-    result.alerts.append(DgaAlert(point="A", domain="test.com", score=0.7, reason="test"))
+    result.alerts.append(DgaAlert(domain="test.com", score=0.7, reason="test", points=("A",)))
     assert result.suspicious is True
 
 
@@ -308,6 +308,6 @@ def test_fast_flux_result_suspicious():
     result = FastFluxResult()
     assert result.suspicious is False
     result.alerts.append(
-        FastFluxAlert(point="A", domain="test.com", alert_type="ip_rotation", score=0.8, reason="test")
+        FastFluxAlert(domain="test.com", alert_type="ip_rotation", score=0.8, reason="test", points=("A",))
     )
     assert result.suspicious is True

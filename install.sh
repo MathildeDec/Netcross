@@ -26,7 +26,7 @@ fi
 
 if [ ! -f /etc/os-release ]; then
     echo "Impossible de detecter la distribution (/etc/os-release absent)." >&2
-    echo "Installez manuellement : tshark, python3-cryptography, reportlab, matplotlib, networkx" >&2
+    echo "Installez manuellement : tshark, python3-cryptography, loguru, reportlab, matplotlib, networkx" >&2
     echo "(+ PyGObject et GTK4 pour l'interface graphique), ou via pip :" >&2
     echo "  pip install -r requirements.txt" >&2
     exit 1
@@ -37,13 +37,13 @@ echo "=== netcross : installation des dependances ==="
 echo "Distribution detectee : ${PRETTY_NAME:-$ID}"
 echo ""
 
-CLI_PKGS_APT="python3 python3-pip tshark python3-cryptography python3-reportlab python3-matplotlib python3-networkx"
+CLI_PKGS_APT="python3 python3-pip tshark python3-cryptography python3-loguru python3-reportlab python3-matplotlib python3-networkx"
 GUI_PKGS_APT="python3-gi gir1.2-gtk-4.0"
 
 # le paquet CLI de Wireshark (tshark, dumpcap...) s'appelle wireshark-cli
 # sur Fedora/RHEL/Rocky recents -- sur EL8 ancien il peut s'agir du
 # paquet "wireshark" complet si wireshark-cli n'existe pas encore
-CLI_PKGS_DNF="python3 python3-pip wireshark-cli python3-cryptography python3-reportlab python3-matplotlib python3-networkx"
+CLI_PKGS_DNF="python3 python3-pip wireshark-cli python3-cryptography python3-loguru python3-reportlab python3-matplotlib python3-networkx"
 GUI_PKGS_DNF="python3-gobject gtk4"
 
 case "$ID" in
@@ -82,7 +82,7 @@ case "$ID" in
 
     *)
         echo "Distribution '$ID' non reconnue par ce script." >&2
-        echo "Dependances necessaires : tshark, python3-cryptography, reportlab, matplotlib, networkx" >&2
+        echo "Dependances necessaires : tshark, python3-cryptography, loguru, reportlab, matplotlib, networkx" >&2
         echo "(+ PyGObject et GTK4 pour l'interface graphique)." >&2
         echo "Installation alternative via pip :" >&2
         echo "  pip install -r requirements.txt" >&2
