@@ -496,21 +496,14 @@ def format_security_report(sr: SecurityReport) -> list[str]:
     expert_info_anomalies = [i for i in sr.anomalies if i.source == "expert_info"]
     # tri par severite puis par detecteur pour un rendu deterministe
     sev_rank = {s: i for i, s in enumerate(SEVERITIES)}
-    netcross_anomalies.sort(
-        key=lambda i: (sev_rank.get(i.severity, 99), i.detector or "", i.detail)
-    )
+    netcross_anomalies.sort(key=lambda i: (sev_rank.get(i.severity, 99), i.detector or "", i.detail))
     # regroupement par detecteur, ordre = severite max du groupe
     detector_groups: dict[str, list[SecurityItem]] = {}
     for item in netcross_anomalies:
         key = item.detector or "autre"
         detector_groups.setdefault(key, []).append(item)
     # tri des groupes par severite max (plus grave en premier)
-    group_order = sorted(
-        detector_groups.keys(),
-        key=lambda k: min(
-            sev_rank.get(i.severity, 99) for i in detector_groups[k]
-        ),
-    )
+    group_order = sorted(detector_groups.keys(), key=lambda k: min(sev_rank.get(i.severity, 99) for i in detector_groups[k]))
     if group_order:
         lines += ["", "-- Anomalies (detecteurs Netcross) --"]
         for det in group_order:
