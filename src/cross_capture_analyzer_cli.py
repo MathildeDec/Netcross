@@ -2612,7 +2612,7 @@ def main():
                 print_quic_diagnostics,
             )
         except ImportError:
-            logger.exception("erreur: ImportError")
+            logger.debug("dépendance optionnelle absente: ImportError")
             print(
                 "\n--quic necessite cryptography : pip install cryptography --break-system-packages",
                 file=sys.stderr,
@@ -2666,7 +2666,7 @@ def main():
         try:
             from netcross_report import generate_pdf
         except ImportError:
-            logger.exception("erreur: ImportError")
+            logger.debug("dépendance optionnelle absente: ImportError")
             generate_pdf = None
         if generate_pdf is None:
             print(

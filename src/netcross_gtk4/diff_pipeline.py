@@ -173,7 +173,7 @@ def run_diff_pipeline(
                 print_quic_diagnostics,
             )
         except ImportError:
-            logger.exception("erreur: ImportError")
+            logger.debug("dépendance optionnelle absente: ImportError")
             with contextlib.redirect_stdout(buf):
                 print("\n--quic nécessite cryptography : pip install cryptography")
         else:

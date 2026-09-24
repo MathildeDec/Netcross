@@ -202,7 +202,7 @@ def _load_yaml(text: str):
     try:
         import yaml
     except ImportError as exc:  # pragma: no cover - branche dependante de l'env
-        logger.exception("erreur: exc")
+        logger.debug("dépendance optionnelle absente: exc")
         raise ImportError(
             "lecture YAML requiert pyyaml (pip install pyyaml) ; utilisez un fichier .json pour eviter cette dependance"
         ) from exc
@@ -213,7 +213,7 @@ def _dump_yaml(items: list[dict]) -> str:
     try:
         import yaml
     except ImportError as exc:  # pragma: no cover - branche dependante de l'env
-        logger.exception("erreur: exc")
+        logger.debug("dépendance optionnelle absente: exc")
         raise ImportError(
             "ecriture YAML requiert pyyaml (pip install pyyaml) ; "
             "utilisez un fichier .json pour eviter cette dependance"

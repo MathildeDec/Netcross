@@ -27,7 +27,7 @@ try:  # cryptography est une dependance du projet ; son absence degrade l'extrac
     from cryptography.hazmat.primitives.asymmetric import ed25519 as _ed25519
     from cryptography.hazmat.primitives.asymmetric import rsa as _rsa
 except ImportError:  # pragma: no cover - exercee seulement sans cryptography
-    logger.exception("erreur: ImportError")
+    logger.debug("dépendance optionnelle absente: ImportError")
     _x509 = None  # type: ignore[assignment]
 
 # Table de correspondance code -> nom, cf. RFC 2132 section 9.6 (option
