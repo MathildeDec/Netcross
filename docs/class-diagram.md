@@ -34,7 +34,7 @@ flowchart TD
     pcap_parser["pcap_parser"]
     CLI -->|"17 imports"| netcross_report
     CLI -->|"8 imports"| netcross_ai
-    CLI -->|"31 imports"| netcross_core
+    CLI -->|"35 imports"| netcross_core
     CLI -->|"5 imports"| pcap_parser
     netcross_gtk4 -->|"10 imports"| netcross_report
     netcross_gtk4 -->|"20 imports"| netcross_core
@@ -937,6 +937,7 @@ classDiagram
         +dict~str, float~ inter_arrival_stats
         +list~str~ phases
         +float? rtt_estimate_ms
+        +to_dict() dict
     }
     class mod_netcross_core_flow_timeline["netcross_core.flow_timeline"] {
         <<module>>
