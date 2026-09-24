@@ -182,7 +182,25 @@ def test_extract_dns_requete():
         "is_response": False,
         "qry_name": "example.com",
         "rcode": 0,
+        "answers": (),
     }
+
+
+def test_extract_dns_reponse_adresses_a_et_aaaa():
+    # Forme EK verifiee avec tshark 4.2 sur une reponse forgee (3 A + 1 AAAA,
+    # issue #344) : liste pour plusieurs enregistrements, chaine pour un seul.
+    layers = {
+        "dns": {
+            "dns_dns_id": "0x1234",
+            "dns_dns_flags_response": True,
+            "dns_dns_qry_name": "flux.example.net",
+            "dns_dns_flags_rcode": "0",
+            "dns_dns_a": ["203.0.113.1", "203.0.113.2", "198.51.100.7", "203.0.113.1"],
+            "dns_dns_aaaa": "2001:db8::1",
+        }
+    }
+    result = extract_dns(layers)
+    assert result["answers"] == ("203.0.113.1", "203.0.113.2", "198.51.100.7", "2001:db8::1")
 
 
 def test_extract_dns_reponse_nxdomain():
