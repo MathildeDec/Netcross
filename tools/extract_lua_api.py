@@ -79,7 +79,7 @@ def extract_method(h4: Tag, class_name: str, method_name: str, args_raw: str, se
         return {
             "classe": class_name,
             "méthode": method_name,
-            "signature": title,
+            "signature": re.sub(r"^[\d.]+\s+", "", title),
             "description": "",
             "arguments": [],
             "retours": [],
@@ -106,7 +106,14 @@ def extract_method(h4: Tag, class_name: str, method_name: str, args_raw: str, se
             break
 
     # Chercher Arguments/Returns/Examples dans la section suivante (souvent "Example")
+    # Uniquement si la section suivante est un « Example » rattaché à cette
+    # méthode ; sinon on lirait les arguments/retours de la méthode suivante.
     next_section = section.find_next_sibling("div", class_="section")
+    if next_section is not None:
+        next_h4 = next_section.find("h4")
+        next_title = clean(next_h4.get_text()) if next_h4 else ""
+        if not re.match(r"^[\d.]+\s+Example", next_title):
+            next_section = None
     if next_section:
         # Examples dans <pre>
         examples.extend(pre.get_text().strip() for pre in next_section.find_all("pre", recursive=False))
@@ -184,7 +191,7 @@ def extract_method(h4: Tag, class_name: str, method_name: str, args_raw: str, se
     return {
         "classe": class_name,
         "méthode": method_name,
-        "signature": title,
+        "signature": re.sub(r"^[\d.]+\s+", "", title),
         "description": clean(description),
         "arguments": args,
         "retours": returns,
