@@ -134,6 +134,11 @@ class Pkt:
     dns_is_response: bool
     dns_qry_name: str | None
     dns_rcode: int | None
+    # Issue #351 : entropie de Shannon sur les octets de la charge utile,
+    # calculee pendant le parsing (Pkt ne garde pas le payload brut).
+    # 0.0 = pas de payload, 8.0 = octets uniformement distribues (chiffre/
+    # compresse). Plus fiable que l'entropie sur les tailles de paquets.
+    payload_entropy: float = 0.0
     http_is_request: bool
     http_is_response: bool
     http_method: str | None
@@ -647,6 +652,11 @@ class Report:
     # `security.findings.apply_security_findings` via
     # `security.flow_stats.analyze_flow_stats`.
     flow_anomalies: list[dict] = field(default_factory=list)
+    # -- inventaire d'actifs (issue #350) : un dict par hote detecte,
+    # cles `ip`, `mac`, `ports`, `os_guess`, `is_new`... Rempli par
+    # `security.findings.apply_security_findings` via
+    # `discovery.assets.build_asset_inventory`.
+    asset_inventory: list[dict] = field(default_factory=list)
     # -- topologie deduite (ordre + chemins multiples) --
     topology_edges: list[tuple[str, str, dict]] = field(default_factory=list)
     topology_ambiguous: list[tuple[str, str, str]] = field(default_factory=list)

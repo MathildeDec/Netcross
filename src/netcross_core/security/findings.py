@@ -59,6 +59,7 @@ from netcross_core.security.exfiltration import correlate_exfiltration, detect_e
 from netcross_core.security.fast_flux import detect_fast_flux
 from netcross_core.security.flow_stats import analyze_flow_stats
 from netcross_core.security.lateral_movement import detect_lateral_movement
+from netcross_core.discovery.assets import build_asset_inventory
 from netcross_core.security.protocol_mismatch import (
     count_protocol_mismatches,
     detect_protocol_mismatches,
@@ -420,6 +421,7 @@ def flow_stats_findings(flows: list[dict]) -> list[dict[str, Any]]:
                     f"flux {f.get('src', '?')} -> {f.get('dst', '?')} "
                     f"classifie '{cls}' ({f.get('packet_count', 0)} paquets, "
                     f"entropie {f.get('entropy', 0.0):.2f}, "
+                    f"entropie octets {f.get('byte_entropy', 0.0):.2f}, "
                     f"ratio upload {f.get('upload_ratio', 0.0):.2f})"
                 ),
                 "points": points,
@@ -606,6 +608,9 @@ def apply_security_findings(
     # FLOW-4 (#145) : statistiques de flux (SPLT, entropie, ratio, classification)
     flow_result = analyze_flow_stats(all_packets)
     report.flow_anomalies = [f.to_dict() for f in flow_result.flows]
+
+    # Issue #350 : inventaire d'actifs -- jamais appele, la section etait vide.
+    report.asset_inventory = build_asset_inventory(all_packets).to_records()
 
     dns_suspicions = detect_dns_tunneling(all_packets).suspicions
     beacon_suspicions = detect_beaconing(all_packets).suspicions
