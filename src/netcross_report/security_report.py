@@ -45,6 +45,21 @@ CATEGORY_CVE = "cve"
 # Plafond d'affichage par section du rendu texte (meme esprit que les
 # "... N supplementaires" de netcross_core.report_text).
 MAX_ROWS_PER_SECTION = 50
+MAX_ROWS_PER_DETECTOR = 20
+
+# Issue #347 : libelles lisibles pour les detecteurs Netcross.
+_DETECTOR_LABELS = {
+    "dga": "DGA (domain generation algorithm)",
+    "fast_flux": "Fast flux",
+    "dns_tunnel": "Tunneling DNS",
+    "beaconing": "Beaconing C2",
+    "exfiltration": "Exfiltration de donnees",
+    "lateral_movement": "Mouvements lateraux",
+    "flow_stats": "Statistiques de flux",
+    "tls_audit": "Audit TLS",
+    "protocol_mismatch": "Incoherences de protocole",
+    "expert_info": "Alertes Expert Info correlees",
+}
 
 _SEVERITY_ALIASES = {
     "critique": "critique",
@@ -103,6 +118,11 @@ class SecurityItem:
     # nom du detecteur tiers qui a produit le constat (issue #284) ; None
     # pour un constat du coeur
     plugin: str | None = None
+    # Issue #347 : identifiant du detecteur Netcross (dga, fast_flux,
+    # dns_tunnel, beaconing, exfiltration, lateral_movement, flow_stats,
+    # tls_audit, protocol_mismatch, expert_info) pour le regroupement
+    # dans le rendu texte/PDF.
+    detector: str | None = None
 
 
 @dataclass(slots=True)
@@ -231,6 +251,7 @@ def _to_item(raw) -> SecurityItem | None:
         points=[str(p) for p in raw.get("points", []) if p] if isinstance(raw.get("points"), list) else [],
         source=_opt_str(raw.get("source")) or "netcross",
         plugin=_opt_str(raw.get("plugin")),
+        detector=_opt_str(raw.get("detector")),
     )
 
 
@@ -468,17 +489,41 @@ def format_security_report(sr: SecurityReport) -> list[str]:
         [_format_item(i) for i in sr.exploits],
         "aucune tentative d'exploitation detectee",
     )
-    # Issue #348 : deux origines distinctes, jamais melangees -- un
-    # detecteur Netcross (DGA, fast flux, mouvements lateraux, tunneling
-    # DNS, beaconing, audit TLS, incoherences de protocole) n'est PAS une
-    # alerte Expert Info de Wireshark correlee (CVE-3).
+    # Issue #347 : grouper les anomalies Netcross par detecteur pour
+    # eviter qu'un detecteur volumineux (DGA, fast_flux) masque les autres.
+    # Chaque detecteur a sa propre sous-section avec un plafond dedie.
     netcross_anomalies = [i for i in sr.anomalies if i.source != "expert_info"]
     expert_info_anomalies = [i for i in sr.anomalies if i.source == "expert_info"]
-    lines += _section(
-        "Anomalies (detecteurs Netcross)",
-        [_format_item(i) for i in netcross_anomalies],
-        "aucune anomalie detectee",
+    # tri par severite puis par detecteur pour un rendu deterministe
+    sev_rank = {s: i for i, s in enumerate(SEVERITIES)}
+    netcross_anomalies.sort(
+        key=lambda i: (sev_rank.get(i.severity, 99), i.detector or "", i.detail)
     )
+    # regroupement par detecteur, ordre = severite max du groupe
+    detector_groups: dict[str, list[SecurityItem]] = {}
+    for item in netcross_anomalies:
+        key = item.detector or "autre"
+        detector_groups.setdefault(key, []).append(item)
+    # tri des groupes par severite max (plus grave en premier)
+    group_order = sorted(
+        detector_groups.keys(),
+        key=lambda k: min(
+            sev_rank.get(i.severity, 99) for i in detector_groups[k]
+        ),
+    )
+    if group_order:
+        lines += ["", "-- Anomalies (detecteurs Netcross) --"]
+        for det in group_order:
+            items = detector_groups[det]
+            label = _DETECTOR_LABELS.get(det, det)
+            lines.append(f"  [{label}] ({len(items)} constat(s))")
+            rows = [_format_item(i) for i in items]
+            lines.extend(rows[:MAX_ROWS_PER_DETECTOR])
+            if len(rows) > MAX_ROWS_PER_DETECTOR:
+                n = len(rows) - MAX_ROWS_PER_DETECTOR
+                lines.append(f"    ... {n} ligne(s) supplementaire(s)")
+    else:
+        lines += ["", "-- Anomalies (detecteurs Netcross) --", "  aucune anomalie detectee"]
     lines += _section(
         "Anomalies (alertes Expert Info correlees)",
         [_format_item(i) for i in expert_info_anomalies],
@@ -565,6 +610,7 @@ def security_report_to_dict(sr: SecurityReport) -> dict:
                     "points": list(i.points),
                     "source": i.source,
                     "plugin": i.plugin,
+                    "detector": i.detector,
                 }
                 for i in items
             ]

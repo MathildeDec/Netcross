@@ -178,6 +178,7 @@ def anomaly_findings(suspicions: Iterable[dict]) -> list[dict[str, Any]]:
                 "detail": detail,
                 "point": s.get("point") or None,
                 "source": "expert_info",
+                "detector": "expert_info",
             }
         )
     return findings
@@ -223,6 +224,7 @@ def dns_tunnel_findings(suspicions: Iterable[dict]) -> list[dict[str, Any]]:
                 "category": "anomalie",
                 "detail": detail,
                 "point": s.get("point") or None,
+                "detector": "dns_tunnel",
             }
         )
     return findings
@@ -263,6 +265,7 @@ def beaconing_findings(suspicions: Iterable[dict]) -> list[dict[str, Any]]:
                 "category": "anomalie",
                 "detail": detail,
                 "point": s.get("point") or None,
+                "detector": "beaconing",
             }
         )
     return findings
@@ -313,6 +316,7 @@ def exfiltration_findings(alerts: Iterable[dict]) -> list[dict[str, Any]]:
                 "category": "anomalie",
                 "detail": detail,
                 "point": a.get("point") or None,
+                "detector": "exfiltration",
             }
         )
     return findings
@@ -346,6 +350,7 @@ def tls_audit_findings(audit: TlsAuditResult) -> list[dict[str, Any]]:
                     "host": cert["host"],
                     "port": cert["port"],
                     "point": cert.get("point") or None,
+                    "detector": "tls_audit",
                 }
             )
     return findings
@@ -384,6 +389,7 @@ def lateral_movement_findings(events: list[dict]) -> list[dict[str, Any]]:
                 ),
                 "points": points,
                 "point": points[0] if points else None,
+                "detector": "lateral_movement",
             }
         )
     return findings
@@ -424,6 +430,7 @@ def flow_stats_findings(flows: list[dict]) -> list[dict[str, Any]]:
                 ),
                 "points": points,
                 "point": points[0] if points else None,
+                "detector": "flow_stats",
             }
         )
     return findings
@@ -489,6 +496,7 @@ def dga_findings(alerts: list[dict]) -> list[dict[str, Any]]:
                 "detail": (f"domaine DGA suspect : {a.get('domain', '?')} -- score {score} ({a.get('reason', '?')})"),
                 "points": points,
                 "point": points[0] if points else None,
+                "detector": "dga",
             }
         )
     return findings
@@ -515,6 +523,7 @@ def fast_flux_findings(alerts: list[dict]) -> list[dict[str, Any]]:
                 ),
                 "points": points,
                 "point": points[0] if points else None,
+                "detector": "fast_flux",
             }
         )
     return findings

@@ -269,6 +269,7 @@ def protocol_mismatch_findings(
                 "sport": sport,
                 "dport": dport,
                 "proto": detail.get("proto"),
+                "detector": "protocol_mismatch",
             }
         )
     return findings
