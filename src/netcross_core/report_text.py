@@ -871,6 +871,25 @@ def print_report(r: Report):
     else:
         print("  aucun objet HTTP reponse exploitable")
 
+    print("\n-- Fichiers extraits (SCENARIO-4) --")
+    # Issue #349 : r.extracted_files est rempli depuis #150 (analyse), mais
+    # aucun rendu ne l'exposait -- un executable PE telecharge en HTTP etait
+    # invisible du rapport. Meme seuil de 50 lignes que les objets HTTP, pour
+    # la meme raison (eviter de noyer la lecture sans tronquer en silence).
+    extracted = getattr(r, "extracted_files", []) or []
+    if extracted:
+        for f in extracted[:50]:
+            h = f.get("hash_sha256") or f.get("hash_md5") or "sans empreinte"
+            print(
+                f"  [{f.get('point', '?')}] {f.get('type_detected') or 'inconnu'} "
+                f"{f.get('uri') or f.get('content_type') or '?'} "
+                f"({f.get('size', '?')} octets) -- {h[:16]}"
+            )
+        if len(extracted) > 50:
+            print(f"  ... {len(extracted) - 50} fichier(s) supplementaire(s) non affiche(s)")
+    else:
+        print("  aucun fichier extrait")
+
 
 # Nombre maximal de trous detailles par point dans le rapport texte (les
 # compteurs, eux, portent toujours sur la totalite).

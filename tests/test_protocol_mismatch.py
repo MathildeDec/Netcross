@@ -364,8 +364,10 @@ def test_protocol_mismatch_findings_severite():
     assert len(findings) == 2
     assert findings[0]["severity"] == "moyenne"
     assert findings[1]["severity"] == "elevee"
-    assert findings[0]["type"] == "protocol_mismatch"
-    assert findings[1]["type"] == "protocol_mismatch"
+    assert findings[0]["category"] == "anomalie"
+    assert findings[1]["category"] == "anomalie"
+    assert findings[0]["detail"] == "SSH détecté sur port 443 (attendu : HTTPS)"
+    assert findings[1]["detail"] == "Payload HTTP dans paquet ICMP (tunneling suspect)"
 
 
 def test_protocol_mismatch_findings_vide():

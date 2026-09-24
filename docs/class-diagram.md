@@ -3355,6 +3355,7 @@ classDiagram
         +str? host
         +int? port
         +str? point
+        +str source
         +str? plugin
     }
     class ServiceEntry {

@@ -201,6 +201,7 @@ def detect_protocol_mismatches(packets: list[Pkt]) -> list[dict[str, Any]]:
                     "dport": pkt.dport,
                     "detected_proto": proto_name,
                     "description": description,
+                    "point": pkt.point or None,
                 }
             )
     logger.info("protocol_mismatch : {} mismatch(es) detecte(s) sur {} paquet(s)", len(details), len(packets))
@@ -237,14 +238,15 @@ def protocol_mismatch_findings(
         severity = "elevee" if detail["detected_proto"] == "ICMP_TUNNEL" else "moyenne"
         findings.append(
             {
-                "type": "protocol_mismatch",
+                "category": "anomalie",
                 "severity": severity,
+                "detail": detail["description"],
                 "detected_proto": detail["detected_proto"],
-                "description": detail["description"],
                 "frame_number": detail["frame_number"],
                 "sport": detail["sport"],
                 "dport": detail["dport"],
                 "proto": detail["proto"],
+                "point": detail.get("point"),
             }
         )
     return findings

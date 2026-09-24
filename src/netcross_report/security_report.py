@@ -74,7 +74,13 @@ _CATEGORY_ALIASES = {
 
 @dataclass(slots=True)
 class SecurityItem:
-    """Un constat de securite normalise (exploit, anomalie ou CVE)."""
+    """Un constat de securite normalise (exploit, anomalie ou CVE).
+
+    `source` distingue, pour les anomalies, un detecteur Netcross natif
+    ("netcross", valeur par defaut) d'une alerte Expert Info de Wireshark
+    correlee ("expert_info", CVE-3, voir `security.findings.anomaly_findings`)
+    -- issue #348 : ce ne sont pas les memes alertes et le rapport ne doit
+    pas laisser croire le contraire."""
 
     category: str
     severity: str
@@ -86,6 +92,7 @@ class SecurityItem:
     host: str | None = None
     port: int | None = None
     point: str | None = None
+    source: str = "netcross"
     # nom du detecteur tiers qui a produit le constat (issue #284) ; None
     # pour un constat du coeur
     plugin: str | None = None
@@ -215,6 +222,7 @@ def _to_item(raw) -> SecurityItem | None:
         port=_opt_int(raw.get("port")),
         point=_opt_str(raw.get("point")),
         plugin=_opt_str(raw.get("plugin")),
+        source=_opt_str(raw.get("source")) or "netcross",
     )
 
 
@@ -446,9 +454,20 @@ def format_security_report(sr: SecurityReport) -> list[str]:
         [_format_item(i) for i in sr.exploits],
         "aucune tentative d'exploitation detectee",
     )
+    # Issue #348 : deux origines distinctes, jamais melangees -- un
+    # detecteur Netcross (DGA, fast flux, mouvements lateraux, tunneling
+    # DNS, beaconing, audit TLS, incoherences de protocole) n'est PAS une
+    # alerte Expert Info de Wireshark correlee (CVE-3).
+    netcross_anomalies = [i for i in sr.anomalies if i.source != "expert_info"]
+    expert_info_anomalies = [i for i in sr.anomalies if i.source == "expert_info"]
+    lines += _section(
+        "Anomalies (detecteurs Netcross)",
+        [_format_item(i) for i in netcross_anomalies],
+        "aucune anomalie detectee",
+    )
     lines += _section(
         "Anomalies (alertes Expert Info correlees)",
-        [_format_item(i) for i in sr.anomalies],
+        [_format_item(i) for i in expert_info_anomalies],
         "aucune anomalie correlee",
     )
     lines += _section(
@@ -530,6 +549,7 @@ def security_report_to_dict(sr: SecurityReport) -> dict:
                     "port": i.port,
                     "point": i.point,
                     "plugin": i.plugin,
+                    "source": i.source,
                 }
                 for i in items
             ]
