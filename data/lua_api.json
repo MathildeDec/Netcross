@@ -1,7 +1,7 @@
 {
   "version_wireshark": "4.6.9",
   "date_generation": "2026-09-24",
-  "source": "wireshark v4.6.9 (2d548b197c75) : tools/make-wsluarm.py sur epan/wslua/*.c",
+  "source": "wireshark /tmp/ws : tools/make-wsluarm.py sur epan/wslua/*.c",
   "classes": {
     "Address": {
       "nom": "Address",
@@ -342,7 +342,7 @@
           "erreurs": [],
           "exemples": [],
           "section": "lua_fn_bytearray_le_int__offset____length__",
-          "depuis_version": ""
+          "depuis_version": "4.2.0"
         },
         {
           "nom": "le_int64",
@@ -369,7 +369,7 @@
           "erreurs": [],
           "exemples": [],
           "section": "lua_fn_bytearray_le_int64__offset____length__",
-          "depuis_version": ""
+          "depuis_version": "4.2.0"
         },
         {
           "nom": "le_uint",
@@ -396,7 +396,7 @@
           "erreurs": [],
           "exemples": [],
           "section": "lua_fn_bytearray_le_uint__offset____length__",
-          "depuis_version": ""
+          "depuis_version": "4.2.0"
         },
         {
           "nom": "le_uint64",
@@ -423,7 +423,7 @@
           "erreurs": [],
           "exemples": [],
           "section": "lua_fn_bytearray_le_uint64__offset____length__",
-          "depuis_version": ""
+          "depuis_version": "4.2.0"
         },
         {
           "nom": "int",
@@ -450,7 +450,7 @@
           "erreurs": [],
           "exemples": [],
           "section": "lua_fn_bytearray_int__offset____length__",
-          "depuis_version": ""
+          "depuis_version": "4.2.0"
         },
         {
           "nom": "int64",
@@ -477,7 +477,7 @@
           "erreurs": [],
           "exemples": [],
           "section": "lua_fn_bytearray_int64__offset____length__",
-          "depuis_version": ""
+          "depuis_version": "4.2.0"
         },
         {
           "nom": "uint",
@@ -504,7 +504,7 @@
           "erreurs": [],
           "exemples": [],
           "section": "lua_fn_bytearray_uint__offset____length__",
-          "depuis_version": ""
+          "depuis_version": "4.2.0"
         },
         {
           "nom": "uint64",
@@ -531,7 +531,7 @@
           "erreurs": [],
           "exemples": [],
           "section": "lua_fn_bytearray_uint64__offset____length__",
-          "depuis_version": ""
+          "depuis_version": "4.2.0"
         },
         {
           "nom": "len",
@@ -1048,7 +1048,7 @@
               "nom": "column",
               "type": "",
               "optionnel": false,
-              "description": "The name of the column to set. Valid values are:\n\n[options=\"header\"] |=== |Name |Description |number |Frame number |abs_time |Absolute timestamp |utc_time |UTC timestamp |cls_time |CLS timestamp |rel_time |Relative timestamp |date |Absolute date and time |date_doy |Absolute year, day of year, and time |utc_date |UTC date and time |utc_date_doy |UTC year, day of year, and time |delta_time |Delta time from previous packet |delta_time_displayed |Delta time from previous displayed packet |src |Source address |src_res |Resolved source address |src_unres |Numeric source address |dl_src |Source data link address |dl_src_res |Resolved source data link address |dl_src_unres |Numeric source data link address |net_src |Source network address |net_src_res |Resolved source network address |net_src_unres |Numeric source network address |dst |Destination address |dst_res |Resolve destination address |dst_unres |Numeric destination address |dl_dst |Destination data link address |dl_dst_res |Resolved destination data link address |dl_dst_unres |Numeric destination data link address |net_dst |Destination network address |net_dst_res |Resolved destination network address |net_dst_unres |Numeric destination network address |src_port |Source port |src_port_res |Resolved source port |src_port_unres |Numeric source port |dst_port |Destination port |dst_port_res |Resolved destination port |dst_port_unres |Numeric destination port |protocol |Protocol name |info |General packet information |packet_len |Packet length |cumulative_bytes |Cumulative bytes in the capture |direction |Packet direction |vsan |Virtual SAN |tx_rate |Transmit rate |rssi |RSSI value |dce_call |DCE call |===\n\n===== Example pinfo.cols['info'] = 'foo bar'\n\n-- syntactic sugar (equivalent to above) pinfo.cols.info = 'foo bar'"
+              "description": "The name of the column to set. Valid values are:\n\n  Name                  Description\n  number                Frame number\n  abs_time              Absolute timestamp\n  utc_time              UTC timestamp\n  cls_time              CLS timestamp\n  rel_time              Relative timestamp\n  date                  Absolute date and time\n  date_doy              Absolute year, day of year, and time\n  utc_date              UTC date and time\n  utc_date_doy          UTC year, day of year, and time\n  delta_time            Delta time from previous packet\n  delta_time_displayed  Delta time from previous displayed packet\n  src                   Source address\n  src_res               Resolved source address\n  src_unres             Numeric source address\n  dl_src                Source data link address\n  dl_src_res            Resolved source data link address\n  dl_src_unres          Numeric source data link address\n  net_src               Source network address\n  net_src_res           Resolved source network address\n  net_src_unres         Numeric source network address\n  dst                   Destination address\n  dst_res               Resolve destination address\n  dst_unres             Numeric destination address\n  dl_dst                Destination data link address\n  dl_dst_res            Resolved destination data link address\n  dl_dst_unres          Numeric destination data link address\n  net_dst               Destination network address\n  net_dst_res           Resolved destination network address\n  net_dst_unres         Numeric destination network address\n  src_port              Source port\n  src_port_res          Resolved source port\n  src_port_unres        Numeric source port\n  dst_port              Destination port\n  dst_port_res          Resolved destination port\n  dst_port_unres        Numeric destination port\n  protocol              Protocol name\n  info                  General packet information\n  packet_len            Packet length\n  cumulative_bytes      Cumulative bytes in the capture\n  direction             Packet direction\n  vsan                  Virtual SAN\n  tx_rate               Transmit rate\n  rssi                  RSSI value\n  dce_call              DCE call"
             },
             {
               "nom": "text",
@@ -1059,7 +1059,9 @@
           ],
           "retours": [],
           "erreurs": [],
-          "exemples": [],
+          "exemples": [
+            "pinfo.cols['info'] = 'foo bar'\n\n-- syntactic sugar (equivalent to above)\npinfo.cols.info = 'foo bar'"
+          ],
           "section": "lua_fn_columns___newindex_column__text_",
           "depuis_version": ""
         },
@@ -1753,7 +1755,7 @@
           "nom": "heuristic_new",
           "genre": "constructeur",
           "signature": "DissectorTable.heuristic_new(tablename, [uiname], proto)",
-          "description": "Creates a new heuristic `DissectorTable` for your dissector's use. Returns true if table was created successfully.\n\n* XXX - Currently it always returns nil.\n\nSince: 4.2.0",
+          "description": "Creates a new heuristic `DissectorTable` for your dissector's use. Returns true if table was created successfully.\n\n- XXX - Currently it always returns nil.\n\nSince: 4.2.0",
           "arguments": [
             {
               "nom": "tablename",
@@ -1780,7 +1782,7 @@
           "erreurs": [],
           "exemples": [],
           "section": "lua_fn_DissectorTable_heuristic_new_tablename___uiname___proto_",
-          "depuis_version": ""
+          "depuis_version": "4.2.0"
         },
         {
           "nom": "list",
@@ -2199,7 +2201,7 @@
     "Field": {
       "nom": "Field",
       "module": "Field",
-      "description": "A Field extractor to obtain field values. A `Field` object can only be created *outside* of the callback functions of dissectors, post-dissectors, heuristic-dissectors, and taps.\n\nOnce created, it is used *inside* the callback functions, to generate a `FieldInfo` object.",
+      "description": "A Field extractor to obtain field values. A `Field` object can only be created outside of the callback functions of dissectors, post-dissectors, heuristic-dissectors, and taps.\n\nOnce created, it is used inside the callback functions, to generate a `FieldInfo` object.",
       "exemples": [],
       "methodes": [
         {
@@ -2332,7 +2334,7 @@
           "nom": "__call",
           "genre": "metamethode",
           "signature": "fieldinfo:__call()",
-          "description": "Obtain the Value of the field.\n\nPrevious to 1.11.4, this function retrieved the value for most field types, but for `ftypes.UINT_BYTES` it retrieved the `ByteArray` of the field's entire `TvbRange`. In other words, it returned a `ByteArray` that included the leading length byte(s), instead of just the *value* bytes. That was a bug, and has been changed in 1.11.4. Furthermore, it retrieved an `ftypes.GUID` as a `ByteArray`, which is also incorrect.\n\nIf you wish to still get a `ByteArray` of the `TvbRange`, use `fieldinfo.range` to get the `TvbRange`, and then use `tvbrange:bytes()` to convert it to a `ByteArray`.",
+          "description": "Obtain the Value of the field.\n\nPrevious to 1.11.4, this function retrieved the value for most field types, but for `ftypes.UINT_BYTES` it retrieved the `ByteArray` of the field's entire `TvbRange`. In other words, it returned a `ByteArray` that included the leading length byte(s), instead of just the value bytes. That was a bug, and has been changed in 1.11.4. Furthermore, it retrieved an `ftypes.GUID` as a `ByteArray`, which is also incorrect.\n\nIf you wish to still get a `ByteArray` of the `TvbRange`, use `fieldinfo.range` to get the `TvbRange`, and then use `tvbrange:bytes()` to convert it to a `ByteArray`.",
           "arguments": [],
           "retours": [],
           "erreurs": [],
@@ -2525,7 +2527,7 @@
     "File": {
       "nom": "File",
       "module": "File",
-      "description": "A `File` object, passed into Lua as an argument by FileHandler callback functions (e.g., `read_open`, `read`, `write`, etc.).  This behaves similarly to the Lua `io` library's `file` object, returned when calling `io.open()`, *except* in this case you cannot call `file:close()`, `file:open()`, nor `file:setvbuf()`, since Wireshark/TShark manages the opening and closing of files. You also cannot use the '`io`' library itself on this object, i.e. you cannot do `io.read(file, 4)`.  Instead, use this `File` with the object-oriented style calling its methods, i.e. `myfile:read(4)`. (see later example)\n\nThe purpose of this object is to hide the internal complexity of how Wireshark handles files, and instead provide a Lua interface that is familiar, by mimicking the `io` library. The reason true/raw `io` files cannot be used is because Wireshark does many things under the hood, such as compress the file, or write to `stdout`, or various other things based on configuration/commands.\n\nWhen a `File` object is passed in through reading-based callback functions, such as `read_open()`, `read()`, and `read_close()`, then the File object's `write()` and `flush()` functions are not usable and will raise an error if used.\n\nWhen a `File` object is passed in through writing-based callback functions, such as `write_open()`, `write()`, and `write_close()`, then the File object's `read()` and `lines()` functions are not usable and will raise an error if used.\n\nNote: A `File` object should never be stored/saved beyond the scope of the callback function it is passed in to.\n\nFor example:",
+      "description": "A `File` object, passed into Lua as an argument by FileHandler callback functions (e.g., `read_open`, `read`, `write`, etc.).  This behaves similarly to the Lua `io` library's `file` object, returned when calling `io.open()`, except in this case you cannot call `file:close()`, `file:open()`, nor `file:setvbuf()`, since Wireshark/TShark manages the opening and closing of files. You also cannot use the '`io`' library itself on this object, i.e. you cannot do `io.read(file, 4)`.  Instead, use this `File` with the object-oriented style calling its methods, i.e. `myfile:read(4)`. (see later example)\n\nThe purpose of this object is to hide the internal complexity of how Wireshark handles files, and instead provide a Lua interface that is familiar, by mimicking the `io` library. The reason true/raw `io` files cannot be used is because Wireshark does many things under the hood, such as compress the file, or write to `stdout`, or various other things based on configuration/commands.\n\nWhen a `File` object is passed in through reading-based callback functions, such as `read_open()`, `read()`, and `read_close()`, then the File object's `write()` and `flush()` functions are not usable and will raise an error if used.\n\nWhen a `File` object is passed in through writing-based callback functions, such as `write_open()`, `write()`, and `write_close()`, then the File object's `read()` and `lines()` functions are not usable and will raise an error if used.\n\nNote: A `File` object should never be stored/saved beyond the scope of the callback function it is passed in to.\n\nFor example:",
       "exemples": [
         "function myfilehandler.read_open(file, capture)\n    local position = file:seek()\n\n    -- read 24 bytes\n    local line = file:read(24)\n\n    -- do stuff\n\n    -- it's not our file type, seek back (unnecessary but just to show it...)\n    file:seek(\"set\",position)\n\n    -- return false because it's not our file type\n    return false\nend"
       ],
@@ -2672,7 +2674,7 @@
           "nom": "read_open",
           "nom_complet": "filehandler.read_open",
           "mode": "WO",
-          "description": "The Lua function to be called when Wireshark opens a file for reading.\n\nWhen later called by Wireshark, the Lua function will be given:\n\n1. A `File` object 2. A `CaptureInfo` object\n\nThe purpose of the Lua function set to this `read_open` field is to check if the file Wireshark is opening is of its type, for example by checking for magic numbers or trying to parse records in the file, etc.  The more can be verified the better, because Wireshark tries all file readers until it finds one that accepts the file, so accepting an incorrect file prevents other file readers from reading their files.\n\nThe called Lua function should return true if the file is its type (it accepts it), false if not.  The Lua function must also set the File offset position (using `file:seek()`) to where it wants it to be for its first `read()` call.",
+          "description": "The Lua function to be called when Wireshark opens a file for reading.\n\nWhen later called by Wireshark, the Lua function will be given:\n\n- A `File` object\n- A `CaptureInfo` object\n\nThe purpose of the Lua function set to this `read_open` field is to check if the file Wireshark is opening is of its type, for example by checking for magic numbers or trying to parse records in the file, etc.  The more can be verified the better, because Wireshark tries all file readers until it finds one that accepts the file, so accepting an incorrect file prevents other file readers from reading their files.\n\nThe called Lua function should return true if the file is its type (it accepts it), false if not.  The Lua function must also set the File offset position (using `file:seek()`) to where it wants it to be for its first `read()` call.",
           "exemples": [],
           "section": "lua_class_attrib_filehandler_read_open",
           "depuis_version": ""
@@ -2681,7 +2683,7 @@
           "nom": "read",
           "nom_complet": "filehandler.read",
           "mode": "WO",
-          "description": "The Lua function to be called when Wireshark wants to read a packet from the file.\n\nWhen later called by Wireshark, the Lua function will be given:\n\n1. A `File` object 2. A `CaptureInfo` object 3. A `FrameInfo` object\n\nThe purpose of the Lua function set to this `read` field is to read the next packet from the file, and setting the parsed/read packet into the frame buffer using `FrameInfo.data = foo` or `FrameInfo:read_data(file, frame.captured_length)`.\n\nThe called Lua function should return the file offset/position number where the packet begins, or false if it hit an error.  The file offset will be saved by Wireshark and passed into the set `seek_read()` Lua function later.",
+          "description": "The Lua function to be called when Wireshark wants to read a packet from the file.\n\nWhen later called by Wireshark, the Lua function will be given:\n\n- A `File` object\n- A `CaptureInfo` object\n- A `FrameInfo` object\n\nThe purpose of the Lua function set to this `read` field is to read the next packet from the file, and setting the parsed/read packet into the frame buffer using `FrameInfo.data = foo` or `FrameInfo:read_data(file, frame.captured_length)`.\n\nThe called Lua function should return the file offset/position number where the packet begins, or false if it hit an error.  The file offset will be saved by Wireshark and passed into the set `seek_read()` Lua function later.",
           "exemples": [],
           "section": "lua_class_attrib_filehandler_read",
           "depuis_version": ""
@@ -2690,7 +2692,7 @@
           "nom": "seek_read",
           "nom_complet": "filehandler.seek_read",
           "mode": "WO",
-          "description": "The Lua function to be called when Wireshark wants to read a packet from the file at the given offset.\n\nWhen later called by Wireshark, the Lua function will be given:\n\n1. A `File` object 2. A `CaptureInfo` object 3. A `FrameInfo` object 4. The file offset number previously set by the `read()` function call\n\nThe called Lua function should return true if the read was successful, or false if it hit an error. Since 2.4.0, a number is also acceptable to signal success, this allows for reuse of `FileHandler:read`:\n\nSince 3.6.0, it's possible to omit the `FileHandler:seek_read()` function to get a default seek_read implementation.",
+          "description": "The Lua function to be called when Wireshark wants to read a packet from the file at the given offset.\n\nWhen later called by Wireshark, the Lua function will be given:\n\n- A `File` object\n- A `CaptureInfo` object\n- A `FrameInfo` object\n- The file offset number previously set by the `read()` function call\n\nThe called Lua function should return true if the read was successful, or false if it hit an error. Since 2.4.0, a number is also acceptable to signal success, this allows for reuse of `FileHandler:read`:\n\nSince 3.6.0, it's possible to omit the `FileHandler:seek_read()` function to get a default seek_read implementation.",
           "exemples": [
             "local function fh_read(file, capture, frame) ... end\nmyfilehandler.read = fh_read\n\nfunction myfilehandler.seek_read(file, capture, frame, offset)\n    if not file:seek(\"set\", offset) then\n        -- Seeking failed, return failure\n        return false\n    end\n\n    -- Now try to read one frame\n    return fh_read(file, capture, frame)\nend"
           ],
@@ -2701,7 +2703,7 @@
           "nom": "read_close",
           "nom_complet": "filehandler.read_close",
           "mode": "WO",
-          "description": "The Lua function to be called when Wireshark wants to close the read file completely.\n\nWhen later called by Wireshark, the Lua function will be given:\n\n1. A `File` object 2. A `CaptureInfo` object\n\nIt is not necessary to set this field to a Lua function - FileHandler can be registered without doing so - it is available in case there is memory/state to clear in your script when the file is closed.",
+          "description": "The Lua function to be called when Wireshark wants to close the read file completely.\n\nWhen later called by Wireshark, the Lua function will be given:\n\n- A `File` object\n- A `CaptureInfo` object\n\nIt is not necessary to set this field to a Lua function - FileHandler can be registered without doing so - it is available in case there is memory/state to clear in your script when the file is closed.",
           "exemples": [],
           "section": "lua_class_attrib_filehandler_read_close",
           "depuis_version": ""
@@ -2710,7 +2712,7 @@
           "nom": "seq_read_close",
           "nom_complet": "filehandler.seq_read_close",
           "mode": "WO",
-          "description": "The Lua function to be called when Wireshark wants to close the sequentially-read file.\n\nWhen later called by Wireshark, the Lua function will be given:\n\n1. A `File` object 2. A `CaptureInfo` object\n\nIt is not necessary to set this field to a Lua function - FileHandler can be registered without doing so - it is available in case there is memory/state to clear in your script when the file is closed for the sequential reading portion.  After this point, there will be no more calls to `read()`, only `seek_read()`.",
+          "description": "The Lua function to be called when Wireshark wants to close the sequentially-read file.\n\nWhen later called by Wireshark, the Lua function will be given:\n\n- A `File` object\n- A `CaptureInfo` object\n\nIt is not necessary to set this field to a Lua function - FileHandler can be registered without doing so - it is available in case there is memory/state to clear in your script when the file is closed for the sequential reading portion.  After this point, there will be no more calls to `read()`, only `seek_read()`.",
           "exemples": [],
           "section": "lua_class_attrib_filehandler_seq_read_close",
           "depuis_version": ""
@@ -2728,7 +2730,7 @@
           "nom": "write_open",
           "nom_complet": "filehandler.write_open",
           "mode": "WO",
-          "description": "The Lua function to be called when Wireshark opens a file for writing.\n\nWhen later called by Wireshark, the Lua function will be given:\n\n1. A `File` object 2. A `CaptureInfoConst` object\n\nThe purpose of the Lua function set to this `write_open` field is similar to the read_open callback function: to initialize things necessary for writing the capture to a file. For example, if the output file format has a file header, then the file header should be written within this write_open function.\n\nThe called Lua function should return true on success, or false if it hit an error.\n\nAlso make sure to set the `FileHandler.write` (and potentially `FileHandler.write_finish`) functions before returning true from this function.",
+          "description": "The Lua function to be called when Wireshark opens a file for writing.\n\nWhen later called by Wireshark, the Lua function will be given:\n\n- A `File` object\n- A `CaptureInfoConst` object\n\nThe purpose of the Lua function set to this `write_open` field is similar to the read_open callback function: to initialize things necessary for writing the capture to a file. For example, if the output file format has a file header, then the file header should be written within this write_open function.\n\nThe called Lua function should return true on success, or false if it hit an error.\n\nAlso make sure to set the `FileHandler.write` (and potentially `FileHandler.write_finish`) functions before returning true from this function.",
           "exemples": [],
           "section": "lua_class_attrib_filehandler_write_open",
           "depuis_version": ""
@@ -2737,7 +2739,7 @@
           "nom": "write",
           "nom_complet": "filehandler.write",
           "mode": "WO",
-          "description": "The Lua function to be called when Wireshark wants to write a packet to the file.\n\nWhen later called by Wireshark, the Lua function will be given:\n\n1. A `File` object 2. A `CaptureInfoConst` object 3. A `FrameInfoConst` object of the current frame/packet to be written\n\nThe purpose of the Lua function set to this `write` field is to write the next packet to the file.\n\nThe called Lua function should return true on success, or false if it hit an error.",
+          "description": "The Lua function to be called when Wireshark wants to write a packet to the file.\n\nWhen later called by Wireshark, the Lua function will be given:\n\n- A `File` object\n- A `CaptureInfoConst` object\n- A `FrameInfoConst` object of the current frame/packet to be written\n\nThe purpose of the Lua function set to this `write` field is to write the next packet to the file.\n\nThe called Lua function should return true on success, or false if it hit an error.",
           "exemples": [],
           "section": "lua_class_attrib_filehandler_write",
           "depuis_version": ""
@@ -2746,7 +2748,7 @@
           "nom": "write_finish",
           "nom_complet": "filehandler.write_finish",
           "mode": "WO",
-          "description": "The Lua function to be called when Wireshark wants to close the written file.\n\nWhen later called by Wireshark, the Lua function will be given:\n\n1. A `File` object 2. A `CaptureInfoConst` object\n\nIt is not necessary to set this field to a Lua function - `FileHandler` can be registered without doing so - it is available in case there is memory/state to clear in your script when the file is closed.",
+          "description": "The Lua function to be called when Wireshark wants to close the written file.\n\nWhen later called by Wireshark, the Lua function will be given:\n\n- A `File` object\n- A `CaptureInfoConst` object\n\nIt is not necessary to set this field to a Lua function - `FileHandler` can be registered without doing so - it is available in case there is memory/state to clear in your script when the file is closed.",
           "exemples": [],
           "section": "lua_class_attrib_filehandler_write_finish",
           "depuis_version": ""
@@ -2889,7 +2891,7 @@
           "nom": "data",
           "nom_complet": "frameinfo.data",
           "mode": "RW",
-          "description": "The data buffer containing the packet.\n\n[NOTE] ==== This cannot be cleared once set. ====",
+          "description": "The data buffer containing the packet.\n\nNote: This cannot be cleared once set.",
           "exemples": [],
           "section": "lua_class_attrib_frameinfo_data",
           "depuis_version": ""
@@ -3657,7 +3659,7 @@
               "nom": "group",
               "type": "",
               "optionnel": true,
-              "description": "Where to place the item in the menu hierarchy. If omitted, defaults to MENU_STAT_GENERIC. Valid packet (Wireshark) items are:\n\n* MENU_PACKET_ANALYZE_UNSORTED: menu:Analyze[] * MENU_PACKET_STAT_UNSORTED: menu:Statistics[] * MENU_STAT_GENERIC: menu:Statistics[], first section * MENU_STAT_RESPONSE_TIME: menu:Statistics[Service Response Time] * MENU_STAT_RSERPOOL: menu:Statistics[Reliable Server Pooling (RSerPool)] * MENU_TELEPHONY_UNSORTED: menu:Telephony[] * MENU_TELEPHONY_ANSI: menu:Telephony[ANSI] * MENU_TELEPHONY_GSM: menu:Telephony[GSM] * MENU_TELEPHONY_3GPP_UU: menu:Telephony[3GPP Uu] * MENU_TELEPHONY_MTP3: menu:Telephony[MTP3] * MENU_TELEPHONY_SCTP: menu:Telephony[SCTP] * MENU_TOOLS_UNSORTED: menu:Tools[]\n\nValid log (Stratoshark) items are:\n\n* MENU_LOG_ANALYZE_UNSORTED: menu:Analyze[] * MENU_LOG_STAT_UNSORTED: menu:Statistics[]\n\nThe following are deprecated and shouldn't be used in new code:\n\n* MENU_ANALYZE_CONVERSATION_FILTER, menu:Analyze[Conversation Filter] registration is not yet supported in Lua * MENU_STAT_CONVERSATION_LIST, menu:Statistics[Conversations] registration is not yet supported in Lua * MENU_STAT_ENDPOINT_LIST, menu:Statistics[Endpoints] registration is not yet supported in Lua * MENU_ANALYZE_UNSORTED, superseded by MENU_PACKET_ANALYZE_UNSORTED * MENU_ANALYZE_CONVERSATION, superseded by MENU_ANALYZE_CONVERSATION_FILTER * MENU_STAT_CONVERSATION, superseded by MENU_STAT_CONVERSATION_LIST * MENU_STAT_ENDPOINT, superseded by MENU_STAT_ENDPOINT_LIST * MENU_STAT_RESPONSE, superseded by MENU_STAT_RESPONSE_TIME * MENU_STAT_UNSORTED, superseded by MENU_PACKET_STAT_UNSORTED * MENU_STAT_TELEPHONY, superseded by MENU_TELEPHONY_UNSORTED * MENU_STAT_TELEPHONY_ANSI, superseded by MENU_TELEPHONY_ANSI * MENU_STAT_TELEPHONY_GSM, superseded by MENU_TELEPHONY_GSM * MENU_STAT_TELEPHONY_3GPP_UU, superseded by MENU_TELEPHONY_3GPP_UU * MENU_STAT_TELEPHONY_MTP3, superseded by MENU_TELEPHONY_MTP3 * MENU_STAT_TELEPHONY_SCTP, superseded by MENU_TELEPHONY_SCTP"
+              "description": "Where to place the item in the menu hierarchy. If omitted, defaults to MENU_STAT_GENERIC. Valid packet (Wireshark) items are:\n\n- MENU_PACKET_ANALYZE_UNSORTED: Analyze\n- MENU_PACKET_STAT_UNSORTED: Statistics\n- MENU_STAT_GENERIC: Statistics, first section\n- MENU_STAT_RESPONSE_TIME: Service Response Time\n- MENU_STAT_RSERPOOL: Reliable Server Pooling (RSerPool)\n- MENU_TELEPHONY_UNSORTED: Telephony\n- MENU_TELEPHONY_ANSI: ANSI\n- MENU_TELEPHONY_GSM: GSM\n- MENU_TELEPHONY_3GPP_UU: 3GPP Uu\n- MENU_TELEPHONY_MTP3: MTP3\n- MENU_TELEPHONY_SCTP: SCTP\n- MENU_TOOLS_UNSORTED: Tools\n\nValid log (Stratoshark) items are:\n\n- MENU_LOG_ANALYZE_UNSORTED: Analyze\n- MENU_LOG_STAT_UNSORTED: Statistics\n\nThe following are deprecated and shouldn't be used in new code:\n\n- MENU_ANALYZE_CONVERSATION_FILTER, Conversation Filter registration is not yet supported in Lua\n- MENU_STAT_CONVERSATION_LIST, Conversations registration is not yet supported in Lua\n- MENU_STAT_ENDPOINT_LIST, Endpoints registration is not yet supported in Lua\n- MENU_ANALYZE_UNSORTED, superseded by MENU_PACKET_ANALYZE_UNSORTED\n- MENU_ANALYZE_CONVERSATION, superseded by MENU_ANALYZE_CONVERSATION_FILTER\n- MENU_STAT_CONVERSATION, superseded by MENU_STAT_CONVERSATION_LIST\n- MENU_STAT_ENDPOINT, superseded by MENU_STAT_ENDPOINT_LIST\n- MENU_STAT_RESPONSE, superseded by MENU_STAT_RESPONSE_TIME\n- MENU_STAT_UNSORTED, superseded by MENU_PACKET_STAT_UNSORTED\n- MENU_STAT_TELEPHONY, superseded by MENU_TELEPHONY_UNSORTED\n- MENU_STAT_TELEPHONY_ANSI, superseded by MENU_TELEPHONY_ANSI\n- MENU_STAT_TELEPHONY_GSM, superseded by MENU_TELEPHONY_GSM\n- MENU_STAT_TELEPHONY_3GPP_UU, superseded by MENU_TELEPHONY_3GPP_UU\n- MENU_STAT_TELEPHONY_MTP3, superseded by MENU_TELEPHONY_MTP3\n- MENU_STAT_TELEPHONY_SCTP, superseded by MENU_TELEPHONY_SCTP"
             }
           ],
           "retours": [],
@@ -3701,7 +3703,7 @@
           "nom": "new_dialog",
           "genre": "fonction",
           "signature": "new_dialog(title, action, ...)",
-          "description": "Displays a dialog, prompting for input. The dialog includes an btn:[OK] button and btn:[Cancel] button. Requires a GUI.\n\n.An input dialog in action image::images/wslua-new-dialog.png[{small-screenshot-attrs}]",
+          "description": "Displays a dialog, prompting for input. The dialog includes an OK button and Cancel button. Requires a GUI.\n\nAn input dialog in action:\n\nimage::images/wslua-new-dialog.png[{small-screenshot-attrs}]",
           "arguments": [
             {
               "nom": "title",
@@ -3713,7 +3715,7 @@
               "nom": "action",
               "type": "",
               "optionnel": false,
-              "description": "Action to be performed when the user presses btn:[OK]."
+              "description": "Action to be performed when the user presses OK."
             },
             {
               "nom": "...",
@@ -3830,7 +3832,7 @@
               "nom": "row",
               "type": "",
               "optionnel": false,
-              "description": "The index (1-10) of the desired color filter value in the temporary coloring rules list.\n\n.Default background colors [cols=\"3\",options=\"header\"] |=== |Index |RGB (hex) |Color |1  |ffc0c0 |{set:cellbgcolor:#ffc0c0} pink 1 |2  |ffc0ff |{set:cellbgcolor:#ffc0ff} pink 2 |3  |e0c0e0 |{set:cellbgcolor:#e0c0e0} purple 1 |4  |c0c0ff |{set:cellbgcolor:#c0c0ff} purple 2 |5  |c0e0e0 |{set:cellbgcolor:#c0e0e0} green 1 |6  |c0ffff |{set:cellbgcolor:#c0ffff} green 2 |7  |c0ffc0 |{set:cellbgcolor:#c0ffc0} green 3 |8  |ffffc0 |{set:cellbgcolor:#ffffc0} yellow 1 |9  |e0e0c0 |{set:cellbgcolor:#e0e0c0} yellow 2 |10 |e0e0e0 |{set:cellbgcolor:#e0e0e0} gray |==="
+              "description": "The index (1-10) of the desired color filter value in the temporary coloring rules list.\n\nDefault background colors:\n\n  Index  RGB (hex)  Color\n  1      ffc0c0     pink 1\n  2      ffc0ff     pink 2\n  3      e0c0e0     purple 1\n  4      c0c0ff     purple 2\n  5      c0e0e0     green 1\n  6      c0ffff     green 2\n  7      c0ffc0     green 3\n  8      ffffc0     yellow 1\n  9      e0e0c0     yellow 2\n  10     e0e0e0     gray"
             }
           ],
           "retours": [],
@@ -3849,7 +3851,7 @@
               "nom": "row",
               "type": "",
               "optionnel": false,
-              "description": "The index (1-10) of the desired color in the temporary coloring rules list. The default foreground is black and the default backgrounds are listed below.\n\n.Default background colors [cols=\"3\",options=\"header\"] |=== |Index |RGB (hex) |Color |1  |ffc0c0 |{set:cellbgcolor:#ffc0c0} pink 1 |2  |ffc0ff |{set:cellbgcolor:#ffc0ff} pink 2 |3  |e0c0e0 |{set:cellbgcolor:#e0c0e0} purple 1 |4  |c0c0ff |{set:cellbgcolor:#c0c0ff} purple 2 |5  |c0e0e0 |{set:cellbgcolor:#c0e0e0} green 1 |6  |c0ffff |{set:cellbgcolor:#c0ffff} green 2 |7  |c0ffc0 |{set:cellbgcolor:#c0ffc0} green 3 |8  |ffffc0 |{set:cellbgcolor:#ffffc0} yellow 1 |9  |e0e0c0 |{set:cellbgcolor:#e0e0c0} yellow 2 |10 |e0e0e0 |{set:cellbgcolor:#e0e0e0} gray |===\n\nThe color list can be set from the command line using two unofficial preferences: `gui.colorized_frame.bg` and `gui.colorized_frame.fg`, which require 10 hex RGB codes (6 hex digits each), e.g. ---- wireshark -o gui.colorized_frame.bg:${RGB0},${RGB1},${RGB2},${RGB3},${RGB4},${RGB5},${RGB6},${RGB7},${RGB8},${RGB9} ----\n\nFor example, this command yields the same results as the table above (and with all foregrounds set to black): ---- wireshark -o gui.colorized_frame.bg:ffc0c0,ffc0ff,e0c0e0,c0c0ff,c0e0e0,c0ffff,c0ffc0,ffffc0,e0e0c0,e0e0e0 -o gui.colorized_frame.fg:000000,000000,000000,000000,000000,000000,000000,000000,000000,000000 ----"
+              "description": "The index (1-10) of the desired color in the temporary coloring rules list. The default foreground is black and the default backgrounds are listed below.\n\nDefault background colors:\n\n  Index  RGB (hex)  Color\n  1      ffc0c0     pink 1\n  2      ffc0ff     pink 2\n  3      e0c0e0     purple 1\n  4      c0c0ff     purple 2\n  5      c0e0e0     green 1\n  6      c0ffff     green 2\n  7      c0ffc0     green 3\n  8      ffffc0     yellow 1\n  9      e0e0c0     yellow 2\n  10     e0e0e0     gray\n\nThe color list can be set from the command line using two unofficial preferences: `gui.colorized_frame.bg` and `gui.colorized_frame.fg`, which require 10 hex RGB codes (6 hex digits each), e.g.\n\n  wireshark -o gui.colorized_frame.bg:${RGB0},${RGB1},${RGB2},${RGB3},${RGB4},${RGB5},${RGB6},${RGB7},${RGB8},${RGB9}\n\nFor example, this command yields the same results as the table above (and with all foregrounds set to black):\n\n  wireshark -o gui.colorized_frame.bg:ffc0c0,ffc0ff,e0c0e0,c0c0ff,c0e0e0,c0ffff,c0ffc0,ffffc0,e0e0c0,e0e0e0 -o gui.colorized_frame.fg:000000,000000,000000,000000,000000,000000,000000,000000,000000,000000"
             },
             {
               "nom": "text",
@@ -3868,7 +3870,7 @@
           "nom": "apply_filter",
           "genre": "fonction",
           "signature": "apply_filter()",
-          "description": "Apply the filter in the main filter box. Requires a GUI.\n\n[WARNING] ==== Avoid calling this from within a dissector function or else an infinite loop can occur if it causes the dissector to be called again. This function is best used in a button callback (from a dialog or text window) or menu callback. ====",
+          "description": "Apply the filter in the main filter box. Requires a GUI.\n\nWarning: Avoid calling this from within a dissector function or else an infinite loop can occur if it causes the dissector to be called again. This function is best used in a button callback (from a dialog or text window) or menu callback.",
           "arguments": [],
           "retours": [],
           "erreurs": [],
@@ -3892,7 +3894,7 @@
           "nom": "reload_packets",
           "genre": "fonction",
           "signature": "reload_packets()",
-          "description": "Reload the current capture file. Requires a GUI.\n\n[WARNING] ==== Avoid calling this from within a dissector function or else an infinite loop can occur if it causes the dissector to be called again. This function is best used in a button callback (from a dialog or text window) or menu callback. ====",
+          "description": "Reload the current capture file. Requires a GUI.\n\nWarning: Avoid calling this from within a dissector function or else an infinite loop can occur if it causes the dissector to be called again. This function is best used in a button callback (from a dialog or text window) or menu callback.",
           "arguments": [],
           "retours": [],
           "erreurs": [],
@@ -3904,7 +3906,7 @@
           "nom": "redissect_packets",
           "genre": "fonction",
           "signature": "redissect_packets()",
-          "description": "Redissect all packets in the current capture file. Requires a GUI.\n\n[WARNING] ==== Avoid calling this from within a dissector function or else an infinite loop can occur if it causes the dissector to be called again. This function is best used in a button callback (from a dialog or text window) or menu callback. ====",
+          "description": "Redissect all packets in the current capture file. Requires a GUI.\n\nWarning: Avoid calling this from within a dissector function or else an infinite loop can occur if it causes the dissector to be called again. This function is best used in a button callback (from a dialog or text window) or menu callback.",
           "arguments": [],
           "retours": [],
           "erreurs": [],
@@ -3928,7 +3930,7 @@
           "nom": "browser_open_url",
           "genre": "fonction",
           "signature": "browser_open_url(url)",
-          "description": "Opens an URL in a web browser. Requires a GUI.\n\n[WARNING] ==== Do not pass an untrusted URL to this function.\n\nIt will be passed to the system's URL handler, which might execute malicious code, switch on your Bluetooth-connected foghorn, or any of a number of unexpected or harmful things. ====",
+          "description": "Opens an URL in a web browser. Requires a GUI.\n\nWarning: Do not pass an untrusted URL to this function. It will be passed to the system's URL handler, which might execute malicious code, switch on your Bluetooth-connected foghorn, or any of a number of unexpected or harmful things.",
           "arguments": [
             {
               "nom": "url",
@@ -3947,7 +3949,7 @@
           "nom": "browser_open_data_file",
           "genre": "fonction",
           "signature": "browser_open_data_file(filename)",
-          "description": "Open a file located in the data directory (specified in the Wireshark preferences) in the web browser. If the file does not exist, the function silently ignores the request. Requires a GUI.\n\n[WARNING] ==== Do not pass an untrusted URL to this function.\n\nIt will be passed to the system's URL handler, which might execute malicious code, switch on your Bluetooth-connected foghorn, or any of a number of unexpected or harmful things. ====",
+          "description": "Open a file located in the data directory (specified in the Wireshark preferences) in the web browser. If the file does not exist, the function silently ignores the request. Requires a GUI.\n\nWarning: Do not pass an untrusted URL to this function. It will be passed to the system's URL handler, which might execute malicious code, switch on your Bluetooth-connected foghorn, or any of a number of unexpected or harmful things.",
           "arguments": [
             {
               "nom": "filename",
@@ -4042,7 +4044,7 @@
           "nom": "set_plugin_info",
           "genre": "fonction",
           "signature": "set_plugin_info(table)",
-          "description": "Set a Lua table with meta-data about the plugin, such as version.\n\nThe passed-in Lua table entries need to be keyed/indexed by the following:\n\n* \"version\" with a string value identifying the plugin version (required) * \"description\" with a string value describing the plugin (optional) * \"author\" with a string value of the author's name(s) (optional) * \"repository\" with a string value of a URL to a repository (optional)\n\nNot all of the above key entries need to be in the table. The 'version' entry is required, however. The others are not currently used for anything, but might be in the future and thus using them might be useful. Table entries keyed by other strings are ignored, and do not cause an error.",
+          "description": "Set a Lua table with meta-data about the plugin, such as version.\n\nThe passed-in Lua table entries need to be keyed/indexed by the following:\n\n- \"version\" with a string value identifying the plugin version (required)\n- \"description\" with a string value describing the plugin (optional)\n- \"author\" with a string value of the author's name(s) (optional)\n- \"repository\" with a string value of a URL to a repository (optional)\n\nNot all of the above key entries need to be in the table. The 'version' entry is required, however. The others are not currently used for anything, but might be in the future and thus using them might be useful. Table entries keyed by other strings are ignored, and do not cause an error.",
           "arguments": [
             {
               "nom": "table",
@@ -4205,7 +4207,7 @@
           "nom": "dofile",
           "genre": "fonction",
           "signature": "dofile(filename)",
-          "description": "Loads a Lua file and executes it as a Lua chunk, similar to the standard dofile (https://www.lua.org/manual/5.4/manual.html#pdf-dofile) but searches additional directories. The search order is the current directory, followed by the user's personal configuration (https://www.wireshark.org/docs/wsug_html_chunked/ChAppFilesConfigurationSection.html) directory, and finally the global configuration (https://www.wireshark.org/docs/wsug_html_chunked/ChAppFilesConfigurationSection.html) directory.\n\n[TIP] .The configuration directories are not the plugin directories. ==== The configuration directories searched are not the global and personal plugin directories. All Lua files in the plugin directories are loaded at startup; `dofile` is for loading files from additional locations. The file path can be absolute or relative to one of the search directories. ====",
+          "description": "Loads a Lua file and executes it as a Lua chunk, similar to the standard dofile (https://www.lua.org/manual/5.4/manual.html#pdf-dofile) but searches additional directories. The search order is the current directory, followed by the user's personal configuration (https://www.wireshark.org/docs/wsug_html_chunked/ChAppFilesConfigurationSection.html) directory, and finally the global configuration (https://www.wireshark.org/docs/wsug_html_chunked/ChAppFilesConfigurationSection.html) directory.\n\nTip: The configuration directories are not the plugin directories.: The configuration directories searched are not the global and personal plugin directories. All Lua files in the plugin directories are loaded at startup; `dofile` is for loading files from additional locations. The file path can be absolute or relative to one of the search directories.",
           "arguments": [
             {
               "nom": "filename",
@@ -4982,7 +4984,7 @@
           "nom": "packet",
           "nom_complet": "listener.packet",
           "mode": "WO",
-          "description": "A function that will be called once every packet matches the `Listener` listener filter.\n\nWhen later called by Wireshark, the `packet` function will be given:\n\n1. A `Pinfo` object 2. A `Tvb` object 3. A `tapinfo` table\n\n[NOTE] ==== `tapinfo` is a table of info based on the `Listener` type, or nil.\n\nSee _epan/wslua/taps_ for `tapinfo` structure definitions. ====",
+          "description": "A function that will be called once every packet matches the `Listener` listener filter.\n\nWhen later called by Wireshark, the `packet` function will be given:\n\n- A `Pinfo` object\n- A `Tvb` object\n- A `tapinfo` table\n\nNote: `tapinfo` is a table of info based on the `Listener` type, or nil. See epan/wslua/taps for `tapinfo` structure definitions.",
           "exemples": [
             "function tap.packet(pinfo,tvb,tapinfo) ... end"
           ],
@@ -5299,7 +5301,7 @@
           "description": "Value of can_desegment before the current dissector was called. Supplied so that proxy protocols like SOCKS can restore it to whatever the previous dissector (e.g. TCP) set it, so that the dissectors they call are desegmented via the previous dissector. Since: 4.3.1",
           "exemples": [],
           "section": "lua_class_attrib_pinfo_saved_can_desegment",
-          "depuis_version": ""
+          "depuis_version": "4.3.1"
         },
         {
           "nom": "desegment_len",
@@ -5847,14 +5849,14 @@
     "ProgDlg": {
       "nom": "ProgDlg",
       "module": "Gui",
-      "description": "Creates and manages a modal progress bar. This is intended to be used with coroutines (http://lua-users.org/wiki/CoroutinesTutorial), where a main UI thread controls the progress bar dialog while a background coroutine (worker thread) yields to the main thread between steps. The main thread checks the status of the btn:[Cancel] button and if it's not set, returns control to the coroutine.\n\n.A progress bar in action image::images/wslua-progdlg.png[{medium-screenshot-attrs}]\n\nThe legacy (GTK+) user interface displayed this as a separate dialog, hence the “Dlg” suffix. The Qt user interface shows a progress bar inside the main status bar.",
+      "description": "Creates and manages a modal progress bar. This is intended to be used with coroutines (http://lua-users.org/wiki/CoroutinesTutorial), where a main UI thread controls the progress bar dialog while a background coroutine (worker thread) yields to the main thread between steps. The main thread checks the status of the Cancel button and if it's not set, returns control to the coroutine.\n\nA progress bar in action:\n\nimage::images/wslua-progdlg.png[{medium-screenshot-attrs}]\n\nThe legacy (GTK+) user interface displayed this as a separate dialog, hence the “Dlg” suffix. The Qt user interface shows a progress bar inside the main status bar.",
       "exemples": [],
       "methodes": [
         {
           "nom": "new",
           "genre": "constructeur",
           "signature": "ProgDlg.new([title], [task])",
-          "description": "Creates and displays a new `ProgDlg` progress bar with a btn:[Cancel] button and optional title. It is highly recommended that you wrap code that uses a `ProgDlg` instance because it does not automatically close itself upon encountering an error. Requires a GUI.",
+          "description": "Creates and displays a new `ProgDlg` progress bar with a Cancel button and optional title. It is highly recommended that you wrap code that uses a `ProgDlg` instance because it does not automatically close itself upon encountering an error. Requires a GUI.",
           "arguments": [
             {
               "nom": "title",
@@ -5912,7 +5914,7 @@
           "nom": "stopped",
           "genre": "methode",
           "signature": "progdlg:stopped()",
-          "description": "Checks whether the user has pressed the btn:[Cancel] button.",
+          "description": "Checks whether the user has pressed the Cancel button.",
           "arguments": [],
           "retours": [
             "Boolean `true` if the user has asked to stop the operation, `false` otherwise."
@@ -6005,7 +6007,7 @@
           "nom": "register_heuristic",
           "genre": "methode",
           "signature": "proto:register_heuristic(listname, func)",
-          "description": "Registers a heuristic dissector function for this `Proto` protocol, for the given heuristic list name.\n\nWhen later called, the passed-in function will be given:\n\n1. A `Tvb` object 2. A `Pinfo` object 3. A `TreeItem` object\n\nThe function must return `true` if the payload is for it, else `false`.\n\nThe function should perform as much verification as possible to ensure the payload is for it, and dissect the packet (including setting TreeItem info and such) only if the payload is for it, before returning true or false.\n\nSince version 1.99.1, this function also accepts a Dissector object as the second argument, to allow re-using the same Lua code as the `function proto.dissector(...)`. In this case, the Dissector must return a Lua number of the number of bytes consumed/parsed: if 0 is returned, it will be treated the same as a `false` return for the heuristic; if a positive or negative number is returned, then the it will be treated the same as a `true` return for the heuristic, meaning the packet is for this protocol and no other heuristic will be tried.",
+          "description": "Registers a heuristic dissector function for this `Proto` protocol, for the given heuristic list name.\n\nWhen later called, the passed-in function will be given:\n\n- A `Tvb` object\n- A `Pinfo` object\n- A `TreeItem` object\n\nThe function must return `true` if the payload is for it, else `false`.\n\nThe function should perform as much verification as possible to ensure the payload is for it, and dissect the packet (including setting TreeItem info and such) only if the payload is for it, before returning true or false.\n\nSince version 1.99.1, this function also accepts a Dissector object as the second argument, to allow re-using the same Lua code as the `function proto.dissector(...)`. In this case, the Dissector must return a Lua number of the number of bytes consumed/parsed: if 0 is returned, it will be treated the same as a `false` return for the heuristic; if a positive or negative number is returned, then the it will be treated the same as a `true` return for the heuristic, meaning the packet is for this protocol and no other heuristic will be tried.",
           "arguments": [
             {
               "nom": "listname",
@@ -6032,7 +6034,7 @@
           "nom": "dissector",
           "nom_complet": "proto.dissector",
           "mode": "RW",
-          "description": "The protocol's dissector, a function you define.\n\nWhen later called, the function will be given:\n\n1. A `Tvb` object 2. A `Pinfo` object 3. A `TreeItem` object",
+          "description": "The protocol's dissector, a function you define.\n\nWhen later called, the function will be given:\n\n- A `Tvb` object\n- A `Pinfo` object\n- A `TreeItem` object",
           "exemples": [],
           "section": "lua_class_attrib_proto_dissector",
           "depuis_version": ""
@@ -7545,7 +7547,7 @@
           "description": "The type of the field.\n\nSince: 4.3.0",
           "exemples": [],
           "section": "lua_class_attrib_protofield_type",
-          "depuis_version": ""
+          "depuis_version": "4.3.0"
         },
         {
           "nom": "abbr",
@@ -7554,7 +7556,7 @@
           "description": "The abbreviated name of the field.\n\nSince: 4.3.0",
           "exemples": [],
           "section": "lua_class_attrib_protofield_abbr",
-          "depuis_version": ""
+          "depuis_version": "4.3.0"
         },
         {
           "nom": "name",
@@ -7563,7 +7565,7 @@
           "description": "The actual name of the field.\n\nSince: 4.3.0",
           "exemples": [],
           "section": "lua_class_attrib_protofield_name",
-          "depuis_version": ""
+          "depuis_version": "4.3.0"
         },
         {
           "nom": "base",
@@ -7572,7 +7574,7 @@
           "description": "The base of the field.\n\nSince: 4.3.0",
           "exemples": [],
           "section": "lua_class_attrib_protofield_base",
-          "depuis_version": ""
+          "depuis_version": "4.3.0"
         },
         {
           "nom": "valuestring",
@@ -7581,7 +7583,7 @@
           "description": "The valuestring of the field.\n\nSince: 4.3.0",
           "exemples": [],
           "section": "lua_class_attrib_protofield_valuestring",
-          "depuis_version": ""
+          "depuis_version": "4.3.0"
         },
         {
           "nom": "mask",
@@ -7590,7 +7592,7 @@
           "description": "The mask of the field.\n\nSince: 4.3.0",
           "exemples": [],
           "section": "lua_class_attrib_protofield_mask",
-          "depuis_version": ""
+          "depuis_version": "4.3.0"
         },
         {
           "nom": "description",
@@ -7599,7 +7601,7 @@
           "description": "The description of this field.\n\nSince: 4.3.0",
           "exemples": [],
           "section": "lua_class_attrib_protofield_description",
-          "depuis_version": ""
+          "depuis_version": "4.3.0"
         }
       ]
     },
@@ -7911,7 +7913,7 @@
     "TextWindow": {
       "nom": "TextWindow",
       "module": "Gui",
-      "description": "Creates and manages a text window. The text can be read-only or editable, and buttons can be added below the text.\n\n.A text window in action image::images/wslua-textwindow.png[{medium-screenshot-attrs}]",
+      "description": "Creates and manages a text window. The text can be read-only or editable, and buttons can be added below the text.\n\nA text window in action:\n\nimage::images/wslua-textwindow.png[{medium-screenshot-attrs}]",
       "exemples": [],
       "methodes": [
         {
@@ -8327,7 +8329,7 @@
           "nom": "add_expert_info",
           "genre": "methode",
           "signature": "treeitem:add_expert_info([group], [severity], [text])",
-          "description": "Sets the expert flags of the item and adds expert info to the packet.\n\nThis function does *not* create a truly filterable expert info for a protocol. Instead you should use `TreeItem.add_proto_expert_info()`.\n\nNote: This function is provided for backwards compatibility only, and should not be used in new Lua code. It may be removed in the future. You should only use `TreeItem.add_proto_expert_info()`.",
+          "description": "Sets the expert flags of the item and adds expert info to the packet.\n\nThis function does not create a truly filterable expert info for a protocol. Instead you should use `TreeItem.add_proto_expert_info()`.\n\nNote: This function is provided for backwards compatibility only, and should not be used in new Lua code. It may be removed in the future. You should only use `TreeItem.add_proto_expert_info()`.",
           "arguments": [
             {
               "nom": "group",
@@ -8564,7 +8566,7 @@
     "Tvb": {
       "nom": "Tvb",
       "module": "Tvb",
-      "description": "A `Tvb` represents the packet's buffer. It is passed as an argument to listeners and dissectors, and can be used to extract information (via `TvbRange`) from the packet's data.\n\nTo create a `TvbRange` the `Tvb` must be called with offset and length as optional arguments; the offset defaults to 0 and the length to `tvb:captured_len()`.\n\n[WARNING] ==== Tvbs are usable only by the current listener or dissector call and are destroyed as soon as the listener or dissector returns, so references to them are unusable once the function has returned. ====",
+      "description": "A `Tvb` represents the packet's buffer. It is passed as an argument to listeners and dissectors, and can be used to extract information (via `TvbRange`) from the packet's data.\n\nTo create a `TvbRange` the `Tvb` must be called with offset and length as optional arguments; the offset defaults to 0 and the length to `tvb:captured_len()`.\n\nWarning: Tvbs are usable only by the current listener or dissector call and are destroyed as soon as the listener or dissector returns, so references to them are unusable once the function has returned.",
       "exemples": [],
       "methodes": [
         {
@@ -9144,7 +9146,7 @@
           "nom": "bytes",
           "genre": "methode",
           "signature": "tvbrange:bytes([encoding])",
-          "description": "Obtain a `ByteArray` from a `TvbRange`.\n\nStarting in 1.11.4, this function also takes an optional `encoding` argument, which can be set to `ENC_STR_HEX` to decode a hex-string from the `TvbRange` into the returned `ByteArray`. The `encoding` can be bitwise-or'ed with one or more separator encodings, such as `ENC_SEP_COLON`, to allow separators to occur between each pair of hex characters.\n\nThe return value also now returns the number of bytes used as a second return value.\n\nOn failure or error, nil is returned for both return values.\n\n[NOTE] ==== The encoding type of the hex string should also be set, for example `ENC_ASCII` or `ENC_UTF_8`, along with `ENC_STR_HEX`. ====",
+          "description": "Obtain a `ByteArray` from a `TvbRange`.\n\nStarting in 1.11.4, this function also takes an optional `encoding` argument, which can be set to `ENC_STR_HEX` to decode a hex-string from the `TvbRange` into the returned `ByteArray`. The `encoding` can be bitwise-or'ed with one or more separator encodings, such as `ENC_SEP_COLON`, to allow separators to occur between each pair of hex characters.\n\nThe return value also now returns the number of bytes used as a second return value.\n\nOn failure or error, nil is returned for both return values.\n\nNote: The encoding type of the hex string should also be set, for example `ENC_ASCII` or `ENC_UTF_8`, along with `ENC_STR_HEX`.",
           "arguments": [
             {
               "nom": "encoding",
@@ -9234,7 +9236,7 @@
           "erreurs": [],
           "exemples": [],
           "section": "lua_fn_tvbrange_uncompress_zlib_name_",
-          "depuis_version": ""
+          "depuis_version": "4.3.0"
         },
         {
           "nom": "uncompress",
@@ -9274,7 +9276,7 @@
           "erreurs": [],
           "exemples": [],
           "section": "lua_fn_tvbrange_uncompress_brotli_name_",
-          "depuis_version": ""
+          "depuis_version": "4.3.0"
         },
         {
           "nom": "uncompress_hpack_huff",
@@ -9295,7 +9297,7 @@
           "erreurs": [],
           "exemples": [],
           "section": "lua_fn_tvbrange_uncompress_hpack_huff_name_",
-          "depuis_version": ""
+          "depuis_version": "4.3.0"
         },
         {
           "nom": "uncompress_lz77",
@@ -9316,7 +9318,7 @@
           "erreurs": [],
           "exemples": [],
           "section": "lua_fn_tvbrange_uncompress_lz77_name_",
-          "depuis_version": ""
+          "depuis_version": "4.3.0"
         },
         {
           "nom": "uncompress_lz77huff",
@@ -9337,7 +9339,7 @@
           "erreurs": [],
           "exemples": [],
           "section": "lua_fn_tvbrange_uncompress_lz77huff_name_",
-          "depuis_version": ""
+          "depuis_version": "4.3.0"
         },
         {
           "nom": "uncompress_lznt1",
@@ -9358,7 +9360,7 @@
           "erreurs": [],
           "exemples": [],
           "section": "lua_fn_tvbrange_uncompress_lznt1_name_",
-          "depuis_version": ""
+          "depuis_version": "4.3.0"
         },
         {
           "nom": "uncompress_snappy",
@@ -9379,7 +9381,7 @@
           "erreurs": [],
           "exemples": [],
           "section": "lua_fn_tvbrange_uncompress_snappy_name_",
-          "depuis_version": ""
+          "depuis_version": "4.3.0"
         },
         {
           "nom": "uncompress_zstd",
@@ -9400,7 +9402,7 @@
           "erreurs": [],
           "exemples": [],
           "section": "lua_fn_tvbrange_uncompress_zstd_name_",
-          "depuis_version": ""
+          "depuis_version": "4.3.0"
         },
         {
           "nom": "decode_base64",
@@ -9421,7 +9423,7 @@
           "erreurs": [],
           "exemples": [],
           "section": "lua_fn_tvbrange_decode_base64_name_",
-          "depuis_version": ""
+          "depuis_version": "4.3.0"
         },
         {
           "nom": "decode_base64url",
@@ -9442,7 +9444,7 @@
           "erreurs": [],
           "exemples": [],
           "section": "lua_fn_tvbrange_decode_base64url_name_",
-          "depuis_version": ""
+          "depuis_version": "4.3.0"
         },
         {
           "nom": "len",

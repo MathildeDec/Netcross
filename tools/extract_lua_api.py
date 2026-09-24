@@ -46,7 +46,7 @@ GLOBAL_CLASS = "GlobalFunctions"
 _ANCHOR_RE = re.compile(r"^\[#(lua_module|lua_class_attrib|lua_class|lua_fn|global_functions)_([^\]]+)\]$")
 _ARG_RE = re.compile(r"^(.+?)(\s+\(optional\))?::$")
 _VERSION_RE = re.compile(
-    r"(?:since|starting in|starting with|new in|introduced in|added in)\s+"
+    r"(?:since:?|starting in|starting with|new in|introduced in|added in)\s+"
     r"(?:wireshark\s+)?(?:version\s+)?v?(\d+\.\d+(?:\.\d+)?)",
     re.IGNORECASE,
 )
@@ -55,6 +55,13 @@ _BARE_XREF_RE = re.compile(r"<<([^,>]+)>>")
 _LINK_RE = re.compile(r"(?:link:)?(https?://[^\s\[]+)\[([^\]]*)\]")
 _PASS_RE = re.compile(r"\$\$(.*?)\$\$")
 _EXAMPLE_TITLE_RE = re.compile(r"^(?:=+\s*|\.)?examples?:?\s*$", re.IGNORECASE)
+_BOLD_RE = re.compile(r"(?<![\w*])\*{1,2}([^*\s](?:[^*]*?[^*\s])?)\*{1,2}(?![\w*])")
+_ITALIC_RE = re.compile(r"(?<![\w_])_([^_\s](?:[^_]*?[^_\s])?)_(?![\w_])")
+_MACRO_RE = re.compile(r"\b(?:menu|kbd|btn):([^\[\s]*)\[([^\]]*)\]")
+_ATTR_REF_RE = re.compile(r"\{set:[^}]*\}\s*")
+_BLOCK_ATTR_RE = re.compile(r"^\[[^\]]*=[^\]]*\]$")
+_LIST_RE = re.compile(r"^(\*+|-|\.+|\d+\.)\s+(.*)$")
+_ADMONITIONS = {"NOTE": "Note", "TIP": "Tip", "IMPORTANT": "Important", "WARNING": "Warning", "CAUTION": "Caution"}
 
 
 # --------------------------------------------------------------------------
@@ -67,7 +74,107 @@ def clean_inline(text: str) -> str:
     text = _XREF_RE.sub(r"\1", text)
     text = _BARE_XREF_RE.sub(r"\1", text)
     text = _LINK_RE.sub(lambda m: f"{m.group(2)} ({m.group(1)})" if m.group(2) else m.group(1), text)
-    return _PASS_RE.sub(r"\1", text)
+    text = _PASS_RE.sub(r"\1", text)
+    text = _MACRO_RE.sub(lambda m: m.group(2) or m.group(1), text)
+    text = _ATTR_REF_RE.sub("", text)
+    text = _BOLD_RE.sub(r"\1", text)
+    return _ITALIC_RE.sub(r"\1", text)
+
+
+def _table(rows: list[str]) -> str:
+    """Tableau AsciiDoc ``|===`` -> lignes alignees (retrait de 2 espaces)."""
+    cells = [[clean_inline(c.strip()) for c in r.split("|")[1:]] for r in rows]
+    width = max((len(r) for r in cells), default=0)
+    cells = [r + [""] * (width - len(r)) for r in cells]
+    cols = [max(len(r[k]) for r in cells) for k in range(width)]
+    return "\n".join("  " + "  ".join(c.ljust(w) for c, w in zip(r, cols)).rstrip() for r in cells)
+
+
+def render_blocks(lines: list[str]) -> str:
+    """Texte AsciiDoc (sans blocs [source]) -> paragraphes lisibles.
+
+    Paragraphes separes par une ligne vide ; a l'interieur, une ligne par
+    element de liste (``- ...``) ou rangee de tableau. Les lignes
+    preformatees (tableaux, blocs ``----``) commencent par deux espaces.
+    Les encadres ``[NOTE]`` / ``[WARNING]``... deviennent ``Note: ...``.
+    """
+    paragraphes: list[str] = []
+    courant: list[str] = []  # lignes logiques du paragraphe en cours
+
+    def flush() -> None:
+        if courant:
+            paragraphes.append("\n".join(clean_inline(c) for c in courant))
+            courant.clear()
+
+    i = 0
+    while i < len(lines):
+        brut = lines[i]
+        line = brut.strip()
+        adm = re.fullmatch(r"\[([A-Z]+)\]", line)
+        if adm and adm.group(1) in _ADMONITIONS:
+            flush()
+            j = i + 1
+            corps: list[str] = []
+            if j < len(lines) and lines[j].strip() == "====":
+                j += 1
+                while j < len(lines) and lines[j].strip() != "====":
+                    corps.append(lines[j])
+                    j += 1
+                j += 1
+            else:  # admonition sur le paragraphe suivant
+                while j < len(lines) and lines[j].strip():
+                    corps.append(lines[j])
+                    j += 1
+            texte = " ".join(render_blocks(corps).split())
+            paragraphes.append(f"{_ADMONITIONS[adm.group(1)]}: {texte}")
+            i = j
+            continue
+        if line == "|===":
+            flush()
+            j = i + 1
+            rows: list[str] = []
+            while j < len(lines) and lines[j].strip() != "|===":
+                cell = lines[j].strip()
+                if cell.startswith("|"):
+                    rows.append(cell)
+                elif cell and rows:  # suite de la cellule precedente
+                    rows[-1] += " " + cell
+                elif not cell and j + 1 < len(lines) and not lines[j + 1].strip().startswith("|"):
+                    break  # tableau non ferme (cas reel : Columns:__newindex)
+                j += 1
+            paragraphes.append(_table(rows))
+            i = j + 1
+            continue
+        if line in ("----", "...."):
+            flush()
+            j = i + 1
+            bloc: list[str] = []
+            while j < len(lines) and lines[j].strip() != line:
+                bloc.append(lines[j].rstrip())
+                j += 1
+            paragraphes.append("\n".join("  " + b if b else "" for b in bloc).strip("\n"))
+            i = j + 1
+            continue
+        if line in ("====", "****", "--", "+") or _BLOCK_ATTR_RE.match(line):
+            i += 1
+            continue
+        if re.match(r"^\.[A-Za-z]", line):  # titre de bloc (.Default colors)
+            flush()
+            courant.append(line[1:] + ":")
+            flush()
+            i += 1
+            continue
+        if not line:
+            flush()
+        elif m := _LIST_RE.match(line):
+            courant.append("- " + m.group(2))
+        elif courant:
+            courant[-1] += " " + line
+        else:
+            courant.append(line)
+        i += 1
+    flush()
+    return "\n\n".join(p for p in paragraphes if p.strip())
 
 
 def split_description(lines: list[str]) -> tuple[str, list[str]]:
@@ -105,16 +212,15 @@ def split_description(lines: list[str]) -> tuple[str, list[str]]:
         texte.append(line)
         i += 1
 
-    # paragraphes : lignes jointes, paragraphes separes par une ligne vide
-    paragraphes: list[str] = []
-    courant: list[str] = []
-    for line in [*texte, ""]:
-        if line.strip():
-            courant.append(line.strip())
-        elif courant:
-            paragraphes.append(" ".join(courant))
-            courant = []
-    description = "\n\n".join(clean_inline(p) for p in paragraphes)
+    # "===== Example" suivi de code brut (sans [source]) : cas reel Columns:__newindex
+    for k, line in enumerate(texte):
+        if line.strip().startswith("=") and _EXAMPLE_TITLE_RE.match(line.strip()):
+            code = "\n".join(texte[k + 1 :]).strip("\n")
+            if code:
+                exemples.append(code)
+            texte = texte[:k]
+            break
+    description = render_blocks(texte)
     return description, exemples
 
 

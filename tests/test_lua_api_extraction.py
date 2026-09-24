@@ -238,11 +238,55 @@ def test_merge_across_files() -> None:
         ("Since 1.99.8", "1.99.8"),
         ("New in version 3.2", "3.2"),
         ("starting in Wireshark 4.4.0, x", "4.4.0"),
+        ("Since: 4.2.0", "4.2.0"),
         ("no version here", ""),
     ],
 )
 def test_extract_version(texte: str, attendu: str) -> None:
     assert ext.extract_version(texte) == attendu
+
+
+# -- rendu des blocs AsciiDoc ----------------------------------------------
+
+
+def test_render_admonition() -> None:
+    texte = ext.render_blocks(["Apply it.", "", "[WARNING]", "====", "Avoid *loops*", "here.", "====", "", "After."])
+    assert texte == "Apply it.\n\nWarning: Avoid loops here.\n\nAfter."
+
+
+def test_render_table_and_title() -> None:
+    lignes = [
+        ".Colors",
+        '[cols="2",options="header"]',
+        "|===",
+        "|Index |Color",
+        "|1 |{set:cellbgcolor:#fff} pink",
+        "|===",
+    ]
+    texte = ext.render_blocks(lignes)
+    assert texte == "Colors:\n\n  Index  Color\n  1      pink"
+
+
+def test_render_unclosed_table() -> None:
+    texte = ext.render_blocks(["Valid:", "", "|===", "|a |A", "|bb |B", "", "Suite."])
+    assert texte == "Valid:\n\n  a   A\n  bb  B\n\nSuite."
+
+
+def test_render_list_and_literal() -> None:
+    texte = ext.render_blocks(
+        ["Items:", "", "* one", "continued", "* menu:Analyze[] two", "", "----", "wireshark -o x", "----"]
+    )
+    assert texte == "Items:\n\n- one continued\n- Analyze two\n\n  wireshark -o x"
+
+
+def test_example_heading_without_source() -> None:
+    desc, exemples = ext.split_description(["The name.", "", "===== Example", "a = 1", "", "-- sugar", "b = 2"])
+    assert desc == "The name."
+    assert exemples == ["a = 1\n\n-- sugar\nb = 2"]
+
+
+def test_identifiers_not_mangled() -> None:
+    assert ext.clean_inline("use snake_case_name and a*b*c") == "use snake_case_name and a*b*c"
 
 
 # -- lecture des sources Wireshark -----------------------------------------
@@ -333,6 +377,7 @@ def test_json_fields(lua_api: dict) -> None:
                 assert set(a) == {"nom", "type", "optionnel", "description"}
             texte = m["description"] + " ".join(m["retours"])
             assert "<<" not in texte and "[float]" not in texte and "=====" not in texte
+            assert "|===" not in texte and "[NOTE]" not in texte and "[WARNING]" not in texte and "{set:" not in texte
 
 
 def test_json_pinfo_attributes(lua_api: dict) -> None:
