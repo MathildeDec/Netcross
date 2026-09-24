@@ -19,8 +19,8 @@ import tempfile
 from pathlib import Path
 
 from fastapi import Depends, FastAPI, File, HTTPException, UploadFile
-from fastapi.security import APIKeyHeader
 from fastapi.responses import JSONResponse
+from fastapi.security import APIKeyHeader
 
 from netcross_api.models import (
     AnalysisSummary,
@@ -93,7 +93,8 @@ async def upload_capture(
     # Issue #356 : limite de taille d'upload configurable
     content = await file.read()
     if len(content) > _MAX_UPLOAD_BYTES:
-        raise HTTPException(status_code=413, detail=f"Fichier trop volumineux (max {_MAX_UPLOAD_BYTES // 1024 // 1024} Mo)")
+        max_mb = _MAX_UPLOAD_BYTES // 1024 // 1024
+        raise HTTPException(status_code=413, detail=f"Fichier trop volumineux (max {max_mb} Mo)")
 
     # Écrire le fichier uploadé sur disque (tshark lit des fichiers, pas des streams)
     with tempfile.NamedTemporaryFile(suffix=".pcap", delete=False) as tmp:

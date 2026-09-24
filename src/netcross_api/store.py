@@ -10,6 +10,7 @@ Si NETCROSS_DB_PATH est défini, les analyses sont aussi persistées en SQLite.
 
 from __future__ import annotations
 
+import contextlib
 import json
 import os
 import sqlite3
@@ -119,10 +120,8 @@ class AnalysesStore:
         assert self._db_path is not None
         report_json = None
         if entry.get("report"):
-            try:
+            with contextlib.suppress(TypeError, ValueError):
                 report_json = json.dumps(entry["report"], default=str, ensure_ascii=False)
-            except (TypeError, ValueError):
-                pass
         metadata = json.dumps(entry.get("metadata", {}), default=str, ensure_ascii=False)
         status = entry.get("status", "completed")
         with sqlite3.connect(self._db_path) as conn:
