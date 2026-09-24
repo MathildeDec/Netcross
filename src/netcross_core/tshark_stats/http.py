@@ -27,12 +27,12 @@ _LABELED_RE = re.compile(r"^\s*(.+?)\s{2,}(\d[\d,]*)\s*$")
 
 
 def parse_http_stat(text: str, application: str = "http") -> list[ApplicationStat]:
-    logger.debug("parse_http_stat(text={text}, application={application})")
     """Convertit la sortie ``tshark -z http,stat`` en ApplicationStat.
 
     Retourne une liste (typiquement un seul record agregeant les
     metriques) ; vide si aucune metrique identifiable.
     """
+    logger.debug("parse_http_stat(text={text}, application={application})")
     metrics: dict[str, float] = {}
     raw: dict[str, str] = {}
     for line in text.splitlines():

@@ -92,8 +92,8 @@ _PREDEFINED_KEYS = frozenset(_name_key(f.name) for f in PREDEFINED_BPF_FILTERS)
 
 
 def default_bpf_filters_path() -> Path:
-    logger.debug("default_bpf_filters_path()")
     """Chemin par defaut du fichier de sauvegarde : ``~/.netcross/bpf_filters.json``."""
+    logger.debug("default_bpf_filters_path()")
     return Path.home() / ".netcross" / "bpf_filters.json"
 
 
@@ -176,17 +176,16 @@ def load_bpf_filters(path: str | Path | None = None) -> list[BPFFilter]:
 
 
 def available_bpf_filters(path: str | Path | None = None) -> list[BPFFilter]:
-    logger.debug("available_bpf_filters(path={path})")
     """Filtres proposes a l'utilisateur : catalogue predefini, puis filtres
     sauvegardes (ceux dont le nom collisionne avec le catalogue sont ignores,
     voir l'en-tete du module). Meme contrat d'erreur que ``load_bpf_filters``.
     """
+    logger.debug("available_bpf_filters(path={path})")
     user = [f for f in load_bpf_filters(path) if _name_key(f.name) not in _PREDEFINED_KEYS]
     return [*PREDEFINED_BPF_FILTERS, *user]
 
 
 def upsert_bpf_filter(new: BPFFilter, path: str | Path | None = None) -> list[BPFFilter]:
-    logger.debug("upsert_bpf_filter(new={new}, path={path})")
     """Sauvegarde ``new`` (ajout, ou remplacement du filtre de meme nom) et
     renvoie la liste ``available_bpf_filters`` mise a jour.
 
@@ -194,6 +193,7 @@ def upsert_bpf_filter(new: BPFFilter, path: str | Path | None = None) -> list[BP
     existant est illisible (il n'est alors pas modifie). ``OSError`` si
     l'ecriture echoue.
     """
+    logger.debug("upsert_bpf_filter(new={new}, path={path})")
     clean = BPFFilter(new.name.strip(), new.expression.strip(), new.description.strip())
     key = _name_key(clean.name)
     if key in _PREDEFINED_KEYS:

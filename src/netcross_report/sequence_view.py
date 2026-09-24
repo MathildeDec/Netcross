@@ -70,11 +70,11 @@ class SequenceStep:
 
     @property
     def label(self) -> str:
-        logger.debug("label(self={self})")
         """Libelle court de la fleche : protocole + ports quand ils
         existent (UDP/TCP), drapeaux TCP s'ils sont connus, et la mention
         "retr." pour une retransmission -- c'est le detail qui explique un
         aller-retour apparemment duplique."""
+        logger.debug("label(self={self})")
         parts = [self.proto or "?"]
         if self.sport is not None and self.dport is not None:
             parts.append(f"{self.sport}->{self.dport}")
@@ -107,7 +107,6 @@ class SequenceView:
 
 
 def build_sequence_view(packets_by_point, title="", max_steps=DEFAULT_MAX_STEPS) -> SequenceView:
-    logger.debug("build_sequence_view(packets_by_point={packets_by_point}, title={title}, max_steps={max_steps})")
     """Construit la vue de sequence d'UN flux a partir du dict
     `{point: [Pkt, ...]}` que `correlate()` produit deja pour ce flux.
 
@@ -121,6 +120,7 @@ def build_sequence_view(packets_by_point, title="", max_steps=DEFAULT_MAX_STEPS)
     qui porte le diagnostic (handshake, negociation, premiere requete), la
     suite est de la repetition.
     """
+    logger.debug("build_sequence_view(packets_by_point={packets_by_point}, title={title}, max_steps={max_steps})")
     packets = [pk for pkts in (packets_by_point or {}).values() for pk in (pkts or [])]
     view = SequenceView(title=title)
     if not packets:
@@ -163,13 +163,13 @@ def build_sequence_view(packets_by_point, title="", max_steps=DEFAULT_MAX_STEPS)
 
 
 def flow_title(flow) -> str:
-    logger.debug("flow_title(flow={flow})")
     """Titre lisible d'un `Flow` (netcross_core.expert_model) : ses
     extremites et son protocole quand la cle les porte. La cle de flux est
     un tuple technique (voir `correlate.flow_key`), y compris la variante
     `("NAT", ...)` du mode --nat-tolerant : on ne suppose donc jamais sa
     forme, on lit ce qui est lisible et on retombe sur `str(key)`.
     """
+    logger.debug("flow_title(flow={flow})")
     endpoints = getattr(flow, "endpoints", None)
     key = getattr(flow, "key", ())
     proto = key[0] if key and isinstance(key[0], str) and key[0] != "NAT" else ""
@@ -180,7 +180,6 @@ def flow_title(flow) -> str:
 
 
 def top_flow_views(flows, flow_objects=None, max_flows=1, max_steps=DEFAULT_MAX_STEPS):
-    logger.debug("top_flow_views(flows={flows}, flow_objects={flow_objects}, max_flows={max_flows}, ...)")
     """Vues de sequence des flux les plus volumineux du dict `flows`
     (`{cle: {point: [Pkt, ...]}}` de `correlate()`).
 
@@ -194,6 +193,7 @@ def top_flow_views(flows, flow_objects=None, max_flows=1, max_steps=DEFAULT_MAX_
     `flow_objects` : liste de `Flow` optionnelle, seulement utilisee pour
     intituler les diagrammes (voir `flow_title`).
     """
+    logger.debug("top_flow_views(flows={flows}, flow_objects={flow_objects}, max_flows={max_flows}, ...)")
     titles = {getattr(f, "key", None): flow_title(f) for f in flow_objects or []}
     ranked = sorted(
         (flows or {}).items(),

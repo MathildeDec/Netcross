@@ -109,8 +109,8 @@ def check_name(name: str) -> str:
 
 
 def ticket_body(pack: ModelPack) -> str:
-    logger.debug("ticket_body(pack={pack})")
     """Texte du ticket « modeles » (a coller dans l'issue, archive en piece jointe)."""
+    logger.debug("ticket_body(pack={pack})")
     s = pack.summary()
     labels = ", ".join(f"{k} ({v})" for k, v in s["labels"].items()) or "aucun"
     return "\n".join(
@@ -144,12 +144,12 @@ def build_pack(
     description: str = "",
     seed: int | None = None,
 ) -> ModelPack:
-    logger.debug("build_pack(out_path={out_path})")
     """Ecrit le paquet ``out_path`` (ZIP) et le renvoie.
 
     ``training`` : exemples (flux FLOW-4 ou vecteurs) -- seuls les vecteurs
     sont conserves. ``seed`` : graine du melange (tests uniquement).
     """
+    logger.debug("build_pack(out_path={out_path})")
     if not consent:
         raise ModelPackError(
             "export refuse sans consentement explicite (--consent) : le paquet est destine a etre partage."

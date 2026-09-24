@@ -116,8 +116,8 @@ class LiveAggregator:
             self._events.append({"type": "point_" + status, "point": label, **({"detail": error} if error else {})})
 
     def tick(self, now: float | None = None, *, final: bool = False) -> tuple[dict, dict]:
-        logger.debug("tick(self={self}, now={now})")
         """(instantane complet, ligne de journal) -- consomme les evenements."""
+        logger.debug("tick(self={self}, now={now})")
         now = time.time() if now is None else now
         with self._lock:
             self._seq += 1

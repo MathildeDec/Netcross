@@ -888,9 +888,9 @@ _SEQ_GAP_LABELS = {
 
 
 def print_sequence_gaps(r: Report):
-    logger.debug("print_sequence_gaps(r={r})")
     """Detail de la section "Integrite de capture" : trous de sequence TCP par
     point, avec leur cause (capture / reseau / indeterminee)."""
+    logger.debug("print_sequence_gaps(r={r})")
     print(
         "  (octets jamais vus a ce point alors que des octets posterieurs l'ont ete, sans retransmission ulterieure ;"
     )
@@ -919,7 +919,6 @@ def print_sequence_gaps(r: Report):
 
 
 def print_annotations(annotations: list[PacketAnnotation]):
-    logger.debug("print_annotations(annotations={annotations})")
     """Affiche la section annotations (Job 40/issue #160) : etiquettes et
     signets poses par l'analyste sur des paquets individuels.
 
@@ -930,6 +929,7 @@ def print_annotations(annotations: list[PacketAnnotation]):
     de la passer ici, symetrique de `write_detail_csv` ci-dessous qui
     prend `flows`/`points` directement plutot que de deduire un chemin
     de capture."""
+    logger.debug("print_annotations(annotations={annotations})")
     print("\n-- Annotations (etiquettes et signets sur paquets) --")
     if not annotations:
         print("  aucune annotation (pas de sidecar, ou sidecar vide)")
@@ -943,10 +943,10 @@ def print_annotations(annotations: list[PacketAnnotation]):
 
 
 def write_detail_csv(path, flows, points, names=None):
-    logger.debug("write_detail_csv(path={path}, flows={flows}, points={points}, ...)")
     """Ecrit le detail par flux en CSV. Si ``names`` (une
     ``netcross_core.naming.NameTable``) est fourni, les colonnes src/dst
     affichent les noms logiques resolus a la place des adresses brutes."""
+    logger.debug("write_detail_csv(path={path}, flows={flows}, points={points}, ...)")
 
     def _label(addr) -> str:
         if names is None:

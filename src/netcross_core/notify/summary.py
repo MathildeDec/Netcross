@@ -47,14 +47,14 @@ def severity_rank(severity: str | None) -> int:
 
 
 def meets_threshold(severity: str | None, threshold: str) -> bool:
-    logger.debug("meets_threshold(severity={severity}, threshold={threshold})")
     """Vrai si `severity` est au moins aussi grave que `threshold`."""
+    logger.debug("meets_threshold(severity={severity}, threshold={threshold})")
     return severity_rank(severity) <= severity_rank(threshold)
 
 
 def finding_key(finding: Mapping[str, Any]) -> str:
-    logger.debug("finding_key(finding={finding})")
     """Identite stable d'un constat (pour l'anti-repetition)."""
+    logger.debug("finding_key(finding={finding})")
     detail = _VOLATILE.sub("", str(finding.get("detail") or "")).strip()
     parts = [
         str(finding.get(k) or "") for k in ("severity", "category", "cve_id", "signature_id", "host", "port", "point")
@@ -63,11 +63,11 @@ def finding_key(finding: Mapping[str, Any]) -> str:
 
 
 def findings_fingerprint(findings: Iterable[Mapping[str, Any]]) -> str:
-    logger.debug("findings_fingerprint(findings={findings})")
     """Empreinte SHA-256 du LOT de constats, independante de leur ordre et
     des compteurs volatils : deux analyses de la meme capture -- ou une tache
     planifiee qui retrouve le meme probleme toutes les heures -- donnent la
     meme empreinte."""
+    logger.debug("findings_fingerprint(findings={findings})")
     keys = sorted({finding_key(f) for f in findings})
     return hashlib.sha256(json.dumps(keys, ensure_ascii=False).encode("utf-8")).hexdigest()
 
@@ -142,13 +142,13 @@ def build_summary(
     report_path: str | None = None,
     detail: str = "resume",
 ) -> NotificationSummary:
-    logger.debug("build_summary(findings={findings})")
     """Construit le resume a notifier.
 
     `score`/`level` viennent du tableau de bord du rapport de securite (un
     seul calcul du score dans le projet, pas une seconde formule ici).
     L'empreinte ne porte que sur les constats AU-DESSUS du seuil : un
     constat faible qui change ne doit pas re-notifier une alerte critique."""
+    logger.debug("build_summary(findings={findings})")
     if threshold not in SEVERITIES:
         raise ValueError(f"seuil inconnu : {threshold!r} (attendu : {', '.join(SEVERITIES)})")
     if detail not in DETAIL_LEVELS:

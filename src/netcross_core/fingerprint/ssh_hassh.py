@@ -119,11 +119,11 @@ def _parse_kexinit(payload: bytes) -> dict | None:
 
 
 def compute_hassh(kexinit: dict, role: str = ROLE_CLIENT) -> str:
-    logger.debug("compute_hassh(kexinit={kexinit}, role={role})")
     """HASSH (role=ROLE_CLIENT, algorithmes cote client->serveur) ou
     HASSHServer (role=ROLE_SERVER, algorithmes cote serveur->client) :
     MD5 de "kex;chiffrement;MAC;compression" (chaque champ = ses
     algorithmes dans l'ordre d'emission, joints par une virgule)."""
+    logger.debug("compute_hassh(kexinit={kexinit}, role={role})")
     if role == ROLE_SERVER:
         enc, mac, comp = (
             kexinit["encryption_algorithms_server_to_client"],
@@ -141,9 +141,9 @@ def compute_hassh(kexinit: dict, role: str = ROLE_CLIENT) -> str:
 
 
 def readable_kexinit(kexinit: dict, role: str = ROLE_CLIENT) -> str:
-    logger.debug("readable_kexinit(kexinit={kexinit}, role={role})")
     """Chaine lisible pour un analyste -- pas une norme, format propre a
     ce projet."""
+    logger.debug("readable_kexinit(kexinit={kexinit}, role={role})")
     enc_key = "encryption_algorithms_" + ("server_to_client" if role == ROLE_SERVER else "client_to_server")
     mac_key = "mac_algorithms_" + ("server_to_client" if role == ROLE_SERVER else "client_to_server")
     comp_key = "compression_algorithms_" + ("server_to_client" if role == ROLE_SERVER else "client_to_server")
@@ -156,12 +156,12 @@ def readable_kexinit(kexinit: dict, role: str = ROLE_CLIENT) -> str:
 
 
 def identify(payload: bytes, sport: int | None, dport: int | None) -> tuple[str, str, str] | None:
-    logger.debug("identify(payload={payload}, sport={sport}, dport={dport})")
     """Point d'entree pour `netcross_core.parsing` : (HASSH, role,
     forme lisible) si `payload` porte un SSH_MSG_KEXINIT decodable, None
     sinon. `role` suit la meme heuristique que
     `application.banners._ssh_banners` : port serveur (22) cote
     destination -> l'emetteur est le client."""
+    logger.debug("identify(payload={payload}, sport={sport}, dport={dport})")
     kexinit = parse_kexinit(payload)
     if kexinit is None:
         return None

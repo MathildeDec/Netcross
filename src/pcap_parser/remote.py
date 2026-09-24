@@ -86,14 +86,13 @@ class CaptureSource:
 
 
 def is_source_url(text: str) -> bool:
-    logger.debug("is_source_url(text={text})")
     """Vrai si ``text`` commence par un schema de source connu (``rpcap://``...)."""
+    logger.debug("is_source_url(text={text})")
     scheme, sep, _rest = text.partition("://")
     return bool(sep) and scheme.lower() in REMOTE_SCHEMES
 
 
 def split_live_target(text: str) -> tuple[str, str | None]:
-    logger.debug("split_live_target(text={text})")
     """Separe ``SOURCE[:FILTRE_BPF]`` (partie de ``--live`` apres le label).
 
     Pour une interface locale, le premier ``:`` separe le filtre (compor-
@@ -101,6 +100,7 @@ def split_live_target(text: str) -> tuple[str, str | None]:
     crochets) ne comptent pas : le separateur est le premier ``:`` situe
     apres le debut du chemin (``/interface``).
     """
+    logger.debug("split_live_target(text={text})")
     if not is_source_url(text):
         iface, sep, bpf = text.partition(":")
         return iface, (bpf if sep else None)
@@ -262,12 +262,12 @@ def _parse_pipe(body: str) -> CaptureSource:
 
 
 def parse_source(text: str, env: Mapping[str, str] | None = None) -> CaptureSource:
-    logger.debug("parse_source(text={text}, env={env})")
     """Resout le champ interface d'une capture en direct (voir le module).
 
     Leve CaptureSourceError si l'URL est invalide ; un nom d'interface
     locale est renvoye tel quel (tshark signalera une interface inconnue).
     """
+    logger.debug("parse_source(text={text}, env={env})")
     env = os.environ if env is None else env
     text = text.strip()
     if not text:

@@ -80,9 +80,9 @@ class HostAsset:
     os_guess: OsGuess | None = None
 
     def sorted_ports(self) -> list[ExposedService]:
-        logger.debug("sorted_ports(self={self})")
         """Ports exposes, tries (port, transport) -- ordre stable pour
         l'affichage et les exports (voir to_records)."""
+        logger.debug("sorted_ports(self={self})")
         return [self.ports[key] for key in sorted(self.ports)]
 
 
@@ -100,13 +100,12 @@ class AssetInventory:
     baseline_size: int = 0
 
     def sorted_hosts(self) -> list[HostAsset]:
-        logger.debug("sorted_hosts(self={self})")
         """Hotes tries par IP -- ordre stable pour l'affichage et les
         exports (voir to_records)."""
+        logger.debug("sorted_hosts(self={self})")
         return [self.hosts[ip] for ip in sorted(self.hosts)]
 
     def to_records(self) -> list[dict]:
-        logger.debug("to_records(self={self})")
         """Inventaire a plat, un dict par hote -- meme convention que
         Report.service_fingerprints/security_findings (netcross_core.
         models) : une liste de dicts consommable directement par un
@@ -114,6 +113,7 @@ class AssetInventory:
         couches : netcross_core n'importe jamais netcross_report).
         Sert de base a une integration SIEM (critere d'acceptation de
         l'issue #151)."""
+        logger.debug("to_records(self={self})")
         records = []
         for host in self.sorted_hosts():
             os_guess = host.os_guess
@@ -212,7 +212,6 @@ def _record_banner_service(host: HostAsset, pkt: Pkt) -> None:
 
 
 def build_asset_inventory(all_packets: list[Pkt], baseline_hosts: set[str] | None = None) -> AssetInventory:
-    logger.debug("build_asset_inventory(all_packets={all_packets}, baseline_hosts={baseline_hosts})")
     """Point d'entree principal.
 
     `all_packets` : meme liste plate de Pkt (tous points confondus) que
@@ -231,6 +230,7 @@ def build_asset_inventory(all_packets: list[Pkt], baseline_hosts: set[str] | Non
     classique d'une baseline mal initialisee qui noierait l'analyste
     sous de faux positifs des le premier lancement).
     """
+    logger.debug("build_asset_inventory(all_packets={all_packets}, baseline_hosts={baseline_hosts})")
     hosts: dict[str, HostAsset] = {}
     ttl_samples: dict[str, list[int]] = {}
     handshake_samples: dict[str, Pkt] = {}

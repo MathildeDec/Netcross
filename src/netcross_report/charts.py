@@ -196,7 +196,6 @@ _TOPN_OTHER_COLOR = "#cbd5e1"
 
 
 def chart_topn_timeseries(r, point, dimension, path):
-    logger.debug("chart_topn_timeseries(r={r}, point={point}, dimension={dimension}, ...)")
     """
     Aire empilee du debit par categorie au fil du temps, pour UN point de
     capture et UNE dimension ("protocol"/"port"/"ip"/"dscp" -- voir
@@ -213,6 +212,7 @@ def chart_topn_timeseries(r, point, dimension, path):
     generate_topn_charts() pour le choix du/des point(s) traces dans le
     rapport.
     """
+    logger.debug("chart_topn_timeseries(r={r}, point={point}, dimension={dimension}, ...)")
     by_cat = r.topn_timeseries.get(dimension, {}).get(point)
     if not by_cat:
         return None
@@ -247,7 +247,6 @@ def chart_topn_timeseries(r, point, dimension, path):
 
 
 def generate_topn_charts(r, tmpdir, point=None):
-    logger.debug("generate_topn_charts(r={r}, tmpdir={tmpdir}, point={point})")
     """
     Genere les 4 graphiques temporels top-N (protocole/port/IP/DSCP) pour
     UN SEUL point de capture -- par defaut le premier de r.points (choix
@@ -259,6 +258,7 @@ def generate_topn_charts(r, tmpdir, point=None):
     Renvoie {dimension: chemin_png} pour les dimensions ayant produit un
     graphique (dimension absente du dict si aucune donnee).
     """
+    logger.debug("generate_topn_charts(r={r}, tmpdir={tmpdir}, point={point})")
     if point is None:
         point = r.points[0] if r.points else None
     if point is None:
@@ -310,7 +310,6 @@ def chart_severity_summary(findings, path, scheme=None):
 
 
 def chart_path_quality(metrics, path):
-    logger.debug("chart_path_quality(metrics={metrics}, path={path})")
     """
     Qualite le long du chemin observe : delai P95 (barres, axe de gauche)
     et taux de perte (courbe, axe de droite) segment par segment, dans
@@ -327,6 +326,7 @@ def chart_path_quality(metrics, path):
     de trafic commun), le masquer ferait croire a un chemin plus court
     qu'il ne l'est. `None` si aucun segment.
     """
+    logger.debug("chart_path_quality(metrics={metrics}, path={path})")
     if not metrics:
         return None
 
@@ -373,7 +373,6 @@ _SEQUENCE_POINT_COLORS = ["#3b82f6", "#f59e0b", "#10b981", "#8b5cf6", "#ef4444",
 
 
 def chart_sequence_diagram(view, path):
-    logger.debug("chart_sequence_diagram(view={view}, path={path})")
     """
     Diagramme de sequence d'un flux : les hotes en colonnes (lignes de vie
     verticales), le temps qui descend, une fleche par paquet vu a un point.
@@ -388,6 +387,7 @@ def chart_sequence_diagram(view, path):
     `None` si la vue n'a aucune etape ou un seul hote (une fleche qui part
     et revient au meme endroit ne dessine rien de lisible).
     """
+    logger.debug("chart_sequence_diagram(view={view}, path={path})")
     if not view or not view.steps or len(view.hosts) < 2:
         return None
 
@@ -453,7 +453,6 @@ def chart_sequence_diagram(view, path):
 
 
 def chart_comm_map(cmap, path):
-    logger.debug("chart_comm_map(cmap={cmap}, path={path})")
     """
     Cartographie des communications : un noeud par hote, une fleche par sens
     d'echange. Taille du noeud et epaisseur de la fleche proportionnelles au
@@ -469,6 +468,7 @@ def chart_comm_map(cmap, path):
 
     `None` si la carte est vide (aucune arete apres filtrage).
     """
+    logger.debug("chart_comm_map(cmap={cmap}, path={path})")
     if not cmap or not cmap.edges:
         return None
 

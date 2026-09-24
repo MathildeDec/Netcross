@@ -98,12 +98,12 @@ _MIME_TO_TYPE: dict[str, str] = {
 
 
 def detect_file_type(data: bytes) -> str | None:
-    logger.debug("detect_file_type(data={data})")
     """Détecte le type d'un fichier à partir de ses magic bytes.
 
     Retourne le type simplifié (``zip``, ``pdf``, ``png``...) ou ``None``
     si aucun magic byte connu n'est reconnu.
     """
+    logger.debug("detect_file_type(data={data})")
     for magic, ftype in _MAGIC_BYTES:
         if data[: len(magic)] == magic:
             return ftype
@@ -326,7 +326,6 @@ def detect_extracted_files(
     *,
     extract_dir: str | None = None,
 ) -> ExtractionResult:
-    logger.debug("detect_extracted_files(packets={packets})")
     """Extrait les fichiers transmis dans les flux réseau.
 
     Parcourt les paquets et identifie les transferts de fichiers par
@@ -336,6 +335,7 @@ def detect_extracted_files(
     ``extract_dir`` : répertoire de sortie (non utilisé pour l'instant,
     réservé pour une future écriture sur disque des payloads extraits).
     """
+    logger.debug("detect_extracted_files(packets={packets})")
     packets = list(packets)
     files: list[ExtractedFile] = []
     files.extend(_extract_http(packets))

@@ -38,14 +38,14 @@ class HttpObject:
 
     @property
     def volume_bytes(self) -> int:
-        logger.debug("volume_bytes(self={self})")
         """Volume applicatif declare par Content-Length, 0 s'il est absent."""
+        logger.debug("volume_bytes(self={self})")
         return self.content_length or 0
 
     @property
     def flow(self) -> tuple:
-        logger.debug("flow(self={self})")
         """Identifiant directionnel de connexion TCP (hors sequence TCP)."""
+        logger.debug("flow(self={self})")
         return (self.src, self.sport, self.dst, self.dport)
 
 
@@ -62,7 +62,6 @@ def extract_http_objects(
     privacy_mode: str = "metadata",
     max_objects: int | None = None,
 ) -> list[HttpObject]:
-    logger.debug("extract_http_objects(packets={packets})")
     """Inventorie les reponses HTTP et les relie aux requetes precedentes.
 
     privacy_mode:
@@ -76,6 +75,7 @@ def extract_http_objects(
     car aucune taille observee fiable de l'objet n'est deduite artificiellement
     a partir des segments TCP.
     """
+    logger.debug("extract_http_objects(packets={packets})")
     if privacy_mode not in {"metadata", "forensic"}:
         raise ValueError("privacy_mode doit etre 'metadata' ou 'forensic'")
 
@@ -130,8 +130,8 @@ def extract_http_objects(
 
 
 def objects_to_dicts(objects: list[HttpObject]) -> list[dict]:
-    logger.debug("objects_to_dicts(objects={objects})")
     """Serialization JSON/CSV stable, sans corps HTTP."""
+    logger.debug("objects_to_dicts(objects={objects})")
     return [asdict(obj) for obj in objects]
 
 

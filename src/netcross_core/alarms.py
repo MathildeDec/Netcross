@@ -183,16 +183,16 @@ class AlarmEngine:
 
     @property
     def events(self) -> list[AlarmEvent]:
-        logger.debug("events(self={self})")
         """Tous les AlarmEvent émis depuis la création du moteur
         (raised ET cleared), dans l'ordre chronologique."""
+        logger.debug("events(self={self})")
         return list(self._events)
 
     @property
     def active_alarms(self) -> list[AlarmEvent]:
-        logger.debug("active_alarms(self={self})")
         """Uniquement les AlarmEvent "raised" encore actifs (non
         encore cleared). Utile pour un tableau de bord temps réel."""
+        logger.debug("active_alarms(self={self})")
         raised: dict[tuple[str, str], AlarmEvent] = {}
         for evt in self._events:
             key = (evt.rule_id, evt.segment)
@@ -203,7 +203,6 @@ class AlarmEngine:
         return list(raised.values())
 
     def feed(self, timestamp: float, signals: list[AlarmSignal]) -> list[AlarmEvent]:
-        logger.debug("feed(self={self}, timestamp={timestamp}, signals={signals})")
         """Traite un lot de signaux issus d'UN cycle d'évaluation du
         moteur de règles à l'instant `timestamp`. Renvvoie les
         AlarmEvent nouvellement émis par ce cycle (sous-ensemble de
@@ -213,6 +212,7 @@ class AlarmEngine:
         AlarmConfig est ignoré silencieusement — le moteur ne surveille
         que ce qu'on lui a demandé de surveiller.
         """
+        logger.debug("feed(self={self}, timestamp={timestamp}, signals={signals})")
         new_events: list[AlarmEvent] = []
 
         # Indexer les signaux reçus ce cycle par (rule_id, segment).

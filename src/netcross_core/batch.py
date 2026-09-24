@@ -120,10 +120,10 @@ def _is_infra(pkt) -> bool:
 
 
 def inventory_from_packets(label: str, path: str, packets: Iterable) -> CaptureInventory:
-    logger.debug("inventory_from_packets(label={label}, path={path}, packets={packets})")
     """Construit l'inventaire d'une capture a partir de ses paquets decodes
     (objets exposant ts, src, dst, sport, dport, proto -- `Pkt` ou
     equivalent)."""
+    logger.debug("inventory_from_packets(label={label}, path={path}, packets={packets})")
     inv = CaptureInventory(label=label, path=path)
     for pkt in packets:
         inv.packet_count += 1
@@ -171,9 +171,9 @@ class PairEvaluation:
 
     @property
     def score(self) -> int:
-        logger.debug("score(self={self})")
         """Nombre de criteres satisfaits (0-3) : sert a choisir, pour une
         capture isolee, le candidat le plus proche a citer dans le motif."""
+        logger.debug("score(self={self})")
         return 3 - len(self.failed)
 
 
@@ -218,7 +218,6 @@ def evaluate_pair(
     min_common_ips: int = DEFAULT_MIN_COMMON_IPS,
     group_window: float = DEFAULT_GROUP_WINDOW,
 ) -> PairEvaluation:
-    logger.debug("evaluate_pair(a={a}, b={b})")
     """Applique les trois criteres de l'issue #277 a deux captures.
 
     `group_window` est le decalage d'horloge maximal tolere (secondes) : si
@@ -227,6 +226,7 @@ def evaluate_pair(
     deux sondes aux horloges non synchronisees ne sont pas ecartees a tort.
     Au-dela, aucune correction : on refuse plutot que de recaler au hasard.
     """
+    logger.debug("evaluate_pair(a={a}, b={b})")
     common_ips = sorted(a.ips & b.ips)
     common_pairs = sorted(set(a.pairs) & set(b.pairs))
     common_protocols = sorted(a.protocols & b.protocols)
@@ -277,8 +277,8 @@ def evaluate_pair(
 
 
 def justify(ev: PairEvaluation) -> str:
-    logger.debug("justify(ev={ev})")
     """Justification ecrite d'un rapprochement (criteres satisfaits)."""
+    logger.debug("justify(ev={ev})")
     parts = [
         f"recouvrement {ev.overlap_ratio:.0%} ({_fmt_ts(ev.overlap_start)}-{_fmt_ts(ev.overlap_end)} UTC)",
         f"{len(ev.common_ips)} IP communes ({_fmt_list(ev.common_ips)})",
@@ -321,8 +321,8 @@ class BatchPlan:
         return sum(len(g.members) for g in self.groups)
 
     def check_invariant(self) -> None:
-        logger.debug("check_invariant(self={self})")
         """Aucun fichier perdu en route : leve AssertionError sinon."""
+        logger.debug("check_invariant(self={self})")
         counted = self.grouped_count + len(self.isolated) + len(self.failures)
         if counted != self.total:
             raise AssertionError(
@@ -339,7 +339,6 @@ def plan_batch(
     min_common_ips: int = DEFAULT_MIN_COMMON_IPS,
     group_window: float = DEFAULT_GROUP_WINDOW,
 ) -> BatchPlan:
-    logger.debug("plan_batch(inventories={inventories})")
     """Regroupe les captures d'un lot.
 
     Glouton et conservateur : les captures sont parcourues par ordre de
@@ -348,6 +347,7 @@ def plan_batch(
     membre deviennent des captures isolees, avec pour motif les criteres
     manques face au candidat le plus proche.
     """
+    logger.debug("plan_batch(inventories={inventories})")
     failures = [inv for inv in inventories if inv.error is not None]
     usable = [inv for inv in inventories if inv.error is None]
     empty = [inv for inv in usable if inv.packet_count == 0]
@@ -422,8 +422,8 @@ def format_batch_index(
     capture_reports: dict[str, str] | None = None,
     synthesis: list[str] | None = None,
 ) -> str:
-    logger.debug("format_batch_index(plan={plan}, folder={folder})")
     """Rend l'index du lot -- le vrai livrable du mode batch."""
+    logger.debug("format_batch_index(plan={plan}, folder={folder})")
     group_reports = group_reports or {}
     capture_reports = capture_reports or {}
     lines = [f"LOT : {plan.total} capture(s), {folder}"]

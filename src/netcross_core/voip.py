@@ -59,7 +59,6 @@ def _quality(mos_values: list[float]) -> str:
 
 
 def build_calls(all_packets, rtp_streams: list[dict]) -> tuple[list[Call], dict[str, int]]:
-    logger.debug("build_calls(all_packets={all_packets}, rtp_streams={rtp_streams})")
     """Construit les appels SIP et leur associe les flux RTP.
 
     Les appels sont d'abord reconstruits par Call-ID. Le flux RTP est ensuite
@@ -69,6 +68,7 @@ def build_calls(all_packets, rtp_streams: list[dict]) -> tuple[list[Call], dict[
     est visible. Un flux ambigu n'est jamais duplique : l'appel dont
     l'INVITE est le plus proche avant le RTP est retenu.
     """
+    logger.debug("build_calls(all_packets={all_packets}, rtp_streams={rtp_streams})")
     by_id: dict[str, list] = {}
     for pk in all_packets:
         if pk.sip_call_id and pk.sip_msg_type:

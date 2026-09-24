@@ -48,9 +48,9 @@ class InvalidFindingError(ValueError):
 
 
 def freeze(value: Any) -> Any:
-    logger.debug("freeze(value={value})")
     """Copie profonde figee : dict -> MappingProxyType, list/set -> tuple,
     dataclass/objet -> vue `ReadOnlyView`. Les scalaires traversent."""
+    logger.debug("freeze(value={value})")
     if isinstance(value, (*_SCALARS, bytes)):
         return value
     if isinstance(value, Mapping):
@@ -146,13 +146,13 @@ class Exporter(Protocol):
 
 
 def validate_finding(raw: Any) -> dict[str, Any]:
-    logger.debug("validate_finding(raw={raw})")
     """Valide et normalise un constat de plugin ; leve `InvalidFindingError`.
 
     Exigences : un dict ; `category`, `severity`, `detail` presents et non
     vides ; `severity` dans SEVERITIES ; toutes les valeurs scalaires JSON
     (pas d'objet arbitraire qui casserait le JSON ou le HTML), sauf `cves`
     (liste de chaines). Les flottants non finis sont refuses."""
+    logger.debug("validate_finding(raw={raw})")
     if not isinstance(raw, Mapping):
         raise InvalidFindingError(f"constat de type {type(raw).__name__}, dict attendu")
     finding = dict(raw)

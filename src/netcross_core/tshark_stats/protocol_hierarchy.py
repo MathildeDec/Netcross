@@ -28,8 +28,8 @@ _DATA_RE = re.compile(r"\d")
 
 
 def parse_protocol_hierarchy(text: str) -> list[ProtocolHierarchyStat]:
-    logger.debug("parse_protocol_hierarchy(text={text})")
     """Convertit la sortie ``tshark -z io,phs`` en ProtocolHierarchyStat."""
+    logger.debug("parse_protocol_hierarchy(text={text})")
     # Indentation minimale observee parmi les lignes de donnees -> niveau 0.
     data: list[tuple[int, str, list[str]]] = []
     for line in text.splitlines():

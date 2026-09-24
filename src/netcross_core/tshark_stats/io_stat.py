@@ -31,7 +31,6 @@ _INTERVAL_RE = re.compile(r"(\d+(?:\.\d+)?)\s*-\s*(\d+(?:\.\d+)?)?")
 
 
 def parse_io_stat(text: str, name: str = "io_stat") -> MetricSeries:
-    logger.debug("parse_io_stat(text={text}, name={name})")
     """Convertit la sortie ``tshark -z io,stat`` en MetricSeries.
 
     Les valeurs nommees sont tirees des en-tetes de colonnes (frames,
@@ -39,6 +38,7 @@ def parse_io_stat(text: str, name: str = "io_stat") -> MetricSeries:
     ``value_1``... Retourne une serie vide si aucun intervalle n'est
     trouve.
     """
+    logger.debug("parse_io_stat(text={text}, name={name})")
     headers = reconstruct_headers(text)
     # En-tete des colonnes de valeurs (hors colonne "time").
     value_headers = [h for h in headers if h and "time" not in h]

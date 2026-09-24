@@ -143,7 +143,6 @@ def _parse_bool(val: object) -> bool:
 
 
 def load_config(config_path: str | Path | None = None) -> NetcrossConfig:
-    logger.debug("load_config(config_path={config_path})")
     """Charge la configuration depuis un fichier .netcross.toml.
 
     Si ``config_path`` est None, cherche dans l'ordre :
@@ -154,6 +153,7 @@ def load_config(config_path: str | Path | None = None) -> NetcrossConfig:
     Retourne une ``NetcrossConfig`` avec les valeurs par défaut si aucun
     fichier n'est trouvé (pas d'erreur).
     """
+    logger.debug("load_config(config_path={config_path})")
     if tomllib is None:
         return NetcrossConfig()
 

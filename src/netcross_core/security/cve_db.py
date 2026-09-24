@@ -98,13 +98,13 @@ class CveEntry:
     affected: list[AffectedProduct] = field(default_factory=list)
 
     def matching_cpe(self, version: str) -> str | None:
-        logger.debug("matching_cpe(self={self}, version={version})")
         """
         Renvoie le CPE 2.3 du premier produit affecte dont le range
         couvre `version`, ou None si aucun ne correspond. `affected` ne
         contient ici que des entrees deja filtrees par (vendor, product)
         par query_by_product() : seule la version reste a comparer.
         """
+        logger.debug("matching_cpe(self={self}, version={version})")
         for product in self.affected:
             if version_in_range(
                 version,
@@ -119,16 +119,16 @@ class CveEntry:
 
 
 def connect_cve_db(db_path) -> sqlite3.Connection:
-    logger.debug("connect_cve_db(db_path={db_path})")
     """Ouvre (et cree si absent) la base SQLite `db_path`, schema applique."""
+    logger.debug("connect_cve_db(db_path={db_path})")
     conn = sqlite3.connect(db_path)
     conn.executescript(_SCHEMA)
     return conn
 
 
 def init_db(db_path) -> sqlite3.Connection:
-    logger.debug("init_db(db_path={db_path})")
     """Alias explicite de connect_cve_db() pour les appelants qui ne font que creer la base (scripts/import_nvd.py)."""
+    logger.debug("init_db(db_path={db_path})")
     return connect_cve_db(db_path)
 
 
@@ -137,7 +137,6 @@ def close_db(conn: sqlite3.Connection) -> None:
 
 
 def upsert_cve(conn: sqlite3.Connection, entry: CveEntry) -> None:
-    logger.debug("upsert_cve(conn={conn}, entry={entry})")
     """
     Insere ou remplace une CveEntry (et tous ses produits affectes) --
     idempotent, pour que des imports NVD periodiques successifs sur la
@@ -145,6 +144,7 @@ def upsert_cve(conn: sqlite3.Connection, entry: CveEntry) -> None:
     voir son score CVSS ou sa description revisee par le NVD apres
     publication initiale).
     """
+    logger.debug("upsert_cve(conn={conn}, entry={entry})")
     conn.execute(
         "INSERT INTO cves (cve_id, description, cvss_score, cvss_severity, published) "
         "VALUES (?, ?, ?, ?, ?) "
@@ -176,8 +176,8 @@ def upsert_cve(conn: sqlite3.Connection, entry: CveEntry) -> None:
 
 
 def get_cve(conn: sqlite3.Connection, cve_id: str) -> CveEntry | None:
-    logger.debug("get_cve(conn={conn}, cve_id={cve_id})")
     """Recupere une CVE par identifiant, avec tous ses produits affectes (sans filtre)."""
+    logger.debug("get_cve(conn={conn}, cve_id={cve_id})")
     row = conn.execute(
         "SELECT cve_id, description, cvss_score, cvss_severity, published FROM cves WHERE cve_id = ?",
         (cve_id,),
@@ -200,7 +200,6 @@ def get_cve(conn: sqlite3.Connection, cve_id: str) -> CveEntry | None:
 
 
 def query_by_product(conn: sqlite3.Connection, vendor: str, product: str) -> list[CveEntry]:
-    logger.debug("query_by_product(conn={conn}, vendor={vendor}, product={product})")
     """
     Renvoie toutes les CveEntry qui affectent (vendor, product) --
     insensible a la casse. Chaque CveEntry.affected ne contient QUE les
@@ -209,6 +208,7 @@ def query_by_product(conn: sqlite3.Connection, vendor: str, product: str) -> lis
     CveEntry.matching_cpe() utilisable directement par correlate_banner()
     sans reparcourir tous les produits d'une CVE multi-produits.
     """
+    logger.debug("query_by_product(conn={conn}, vendor={vendor}, product={product})")
     cve_ids = [
         row[0]
         for row in conn.execute(

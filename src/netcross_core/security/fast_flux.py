@@ -95,7 +95,6 @@ def detect_fast_flux(
     packets: Iterable[Pkt],
     thresholds: FastFluxThresholds | None = None,
 ) -> FastFluxResult:
-    logger.debug("detect_fast_flux(packets={packets}, thresholds={thresholds})")
     """Detection d'infrastructures fast flux par corrélation DNS + TCP.
 
     Parcourt les paquets en deux passes :
@@ -106,6 +105,7 @@ def detect_fast_flux(
        ensuite connectee à >= ``min_ips`` IPs differentes dans la fenêtre.
     4. Calcule le ratio NXDOMAIN par domaine (signal faible).
     """
+    logger.debug("detect_fast_flux(packets={packets}, thresholds={thresholds})")
     if thresholds is None:
         thresholds = FastFluxThresholds()
 

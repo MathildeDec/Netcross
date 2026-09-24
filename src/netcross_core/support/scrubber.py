@@ -206,13 +206,13 @@ class ScrubReport:
 
     @property
     def statut(self) -> str:
-        logger.debug("statut(self={self})")
         """``"redige"`` ou ``"aucune_donnee_sensible_detectee"``.
 
         Le second cas est un resultat POSITIF explicite, pas une absence
         de resultat : il affirme que la passe a bien eu lieu et n'a rien
         trouve a rediger.
         """
+        logger.debug("statut(self={self})")
         return "redige" if self.total else "aucune_donnee_sensible_detectee"
 
     def to_dict(self) -> dict:
@@ -270,18 +270,17 @@ class TextScrubber:
         return pseudo
 
     def mapping_csv_rows(self) -> list[tuple[str, str, str]]:
-        logger.debug("mapping_csv_rows(self={self})")
         """Lignes ``(valeur_reelle, pseudonyme, categorie)`` triees.
 
         Destine a un fichier conserve PAR L'OPERATEUR, jamais joint au
         ticket -- il annulerait l'anonymisation.
         """
+        logger.debug("mapping_csv_rows(self={self})")
         return sorted((real, pseudo, self._kind[real]) for real, pseudo in self._map.items())
 
     # -- scrubbing --------------------------------------------------------
 
     def scrub(self, text: str | None) -> tuple[str | None, ScrubReport]:
-        logger.debug("scrub(self={self}, text={text})")
         """Renvoie ``(texte_redige, rapport)``.
 
         ``None`` et la chaine vide traversent inchanges, avec un rapport a
@@ -289,6 +288,7 @@ class TextScrubber:
         passe a eu lieu sur une entree vide, ce qui n'est pas la meme
         chose que de ne pas avoir tente de rediger.
         """
+        logger.debug("scrub(self={self}, text={text})")
         report = ScrubReport()
         if not text:
             return text, report
@@ -358,8 +358,8 @@ class TextScrubber:
         return out, report
 
     def scrub_lines(self, lines) -> tuple[list[str], ScrubReport]:
-        logger.debug("scrub_lines(self={self}, lines={lines})")
         """``scrub`` applique a une sequence de lignes, rapport agrege."""
+        logger.debug("scrub_lines(self={self}, lines={lines})")
         out: list[str] = []
         agg = ScrubReport()
         for line in lines:

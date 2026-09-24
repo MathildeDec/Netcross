@@ -2218,7 +2218,6 @@ _EVALUATORS = {
 
 
 def evaluate(rule_id: str, report: Report) -> list[Finding]:
-    logger.debug("evaluate(rule_id={rule_id}, report={report})")
     """Evalue la regle `rule_id` du catalogue (`expert_rules`) contre
     `report` et renvoie les `Finding` produits (liste vide si la regle
     ne se declenche pas sur ce `Report`, jamais `None`).
@@ -2230,6 +2229,7 @@ def evaluate(rule_id: str, report: Report) -> list[Finding]:
     "regle inconnue" (erreur d'appelant) et "regle connue mais pilote
     pas encore etendu jusque-la" (limite documentee -- voir docstring de
     module), plutot qu'une seule exception ambigue pour les deux cas."""
+    logger.debug("evaluate(rule_id={rule_id}, report={report})")
     rule = get_rule(rule_id)
     if rule is None:
         raise KeyError(f"regle inconnue du catalogue expert_rules : {rule_id!r}")
@@ -2243,8 +2243,8 @@ def evaluate(rule_id: str, report: Report) -> list[Finding]:
 
 
 def available_rule_ids() -> list[str]:
-    logger.debug("available_rule_ids()")
     """Ids des regles du catalogue ayant deja un evaluateur enregistre
     ici -- pour un appelant qui veut savoir ce que ce pilote couvre
     aujourd'hui sans provoquer `NotImplementedError`."""
+    logger.debug("available_rule_ids()")
     return list(_EVALUATORS)

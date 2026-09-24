@@ -107,8 +107,8 @@ def _sdo_id(stix_type: str, content: Mapping[str, Any]) -> str:
 
 
 def format_timestamp(when: _dt.datetime) -> str:
-    logger.debug("format_timestamp(when={when})")
     """Horodatage STIX : UTC, precision milliseconde, suffixe ``Z``."""
+    logger.debug("format_timestamp(when={when})")
     if when.tzinfo is None:
         when = when.replace(tzinfo=_dt.UTC)
     when = when.astimezone(_dt.UTC)
@@ -116,8 +116,8 @@ def format_timestamp(when: _dt.datetime) -> str:
 
 
 def identity_object() -> dict[str, Any]:
-    logger.debug("identity_object()")
     """L'identite « Netcross » a laquelle renvoie chaque ``created_by_ref``."""
+    logger.debug("identity_object()")
     content = {"name": "Netcross", "identity_class": "system"}
     return {
         "type": "identity",
@@ -330,7 +330,6 @@ def to_stix_bundle(
     observed_from: _dt.datetime | None = None,
     observed_until: _dt.datetime | None = None,
 ) -> dict[str, Any]:
-    logger.debug("to_stix_bundle(report={report})")
     """Construit le bundle STIX 2.1 (dict) des services et constats du rapport.
 
     `observed_from`/`observed_until` : bornes temporelles de la capture
@@ -338,6 +337,7 @@ def to_stix_bundle(
     l'heure de l'export, sinon deux exports differeraient. Absentes :
     l'epoque Unix (bundle toujours deterministe, mais date non significative).
     """
+    logger.debug("to_stix_bundle(report={report})")
     first = format_timestamp(observed_from or _EPOCH)
     last = format_timestamp(observed_until or observed_from or _EPOCH)
     b = _Builder(first, last)
@@ -378,9 +378,9 @@ def export_stix(
     observed_from: _dt.datetime | None = None,
     observed_until: _dt.datetime | None = None,
 ) -> str:
-    logger.debug("export_stix(report={report})")
     """Bundle STIX 2.1 serialise (JSON indente, cles triees, determinisme
     octet pour octet)."""
+    logger.debug("export_stix(report={report})")
     bundle = to_stix_bundle(report, observed_from=observed_from, observed_until=observed_until)
     return json.dumps(bundle, indent=2, sort_keys=True, ensure_ascii=False) + "\n"
 
@@ -392,8 +392,8 @@ def write_stix(
     observed_from: _dt.datetime | None = None,
     observed_until: _dt.datetime | None = None,
 ) -> str:
-    logger.debug("write_stix(report={report}, output_path={output_path})")
     """Ecrit le bundle dans un fichier ; retourne son chemin absolu."""
+    logger.debug("write_stix(report={report}, output_path={output_path})")
     path = Path(output_path)
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_text(export_stix(report, observed_from=observed_from, observed_until=observed_until), encoding="utf-8")

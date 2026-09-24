@@ -121,8 +121,8 @@ def _hkdf_expand_label(secret: bytes, label: str, context: bytes, length: int) -
 
 
 def derive_initial_secrets(dcid: bytes) -> tuple[bytes, bytes]:
-    logger.debug("derive_initial_secrets(dcid={dcid})")
     """Renvoie (client_initial_secret, server_initial_secret) pour QUIC v1."""
+    logger.debug("derive_initial_secrets(dcid={dcid})")
     initial_secret = _hkdf_extract(QUIC_V1_INITIAL_SALT, dcid)
     client_secret = _hkdf_expand_label(initial_secret, "client in", b"", 32)
     server_secret = _hkdf_expand_label(initial_secret, "server in", b"", 32)
@@ -130,8 +130,8 @@ def derive_initial_secrets(dcid: bytes) -> tuple[bytes, bytes]:
 
 
 def derive_packet_protection_keys(secret: bytes) -> tuple[bytes, bytes, bytes]:
-    logger.debug("derive_packet_protection_keys(secret={secret})")
     """Renvoie (key, iv, hp) derives d'un secret initial (client ou serveur)."""
+    logger.debug("derive_packet_protection_keys(secret={secret})")
     key = _hkdf_expand_label(secret, "quic key", b"", 16)
     iv = _hkdf_expand_label(secret, "quic iv", b"", 12)
     hp = _hkdf_expand_label(secret, "quic hp", b"", 16)
@@ -308,11 +308,11 @@ def _parse_tls_handshake_from_crypto(crypto_data: bytes) -> dict | None:
 
 
 def parse_quic_capture(label: str, path: str) -> list[QuicEvent]:
-    logger.debug("parse_quic_capture(label={label}, path={path})")
     """Lit une capture via pcap_parser (tshark -T ek) et renvoie un
     QuicEvent pour chaque paquet QUIC Initial v1 detecte -- decrypte
     avec succes ou non (decryptable=False et sni=None dans ce dernier
     cas, jamais de donnee inventee)."""
+    logger.debug("parse_quic_capture(label={label}, path={path})")
     events: list[QuicEvent] = []
     raw_packets = pcap_parser.parse_capture(path, raise_on_error=False)
 
@@ -365,11 +365,11 @@ def parse_quic_capture(label: str, path: str) -> list[QuicEvent]:
 
 
 def diagnose_quic(events: list[QuicEvent], points_order: list[str] | None = None):
-    logger.debug("diagnose_quic(events={events}, points_order={points_order})")
     """Compare les ClientHello QUIC vus a chaque point (par DCID -- identifie
     la connexion QUIC de facon stable meme a travers un NAT qui changerait
     IP/port). Format de sortie compatible netcross_report.triage (severity/
     category/segment/message), comme tls_diagnostics.TlsFinding."""
+    logger.debug("diagnose_quic(events={events}, points_order={points_order})")
     from netcross_core.tls_diagnostics import TlsFinding  # reutilise le meme type de resultat
 
     by_dcid: dict[bytes, dict[str, QuicEvent]] = {}

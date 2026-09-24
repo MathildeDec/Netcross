@@ -332,9 +332,9 @@ class ForensicSearchIndex:
     # -- Recherche --------------------------------------------------------
 
     def search(self, query: ForensicSearchQuery) -> list[ForensicSearchResult]:
-        logger.debug("search(self={self}, query={query})")
         """Execute la requete et retourne les resultats tries par temps
         croissant puis par type."""
+        logger.debug("search(self={self}, query={query})")
         results: list[ForensicSearchResult] = []
         needle = (query.text or "").lower()
         field_val = (query.field_value or "").lower()

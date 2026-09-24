@@ -67,8 +67,8 @@ class StatRow:
 
     @property
     def duration_s(self) -> float:
-        logger.debug("duration_s(self={self})")
         """Duree en secondes."""
+        logger.debug("duration_s(self={self})")
         return self.duration_ms / 1000.0
 
 
@@ -246,7 +246,6 @@ def compute_stats(
     query: StatsQuery,
     events_by_segment: dict[str, list] | None = None,
 ) -> list[StatRow]:
-    logger.debug("compute_stats(flows={flows}, report={report}, all_packets={all_packets}, ...)")
     """Calcule les statistiques selon la requete.
 
     flows : liste de Flow (produit par build_flows()).
@@ -259,6 +258,7 @@ def compute_stats(
     Retourne une liste de StatRow triee par sort_by decroissant, limitee
     a top_n.
     """
+    logger.debug("compute_stats(flows={flows}, report={report}, all_packets={all_packets}, ...)")
     # Filtre temporel sur les flux
     filtered_flows: list[Flow] = []
     for f in flows:
@@ -320,12 +320,12 @@ def compute_stats(
 
 
 def export_csv(rows: list[StatRow]) -> str:
-    logger.debug("export_csv(rows={rows})")
     """Exporte les lignes en CSV (en memoire).
 
     Les flow_keys sont serialises en representation Python (tuple) car un CSV
     ne supporte pas les listes nativement.
     """
+    logger.debug("export_csv(rows={rows})")
     if not rows:
         return ""
 
@@ -351,8 +351,8 @@ def export_csv(rows: list[StatRow]) -> str:
 
 
 def export_json(rows: list[StatRow]) -> list[dict]:
-    logger.debug("export_json(rows={rows})")
     """Exporte les lignes en liste de dicts (serialisable en JSON)."""
+    logger.debug("export_json(rows={rows})")
     result = []
     for row in rows:
         d = asdict(row)

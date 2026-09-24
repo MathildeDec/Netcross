@@ -86,10 +86,10 @@ _OPT_ISB_OSDROP = 7  # ISB : paquets perdus par l'OS
 
 
 def detect_format(path: str) -> str | None:
-    logger.debug("detect_format(path={path})")
     """FORMAT_PCAP, FORMAT_NSECPCAP ou FORMAT_PCAPNG d'apres les octets
     magiques du fichier (pas son extension), ou None si non reconnu
     (fichier compresse, autre format, fichier vide/tronque)."""
+    logger.debug("detect_format(path={path})")
     with open(path, "rb") as f:
         magic = f.read(4)
     if magic == _PCAPNG_MAGIC:
@@ -99,9 +99,9 @@ def detect_format(path: str) -> str | None:
 
 
 def format_extension(fmt: str | None) -> str:
-    logger.debug("format_extension(fmt={fmt})")
     """Extension de sortie coherente avec `editcap -F <fmt>` ; pcapng par
     defaut (c'est aussi ce que produit editcap sans -F)."""
+    logger.debug("format_extension(fmt={fmt})")
     return _FORMAT_EXTENSION.get(fmt or FORMAT_PCAPNG, ".pcapng")
 
 
@@ -162,10 +162,10 @@ def _iter_pcapng_blocks(f: BinaryIO) -> Iterator[tuple[int, bytes]]:
 
 
 def has_packets(path: str) -> bool:
-    logger.debug("has_packets(path={path})")
     """True si le fichier contient au moins un paquet. Format non reconnu :
     True (on ne sait pas dire -- l'appelant ne doit pas jeter un fichier
     qu'il ne comprend pas)."""
+    logger.debug("has_packets(path={path})")
     fmt = detect_format(path)
     with open(path, "rb", buffering=_READ_BUFFER) as f:
         if fmt is None:
@@ -276,7 +276,6 @@ def _read_pcapng_structure(f: BinaryIO) -> CaptureStructure | None:
 
 
 def read_structure(path: str) -> CaptureStructure | None:
-    logger.debug("read_structure(path={path})")
     """Format, version et interfaces de `path` d'apres le seul cadrage
     binaire, ou None si le format n'est pas reconnu (fichier compresse,
     autre format, vide, tronque avant son premier en-tete). Leve OSError
@@ -285,6 +284,7 @@ def read_structure(path: str) -> CaptureStructure | None:
     Un pcap classique ne porte aucune statistique : ses compteurs restent
     None. Un pcapng en porte si l'outil de capture a ecrit des Interface
     Statistics Blocks (dumpcap/tshark le font, tcpdump et editcap non)."""
+    logger.debug("read_structure(path={path})")
     fmt = detect_format(path)
     if fmt is None:
         return None
@@ -354,10 +354,10 @@ class _SegmentSink:
             self._packets += 1
 
     def write_if_open(self, raw: bytes) -> None:
-        logger.debug("write_if_open(self={self}, raw={raw})")
         """Pour un bloc de preambule (SHB/IDB/DSB) : s'il y a un segment en
         cours, le bloc y est ecrit aussi ; sinon il ne sera ecrit que dans le
         preambule du prochain segment."""
+        logger.debug("write_if_open(self={self}, raw={raw})")
         if self._file is not None:
             self._file.write(raw)
             self._size += len(raw)
@@ -372,9 +372,9 @@ class _SegmentSink:
         self._close_current()
 
     def abort(self) -> None:
-        logger.debug("abort(self={self})")
         """Ferme et supprime tous les segments deja ecrits (echec en cours
         de route : un jeu de segments partiel serait trompeur)."""
+        logger.debug("abort(self={self})")
         self._close_current()
         for path in self.paths:
             with contextlib.suppress(OSError):
@@ -451,11 +451,11 @@ def _split_pcapng(f: BinaryIO, sink: _SegmentSink) -> None:
 
 
 def first_timestamp(path: str) -> float:
-    logger.debug("first_timestamp(path={path})")
     """Timestamp epoch du premier paquet de `path` (pcap, nsecpcap ou
     pcapng), lu directement du cadrage binaire sans tshark. Leve
     FileNotFoundError si le fichier est absent, ValueError si le format
     n'est pas reconnu ou si la capture ne contient aucun paquet."""
+    logger.debug("first_timestamp(path={path})")
     if not os.path.isfile(path):
         raise FileNotFoundError(f"capture introuvable : {path}")
     fmt = detect_format(path)

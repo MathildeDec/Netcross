@@ -77,8 +77,8 @@ class ContentExtraction:
 
 
 def parse_kinds(spec: str | None) -> tuple[str, ...]:
-    logger.debug("parse_kinds(spec={spec})")
     """``audio,video`` -> ('audio', 'video') ; ValueError sur un type inconnu."""
+    logger.debug("parse_kinds(spec={spec})")
     if not spec:
         return KINDS
     kinds = tuple(dict.fromkeys(k.strip() for k in spec.split(",") if k.strip()))
@@ -89,9 +89,9 @@ def parse_kinds(spec: str | None) -> tuple[str, ...]:
 
 
 def prepare_out_dir(path: str) -> Path:
-    logger.debug("prepare_out_dir(path={path})")
     """Cree le repertoire de sortie (0700). Refuse un repertoire non vide :
     melanger deux extractions rendrait le manifeste trompeur."""
+    logger.debug("prepare_out_dir(path={path})")
     out = Path(path)
     if out.exists() and (not out.is_dir() or any(out.iterdir())):
         raise ValueError(f"{path} existe deja et n'est pas un repertoire vide")
@@ -165,8 +165,8 @@ def _safe(label: str) -> str:
 
 
 def datagrams_from_raw(label: str, raw_packets: Iterable) -> Iterable[tuple]:
-    logger.debug("datagrams_from_raw(label={label}, raw_packets={raw_packets})")
     """Adapte des ``pcap_parser.RawPacket`` au format de collect_streams."""
+    logger.debug("datagrams_from_raw(label={label}, raw_packets={raw_packets})")
     for raw in raw_packets:
         # TCP : seulement pour le SDP d'un SIP sur TCP (le RTP, lui, est sur UDP)
         if raw.payload and (raw.proto == "UDP" or (raw.proto == "TCP" and b"a=rtpmap:" in raw.payload)):
@@ -234,8 +234,8 @@ def write_manifest(result: ContentExtraction, out: Path) -> None:
 
 
 def format_extraction(result: ContentExtraction) -> list[str]:
-    logger.debug("format_extraction(result={result})")
     """Lignes de sortie texte (CLI)."""
+    logger.debug("format_extraction(result={result})")
     lines = []
     if not result.media:
         lines.append("Aucun flux RTP audio/video identifie.")

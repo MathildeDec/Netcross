@@ -274,7 +274,6 @@ def diff_reports(
     loss_min_pp: float = 2.0,
     latency_min_ms: float = 5.0,
 ) -> list[DiffFinding]:
-    logger.debug("diff_reports(baseline={baseline}, current={current}, loss_min_pp={loss_min_pp}, ...)")
     """
     Compare deux Report deja calcules par analyse() et renvoie une
     liste de DiffFinding triee par severite (regression d'abord).
@@ -282,6 +281,7 @@ def diff_reports(
     baseline : le scenario de reference (avant le correctif, site A...)
     current  : le scenario a evaluer (apres le correctif, site B...)
     """
+    logger.debug("diff_reports(baseline={baseline}, current={current}, loss_min_pp={loss_min_pp}, ...)")
     common_points, only_before, only_after = _common_points(baseline, current)
 
     findings: list[DiffFinding] = [

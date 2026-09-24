@@ -240,7 +240,6 @@ def parse_captures_parallel(captures, max_workers=None) -> tuple[list[Pkt], list
 
 
 def read_capture_comments(captures) -> list[str]:
-    logger.debug("read_capture_comments(captures={captures})")
     """Lit le commentaire de section pcapng (Section Header Block) de
     chaque fichier de `captures` (memes paires (label, path) que
     parse_captures_parallel ci-dessus) et y attache le label -- meme
@@ -255,6 +254,7 @@ def read_capture_comments(captures) -> list[str]:
     traitement silencieux (voir read_capture_comment), un commentaire
     reste une annotation facultative, jamais une raison d'interrompre
     l'analyse ni d'exiger --raise-on-error comme parse_capture."""
+    logger.debug("read_capture_comments(captures={captures})")
     comments = []
     for label, path in captures:
         comment = read_capture_comment(path)
@@ -264,7 +264,6 @@ def read_capture_comments(captures) -> list[str]:
 
 
 def read_capture_infos(captures) -> list[dict]:
-    logger.debug("read_capture_infos(captures={captures})")
     """Lit les metadonnees de capture (format, snaplen, paquets perdus...)
     de chaque fichier de ``captures`` (memes paires (label, path) que
     parse_captures_parallel ci-dessus) et les renvoie sous forme de dicts
@@ -283,6 +282,7 @@ def read_capture_infos(captures) -> list[dict]:
     dropped_by_interface, dropped_by_os, interfaces (liste de dicts
     plats avec index, linktype, snaplen, name, received,
     dropped_by_interface, dropped_by_os). Les cles absentes valent None."""
+    logger.debug("read_capture_infos(captures={captures})")
     from pcap_parser.capinfos_source import read_capture_info
 
     infos = []
@@ -329,7 +329,6 @@ def read_capture_infos(captures) -> list[dict]:
 
 
 def parse_live(label, interface, bpf_filter=None, stop_event=None):
-    logger.debug("parse_live(label={label}, interface={interface}, bpf_filter={bpf_filter}, ...)")
     """Nouveaute (absente de l'ancienne version, qui ne savait lire
     que des fichiers deja ecrits) : capture en direct sur `interface`,
     yield un Pkt etiquete `label` au fil de l'eau -- meme pipeline de
@@ -340,12 +339,12 @@ def parse_live(label, interface, bpf_filter=None, stop_event=None):
     thread pour demander l'arret -- voir pcap_parser.iter_live /
     ek_source.iter_ek_records pour le detail (arret reactif y compris
     sans trafic sur l'interface)."""
+    logger.debug("parse_live(label={label}, interface={interface}, bpf_filter={bpf_filter}, ...)")
     for raw in pcap_parser.iter_live(interface, bpf_filter=bpf_filter, stop_event=stop_event):
         yield _to_pkt(label, raw)
 
 
 def parse_live_multi(interfaces, stop_event=None, *, bpf_filter=None):
-    logger.debug("parse_live_multi(interfaces={interfaces}, stop_event={stop_event})")
     """Capture en direct SIMULTANEE sur plusieurs interfaces : yield un Pkt
     au fil de l'eau, etiquete du label de son interface d'origine (le
     label devient le point de capture du Pkt, comme parse_live).
@@ -360,6 +359,7 @@ def parse_live_multi(interfaces, stop_event=None, *, bpf_filter=None):
     arguments (liste vide, label en double...) leve ValueError des
     l'appel, pas au premier paquet -- utile a un appelant qui lance la
     capture dans un thread (LiveDiffEngine.start_multi)."""
+    logger.debug("parse_live_multi(interfaces={interfaces}, stop_event={stop_event})")
     packets = pcap_parser.iter_live_multi(interfaces, stop_event=stop_event, bpf_filter=bpf_filter)
     return (_to_pkt(label, raw) for label, raw in packets)
 
@@ -383,11 +383,11 @@ def parse_sip(payload: bytes):
 
 
 def detect_encapsulation(layers: dict):
-    logger.debug("detect_encapsulation(layers={layers})")
     """ATTENTION signature changee par rapport a l'ancienne version de ce
     module : prend desormais le dict "layers" EK d'un paquet (pcap_parser),
     pas un objet de l'ancien decodeur. Fourni pour compat de nom -- voir
     pcap_parser.tunnels.detect_encapsulation pour l'implementation."""
+    logger.debug("detect_encapsulation(layers={layers})")
     from pcap_parser.tunnels import detect_encapsulation as _detect
 
     return _detect(layers)

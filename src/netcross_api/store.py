@@ -24,8 +24,8 @@ class AnalysesStore:
         self._store: dict[str, dict[str, Any]] = {}
 
     def add(self, report: Report, metadata: dict | None = None) -> str:
-        logger.debug("add(self={self}, report={report}, metadata={metadata})")
         """Enregistre un rapport, retourne l'ID généré."""
+        logger.debug("add(self={self}, report={report}, metadata={metadata})")
         analysis_id = uuid.uuid4().hex[:12]
         self._store[analysis_id] = {
             "report": report,
@@ -34,8 +34,8 @@ class AnalysesStore:
         return analysis_id
 
     def get(self, analysis_id: str) -> dict | None:
-        logger.debug("get(self={self}, analysis_id={analysis_id})")
         """Retourne l'analyse ou None si introuvable."""
+        logger.debug("get(self={self}, analysis_id={analysis_id})")
         return self._store.get(analysis_id)
 
     def get_report(self, analysis_id: str) -> Report | None:

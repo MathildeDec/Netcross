@@ -9,6 +9,7 @@ paths:
       tags:
       - meta
       summary: Health
+      description: Health check du service.
       operationId: health_health_get
       responses:
         '200':
@@ -69,6 +70,12 @@ paths:
       tags:
       - analyses
       summary: Get Analysis
+      description: 'Récupère le rapport complet d''une analyse (JSON).
+
+
+        Le rapport est sérialisé en dict JSON directement (sans passer par
+
+        generate_json_report qui écrit sur disque).'
       operationId: get_analysis_analyses__analysis_id__get
       parameters:
       - name: analysis_id
@@ -100,6 +107,7 @@ paths:
       tags:
       - analyses
       summary: Get Security Report
+      description: Récupère les constats de sécurité d'une analyse.
       operationId: get_security_report_analyses__analysis_id__security_get
       parameters:
       - name: analysis_id
@@ -132,6 +140,7 @@ paths:
       tags:
       - analyses
       summary: List Analyses
+      description: Liste les IDs d'analyses disponibles.
       operationId: list_analyses_analyses_get
       responses:
         '200':

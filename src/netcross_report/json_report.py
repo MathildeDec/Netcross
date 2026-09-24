@@ -250,7 +250,6 @@ def generate_json_report(
     names=None,
     security_report=None,
 ) -> str:
-    logger.debug("generate_json_report(r={r}, output_path={output_path}, title={title}, ...)")
     """
     r : objet Report (netcross_core.analyse). output_path : chemin du
     fichier JSON. meta : dict optionnel de metadonnees libres (ex:
@@ -279,6 +278,7 @@ def generate_json_report(
     DiffFinding deja diagnostiques) : cle JSON de premier niveau
     distincte, meme convention d'absence que les autres objets Session 0.
     """
+    logger.debug("generate_json_report(r={r}, output_path={output_path}, title={title}, ...)")
     if findings is None:
         findings = build_findings(r)
     ranked = rank_segments(list(findings) + list(tls_findings or []) + list(quic_findings or []))
@@ -372,7 +372,6 @@ def generate_json_diff(
     wireshark_expert_events=None,
     names=None,
 ) -> str:
-    logger.debug("generate_json_diff(findings={findings}, baseline={baseline}, current={current}, ...)")
     """
     Pendant de generate_diff_pdf() : findings est la liste de DiffFinding
     (baseline_diff.diff_reports()), baseline/current les deux Report
@@ -405,6 +404,7 @@ def generate_json_diff(
     cle JSON distincte de "expert_events" (qui ne porte que des
     ExpertEvent de source "netcross").
     """
+    logger.debug("generate_json_diff(findings={findings}, baseline={baseline}, current={current}, ...)")
     ranked = rank_segments(findings)
     score = health_score(ranked)
 

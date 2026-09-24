@@ -80,7 +80,6 @@ class ClientComparisonResult:
 
 
 def group_packets_by_client(all_packets, client_group):
-    logger.debug("group_packets_by_client(all_packets={all_packets}, client_group={client_group})")
     """
     Repartit all_packets par client selon un groupement explicite
     {nom: {ip1, ip2, ...}} -- voir idees.md : "--client-group
@@ -98,6 +97,7 @@ def group_packets_by_client(all_packets, client_group):
     deux dans le perimetre de comparaison) -- rare en pratique (l'usage
     vise est client -> serveur), non filtre specifiquement ici.
     """
+    logger.debug("group_packets_by_client(all_packets={all_packets}, client_group={client_group})")
     by_client = {name: [] for name in client_group}
     for pk in all_packets:
         for name, ips in client_group.items():
@@ -126,13 +126,13 @@ def build_client_report(
     nat_window_ms=200,
     rtp_clock_rate=8000,
 ):
-    logger.debug("build_client_report(client={client}, ips={ips}, packets={packets}, ...)")
     """Un ClientReport par client -- meme pattern que baseline_diff.py,
     qui appelle deja analyse() deux fois (avant/apres) : ici, une fois
     par client, sur le sous-ensemble de la capture qui lui est
     rattache. points_order est partage entre tous les clients (memes
     points de capture, seule la source change) -- sans quoi les
     Report deviendraient incomparables entre eux."""
+    logger.debug("build_client_report(client={client}, ips={ips}, packets={packets}, ...)")
     flows = correlate(packets, nat_tolerant, nat_window_ms)
     report = analyse(flows, points_order, packets, bucket_seconds, nat_tolerant, rtp_clock_rate)
     return ClientReport(
@@ -156,7 +156,6 @@ def compare_clients(
     loss_min_pp=2.0,
     latency_min_ms=5.0,
 ):
-    logger.debug("compare_clients(all_packets={all_packets}, client_group={client_group}, reference={reference}, ...)")
     """
     Point d'entree principal.
 
@@ -172,6 +171,7 @@ def compare_clients(
     (reference incluse) et un dict de DiffFinding par client compare
     (reference exclue -- rien a diffee contre elle-meme).
     """
+    logger.debug("compare_clients(all_packets={all_packets}, client_group={client_group}, reference={reference}, ...)")
     if len(client_group) < 2:
         raise ValueError(
             "compare_clients necessite au moins 2 clients (reference incluse) pour produire une comparaison."
@@ -216,11 +216,11 @@ def _print_signature(sig, indent="  "):
 
 
 def print_client_comparison(result: ClientComparisonResult) -> None:
-    logger.debug("print_client_comparison(result={result})")
     """Sortie console, meme esprit que print_diff_report : le client de
     reference d'abord (banniere dediee, comme les bannieres BASELINE/
     COURANT deja utilisees pour TLS/QUIC en Session 8), puis chaque
     client compare avec son verdict."""
+    logger.debug("print_client_comparison(result={result})")
     print("\n" + "=" * 70)
     print("COMPARAISON CLIENT VS CLIENT")
     print("=" * 70)
@@ -251,11 +251,11 @@ def print_client_comparison(result: ClientComparisonResult) -> None:
 
 
 def write_client_diff_csv(result: ClientComparisonResult, path: str) -> None:
-    logger.debug("write_client_diff_csv(result={result}, path={path})")
     """CSV plat, memes colonnes que write_diff_csv (baseline_diff.py)
     plus une colonne 'client' en tete -- une ligne par (client,
     DiffFinding). Le client de reference n'a pas de ligne (rien a
     diffee contre lui-meme)."""
+    logger.debug("write_client_diff_csv(result={result}, path={path})")
     with open(path, "w", newline="", encoding="utf-8") as fh:
         writer = csv.writer(fh)
         writer.writerow(["client", "reference", "severite", "categorie", "segment", "message", "avant", "apres"])

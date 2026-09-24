@@ -301,12 +301,12 @@ _INFORMATIVE_SEVERITIES: tuple[str, ...] = ("Chat", "Comment")
 
 
 def build_packet(ts_seconds: float, layers: dict) -> RawPacket | None:
-    logger.debug("build_packet(ts_seconds={ts_seconds}, layers={layers})")
     """Construit un RawPacket a partir des couches EK d'un paquet, ou
     None si le paquet n'a ni IPv4, ni IPv6, ni ARP, ni STP (LLDP, CDP...
     hors perimetre de cette analyse). ARP (Session 24) et STP (Session
     25) sont traites malgre l'absence d'en-tete IP -- voir les branches
     `elif arp is not None`/`elif stp is not None` ci-dessous."""
+    logger.debug("build_packet(ts_seconds={ts_seconds}, layers={layers})")
     frame = layers.get("frame") or {}
     length = hex_or_dec_to_int(g(frame, "frame_frame_len")) or 0
     frame_number = hex_or_dec_to_int(g(frame, "frame_frame_number"))

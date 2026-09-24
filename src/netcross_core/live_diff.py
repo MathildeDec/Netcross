@@ -89,13 +89,13 @@ def finding_to_alarm_signal(
     finding: DiffFinding,
     segment: str | None = None,
 ) -> AlarmSignal:
-    logger.debug("finding_to_alarm_signal(finding={finding}, segment={segment})")
     """Convertit un DiffFinding en AlarmSignal pour le AlarmEngine.
 
     DiffFinding porte category (utilise comme rule_id), severity, segment
     et after (nouvelle valeur mesuree). On restructure dans le tuple
     AlarmSignal attendu par le moteur.
     """
+    logger.debug("finding_to_alarm_signal(finding={finding}, segment={segment})")
     return AlarmSignal(
         rule_id=finding.category,
         segment=segment or finding.segment,
@@ -145,17 +145,16 @@ class LiveDiffEngine:
         self._stop_event = threading.Event()
 
     def start(self, interface: str, bpf_filter: str | None = None) -> None:
-        logger.debug("start(self={self}, interface={interface}, bpf_filter={bpf_filter})")
         """Demarre la capture live sur UNE interface et la boucle de diff.
 
         Le point de capture des paquets porte le nom de l'interface.
         """
+        logger.debug("start(self={self}, interface={interface}, bpf_filter={bpf_filter})")
         self._ensure_idle()
         self._stop_event.clear()
         self._launch(self._run, interface, bpf_filter)
 
     def start_multi(self, interfaces: Sequence[tuple[str, str]], bpf_filter: str | None = None) -> None:
-        logger.debug("start_multi(self={self}, interfaces={interfaces}, bpf_filter={bpf_filter})")
         """Demarre la capture live SIMULTANEE sur plusieurs interfaces.
 
         `interfaces` : sequence de (label, interface), ex.
@@ -175,6 +174,7 @@ class LiveDiffEngine:
             ValueError: liste vide, label ou interface vide, label en
                 double -- levee ici, avant tout demarrage de thread.
         """
+        logger.debug("start_multi(self={self}, interfaces={interfaces}, bpf_filter={bpf_filter})")
         from netcross_core.parsing import parse_live_multi
 
         self._ensure_idle()
@@ -196,8 +196,8 @@ class LiveDiffEngine:
         self._thread.start()
 
     def stop(self, timeout: float = 5.0) -> None:
-        logger.debug("stop(self={self}, timeout={timeout})")
         """Arrete la capture et attend la fin du thread."""
+        logger.debug("stop(self={self}, timeout={timeout})")
         self._stop_event.set()
         self.state.running = False
         if self._thread is not None:

@@ -157,9 +157,9 @@ class AddressRedactor:
         return pseudo
 
     def redact(self, packets) -> None:
-        logger.debug("redact(self={self}, packets={packets})")
         """Mutation en place de chaque paquet de `packets` (Pkt ou
         RawPacket, voir docstring de module)."""
+        logger.debug("redact(self={self}, packets={packets})")
         for pk in packets:
             self._redact_one(pk)
 
@@ -195,10 +195,10 @@ class AddressRedactor:
                 pk.stp_root_id = f"{prio}/{self._pseudonym(mac, 'mac')}"
 
     def entries(self):
-        logger.debug("entries(self={self})")
         """Tuples (adresse_reelle, pseudonyme, type), tries par type puis
         par pseudonyme -- ordre stable pour un export reproductible
         (--redact-map, tests)."""
+        logger.debug("entries(self={self})")
         return sorted(
             ((addr, pseudo, kind) for addr, (pseudo, kind) in self._map.items()),
             key=lambda t: (t[2], t[1]),
@@ -209,31 +209,31 @@ class AddressRedactor:
 
     @property
     def mapping(self) -> dict[str, str]:
-        logger.debug("mapping(self={self})")
         """Vue simplifiee adresse_reelle -> pseudonyme (sans le type),
         pour un usage programmatique simple (tests notamment)."""
+        logger.debug("mapping(self={self})")
         return {addr: pseudo for addr, (pseudo, _kind) in self._map.items()}
 
 
 def redact_packets(packets) -> AddressRedactor:
-    logger.debug("redact_packets(packets={packets})")
     """Raccourci pour le cas simple (un seul appel, un seul jeu de
     paquets) : construit un AddressRedactor neuf, redige `packets`,
     renvoie le redacteur (mapping/entries() consultables ensuite,
     notamment pour --redact-map)."""
+    logger.debug("redact_packets(packets={packets})")
     redactor = AddressRedactor()
     redactor.redact(packets)
     return redactor
 
 
 def write_redaction_map_csv(redactor: AddressRedactor, path: str) -> None:
-    logger.debug("write_redaction_map_csv(redactor={redactor}, path={path})")
     """Ecrit le mapping adresse reelle -> pseudonyme dans un CSV LOCAL
     (adresse_reelle, pseudonyme, type) -- a conserver uniquement par
     l'operateur, jamais transmis avec la capture/le rapport reidiges :
     permet de retrouver plus tard a quelle adresse reelle correspond un
     pseudonyme mentionne par un tiers (ex: un support vendeur qui cite
     192.0.2.4 dans sa reponse)."""
+    logger.debug("write_redaction_map_csv(redactor={redactor}, path={path})")
     with open(path, "w", newline="", encoding="utf-8") as fh:
         writer = csv.writer(fh)
         writer.writerow(["adresse_reelle", "pseudonyme", "type"])

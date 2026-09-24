@@ -83,13 +83,13 @@ def _percentile(sorted_values: list[float], p: float) -> float:
 
 
 def build_baseline_profile(metric: str, values: list[float]) -> BaselineProfile:
-    logger.debug("build_baseline_profile(metric={metric}, values={values})")
     """Construit un ``BaselineProfile`` a partir d'une liste de valeurs
     brutes. Pure fonction de calcul, sans I/O.
 
     Si la liste est vide, retourne un profil avec count=0 et toutes les
     statistiques a zero.
     """
+    logger.debug("build_baseline_profile(metric={metric}, values={values})")
     if not values:
         return BaselineProfile(metric=metric, count=0)
 

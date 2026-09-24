@@ -15,8 +15,8 @@ class AIUnavailableError(RuntimeError):
 
 
 def ml_available() -> bool:
-    logger.debug("ml_available()")
     """True si scikit-learn (et donc numpy) est importable -- sans l'importer."""
+    logger.debug("ml_available()")
     return importlib.util.find_spec("sklearn") is not None
 
 

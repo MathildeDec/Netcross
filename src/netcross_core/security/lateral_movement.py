@@ -141,8 +141,8 @@ def detect_port_scans(
     packets: list[Pkt],
     thresholds: LateralMovementThresholds,
 ) -> list[LateralMovementEvent]:
-    logger.debug("detect_port_scans(packets={packets}, thresholds={thresholds})")
     """Detecte les scans de ports : 1 source -> N ports sur M hotes."""
+    logger.debug("detect_port_scans(packets={packets}, thresholds={thresholds})")
     # point -> source -> {(dst, dport)}
     scan_map: dict[str, dict[str, set[tuple[str, int]]]] = defaultdict(lambda: defaultdict(set))
     for pkt in packets:
@@ -241,8 +241,8 @@ def detect_brute_force(
     packets: list[Pkt],
     thresholds: LateralMovementThresholds,
 ) -> list[LateralMovementEvent]:
-    logger.debug("detect_brute_force(packets={packets}, thresholds={thresholds})")
     """Detecte les tentatives de brute force : auth repetee vers N hotes."""
+    logger.debug("detect_brute_force(packets={packets}, thresholds={thresholds})")
     # point -> source -> list of (ts, dst) for auth ports
     auth_map: dict[str, dict[str, list[tuple[float, str]]]] = defaultdict(lambda: defaultdict(list))
     for pkt in packets:
@@ -292,10 +292,10 @@ def detect_unusual_protocols(
     packets: list[Pkt],
     thresholds: LateralMovementThresholds,
 ) -> list[LateralMovementEvent]:
-    logger.debug("detect_unusual_protocols(packets={packets}, thresholds={thresholds})")
     """Detecte les protocoles inhabituels en interne (SMB, RDP, WinRM).
     Base sur les ports de destination : 445 (SMB), 3389 (RDP), 5985/5986
     (WinRM) depuis un poste utilisateur (port source > 1024)."""
+    logger.debug("detect_unusual_protocols(packets={packets}, thresholds={thresholds})")
     # point -> source -> set of (dst, port_label)
     proto_map: dict[str, dict[str, set[tuple[str, str]]]] = defaultdict(lambda: defaultdict(set))
     for pkt in packets:
@@ -335,8 +335,8 @@ def detect_new_connections(
     packets: list[Pkt],
     thresholds: LateralMovementThresholds,
 ) -> list[LateralMovementEvent]:
-    logger.debug("detect_new_connections(packets={packets}, thresholds={thresholds})")
     """Detecte les nouvelles connexions internes non presentes dans la baseline."""
+    logger.debug("detect_new_connections(packets={packets}, thresholds={thresholds})")
     baseline = thresholds.new_connection_baseline_pairs
     if not baseline:
         return []  # Sans baseline, tout est nouveau → pas de signal utile.
@@ -377,7 +377,6 @@ def detect_lateral_movement(
     packets: Iterable[Pkt],
     thresholds: LateralMovementThresholds | None = None,
 ) -> LateralMovementResult:
-    logger.debug("detect_lateral_movement(packets={packets}, thresholds={thresholds})")
     """Detection des mouvements latéraux internes.
 
     ``thresholds`` : configuration des seuils (defauts si None).
@@ -388,6 +387,7 @@ def detect_lateral_movement(
     Retourne un :class:`LateralMovementResult` avec les evenements
     detectes et un flag ``suspicious`` si au moins un evenement a ete leve.
     """
+    logger.debug("detect_lateral_movement(packets={packets}, thresholds={thresholds})")
     if thresholds is None:
         thresholds = LateralMovementThresholds()
 

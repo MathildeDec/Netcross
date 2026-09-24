@@ -43,8 +43,8 @@ class Notifier(Protocol):
 
 
 def validate_http_url(url: str) -> str:
-    logger.debug("validate_http_url(url={url})")
     """Refuse tout schema autre que http(s) (pas de file://, pas de ftp://)."""
+    logger.debug("validate_http_url(url={url})")
     parsed = urlparse(url)
     if parsed.scheme not in {"http", "https"} or not parsed.netloc:
         raise ValueError(f"URL invalide (http:// ou https:// attendu) : {url!r}")
@@ -108,8 +108,8 @@ class WebhookNotifier:
 
 
 def slack_blocks(summary: NotificationSummary) -> list[dict[str, Any]]:
-    logger.debug("slack_blocks(summary={summary})")
     """Mise en forme Block Kit du resume."""
+    logger.debug("slack_blocks(summary={summary})")
     counts = " · ".join(f"{sev} : {summary.by_severity.get(sev, 0)}" for sev in summary.by_severity)
     blocks: list[dict[str, Any]] = [
         {"type": "header", "text": {"type": "plain_text", "text": summary.title[:150]}},

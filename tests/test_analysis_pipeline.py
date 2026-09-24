@@ -158,8 +158,8 @@ class TestRunAnalysisPipeline:
             on_progress=lambda msg: progress.append(msg),
         )
 
-        # Le pipeline doit logger au moins le chargement et la fin
-        assert any("Chargement" in p for p in progress)
+        # Le pipeline doit logger au moins la lecture et la fin
+        assert any("Lecture" in p or "Chargement" in p for p in progress)
         assert any("terminée" in p for p in progress)
 
     def test_basic_analysis(self, monkeypatch):

@@ -101,9 +101,9 @@ def _save_state(path: Path, state: dict[str, float]) -> None:
 
 
 def is_silenced(fingerprint: str, state_path: Path, silence_seconds: float, now: float) -> float | None:
-    logger.debug("is_silenced(fingerprint={fingerprint}, state_path={state_path}, silence_seconds={silence_seconds}, ...)")
     """Age (s) de la derniere notification du meme lot si elle est dans la
     fenetre de silence, sinon None."""
+    logger.debug("is_silenced(fingerprint={fingerprint}, state_path={state_path}, silence_seconds={silence_seconds}, ...)")
     if silence_seconds <= 0:
         return None
     last = _load_state(state_path).get(fingerprint)
@@ -225,11 +225,11 @@ def run_notifications(
     silence_hours: float | None = None,
     env: dict[str, str] | None = None,
 ) -> list[DeliveryResult]:
-    logger.debug("run_notifications(summary_factory={summary_factory})")
     """Point d'entree de la CLI. `summary_factory(threshold)` construit le
     resume -- il n'est meme pas construit sans seuil.
 
     Sans seuil : liste vide, AUCUN canal construit, aucun appel reseau."""
+    logger.debug("run_notifications(summary_factory={summary_factory})")
     if not threshold:
         return []
     notifiers, lines = notifiers_from_config(cfg, webhook=webhook, slack=slack, email_to=email_to, env=env)

@@ -87,12 +87,12 @@ def build_flow_timeline(
     packets: list[Pkt],
     window_s: float = 1.0,
 ) -> FlowTimeline:
-    logger.debug("build_flow_timeline(packets={packets}, window_s={window_s})")
     r"""Construit un \`FlowTimeline\` a partir des paquets d'un flux.
 
     ``window_s`` : duree de la fenetre glissante pour le calcul du debit
     par troncon (defaut 1.0s).
     """
+    logger.debug("build_flow_timeline(packets={packets}, window_s={window_s})")
     timeline = FlowTimeline()
 
     if not packets:

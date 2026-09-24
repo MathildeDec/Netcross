@@ -52,8 +52,8 @@ def _size_counts(flow: dict) -> dict[float, int]:
 
 
 def flow_features(flow: dict) -> list[float]:
-    logger.debug("flow_features(flow={flow})")
     """Vecteur de ``len(FEATURE_NAMES)`` reels, sans NaN ni infini."""
+    logger.debug("flow_features(flow={flow})")
     sizes = _splt_sizes(flow)
     counts = _size_counts(flow)
     total = sum(counts.values())

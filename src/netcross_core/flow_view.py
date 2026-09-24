@@ -88,7 +88,6 @@ def build_flow_view(
     packets_by_point: dict[str, list[Pkt]],
     events: list[ExpertEvent] | None = None,
 ) -> FlowView:
-    logger.debug("build_flow_view(flow={flow}, packets_by_point={packets_by_point}, events={events})")
     """Construit un `FlowView` a partir d'un `Flow` et du dict
     `{point: [Pkt, ...]}` correspondant (produit par `correlate()`).
 
@@ -96,6 +95,7 @@ def build_flow_view(
     flux. Si None, `FlowView.events` reste vide -- l'integration avec
     l'index forensic se fera apres merge de la PR correspondante.
     """
+    logger.debug("build_flow_view(flow={flow}, packets_by_point={packets_by_point}, events={events})")
     view = FlowView(flow=flow)
 
     all_pkts: list[Pkt] = []

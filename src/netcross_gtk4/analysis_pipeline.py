@@ -20,6 +20,9 @@ import io
 from dataclasses import dataclass, field
 from typing import Any, Callable, Sequence
 
+import os
+from pathlib import Path
+
 from netcross_core.correlate import correlate
 from netcross_core.logging_config import get_logger
 from netcross_core.models import Report
@@ -72,13 +75,31 @@ def load_packets(
     """Charge les paquets depuis une liste de (label, chemin).
 
     Remplace MainWindow._load_packets : même logique, sans dépendance GTK.
+    Supporte le mode parallèle via parse_captures_parallel.
     """
+    if parallel:
+        from pcap_parser.capture import parse_captures_parallel
+
+        all_packets, per_file_stats = parse_captures_parallel(captures)
+        if on_progress:
+            for s in per_file_stats:
+                if s["error"]:
+                    on_progress(f"  [{s['label']}] ECHEC sur {s['path']} : {s['error']}")
+                else:
+                    on_progress(
+                        f"  [{s['label']}] {s['count']} paquets chargés depuis {s['path']} "
+                        f"({s['seconds']:.2f}s)"
+                    )
+        return all_packets
+
     all_packets = []
     for label, path in captures:
         if on_progress:
-            on_progress(f"Chargement de {label} ({path})...")
+            on_progress(f"Lecture de {os.path.basename(path)} ({label})...")
         packets = parse_capture(label, path)
         all_packets.extend(packets)
+        if on_progress:
+            on_progress(f"  -> {len(packets)} paquets chargés")
     return all_packets
 
 

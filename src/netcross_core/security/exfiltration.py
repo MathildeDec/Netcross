@@ -233,7 +233,6 @@ def detect_exfiltration(
     thresholds: ExfiltrationThresholds = DEFAULT_THRESHOLDS,
     known_destinations: frozenset[str] | None = None,
 ) -> ExfiltrationResult:
-    logger.debug("detect_exfiltration(packets={packets}, thresholds={thresholds}, known_destinations={known_destinations})")
     """
     Detecte les transferts sortants anormaux pouvant indiquer une
     exfiltration de donnees.
@@ -242,6 +241,7 @@ def detect_exfiltration(
     (baseline). Si fourni, les destinations non listees declenchent le
     signal faible `new_destination`.
     """
+    logger.debug("detect_exfiltration(packets={packets}, thresholds={thresholds}, known_destinations={known_destinations})")
     flow_data: dict[tuple[str, str, str], dict] = defaultdict(
         lambda: {
             "bytes": 0,
@@ -344,9 +344,9 @@ def detect_exfiltration(
 
 
 def dns_tunnel_sources(packets: Iterable[Pkt], dns_suspicions: Iterable[dict]) -> set[tuple[str, str]]:
-    logger.debug("dns_tunnel_sources(packets={packets}, dns_suspicions={dns_suspicions})")
     """(point, IP source) des hotes ayant interroge un domaine suspect de
     tunneling DNS (sorties `dns_tunnel.detect_dns_tunneling`)."""
+    logger.debug("dns_tunnel_sources(packets={packets}, dns_suspicions={dns_suspicions})")
     domains: dict[str, set[str]] = defaultdict(set)
     for s in dns_suspicions:
         if s.get("domain"):
@@ -371,7 +371,6 @@ def correlate_exfiltration(
     beacon_suspicions: Iterable[dict] = (),
     dns_sources: set[tuple[str, str]] | None = None,
 ) -> list[dict]:
-    logger.debug("correlate_exfiltration(alerts={alerts}, beacon_suspicions={beacon_suspicions}, dns_sources={dns_sources})")
     """Ajoute les signaux de correlation (#144, #147) aux alertes et
     recalcule score et severite. Renvoie une NOUVELLE liste, triee par
     score decroissant.
@@ -381,6 +380,7 @@ def correlate_exfiltration(
     - `correlated_dns_tunnel` : le meme hote interroge un domaine suspect de
       tunneling DNS sur le meme point.
     """
+    logger.debug("correlate_exfiltration(alerts={alerts}, beacon_suspicions={beacon_suspicions}, dns_sources={dns_sources})")
     beacons = {(str(s.get("point") or ""), s.get("src"), s.get("dst")) for s in beacon_suspicions}
     dns_sources = dns_sources or set()
     out = []

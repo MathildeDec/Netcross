@@ -65,8 +65,8 @@ def _sev(f: dict) -> str:
 
 
 def collect_facts(report: Any, ai: dict | None = None) -> dict:
-    logger.debug("collect_facts(report={report}, ai={ai})")
     """Dictionnaire compact et JSON-serialisable des faits du rapport."""
+    logger.debug("collect_facts(report={report}, ai={ai})")
     findings = sorted(getattr(report, "security_findings", []) or [], key=lambda f: SEVERITY_ORDER.index(_sev(f)))
     flows = getattr(report, "flow_anomalies", []) or []
     ai = ai or {}
@@ -183,8 +183,8 @@ def template_summary(report: Any, ai: dict | None = None) -> Summary:
 
 
 def parse_engine(spec: str, endpoint: str | None = None) -> tuple[str, str, str]:
-    logger.debug("parse_engine(spec={spec}, endpoint={endpoint})")
     """``template`` | ``ollama:MODELE`` | ``llamacpp`` -> (moteur, modele, url)."""
+    logger.debug("parse_engine(spec={spec}, endpoint={endpoint})")
     kind, _, model = spec.partition(":")
     if kind == "template":
         return "template", "", ""

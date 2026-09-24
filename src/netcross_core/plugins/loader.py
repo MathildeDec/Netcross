@@ -61,8 +61,8 @@ class LoadedPlugins:
 
 
 def forbidden_imports(source: str) -> list[str]:
-    logger.debug("forbidden_imports(source={source})")
     """Modules interdits importes par `source` (import et from ... import)."""
+    logger.debug("forbidden_imports(source={source})")
     found = []
     for node in ast.walk(ast.parse(source)):
         names: list[str] = []
@@ -99,8 +99,8 @@ def _entry_points(group: str) -> list[metadata.EntryPoint]:
 
 
 def discover_installed() -> list[PluginInfo]:
-    logger.debug("discover_installed()")
     """Plugins installes (metadonnees seulement, AUCUN import)."""
+    logger.debug("discover_installed()")
     infos = []
     for kind, group in GROUPS.items():
         for ep in _entry_points(group):

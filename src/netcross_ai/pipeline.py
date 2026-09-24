@@ -28,9 +28,9 @@ class AIOptions:
 
 
 def run_ai(report: Any, flows: list[dict], options: AIOptions) -> dict:
-    logger.debug("run_ai(report={report}, flows={flows}, options={options})")
     """Execute les usages demandes ; leve AIUnavailableError, BaselineError,
     TrainingSetError ou WriterConfigError sur une demande impossible."""
+    logger.debug("run_ai(report={report}, flows={flows}, options={options})")
     result: dict = {"schema": AI_SCHEMA, "flows": len(flows)}
     if options.baseline_save:
         new = Baseline.from_flows(flows, options.baseline_label)

@@ -46,8 +46,8 @@ app = FastAPI(
 
 @app.get("/health", response_model=HealthResponse, tags=["meta"])
 async def health() -> HealthResponse:
-    logger.debug("health()")
     """Health check du service."""
+    logger.debug("health()")
     return HealthResponse()
 
 
@@ -111,12 +111,12 @@ async def upload_capture(
     responses={404: {"model": ErrorResponse}},
 )
 async def get_analysis(analysis_id: str) -> JSONResponse:
-    logger.debug("get_analysis(analysis_id={analysis_id})")
     """Récupère le rapport complet d'une analyse (JSON).
 
     Le rapport est sérialisé en dict JSON directement (sans passer par
     generate_json_report qui écrit sur disque).
     """
+    logger.debug("get_analysis(analysis_id={analysis_id})")
     report = store.get_report(analysis_id)
     if report is None:
         raise HTTPException(status_code=404, detail=f"Analyse {analysis_id} introuvable")
@@ -146,8 +146,8 @@ async def get_analysis(analysis_id: str) -> JSONResponse:
     responses={404: {"model": ErrorResponse}},
 )
 async def get_security_report(analysis_id: str) -> SecurityReport:
-    logger.debug("get_security_report(analysis_id={analysis_id})")
     """Récupère les constats de sécurité d'une analyse."""
+    logger.debug("get_security_report(analysis_id={analysis_id})")
     entry = store.get(analysis_id)
     if entry is None:
         raise HTTPException(status_code=404, detail=f"Analyse {analysis_id} introuvable")
@@ -175,6 +175,6 @@ async def get_security_report(analysis_id: str) -> SecurityReport:
 
 @app.get("/analyses", tags=["analyses"])
 async def list_analyses() -> dict:
-    logger.debug("list_analyses()")
     """Liste les IDs d'analyses disponibles."""
+    logger.debug("list_analyses()")
     return {"analyses": store.list_ids()}

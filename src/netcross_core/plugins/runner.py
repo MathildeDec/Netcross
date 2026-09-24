@@ -66,8 +66,8 @@ def _error(exc: BaseException) -> str:
 
 
 def load_error_runs(errors: list[dict[str, str]]) -> list[dict[str, Any]]:
-    logger.debug("load_error_runs(errors={errors})")
     """Lignes de tracabilite pour les plugins demandes mais non charges."""
+    logger.debug("load_error_runs(errors={errors})")
     return [_run(e["plugin"], "plugin", "refuse", e["reason"]) for e in errors]
 
 

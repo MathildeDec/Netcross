@@ -399,7 +399,6 @@ def _lookup_native_detail(pk, flag_name: str) -> tuple[str | None, str | None, s
 
 
 def build_wireshark_expert_events(all_packets) -> list[ExpertEvent]:
-    logger.debug("build_wireshark_expert_events(all_packets={all_packets})")
     """Un ExpertEvent par (point, flag) distinct rencontre dans
     all_packets -- jamais un par paquet individuel : un flux avec des
     centaines de retransmissions produirait sinon des centaines
@@ -449,6 +448,7 @@ def build_wireshark_expert_events(all_packets) -> list[ExpertEvent]:
     par (point, flag) depuis `_REMEDIATION` -- constante pour un flag
     donne, comme layer/protocol, `None` pour tout flag absent de cette
     table."""
+    logger.debug("build_wireshark_expert_events(all_packets={all_packets})")
     # (point, flag) -> liste de Pkt exemples (plafonnee), compteur total,
     # min/max de pk.ts sur TOUTES les occurrences (Session 40), flux
     # concernes dedoublonnes dans l'ordre de premiere rencontre (Session 43),

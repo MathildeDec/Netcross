@@ -189,9 +189,9 @@ def _opt_float(value) -> float | None:
 
 
 def severity_from_cvss(cvss: float) -> str:
-    logger.debug("severity_from_cvss(cvss={cvss})")
     """Tranches CVSS v3 de la NVD : >=9.0 critique, >=7.0 elevee, >=4.0
     moyenne, sinon faible (0.0 = 'none' inclus)."""
+    logger.debug("severity_from_cvss(cvss={cvss})")
     if cvss >= 9.0:
         return "critique"
     if cvss >= 7.0:
@@ -309,10 +309,10 @@ def _build_services(fingerprints, cves: list[SecurityItem]) -> list[ServiceEntry
 
 
 def build_security_report(report) -> SecurityReport:
-    logger.debug("build_security_report(report={report})")
     """Consolide `report.service_fingerprints` et `report.security_findings`
     en un `SecurityReport` (sections triees par severite decroissante, puis
     CVSS decroissant) et calcule le tableau de bord."""
+    logger.debug("build_security_report(report={report})")
     items = [i for i in (_to_item(raw) for raw in (report.security_findings or [])) if i is not None]
     exploits = sorted((i for i in items if i.category == CATEGORY_EXPLOIT), key=_item_sort_key)
     anomalies = sorted((i for i in items if i.category == CATEGORY_ANOMALY), key=_item_sort_key)
@@ -445,9 +445,9 @@ def _bar(score: int, width: int = 20) -> str:
 
 
 def format_security_report(sr: SecurityReport) -> list[str]:
-    logger.debug("format_security_report(sr={sr})")
     """Rendu texte du rapport, une chaine par ligne (jamais de `print()`
     ici, meme separation que `netcross_report.session_objects`)."""
+    logger.debug("format_security_report(sr={sr})")
     d = sr.dashboard
     lines = ["=" * 70, "RAPPORT DE SECURITE (detection passive de vulnerabilites)", "=" * 70]
 
@@ -499,8 +499,8 @@ def format_security_report(sr: SecurityReport) -> list[str]:
 
 
 def print_security_report(sr: SecurityReport) -> None:
-    logger.debug("print_security_report(sr={sr})")
     """Ecrit `format_security_report()` sur stdout."""
+    logger.debug("print_security_report(sr={sr})")
     for line in format_security_report(sr):
         print(line)
 
@@ -509,7 +509,6 @@ def print_security_report(sr: SecurityReport) -> None:
 
 
 def security_report_to_dict(sr: SecurityReport) -> dict:
-    logger.debug("security_report_to_dict(sr={sr})")
     """Represente le rapport en structures Python serialisables.
 
     Socle unique des trois sorties non textuelles (JSON, HTML, PDF) : sans
@@ -523,6 +522,7 @@ def security_report_to_dict(sr: SecurityReport) -> dict:
     du projet veut qu'une information absente soit dite, pas passee sous
     silence.
     """
+    logger.debug("security_report_to_dict(sr={sr})")
     return {
         "dashboard": {
             "score": sr.dashboard.score,

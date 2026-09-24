@@ -334,7 +334,6 @@ def detect_dga(
     packets: Iterable[Pkt],
     thresholds: DgaThresholds | None = None,
 ) -> DgaResult:
-    logger.debug("detect_dga(packets={packets}, thresholds={thresholds})")
     """Detection de domaines DGA dans les paquets DNS.
 
     Parcourt les requetes DNS (``dns_qry_name`` non nul), calcule un
@@ -344,6 +343,7 @@ def detect_dga(
     Le ratio NXDOMAIN est calcule par domaine : nombre de reponses
     NXDOMAIN (rcode=3) / nombre total de reponses pour ce domaine.
     """
+    logger.debug("detect_dga(packets={packets}, thresholds={thresholds})")
     if thresholds is None:
         thresholds = DgaThresholds()
 
