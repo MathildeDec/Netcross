@@ -367,7 +367,10 @@ def test_protocol_mismatch_findings_severite():
     assert findings[0]["category"] == "anomalie"
     assert findings[1]["category"] == "anomalie"
     assert findings[0]["detail"] == "incoherence de protocole : SSH détecté sur port 443 (attendu : HTTPS) -- trame 1"
-    assert findings[1]["detail"] == "incoherence de protocole : Payload HTTP dans paquet ICMP (tunneling suspect) -- trame 2"
+    assert findings[1]["detail"] == (
+        "incoherence de protocole : Payload HTTP dans paquet ICMP"
+        " (tunneling suspect) -- trame 2"
+    )
 
 
 def test_protocol_mismatch_findings_vide():
