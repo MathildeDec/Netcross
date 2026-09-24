@@ -43,6 +43,7 @@ from netcross_core.discovery import (
     load_baseline_hosts,
 )
 from netcross_core.live_diff import LiveDiffConfig, LiveDiffEngine, LiveDiffState, finding_to_alarm_signal
+from netcross_core.logging_config import get_logger
 from netcross_core.models import Pkt, Report
 from netcross_core.parsing import (
     compute_mos,
@@ -72,6 +73,8 @@ from pcap_parser.capture import (
     replay_capture,
     split_capture,
 )
+
+logger = get_logger(__name__)
 
 __all__ = [
     "DEFAULT_REFERENCES",

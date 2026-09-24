@@ -78,6 +78,7 @@ class ContentExtraction:
 
 def parse_kinds(spec: str | None) -> tuple[str, ...]:
     """``audio,video`` -> ('audio', 'video') ; ValueError sur un type inconnu."""
+    logger.debug("parse_kinds(spec={spec})")
     if not spec:
         return KINDS
     kinds = tuple(dict.fromkeys(k.strip() for k in spec.split(",") if k.strip()))
@@ -90,6 +91,7 @@ def parse_kinds(spec: str | None) -> tuple[str, ...]:
 def prepare_out_dir(path: str) -> Path:
     """Cree le repertoire de sortie (0700). Refuse un repertoire non vide :
     melanger deux extractions rendrait le manifeste trompeur."""
+    logger.debug("prepare_out_dir(path={path})")
     out = Path(path)
     if out.exists() and (not out.is_dir() or any(out.iterdir())):
         raise ValueError(f"{path} existe deja et n'est pas un repertoire vide")
@@ -107,6 +109,7 @@ def _sha256(path: Path) -> str:
 
 
 def inventory_documents(point: str, protocol: str, directory: Path) -> list[ExtractedDocument]:
+    logger.debug("inventory_documents(point={point}, protocol={protocol}, directory={directory})")
     docs = []
     for p in sorted(directory.iterdir()) if directory.is_dir() else []:
         if not p.is_file():
@@ -137,9 +140,11 @@ def export_documents(
             try:
                 done = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, check=False)
             except FileNotFoundError:
+                logger.exception("erreur: FileNotFoundError")
                 errors.append("documents : tshark introuvable, aucun document extrait")
                 return docs, errors
             except subprocess.TimeoutExpired:
+                logger.exception("erreur inattendue")
                 errors.append(f"documents [{label}] {proto} : delai depasse ({timeout:.0f} s)")
                 continue
             if done.returncode != 0:
@@ -161,6 +166,7 @@ def _safe(label: str) -> str:
 
 def datagrams_from_raw(label: str, raw_packets: Iterable) -> Iterable[tuple]:
     """Adapte des ``pcap_parser.RawPacket`` au format de collect_streams."""
+    logger.debug("datagrams_from_raw(label={label}, raw_packets={raw_packets})")
     for raw in raw_packets:
         # TCP : seulement pour le SDP d'un SIP sur TCP (le RTP, lui, est sur UDP)
         if raw.payload and (raw.proto == "UDP" or (raw.proto == "TCP" and b"a=rtpmap:" in raw.payload)):
@@ -168,6 +174,7 @@ def datagrams_from_raw(label: str, raw_packets: Iterable) -> Iterable[tuple]:
 
 
 def analyse_media(datagrams: Iterable[tuple]) -> tuple[list[RtpStream], list[StreamQuality]]:
+    logger.debug("analyse_media(datagrams={datagrams})")
     streams = collect_streams(datagrams)
     return streams, [analyse_stream(s) for s in streams]
 
@@ -202,6 +209,7 @@ def run_extraction(
                 try:
                     q.exported = str(export_stream(st, out))
                 except ValueError as exc:
+                    logger.exception("erreur: exc")
                     q.note = f"{q.note} ; {exc}" if q.note else str(exc)
             result.media.append(q)
     if out is not None and "documents" in kinds:
@@ -212,6 +220,7 @@ def run_extraction(
 
 
 def write_manifest(result: ContentExtraction, out: Path) -> None:
+    logger.debug("write_manifest(result={result}, out={out})")
     manifest = out / "manifest.json"
     manifest.write_text(json.dumps(result.to_dict(), ensure_ascii=False, indent=2) + "\n", encoding="utf-8")
     readme = out / "LISEZ-MOI.txt"
@@ -226,6 +235,7 @@ def write_manifest(result: ContentExtraction, out: Path) -> None:
 
 def format_extraction(result: ContentExtraction) -> list[str]:
     """Lignes de sortie texte (CLI)."""
+    logger.debug("format_extraction(result={result})")
     lines = []
     if not result.media:
         lines.append("Aucun flux RTP audio/video identifie.")

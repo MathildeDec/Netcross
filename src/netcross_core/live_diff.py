@@ -42,8 +42,11 @@ from typing import Callable
 
 from netcross_core.alarms import AlarmEngine, AlarmSignal
 from netcross_core.baseline_diff import DiffFinding, diff_reports
+from netcross_core.logging_config import get_logger
 from netcross_core.models import Pkt, Report
 from pcap_parser.capture import CaptureRingBuffer
+
+logger = get_logger(__name__)
 
 
 @dataclass(frozen=True)
@@ -92,6 +95,7 @@ def finding_to_alarm_signal(
     et after (nouvelle valeur mesuree). On restructure dans le tuple
     AlarmSignal attendu par le moteur.
     """
+    logger.debug("finding_to_alarm_signal(finding={finding}, segment={segment})")
     return AlarmSignal(
         rule_id=finding.category,
         segment=segment or finding.segment,
@@ -145,6 +149,7 @@ class LiveDiffEngine:
 
         Le point de capture des paquets porte le nom de l'interface.
         """
+        logger.debug("start(self={self}, interface={interface}, bpf_filter={bpf_filter})")
         self._ensure_idle()
         self._stop_event.clear()
         self._launch(self._run, interface, bpf_filter)
@@ -169,6 +174,7 @@ class LiveDiffEngine:
             ValueError: liste vide, label ou interface vide, label en
                 double -- levee ici, avant tout demarrage de thread.
         """
+        logger.debug("start_multi(self={self}, interfaces={interfaces}, bpf_filter={bpf_filter})")
         from netcross_core.parsing import parse_live_multi
 
         self._ensure_idle()
@@ -191,6 +197,7 @@ class LiveDiffEngine:
 
     def stop(self, timeout: float = 5.0) -> None:
         """Arrete la capture et attend la fin du thread."""
+        logger.debug("stop(self={self}, timeout={timeout})")
         self._stop_event.set()
         self.state.running = False
         if self._thread is not None:
@@ -226,6 +233,7 @@ class LiveDiffEngine:
                     self._evaluate_diff()
                     self.state.last_eval_ts = now
         except Exception:
+            logger.exception("erreur: Exception")
             if self.state.running:
                 self.state.running = False
             raise

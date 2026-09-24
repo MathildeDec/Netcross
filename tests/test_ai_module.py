@@ -324,3 +324,399 @@ def test_cli_sans_scikit_learn(monkeypatch, capsys, tmp_path):
     with pytest.raises(SystemExit):
         cli.main()
     assert "netcross[ai]" in capsys.readouterr().err
+
+
+# -- couverture des branches manquantes (issue #246) -------------------------
+
+
+def test_baseline_from_dict_caracteristiques_differentes(tmp_path):
+    """Line 65 : features != FEATURE_NAMES -> BaselineError."""
+    from netcross_ai.anomaly import BASELINE_SCHEMA, BaselineError
+    from netcross_ai.features import FEATURE_NAMES
+
+    data = {
+        "schema": BASELINE_SCHEMA,
+        "features": [*FEATURE_NAMES, "extra"],
+        "label": "",
+        "created_at": "",
+        "vectors": [[0.0] * len(FEATURE_NAMES)],
+    }
+    with pytest.raises(BaselineError, match="caracteristiques differentes"):
+        Baseline.from_dict(data)
+
+
+def test_baseline_load_fichier_inexistant():
+    """Lines 77-79 : OSError sur fichier illisible."""
+    from netcross_ai.anomaly import BaselineError
+
+    with pytest.raises(BaselineError, match="baseline illisible"):
+        Baseline.load("/chemin/inexistant/baseline.json")
+
+
+def test_baseline_load_json_invalide(tmp_path):
+    """Lines 77-79 : JSONDecodeError sur contenu non-JSON."""
+    from netcross_ai.anomaly import BaselineError
+
+    path = tmp_path / "bad.json"
+    path.write_text("ceci n'est pas du json")
+    with pytest.raises(BaselineError, match="baseline illisible"):
+        Baseline.load(path)
+
+
+def test_flow_anomaly_to_dict():
+    """Line 92 : FlowAnomaly.to_dict() renvoie tous les champs."""
+    from netcross_ai.anomaly import FlowAnomaly
+
+    a = FlowAnomaly(
+        flow="10.0.0.1 -> 10.0.0.2",
+        score=0.75,
+        is_anomaly=True,
+        classification="exfiltration",
+        reasons=["ratio_montant = 0.99"],
+    )
+    d = a.to_dict()
+    assert d["flow"] == "10.0.0.1 -> 10.0.0.2"
+    assert d["score"] == 0.75
+    assert d["is_anomaly"] is True
+    assert d["classification"] == "exfiltration"
+    assert d["reasons"] == ["ratio_montant = 0.99"]
+
+
+def test_explain_z_score_eleve():
+    """Lines 102-107 : _explain signale les ecarts > _Z_EXPLAIN."""
+    from netcross_ai.anomaly import _explain
+    from netcross_ai.features import FEATURE_NAMES
+
+    # un vecteur dont le 5e element (ratio_montant) est a +4 sigma
+    means = [1.0] * len(FEATURE_NAMES)
+    stds = [0.1] * len(FEATURE_NAMES)
+    vector = [1.0] * len(FEATURE_NAMES)
+    vector[4] = 1.0 + 4.0 * 0.1  # z = 4.0 > 3.0
+    reasons = _explain(vector, means, stds)
+    assert any("ratio_montant" in r for r in reasons)
+
+
+def test_explain_z_zero_std_deviation_non_nulle():
+    """Line 104 branche s ~= 0 mais value != mean -> inf."""
+    from netcross_ai.anomaly import _explain
+    from netcross_ai.features import FEATURE_NAMES
+
+    means = [5.0] * len(FEATURE_NAMES)
+    stds = [0.0] * len(FEATURE_NAMES)
+    vector = [5.0] * len(FEATURE_NAMES)
+    vector[0] = 6.0  # |value - mean| > 0 avec std=0 -> inf -> >= 3.0
+    reasons = _explain(vector, means, stds)
+    assert any("log_paquets" in r for r in reasons)
+
+
+def test_explain_aucun_ecart():
+    """Lines 102-107 : aucun z >= seuil -> liste vide."""
+    from netcross_ai.anomaly import _explain
+    from netcross_ai.features import FEATURE_NAMES
+
+    means = [1.0] * len(FEATURE_NAMES)
+    stds = [1.0] * len(FEATURE_NAMES)
+    vector = [1.0] * len(FEATURE_NAMES)  # z = 0 partout
+    assert _explain(vector, means, stds) == []
+
+
+def test_detect_anomalies_flux_vide_ne_leve_pas(monkeypatch):
+    """Lines 119-120 : flows vide -> [] (apres require_ml)."""
+    import _fake_sklearn
+
+    _fake_sklearn.install()
+    monkeypatch.setattr(optional, "ml_available", lambda: True)
+    try:
+        from netcross_ai.anomaly import Baseline, detect_anomalies
+
+        baseline = Baseline.from_flows(_web_flows(30))
+        assert detect_anomalies(baseline, []) == []
+    finally:
+        _fake_sklearn.uninstall()
+
+
+def test_detect_anomalies_pipeline_complet_avec_fake_sklearn(monkeypatch):
+    """Lines 114-142 : detect_anomalies avec un faux modele sklearn."""
+    import _fake_sklearn
+
+    _fake_sklearn.install()
+    monkeypatch.setattr(optional, "ml_available", lambda: True)
+    try:
+        from netcross_ai.anomaly import Baseline, detect_anomalies
+
+        baseline = Baseline.from_flows(_web_flows(30))
+        flows = [*_web_flows(5, seed=42), _exfil()]
+        results = detect_anomalies(baseline, flows)
+        assert len(results) == len(flows)
+        assert all(r.flow for r in results)
+        # le premier flux (index 0) est marque anomalie par le fake modele
+        assert results[0].is_anomaly is True
+        # verifie que to_dict est appele indirectement et que le tri est bon
+        assert results == sorted(results, key=lambda a: a.score, reverse=True)
+        # les raisons sont calculees (peut etre vide si aucun z > 3)
+        assert isinstance(results[0].reasons, list)
+    finally:
+        _fake_sklearn.uninstall()
+
+
+# -- flow_classifier : branches manquantes (issue #246) ----------------------
+
+
+def test_load_training_set_fichier_inexistant():
+    """Lines 48-50 : OSError sur fichier illisible."""
+    from netcross_ai.flow_classifier import TrainingSetError
+
+    with pytest.raises(TrainingSetError, match="jeu d'entrainement illisible"):
+        load_training_set("/chemin/inexistant/train.json")
+
+
+def test_load_training_set_json_invalide(tmp_path):
+    """Lines 48-50 : JSONDecodeError sur contenu non-JSON."""
+    from netcross_ai.flow_classifier import TrainingSetError
+
+    path = tmp_path / "bad.json"
+    path.write_text("pas du json")
+    with pytest.raises(TrainingSetError, match="jeu d'entrainement illisible"):
+        load_training_set(path)
+
+
+def test_load_training_set_schema_faux(tmp_path):
+    """Line 52 : schema != TRAINING_SCHEMA."""
+    from netcross_ai.flow_classifier import TrainingSetError
+
+    path = tmp_path / "wrong.json"
+    path.write_text(json.dumps({"schema": "autre.chose", "samples": []}))
+    with pytest.raises(TrainingSetError, match="n'est pas un jeu"):
+        load_training_set(path)
+
+
+def test_flow_prediction_to_dict():
+    """Line 93 : FlowPrediction.to_dict()."""
+    from netcross_ai.flow_classifier import FlowPrediction
+
+    p = FlowPrediction(
+        flow="10.0.0.1 -> 10.0.0.2",
+        label="tunnel",
+        confidence=0.87,
+        rule_classification="obfusque",
+    )
+    d = p.to_dict()
+    assert d["flow"] == "10.0.0.1 -> 10.0.0.2"
+    assert d["label"] == "tunnel"
+    assert d["confidence"] == 0.87
+    assert d["rule_classification"] == "obfusque"
+
+
+def test_flow_classifier_init_et_predict_avec_fake_sklearn(monkeypatch):
+    """Lines 104-114, 117-133 : FlowClassifier.__init__ et predict."""
+    import _fake_sklearn
+
+    _fake_sklearn.install()
+    monkeypatch.setattr(optional, "ml_available", lambda: True)
+    try:
+        normal = [(f, "normal") for f in _web_flows(8)]
+        tunnel = [(f, "tunnel") for f in _web_flows(3, seed=99)]
+        clf = FlowClassifier(normal + tunnel)
+        assert "normal" in clf.labels and "tunnel" in clf.labels
+
+        flows = [*_web_flows(2, seed=7), _exfil()]
+        preds = clf.predict(flows)
+        assert len(preds) == len(flows)
+        assert all(isinstance(p.confidence, float) for p in preds)
+        assert all(p.flow for p in preds)
+    finally:
+        _fake_sklearn.uninstall()
+
+
+def test_flow_classifier_predict_flux_vide(monkeypatch):
+    """Line 118 : predict([]) -> []."""
+    import _fake_sklearn
+
+    _fake_sklearn.install()
+    monkeypatch.setattr(optional, "ml_available", lambda: True)
+    try:
+        normal = [(f, "normal") for f in _web_flows(8)]
+        tunnel = [(f, "tunnel") for f in _web_flows(3, seed=99)]
+        clf = FlowClassifier(normal + tunnel)
+        assert clf.predict([]) == []
+    finally:
+        _fake_sklearn.uninstall()
+
+
+# -- pipeline : branches manquantes (issue #246) ----------------------------
+
+
+def test_run_ai_anomalies_avec_baseline(monkeypatch, tmp_path):
+    """Lines 43-45 : run_ai avec baseline_path -> detect_anomalies."""
+    from netcross_ai import pipeline as pipeline_mod
+    from netcross_ai.anomaly import Baseline, FlowAnomaly
+
+    base = tmp_path / "b.json"
+    Baseline.from_flows(_web_flows(30), "ref").save(base)
+
+    fake_anomalies = [
+        FlowAnomaly(
+            flow="10.0.0.1 -> 10.0.0.2",
+            score=0.9,
+            is_anomaly=True,
+            classification="exfiltration",
+            reasons=["ratio_montant = 0.99"],
+        )
+    ]
+    monkeypatch.setattr(pipeline_mod, "detect_anomalies", lambda baseline, flows: fake_anomalies)
+
+    opts = AIOptions(baseline_path=str(base))
+    result = run_ai(_report(), _web_flows(3), opts)
+    assert "anomalies" in result
+    assert result["anomalies"][0]["is_anomaly"] is True
+    assert result["baseline"]["flows"] == 30
+
+
+def test_run_ai_classification_avec_training(monkeypatch, tmp_path):
+    """Lines 52-54 : run_ai avec training_path -> FlowClassifier.predict."""
+    from netcross_ai import pipeline as pipeline_mod
+    from netcross_ai.flow_classifier import FlowPrediction
+
+    path = tmp_path / "t.json"
+    export_training_set(_web_flows(20), path)
+
+    fake_clf = type(
+        "FakeClf",
+        (),
+        {
+            "labels": {"normal": 20},
+            "predict": lambda self, flows: [
+                FlowPrediction(flow="x -> y", label="normal", confidence=0.5, rule_classification="")
+            ],
+        },
+    )()
+    monkeypatch.setattr(pipeline_mod, "FlowClassifier", lambda samples: fake_clf)
+
+    opts = AIOptions(training_path=str(path))
+    result = run_ai(_report(), _web_flows(2), opts)
+    assert "classification" in result
+    assert result["classification"][0]["label"] == "normal"
+    assert result["training"]["path"] == str(path)
+
+
+def test_format_ai_section_anomalies():
+    """Lines 67-72 : format_ai avec anomalies dans le resultat."""
+    result = {
+        "schema": "netcross.ai/1",
+        "flows": 5,
+        "anomalies": [
+            {
+                "flow": "10.0.0.1 -> 10.0.0.2",
+                "score": 0.9,
+                "is_anomaly": True,
+                "classification": "exfiltration",
+                "reasons": ["ratio_montant = 0.99"],
+            }
+        ],
+        "baseline": {"path": "b.json", "flows": 30, "label": "ref"},
+    }
+    text = format_ai(result)
+    assert "Anomalies vs baseline" in text
+    assert "10.0.0.1 -> 10.0.0.2" in text
+    assert "ratio_montant = 0.99" in text
+
+
+def test_format_ai_section_classification():
+    """Lines 77-79 : format_ai avec classification dans le resultat."""
+    result = {
+        "schema": "netcross.ai/1",
+        "flows": 5,
+        "classification": [
+            {
+                "flow": "10.0.0.1 -> 10.0.0.2",
+                "label": "tunnel",
+                "confidence": 0.87,
+                "rule_classification": "obfusque",
+            }
+        ],
+        "training": {"path": "t.json", "labels": {"normal": 10, "tunnel": 5}},
+    }
+    text = format_ai(result)
+    assert "Classification" in text
+    assert "tunnel" in text
+    assert "10.0.0.1 -> 10.0.0.2" in text
+
+
+def test_format_ai_resume_avec_fallback_reason():
+    """Line 87 : format_ai avec summary.fallback_reason non vide."""
+    result = {
+        "schema": "netcross.ai/1",
+        "flows": 3,
+        "summary": {
+            "engine": "template",
+            "text": "Resume du gabarit.",
+            "fallback_reason": "modele local indisponible",
+            "correlations": ["correlation 1"],
+            "recommendations": ["recommandation 1"],
+        },
+    }
+    text = format_ai(result)
+    assert "Resume executif" in text
+    assert "modele local indisponible" in text
+    assert "correlation 1" in text
+    assert "recommandation 1" in text
+
+
+# -- couverture des dernieres lignes manquantes (issue #246) ----------------
+
+
+def test_detect_anomalies_baseline_trop_petite(monkeypatch):
+    """Line 115 : BaselineError si baseline < MIN_BASELINE_FLOWS (20)."""
+    import _fake_sklearn
+
+    from netcross_ai.anomaly import Baseline, BaselineError
+
+    _fake_sklearn.install()
+    monkeypatch.setattr(optional, "ml_available", lambda: True)
+    try:
+        # Baseline avec moins de 20 flux
+        base = Baseline.from_flows(_web_flows(10), "ref")
+        with pytest.raises(BaselineError, match="baseline trop petite"):
+            detect_anomalies(base, _web_flows(3))
+    finally:
+        _fake_sklearn.uninstall()
+
+
+def test_flow_classifier_training_set_insuffisant(monkeypatch):
+    """Line 106 : TrainingSetError si < MIN_SAMPLES ou < 2 classes."""
+    import _fake_sklearn
+
+    from netcross_ai.flow_classifier import TrainingSetError
+
+    _fake_sklearn.install()
+    monkeypatch.setattr(optional, "ml_available", lambda: True)
+    try:
+        # Trop peu d'exemples (3 < 10)
+        with pytest.raises(TrainingSetError, match="jeu d'entrainement insuffisant"):
+            FlowClassifier([(f, "normal") for f in _web_flows(3)])
+
+        # Assez d'exemples mais une seule classe
+        with pytest.raises(TrainingSetError, match="jeu d'entrainement insuffisant"):
+            FlowClassifier([(f, "normal") for f in _web_flows(12)])
+    finally:
+        _fake_sklearn.uninstall()
+
+
+def test_format_ai_resume_sans_correlations_ni_recommandations():
+    """Lines 89->92, 92->95 : summary sans correlations ni recommendations."""
+    result = {
+        "schema": "netcross.ai/1",
+        "flows": 3,
+        "summary": {
+            "engine": "template",
+            "text": "Resume simple.",
+            "fallback_reason": "",
+            "correlations": [],
+            "recommendations": [],
+        },
+    }
+    text = format_ai(result)
+    assert "Resume executif" in text
+    assert "Resume simple." in text
+    assert "Correlations" not in text
+    assert "Recommandations" not in text

@@ -13,6 +13,10 @@ from __future__ import annotations
 from collections import Counter
 from dataclasses import dataclass, field
 
+from netcross_core.logging_config import get_logger
+
+logger = get_logger(__name__)
+
 _RTP_GRACE_SECONDS = 300.0
 
 
@@ -65,6 +69,7 @@ def build_calls(all_packets, rtp_streams: list[dict]) -> tuple[list[Call], dict[
     est visible. Un flux ambigu n'est jamais duplique : l'appel dont
     l'INVITE est le plus proche avant le RTP est retenu.
     """
+    logger.debug("build_calls(all_packets={all_packets}, rtp_streams={rtp_streams})")
     by_id: dict[str, list] = {}
     for pk in all_packets:
         if pk.sip_call_id and pk.sip_msg_type:

@@ -39,9 +39,12 @@ from collections import defaultdict
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 
+from netcross_core.logging_config import get_logger
 from netcross_core.models import Pkt
 from netcross_core.security.dga import _WHITELIST_DOMAINS
 from netcross_core.security.dns_tunnel import _is_ignored, split_domain
+
+logger = get_logger(__name__)
 
 
 @dataclass
@@ -107,6 +110,7 @@ def detect_fast_flux(
     Les connexions TCP ne sont plus utilisees : une destination contactee
     n'est pas une preuve de resolution.
     """
+    logger.debug("detect_fast_flux(packets={packets}, thresholds={thresholds})")
     if thresholds is None:
         thresholds = FastFluxThresholds()
 

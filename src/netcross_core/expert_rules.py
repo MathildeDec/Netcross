@@ -360,6 +360,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from netcross_core.logging_config import get_logger
+
+logger = get_logger(__name__)
+
 
 @dataclass
 class Rule:
@@ -2076,6 +2080,7 @@ def get_rule(rule_id: str) -> Rule | None:
     """Regle du catalogue pour cet id, `None` si absente -- jamais de
     KeyError, meme discipline defensive que get() ailleurs dans ce projet
     (_flag_label/_flag_severity/_remediation_for cote wireshark_expert.py)."""
+    logger.debug("get_rule(rule_id={rule_id})")
     return _BY_ID.get(rule_id)
 
 
@@ -2086,6 +2091,7 @@ def list_rules(domain: str | None = None) -> list[Rule]:
     voir docstring de module : c'est le meme vocabulaire, pas une nouvelle
     taxonomie, donc `list_rules(domain=finding.category)` fonctionne
     directement depuis un Finding deja construit."""
+    logger.debug("list_rules(domain={domain})")
     if domain is None:
         return list(_RULE_CATALOG)
     return [r for r in _RULE_CATALOG if r.domain == domain]

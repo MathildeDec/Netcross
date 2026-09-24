@@ -22,6 +22,10 @@ from __future__ import annotations
 
 import json
 
+from netcross_core.logging_config import get_logger
+
+logger = get_logger(__name__)
+
 _STYLE = """
 body{font-family:system-ui,sans-serif;margin:1.5rem;color:#1d2433;background:#f7f8fa}
 h1{font-size:1.3rem;margin:0 0 .3rem}h2{font-size:1.05rem;margin:1.4rem 0 .4rem}

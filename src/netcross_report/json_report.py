@@ -18,8 +18,11 @@ meme triage pour un meme Report.
 import datetime
 import json
 
+from netcross_core.logging_config import get_logger
 from netcross_report.synthesis import build_findings
 from netcross_report.triage import health_label, health_score, rank_segments
+
+logger = get_logger(__name__)
 
 
 def _evidence_list_dict(evidence) -> list[dict]:
@@ -275,6 +278,7 @@ def generate_json_report(
     DiffFinding deja diagnostiques) : cle JSON de premier niveau
     distincte, meme convention d'absence que les autres objets Session 0.
     """
+    logger.debug("generate_json_report(r={r}, output_path={output_path}, title={title}, ...)")
     if findings is None:
         findings = build_findings(r)
     ranked = rank_segments(list(findings) + list(tls_findings or []) + list(quic_findings or []))
@@ -407,6 +411,7 @@ def generate_json_diff(
     cle JSON distincte de "expert_events" (qui ne porte que des
     ExpertEvent de source "netcross").
     """
+    logger.debug("generate_json_diff(findings={findings}, baseline={baseline}, current={current}, ...)")
     ranked = rank_segments(findings)
     score = health_score(ranked)
 

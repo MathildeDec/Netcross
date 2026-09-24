@@ -17,6 +17,8 @@ import hashlib
 import sys
 from dataclasses import dataclass
 
+from loguru import logger as _loguru_logger
+
 from pcap_parser.ek_fields import (
     all_occurrences,
     as_bool,
@@ -39,6 +41,10 @@ from pcap_parser.protocols import (
     extract_tls_handshake,
 )
 from pcap_parser.tunnels import detect_encapsulation, select_innermost_layers
+
+# pcap_parser reste independant de netcross_core (contrat import-linter) :
+# loguru directement, lie au nom du module.
+logger = _loguru_logger.bind(name=__name__)
 
 
 def _intern(value: str | None) -> str | None:
@@ -306,6 +312,7 @@ def build_packet(ts_seconds: float, layers: dict) -> RawPacket | None:
     hors perimetre de cette analyse). ARP (Session 24) et STP (Session
     25) sont traites malgre l'absence d'en-tete IP -- voir les branches
     `elif arp is not None`/`elif stp is not None` ci-dessous."""
+    logger.debug("build_packet(ts_seconds={ts_seconds}, layers={layers})")
     frame = layers.get("frame") or {}
     length = hex_or_dec_to_int(g(frame, "frame_frame_len")) or 0
     frame_number = hex_or_dec_to_int(g(frame, "frame_frame_number"))

@@ -36,7 +36,10 @@ from collections.abc import Iterable
 from dataclasses import dataclass, field
 from statistics import mean, median, pstdev
 
+from netcross_core.logging_config import get_logger
 from netcross_core.models import Pkt
+
+logger = get_logger(__name__)
 
 # -- Constantes ---------------------------------------------------------------
 
@@ -168,6 +171,7 @@ def analyze_flow_stats(
     tailles, entropie, ratio up/down, regularite temporelle, et
     classifie chaque flux.
     """
+    logger.debug("analyze_flow_stats(packets={packets}, thresholds={thresholds})")
     flows: dict[tuple[str, str], FlowStat] = {}
     # Garder les timestamps par flux pour calculer les inter-arrivees
     flow_timestamps: dict[tuple[str, str], list[float]] = defaultdict(list)

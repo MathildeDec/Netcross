@@ -41,6 +41,12 @@ from collections.abc import Mapping
 from dataclasses import dataclass
 from urllib.parse import parse_qs, unquote
 
+from loguru import logger as _loguru_logger
+
+# pcap_parser reste independant de netcross_core (contrat import-linter) :
+# loguru directement, lie au nom du module.
+logger = _loguru_logger.bind(name=__name__)
+
 ENV_RPCAP_PASSWORD = "NETCROSS_RPCAP_PASSWORD"
 ENV_SSH_PASSWORD = "NETCROSS_SSH_PASSWORD"
 RPCAP_DEFAULT_PORT = 2002
@@ -84,6 +90,7 @@ class CaptureSource:
 
 def is_source_url(text: str) -> bool:
     """Vrai si ``text`` commence par un schema de source connu (``rpcap://``...)."""
+    logger.debug("is_source_url(text={text})")
     scheme, sep, _rest = text.partition("://")
     return bool(sep) and scheme.lower() in REMOTE_SCHEMES
 
@@ -96,6 +103,7 @@ def split_live_target(text: str) -> tuple[str, str | None]:
     crochets) ne comptent pas : le separateur est le premier ``:`` situe
     apres le debut du chemin (``/interface``).
     """
+    logger.debug("split_live_target(text={text})")
     if not is_source_url(text):
         iface, sep, bpf = text.partition(":")
         return iface, (bpf if sep else None)
@@ -116,10 +124,12 @@ def _check_host(host: str) -> str:
         try:
             return str(ipaddress.IPv6Address(host[1:-1]))
         except ValueError:
+            logger.exception("erreur: ValueError")
             raise CaptureSourceError(f"adresse IPv6 invalide : {host}") from None
     try:
         return str(ipaddress.IPv4Address(host))
     except ValueError:
+        logger.exception("erreur: ValueError")
         pass
     if _HOSTNAME_RE.match(host):
         return host
@@ -247,6 +257,7 @@ def _parse_pipe(body: str) -> CaptureSource:
     try:
         mode = os.stat(path).st_mode
     except OSError:
+        logger.exception("erreur: OSError")
         raise CaptureSourceError(f"tube nomme introuvable : {path} (le creer avec mkfifo)") from None
     if not stat.S_ISFIFO(mode):
         raise CaptureSourceError(f"{path} n'est pas un tube nomme (pour un fichier, utiliser --capture)")
@@ -259,6 +270,7 @@ def parse_source(text: str, env: Mapping[str, str] | None = None) -> CaptureSour
     Leve CaptureSourceError si l'URL est invalide ; un nom d'interface
     locale est renvoye tel quel (tshark signalera une interface inconnue).
     """
+    logger.debug("parse_source(text={text}, env={env})")
     env = os.environ if env is None else env
     text = text.strip()
     if not text:
@@ -285,4 +297,5 @@ def source_display(text: str) -> str:
     try:
         return parse_source(text, env={}).display
     except CaptureSourceError:
+        logger.exception("erreur: CaptureSourceError")
         return text

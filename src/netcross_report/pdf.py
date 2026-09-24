@@ -21,6 +21,7 @@ from reportlab.platypus import (
     TableStyle,
 )
 
+from netcross_core.logging_config import get_logger
 from netcross_report.charts import (
     DIFF_SEVERITY_SCHEME,
     chart_sequence_diagram,
@@ -31,6 +32,7 @@ from netcross_report.path_metrics import build_path_metrics, degradation_summary
 from netcross_report.synthesis import build_findings
 from netcross_report.triage import HEALTH_LABELS, health_label, health_score, rank_segments
 
+logger = get_logger(__name__)
 SEVERITY_LABELS = {
     "anomalie": "Anomalie",
     "a_surveiller": "A surveiller",
@@ -418,6 +420,7 @@ def path_section_story(metrics, styles, chart_path=None):
     aucune section : pas de titre orphelin dans un rapport a un seul point
     de capture, meme convention que expert_section_story().
     """
+    logger.debug("path_section_story(metrics={metrics}, styles={styles}, chart_path={chart_path})")
     if not metrics:
         return []
     story = [
@@ -490,6 +493,7 @@ def sequence_section_story(views, styles, chart_paths=None):
     blanc). Liste vide de vues => aucune section, comme
     expert_section_story()/path_section_story().
     """
+    logger.debug("sequence_section_story(views={views}, styles={styles}, chart_paths={chart_paths})")
     views = [v for v in (views or []) if v.steps]
     if not views:
         return []
@@ -540,6 +544,7 @@ def expert_section_story(session_objects, styles, top_n=EXPERT_TABLE_TOP_N):
     produire de PDF : les tests inspectent les Table/Paragraph renvoyes,
     la ou relire le PDF final imposerait d'en extraire le texte.
     """
+    logger.debug("expert_section_story(session_objects={session_objects}, styles={styles}, top_n={top_n})")
     if session_objects is None:
         return []
     story = [
@@ -703,6 +708,7 @@ def security_section_story(security_report, styles):
     vides comprises, avec leur message d'absence -- c'est le manque qui a
     produit l'issue #259 : une donnee calculee, jamais rendue.
     """
+    logger.debug("security_section_story(security_report={security_report}, styles={styles})")
     if security_report is None:
         return []
     from netcross_report.security_report import SEVERITIES, is_expert_info, security_report_to_dict
@@ -864,6 +870,7 @@ def generate_pdf(
     (meme convention d'absence que tls_findings/quic_findings ci-dessus,
     et jamais de recalcul ici : ces objets sont construits par l'appelant).
     """
+    logger.debug("generate_pdf(r={r}, output_path={output_path}, title={title}, ...)")
     if findings is None:
         findings = build_findings(r)
     ranked = rank_segments(list(findings) + list(tls_findings or []) + list(quic_findings or []))
@@ -1187,6 +1194,7 @@ def generate_diff_pdf(
     apporter de vraie semantique de diff en echange. Voir claude.md pour
     la discussion complete de ce choix.
     """
+    logger.debug("generate_diff_pdf(findings={findings}, baseline={baseline}, current={current}, ...)")
     ranked = rank_segments(findings)
 
     with tempfile.TemporaryDirectory() as tmpdir:

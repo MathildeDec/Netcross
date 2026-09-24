@@ -37,6 +37,9 @@ from dataclasses import dataclass, field
 # LLMNR, NetBIOS, SSDP) : une IP qui n'apparait QUE dans ce trafic (le
 # resolveur, le serveur NTP...) est presente dans toutes les captures d'un
 # meme reseau et ne prouve rien sur le fait qu'elles observent le meme flux.
+from netcross_core.logging_config import get_logger
+
+logger = get_logger(__name__)
 INFRA_PORTS = frozenset({53, 67, 68, 123, 137, 138, 5353, 5355, 1900})
 
 DEFAULT_MIN_OVERLAP = 0.5
@@ -66,6 +69,7 @@ class CaptureInventory:
 
     @property
     def duration(self) -> float:
+        logger.debug("duration(self={self})")
         if self.start is None or self.end is None:
             return 0.0
         return max(0.0, self.end - self.start)
@@ -104,6 +108,7 @@ def _is_meaningful_ip(addr: str) -> bool:
     try:
         ip = ipaddress.ip_address(addr)
     except ValueError:
+        logger.exception("erreur: ValueError")
         return False
     if ip.is_multicast or ip.is_unspecified or ip.is_loopback or ip.is_link_local:
         return False
@@ -118,6 +123,7 @@ def inventory_from_packets(label: str, path: str, packets: Iterable) -> CaptureI
     """Construit l'inventaire d'une capture a partir de ses paquets decodes
     (objets exposant ts, src, dst, sport, dport, proto -- `Pkt` ou
     equivalent)."""
+    logger.debug("inventory_from_packets(label={label}, path={path}, packets={packets})")
     inv = CaptureInventory(label=label, path=path)
     for pkt in packets:
         inv.packet_count += 1
@@ -167,6 +173,7 @@ class PairEvaluation:
     def score(self) -> int:
         """Nombre de criteres satisfaits (0-3) : sert a choisir, pour une
         capture isolee, le candidat le plus proche a citer dans le motif."""
+        logger.debug("score(self={self})")
         return 3 - len(self.failed)
 
 
@@ -219,6 +226,7 @@ def evaluate_pair(
     deux sondes aux horloges non synchronisees ne sont pas ecartees a tort.
     Au-dela, aucune correction : on refuse plutot que de recaler au hasard.
     """
+    logger.debug("evaluate_pair(a={a}, b={b})")
     common_ips = sorted(a.ips & b.ips)
     common_pairs = sorted(set(a.pairs) & set(b.pairs))
     common_protocols = sorted(a.protocols & b.protocols)
@@ -270,6 +278,7 @@ def evaluate_pair(
 
 def justify(ev: PairEvaluation) -> str:
     """Justification ecrite d'un rapprochement (criteres satisfaits)."""
+    logger.debug("justify(ev={ev})")
     parts = [
         f"recouvrement {ev.overlap_ratio:.0%} ({_fmt_ts(ev.overlap_start)}-{_fmt_ts(ev.overlap_end)} UTC)",
         f"{len(ev.common_ips)} IP communes ({_fmt_list(ev.common_ips)})",
@@ -313,6 +322,7 @@ class BatchPlan:
 
     def check_invariant(self) -> None:
         """Aucun fichier perdu en route : leve AssertionError sinon."""
+        logger.debug("check_invariant(self={self})")
         counted = self.grouped_count + len(self.isolated) + len(self.failures)
         if counted != self.total:
             raise AssertionError(
@@ -337,6 +347,7 @@ def plan_batch(
     membre deviennent des captures isolees, avec pour motif les criteres
     manques face au candidat le plus proche.
     """
+    logger.debug("plan_batch(inventories={inventories})")
     failures = [inv for inv in inventories if inv.error is not None]
     usable = [inv for inv in inventories if inv.error is None]
     empty = [inv for inv in usable if inv.packet_count == 0]
@@ -356,6 +367,7 @@ def plan_batch(
     evals: dict[tuple[str, str], PairEvaluation] = {}
 
     def ev(x: CaptureInventory, y: CaptureInventory) -> PairEvaluation:
+        logger.debug("ev(x={x}, y={y})")
         key = (x.label, y.label)
         if key not in evals:
             evals[key] = evaluate_pair(
@@ -411,6 +423,7 @@ def format_batch_index(
     synthesis: list[str] | None = None,
 ) -> str:
     """Rend l'index du lot -- le vrai livrable du mode batch."""
+    logger.debug("format_batch_index(plan={plan}, folder={folder})")
     group_reports = group_reports or {}
     capture_reports = capture_reports or {}
     lines = [f"LOT : {plan.total} capture(s), {folder}"]
