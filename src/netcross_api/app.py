@@ -4,6 +4,7 @@ netcross_api.app -- application FastAPI pour exposer les analyses Netcross
 
 Endpoints :
     POST /captures          — upload d'un pcap, lance l'analyse
+    POST /captures/multi    — upload de plusieurs pcaps, analyse croisée (#354)
     GET  /analyses/{id}     — rapport complet (JSON)
     GET  /analyses/{id}/security — constats de sécurité
     GET  /health            — health check
@@ -17,13 +18,14 @@ from __future__ import annotations
 import tempfile
 from pathlib import Path
 
-from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, UploadFile
 from fastapi.responses import JSONResponse
 
 from netcross_api.models import (
     AnalysisSummary,
     ErrorResponse,
     HealthResponse,
+    MultiAnalysisSummary,
     SecurityFinding,
     SecurityReport,
 )
@@ -98,6 +100,79 @@ async def upload_capture(
         point_count=len(report.points),
         packet_count=len(packets),
         security_finding_count=len(report.security_findings),
+    )
+
+
+@app.post(
+    "/captures/multi",
+    response_model=MultiAnalysisSummary,
+    status_code=201,
+    tags=["captures"],
+    responses={400: {"model": ErrorResponse}},
+)
+async def upload_multi_capture(
+    files: list[UploadFile] = File(default=..., description="Fichiers pcap/pcapng à analyser"),
+    labels: str = Form(default="", description="Étiquettes séparées par virgule (ex: lan,wan,dc)"),
+    points_order: str = Form(default="", description="Ordre des points séparé par virgule (ex: lan,wan,dc)"),
+) -> MultiAnalysisSummary:
+    """Upload de plusieurs captures étiquetées, lancement de l'analyse croisée.
+
+    Issue #354 : la corrélation entre points (pertes, latence, topologie,
+    mouvements latéraux) nécessite plusieurs captures étiquetées.
+    """
+    if not files or len(files) < 2:
+        raise HTTPException(status_code=400, detail="Au moins 2 fichiers sont requis pour l'analyse multi-points")
+
+    # Parser les étiquettes
+    label_list = [l.strip() for l in labels.split(",") if l.strip()] if labels else []
+    if len(label_list) != len(files):
+        label_list = [f"point-{i}" for i in range(len(files))]
+
+    order_list = [p.strip() for p in points_order.split(",") if p.strip()] if points_order else None
+
+    all_packets = []
+    tmp_paths = []
+    try:
+        for file, label in zip(files, label_list, strict=False):
+            if not file.filename:
+                raise HTTPException(status_code=400, detail=f"Nom de fichier manquant pour {label}")
+            with tempfile.NamedTemporaryFile(suffix=".pcap", delete=False) as tmp:
+                content = await file.read()
+                tmp.write(content)
+                tmp_paths.append(tmp.name)
+            try:
+                pkts = parse_capture(label, tmp_paths[-1])
+                all_packets.extend(pkts)
+            except Exception as exc:
+                raise HTTPException(status_code=400, detail=f"Erreur de parsing pour {label}: {exc}") from exc
+
+        if not all_packets:
+            raise HTTPException(status_code=400, detail="Aucun paquet trouvé dans les fichiers")
+
+        flows = correlate(all_packets)
+        report = analyse(flows, points_order=order_list, all_packets=all_packets)
+
+        # CVE-2 : scanner les exploits sur chaque fichier
+        detections = []
+        for label, tmp_path in zip(label_list, tmp_paths, strict=False):
+            detections.extend(scan_capture_exploits(label, tmp_path))
+        apply_security_findings(report, all_packets, detections=detections)
+    except HTTPException:
+        raise
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"Erreur d'analyse: {exc}") from exc
+    finally:
+        for tp in tmp_paths:
+            Path(tp).unlink(missing_ok=True)
+
+    analysis_id = store.add(report, metadata={"files": [f.filename for f in files], "labels": label_list})
+
+    return MultiAnalysisSummary(
+        analysis_id=analysis_id,
+        point_count=len(report.points),
+        packet_count=len(all_packets),
+        security_finding_count=len(report.security_findings),
+        points=list(report.points),
     )
 
 
