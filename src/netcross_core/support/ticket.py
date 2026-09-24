@@ -378,10 +378,10 @@ def install_crash_handler(
                 markers=markers,
             )
             write_ticket(ticket, path)
-            logger.warning(f"\nTicket de support anonymise ecrit : {path}")
+            print(f"\nTicket de support anonymise ecrit : {path}", file=sys.stderr)
         except Exception as inner:  # noqa: BLE001 - jamais masquer le crash d'origine
             logger.exception("erreur: inner")
-            logger.error(f"\nEchec d'ecriture du ticket de support : {inner}")
+            print(f"\nEchec d'ecriture du ticket de support : {inner}", file=sys.stderr)
         previous(exc_type, exc_value, exc_tb)
 
     sys.excepthook = _hook

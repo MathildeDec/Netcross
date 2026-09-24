@@ -216,7 +216,7 @@ def run_analyses(plan: BatchPlan, output: str, security: bool, skip_existing: bo
         except Exception as exc:  # noqa: BLE001 -- une analyse en echec ne doit pas arreter le lot
             logger.exception("analyse %s en echec", key)
             errors.append(f"analyse {key} en echec : {exc}")
-            logger.error(f"  {name} : ECHEC -- {exc}")
+            print(f"  {name} : ECHEC -- {exc}", file=sys.stderr)
     return group_reports, capture_reports, summaries, errors
 
 
@@ -292,24 +292,24 @@ def main(argv=None):
     args = ap.parse_args(argv)
 
     if not os.path.isdir(args.input):
-        logger.error(f"--input : dossier introuvable : {args.input}")
+        print(f"--input : dossier introuvable : {args.input}", file=sys.stderr)
         sys.exit(1)
     if args.jobs < 1:
-        logger.warning("--jobs doit etre >= 1.")
+        print("--jobs doit etre >= 1.", file=sys.stderr)
         sys.exit(1)
     if not 0.0 < args.min_overlap <= 1.0:
-        logger.warning("--min-overlap doit etre dans ]0, 1].")
+        print("--min-overlap doit etre dans ]0, 1].", file=sys.stderr)
         sys.exit(1)
     if args.min_common_ips < 1:
-        logger.warning("--min-common-ips doit etre >= 1.")
+        print("--min-common-ips doit etre >= 1.", file=sys.stderr)
         sys.exit(1)
     if args.group_window < 0:
-        logger.warning("--group-window doit etre >= 0.")
+        print("--group-window doit etre >= 0.", file=sys.stderr)
         sys.exit(1)
 
     captures, ignored = list_captures(args.input, args.recursive)
     if not captures:
-        logger.warning(f"Aucune capture ({', '.join(CAPTURE_EXTENSIONS)}) dans {args.input}.")
+        print(f"Aucune capture ({', '.join(CAPTURE_EXTENSIONS)}) dans {args.input}.", file=sys.stderr)
         sys.exit(1)
     os.makedirs(args.output, exist_ok=True)
     labels = make_labels(captures)

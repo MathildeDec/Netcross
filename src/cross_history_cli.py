@@ -78,7 +78,7 @@ def main():
     args = ap.parse_args()
 
     if args.limit is not None and args.limit <= 0:
-        logger.warning("--limit doit etre un entier strictement positif.")
+        print("--limit doit etre un entier strictement positif.", file=sys.stderr)
         sys.exit(1)
 
     try:
@@ -87,7 +87,7 @@ def main():
         # Un fichier qui existe mais n'est pas une base netcross : message
         # nommant le chemin plutot qu'une trace sqlite3 brute (issue #287).
         logger.exception("erreur: exc")
-        logger.warning(exc)
+        print(exc, file=sys.stderr)
         sys.exit(1)
     print_history(entries)
 

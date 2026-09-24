@@ -189,7 +189,7 @@ def _load_packets(scenario_name, captures, parallel, parallel_workers):
         except (TsharkNotFoundError, TsharkError) as exc:
             logger.exception("erreur: exc")
             any_error = True
-            logger.error(f"[{scenario_name}/{label}] ECHEC sur {path} : {exc}")
+            print(f"[{scenario_name}/{label}] ECHEC sur {path} : {exc}", file=sys.stderr)
             continue
         print(f"[{scenario_name}/{label}] {len(pkts)} paquets IP/TCP/UDP/ICMP charges depuis {path}")
         all_packets.extend(pkts)
@@ -221,7 +221,7 @@ def _parse_live_spec(spec):
         parse_source(iface)
     except CaptureSourceError as exc:
         logger.exception("erreur: exc")
-        logger.error(f"Source invalide pour --live-current {label} : {exc}")
+        print(f"Source invalide pour --live-current {label} : {exc}", file=sys.stderr)
         sys.exit(1)
     return label, iface, bpf or None
 
@@ -268,7 +268,7 @@ def _run_live_captures(live_specs, duration):
         except Exception as e:  # noqa: BLE001 -- thread de fond : une erreur sur
             # ce point doit etre rapportee sans arreter les autres points en cours.
             logger.exception("erreur: e")
-            logger.error(f"[courant/{label}] ERREUR : {e}")
+            print(f"[courant/{label}] ERREUR : {e}", file=sys.stderr)
         print(f"[courant/{label}] capture arretee -- {count} paquet(s) au total.")
 
     def _on_sigint(_signum, _frame):
@@ -527,7 +527,7 @@ def main():
     args = ap.parse_args()
 
     if not args.current and not args.live_current:
-        logger.warning("Il faut fournir au moins un --current ou un --live-current.")
+        print("Il faut fournir au moins un --current ou un --live-current.", file=sys.stderr)
         sys.exit(1)
     if args.current and args.live_current:
         print(
@@ -560,7 +560,7 @@ def main():
             sys.exit(1)
 
     if args.redact_map and not args.redact:
-        logger.warning("--redact-map necessite --redact.")
+        print("--redact-map necessite --redact.", file=sys.stderr)
         sys.exit(1)
     if args.redact and (args.tls or args.quic):
         print(
@@ -575,7 +575,7 @@ def main():
         sys.exit(1)
 
     if (args.history_label or args.history_show is not None) and not args.history_db:
-        logger.warning("--history-label/--history-show necessitent --history-db.")
+        print("--history-label/--history-show necessitent --history-db.", file=sys.stderr)
         sys.exit(1)
 
     baseline_captures = _parse_capture_args(args.baseline, "--baseline")
@@ -783,7 +783,7 @@ def main():
                 print_history(entries)
         except HistoryDatabaseError as exc:
             logger.exception("erreur: exc")
-            logger.warning(exc)
+            print(exc, file=sys.stderr)
             sys.exit(1)
 
     if any(f.severity == "regression" for f in findings):

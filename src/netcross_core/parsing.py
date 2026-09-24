@@ -163,7 +163,7 @@ def parse_capture(label, path, raise_on_error=False) -> list[Pkt]:
         logger.exception("erreur: e")
         if raise_on_error:
             raise
-        logger.error(f"[{label}] impossible de lire {path} : {e}")
+        print(f"[{label}] impossible de lire {path} : {e}", file=sys.stderr)
         return []
     # Convertit en liberant chaque RawPacket au fur et a mesure (au lieu
     # d'une comprehension de liste, qui garderait raw_packets ET pkts

@@ -181,7 +181,7 @@ def _parse_live_spec(spec):
         parse_source(iface)
     except CaptureSourceError as exc:
         logger.exception("erreur: exc")
-        logger.error(f"Source invalide pour --live {label} : {exc}")
+        print(f"Source invalide pour --live {label} : {exc}", file=sys.stderr)
         sys.exit(1)
     return label, iface, bpf or None
 
@@ -274,7 +274,7 @@ def _run_merge(capture_specs, output_path, dedup):
         # absent du PATH ou en echec) -- meme sortie propre que les autres
         # erreurs d'arguments de cette CLI plutot qu'une trace Python.
         logger.exception("erreur: e")
-        logger.warning(f"--merge : {e}")
+        print(f"--merge : {e}", file=sys.stderr)
         sys.exit(1)
     print(
         f"{len(paths)} fichier(s) fusionne(s) dans {output_path}"
@@ -288,7 +288,7 @@ def _run_convert(capture_specs, output_path, fmt):
     (pcap, pcapng, erf) ou exporte en CSV/JSON structure, puis s'arrete
     sans lancer d'analyse. Comme --merge/--split, ne lance aucune analyse."""
     if not capture_specs:
-        logger.warning("--convert necessite --capture (fichier source).")
+        print("--convert necessite --capture (fichier source).", file=sys.stderr)
         sys.exit(1)
     paths = []
     for spec in capture_specs:
@@ -312,7 +312,7 @@ def _run_convert(capture_specs, output_path, fmt):
             convert_capture(path_in, output_path, fmt=fmt)
     except (OSError, ValueError, RuntimeError) as e:
         logger.exception("erreur: e")
-        logger.warning(f"--convert : {e}")
+        print(f"--convert : {e}", file=sys.stderr)
         sys.exit(1)
     print(f"Converti {path_in} -> {output_path} (format: {fmt}).")
 
@@ -322,7 +322,7 @@ def _run_export(capture_specs, output_path, bpf_filter, time_start, time_end, en
     capture vers un nouveau fichier. Comme --merge/--split, ne lance aucune
     analyse ensuite."""
     if not capture_specs:
-        logger.warning("--export-pcap necessite --capture (fichier source).")
+        print("--export-pcap necessite --capture (fichier source).", file=sys.stderr)
         sys.exit(1)
     # Un seul fichier source : pour exporter plusieurs captures, les fusionner
     # d'abord avec --merge.
@@ -353,7 +353,7 @@ def _run_export(capture_specs, output_path, bpf_filter, time_start, time_end, en
         )
     except (TsharkNotFoundError, TsharkError, FileNotFoundError, ValueError) as e:
         logger.exception("erreur: e")
-        logger.warning(f"--export-pcap : {e}")
+        print(f"--export-pcap : {e}", file=sys.stderr)
         sys.exit(1)
     print(f"{output_path} cree ({label}).")
     return 0
@@ -386,7 +386,7 @@ def _parse_split_spec(spec):
     raw = raw.strip()
     err = f"Format invalide pour --split: {spec} (attendu time:SECONDES, count:PAQUETS ou size:TAILLE, ex: size:100M)"
     if not sep or mode not in ("time", "count", "size") or not raw:
-        logger.warning(err)
+        print(err, file=sys.stderr)
         sys.exit(1)
     try:
         if mode == "time":
@@ -400,7 +400,7 @@ def _parse_split_spec(spec):
         value = None
     if value is None or value <= 0:
         hint = " (unites decimales k/M/G, ex: 100M ; MiB/Mio non supportes)" if mode == "size" else ""
-        logger.warning(f"{err} -- la valeur doit etre un nombre > 0{hint}")
+        print(f"{err} -- la valeur doit etre un nombre > 0{hint}", file=sys.stderr)
         sys.exit(1)
     return mode, value
 
@@ -427,7 +427,7 @@ def _run_split(capture_specs, split_spec, output_dir):
                 segments.extend(split_capture(path, label_dir, mode, value))
         except (ValueError, OSError, RuntimeError) as e:
             logger.exception("erreur: e")
-            logger.error(f"[{label}] ECHEC du decoupage : {e}")
+            print(f"[{label}] ECHEC du decoupage : {e}", file=sys.stderr)
             status = 1
             continue
         if not segments:
@@ -448,7 +448,7 @@ def _run_adjust_time(capture_specs, output_path, offset, normalize, align_to):
     normalisation ou alignement sur une autre capture). Comme --merge/--split,
     ne lance aucune analyse ensuite."""
     if not capture_specs:
-        logger.warning("--adjust-time necessite --capture (fichier source).")
+        print("--adjust-time necessite --capture (fichier source).", file=sys.stderr)
         sys.exit(1)
     if len(capture_specs) > 1:
         print(
@@ -474,7 +474,7 @@ def _run_adjust_time(capture_specs, output_path, offset, normalize, align_to):
         )
     except (TsharkNotFoundError, TsharkError, FileNotFoundError, ValueError) as e:
         logger.exception("erreur: e")
-        logger.warning(f"--adjust-time : {e}")
+        print(f"--adjust-time : {e}", file=sys.stderr)
         sys.exit(1)
     print(f"{output_path} cree ({label}).")
     return 0
@@ -508,7 +508,7 @@ def _run_replay(capture_specs, interface, speed, loop):
         # (tcpreplay absent du PATH ou en echec) -- meme sortie propre que
         # --merge/--split plutot qu'une trace Python.
         logger.exception("erreur: e")
-        logger.warning(f"--replay : {e}")
+        print(f"--replay : {e}", file=sys.stderr)
         sys.exit(1)
     print(f"{paths[0]} rejoue sur {interface} (speed={speed}, loop={loop}).")
 
@@ -548,7 +548,7 @@ def _run_live_captures(live_specs, duration, reporter=None):
         except Exception as e:  # noqa: BLE001 -- thread de fond : une erreur sur
             # ce point doit etre rapportee sans arreter les autres points en cours.
             logger.exception("erreur: e")
-            logger.error(f"[{label}] ERREUR : {e}")
+            print(f"[{label}] ERREUR : {e}", file=sys.stderr)
             if reporter is not None:
                 reporter.aggregator.set_status(label, "erreur", str(e))
         else:
@@ -633,7 +633,7 @@ def _build_support_consent(args) -> Consent:
         sys.exit(1)
 
     if args.support_map and not args.support_ticket:
-        logger.warning("--support-map necessite --support-ticket.")
+        print("--support-map necessite --support-ticket.", file=sys.stderr)
         sys.exit(1)
 
     scopes = SUPPORT_SCOPES
@@ -785,7 +785,7 @@ def _check_memory_before_analysis(captures) -> None:
             file_size = 0
         warning = _memory_warning(label, file_size, info.packet_count)
         if warning:
-            logger.warning(f"\nATTENTION memoire -- {warning}")
+            print(f"\nATTENTION memoire -- {warning}", file=sys.stderr)
 
 
 def _parse_sample_spec(spec: str) -> int:
@@ -887,10 +887,10 @@ def _parse_plugin_exports(specs: list[str], authorized: list[str]) -> list[tuple
     for spec in specs:
         name, sep, path = spec.partition("=")
         if not sep or not name.strip() or not path.strip():
-            logger.warning(f"--plugin-export : format attendu NOM=FICHIER, recu {spec!r}.")
+            print(f"--plugin-export : format attendu NOM=FICHIER, recu {spec!r}.", file=sys.stderr)
             sys.exit(1)
         if name.strip() not in authorized:
-            logger.warning(f"--plugin-export {name.strip()} : exporteur absent de --plugins.")
+            print(f"--plugin-export {name.strip()} : exporteur absent de --plugins.", file=sys.stderr)
             sys.exit(1)
         targets.append((name.strip(), path.strip()))
     return targets
@@ -901,7 +901,7 @@ def _check_extraction_args(args) -> tuple[str, ...]:
     from netcross_core.extract.contents import parse_kinds
 
     if args.extract_kinds and not args.extract_contents:
-        logger.warning("--extract-kinds necessite --extract-contents.")
+        print("--extract-kinds necessite --extract-contents.", file=sys.stderr)
         sys.exit(1)
     if not (args.media_quality or args.extract_contents):
         return ()
@@ -922,7 +922,7 @@ def _check_extraction_args(args) -> tuple[str, ...]:
         kinds = parse_kinds(args.extract_kinds)
     except ValueError as exc:
         logger.exception("erreur: exc")
-        logger.warning(f"--extract-kinds : {exc}")
+        print(f"--extract-kinds : {exc}", file=sys.stderr)
         sys.exit(1)
     if args.extract_contents:
         out = args.extract_contents
@@ -944,7 +944,7 @@ def _run_content_extraction(captures, out_dir, kinds) -> None:
     print("CONTENUS AUDIO/VIDEO/DOCUMENTS (relit les memes fichiers)")
     print("=" * 70)
     if out_dir:
-        logger.warning(USAGE_REMINDER)
+        print(USAGE_REMINDER, file=sys.stderr)
         logger.warning("extraction de contenus vers {} (types : {})", out_dir, ", ".join(kinds))
     result = run_extraction(captures, out_dir=out_dir, kinds=kinds if out_dir else ())
     for line in format_extraction(result):
@@ -954,21 +954,21 @@ def _run_content_extraction(captures, out_dir, kinds) -> None:
 def _check_live_report_args(args) -> None:
     """Validations de l'issue #274."""
     if (args.live_report_serve is not None or args.live_report_interval != 5.0) and not args.live_report:
-        logger.warning("--live-report-interval/--live-report-serve necessitent --live-report.")
+        print("--live-report-interval/--live-report-serve necessitent --live-report.", file=sys.stderr)
         sys.exit(1)
     if not args.live_report:
         return
     if not args.live:
-        logger.warning("--live-report necessite --live (pour une capture existante, --json-report suffit).")
+        print("--live-report necessite --live (pour une capture existante, --json-report suffit).", file=sys.stderr)
         sys.exit(1)
     if args.live_report_interval < 1:
-        logger.warning("--live-report-interval : 1 seconde minimum.")
+        print("--live-report-interval : 1 seconde minimum.", file=sys.stderr)
         sys.exit(1)
     if args.live_report_serve is not None and not 1 <= args.live_report_serve <= 65535:
-        logger.warning("--live-report-serve : port entre 1 et 65535.")
+        print("--live-report-serve : port entre 1 et 65535.", file=sys.stderr)
         sys.exit(1)
     if os.path.exists(args.live_report) and not os.path.isdir(args.live_report):
-        logger.warning(f"--live-report : {args.live_report} n'est pas un repertoire.")
+        print(f"--live-report : {args.live_report} n'est pas un repertoire.", file=sys.stderr)
         sys.exit(1)
 
 
@@ -1024,14 +1024,14 @@ def _check_ai_args(args):
     from netcross_ai.report_writer import WriterConfigError, parse_engine
 
     if args.ai_baseline_label and not args.ai_baseline_save:
-        logger.warning("--ai-baseline-label necessite --ai-baseline-save.")
+        print("--ai-baseline-label necessite --ai-baseline-save.", file=sys.stderr)
         sys.exit(1)
     if args.ai_endpoint and not args.ai_summary:
-        logger.warning("--ai-endpoint necessite --ai-summary.")
+        print("--ai-endpoint necessite --ai-summary.", file=sys.stderr)
         sys.exit(1)
     for flag, path in (("--ai-anomalies", args.ai_anomalies), ("--ai-classify", args.ai_classify)):
         if path and not os.path.isfile(path):
-            logger.error(f"{flag} : fichier introuvable : {path}")
+            print(f"{flag} : fichier introuvable : {path}", file=sys.stderr)
             sys.exit(1)
     try:
         if args.ai_anomalies:
@@ -1042,7 +1042,7 @@ def _check_ai_args(args):
             parse_engine(args.ai_summary, args.ai_endpoint)
     except (AIUnavailableError, WriterConfigError) as exc:
         logger.exception("erreur: exc")
-        logger.warning(f"Module IA : {exc}")
+        print(f"Module IA : {exc}", file=sys.stderr)
         sys.exit(1)
     return AIOptions(
         baseline_path=args.ai_anomalies,
@@ -1069,7 +1069,7 @@ def _run_ai(args, ai_options, report, all_packets) -> None:
         result = run_ai(report, flows, ai_options)
     except (RuntimeError, ValueError, OSError) as exc:
         logger.exception("erreur: exc")
-        logger.warning(f"Module IA : {exc}")
+        print(f"Module IA : {exc}", file=sys.stderr)
         sys.exit(1)
     print(format_ai(result))
     if args.ai_report:
@@ -1787,7 +1787,7 @@ def main():
         sys.exit(_list_plugins(plugin_names, args.plugin_path))
 
     if not args.capture and not args.live:
-        logger.warning("Il faut fournir au moins un --capture ou un --live.")
+        print("Il faut fournir au moins un --capture ou un --live.", file=sys.stderr)
         sys.exit(1)
     if args.capture and args.live:
         print(
@@ -1802,15 +1802,15 @@ def main():
     # que --tls) -- jamais depuis un sniffing live, jamais depuis des paquets
     # anonymises par --redact.
     if args.cve_db and not args.security_report:
-        logger.warning("--cve-db necessite --security-report.")
+        print("--cve-db necessite --security-report.", file=sys.stderr)
         sys.exit(1)
     known_destinations = None
     if args.known_destinations:
         if not args.security_report:
-            logger.warning("--known-destinations necessite --security-report.")
+            print("--known-destinations necessite --security-report.", file=sys.stderr)
             sys.exit(1)
         if not os.path.isfile(args.known_destinations):
-            logger.error(f"--known-destinations : fichier introuvable : {args.known_destinations}")
+            print(f"--known-destinations : fichier introuvable : {args.known_destinations}", file=sys.stderr)
             sys.exit(1)
         hosts = load_baseline_hosts(args.known_destinations)
         if not hosts:
@@ -1826,10 +1826,10 @@ def main():
     # de produire un fichier HTML vide, ou de ne rien ecrire en silence --
     # l'utilisateur croirait avoir un rapport (issue #218).
     if bool(args.siem_export) != bool(args.siem_output):
-        logger.warning("--siem-export et --siem-output vont ensemble (format + fichier).")
+        print("--siem-export et --siem-output vont ensemble (format + fichier).", file=sys.stderr)
         sys.exit(1)
     if args.siem_export and not args.security_report:
-        logger.warning("--siem-export necessite --security-report.")
+        print("--siem-export necessite --security-report.", file=sys.stderr)
         sys.exit(1)
     notify_extras = [
         opt
@@ -1853,14 +1853,14 @@ def main():
         )
         sys.exit(1)
     if args.notify_on and not args.security_report:
-        logger.warning("--notify-on necessite --security-report.")
+        print("--notify-on necessite --security-report.", file=sys.stderr)
         sys.exit(1)
     if args.notify_silence is not None and args.notify_silence < 0:
-        logger.warning("--notify-silence doit etre >= 0.")
+        print("--notify-silence doit etre >= 0.", file=sys.stderr)
         sys.exit(1)
     plugin_targets = _parse_plugin_exports(args.plugin_export, plugin_names)
     if args.plugin_path and not plugin_names:
-        logger.warning("--plugin-path sans --plugins : aucun plugin autorise, rien ne s'executerait.")
+        print("--plugin-path sans --plugins : aucun plugin autorise, rien ne s'executerait.", file=sys.stderr)
         sys.exit(1)
     loaded_plugins = None
     if plugin_names:
@@ -1869,10 +1869,10 @@ def main():
         loaded_plugins = load_plugins(plugin_names, args.plugin_path)
         if loaded_plugins.detectors and not args.security_report:
             names = ", ".join(d.name for d in loaded_plugins.detectors)
-            logger.warning(f"detecteur(s) de plugin {names} : --security-report requis.")
+            print(f"detecteur(s) de plugin {names} : --security-report requis.", file=sys.stderr)
             sys.exit(1)
     if args.security_html and not args.security_report:
-        logger.warning("--security-html necessite --security-report.")
+        print("--security-html necessite --security-report.", file=sys.stderr)
         sys.exit(1)
     if args.security_report:
         if args.live:
@@ -1920,7 +1920,7 @@ def main():
         )
         sys.exit(1)
     if args.merge and args.split:
-        logger.warning("--merge et --split sont exclusifs : fusionner OU decouper, pas les deux.")
+        print("--merge et --split sont exclusifs : fusionner OU decouper, pas les deux.", file=sys.stderr)
         sys.exit(1)
     if args.replay and (args.merge or args.split):
         print(
@@ -1938,7 +1938,7 @@ def main():
         )
         sys.exit(1)
     if (args.replay_loop != 1 or args.replay_speed != "1.0") and not args.replay:
-        logger.warning("--replay-speed/--replay-loop necessitent --replay.")
+        print("--replay-speed/--replay-loop necessitent --replay.", file=sys.stderr)
         sys.exit(1)
     # --adjust-time est exclusif avec les autres modes utilitaires
     if args.adjust_time_output and (args.merge or args.split or args.replay):
@@ -1954,11 +1954,11 @@ def main():
         )
         sys.exit(1)
     if args.merge_dedup and not args.merge:
-        logger.warning("--merge-dedup necessite --merge.")
+        print("--merge-dedup necessite --merge.", file=sys.stderr)
         sys.exit(1)
     if args.merge:
         if not args.capture:
-            logger.warning("--merge necessite --capture (fichiers a fusionner), pas --live.")
+            print("--merge necessite --capture (fichiers a fusionner), pas --live.", file=sys.stderr)
             sys.exit(1)
         # --merge n'analyse rien : une option d'analyse/de rapport passee en
         # meme temps serait ignoree en silence, on la refuse plutot.
@@ -1995,10 +1995,10 @@ def main():
 
     if args.convert:
         if not args.capture:
-            logger.warning("--convert necessite --capture (fichier source).")
+            print("--convert necessite --capture (fichier source).", file=sys.stderr)
             sys.exit(1)
         if args.live:
-            logger.warning("--convert convertit un fichier (--capture) : incompatible avec --live.")
+            print("--convert convertit un fichier (--capture) : incompatible avec --live.", file=sys.stderr)
             sys.exit(1)
         # --convert est un mode utilitaire qui s'arrete apres la conversion :
         # toute autre option (analyse, rapport...) serait silencieusement ignoree.
@@ -2034,11 +2034,11 @@ def main():
         return
 
     if args.split_output_dir and not args.split:
-        logger.warning("--split-output-dir necessite --split.")
+        print("--split-output-dir necessite --split.", file=sys.stderr)
         sys.exit(1)
     if args.split:
         if args.live:
-            logger.warning("--split decoupe des fichiers (--capture) : incompatible avec --live.")
+            print("--split decoupe des fichiers (--capture) : incompatible avec --live.", file=sys.stderr)
             sys.exit(1)
         # --split est un mode utilitaire qui s'arrete apres le decoupage : toute
         # autre option (analyse, rapport...) serait silencieusement ignoree, on
@@ -2059,7 +2059,7 @@ def main():
 
     if args.export_pcap:
         if not args.capture:
-            logger.warning("--export-pcap necessite --capture (fichier source), pas --live.")
+            print("--export-pcap necessite --capture (fichier source), pas --live.", file=sys.stderr)
             sys.exit(1)
         # --export-pcap est un mode utilitaire comme --merge/--split : toute
         # option d'analyse serait silencieusement ignoree, on la refuse.
@@ -2100,7 +2100,7 @@ def main():
 
     if args.replay:
         if not args.capture:
-            logger.warning("--replay necessite --capture (fichier a rejouer), pas --live.")
+            print("--replay necessite --capture (fichier a rejouer), pas --live.", file=sys.stderr)
             sys.exit(1)
         # --replay n'analyse rien : une option d'analyse/de rapport passee en
         # meme temps serait ignoree en silence, on la refuse plutot (meme
@@ -2138,7 +2138,7 @@ def main():
 
     if args.adjust_time_output:
         if not args.capture:
-            logger.warning("--adjust-time necessite --capture (fichier source), pas --live.")
+            print("--adjust-time necessite --capture (fichier source), pas --live.", file=sys.stderr)
             sys.exit(1)
         # --adjust-time est un mode utilitaire : toute option d'analyse
         # serait silencieusement ignoree, on la refuse.
@@ -2211,7 +2211,7 @@ def main():
 
     ai_options = _check_ai_args(args)
     if args.redact_map and not args.redact:
-        logger.warning("--redact-map necessite --redact.")
+        print("--redact-map necessite --redact.", file=sys.stderr)
         sys.exit(1)
     extract_kinds = _check_extraction_args(args)
     _check_live_report_args(args)
@@ -2229,7 +2229,7 @@ def main():
         sys.exit(1)
 
     if (args.history_label or args.history_show is not None) and not args.history_db:
-        logger.warning("--history-label/--history-show necessitent --history-db.")
+        print("--history-label/--history-show necessitent --history-db.", file=sys.stderr)
         sys.exit(1)
 
     # --support-ticket (issue #269) : le consentement est une PRECONDITION,
@@ -2357,7 +2357,7 @@ def main():
             except (TsharkNotFoundError, TsharkError) as exc:
                 logger.exception("erreur: exc")
                 any_error = True
-                logger.error(f"[{label}] ECHEC sur {path} : {exc}")
+                print(f"[{label}] ECHEC sur {path} : {exc}", file=sys.stderr)
                 continue
             print(f"[{label}] {len(pkts)} paquets IP/TCP/UDP/ICMP charges depuis {path}")
             all_packets.extend(pkts)
@@ -2402,13 +2402,13 @@ def main():
     if args.max_packets is not None or sample_n:
         all_packets, truncation_note = _apply_packet_limits(all_packets, args.max_packets, sample_n)
         if truncation_note:
-            logger.warning(f"\nATTENTION : {truncation_note}")
+            print(f"\nATTENTION : {truncation_note}", file=sys.stderr)
 
     points_order = args.order.split(",") if args.order else None
     duplicate_counts = None
     if args.detect_duplicates or args.exclude_duplicates:
         if args.duplicate_threshold_ms < 0:
-            logger.warning("--duplicate-threshold-ms doit etre >= 0.")
+            print("--duplicate-threshold-ms doit etre >= 0.", file=sys.stderr)
             sys.exit(1)
         duplicate_counts = detect_cross_capture_duplicates(all_packets, args.duplicate_threshold_ms)
         print(
@@ -2746,7 +2746,7 @@ def main():
                 print_history(entries)
         except HistoryDatabaseError as exc:
             logger.exception("erreur: exc")
-            logger.warning(exc)
+            print(exc, file=sys.stderr)
             sys.exit(1)
 
     # --support-ticket (issue #269) : le run s'est termine SANS crash (le
