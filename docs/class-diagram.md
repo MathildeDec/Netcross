@@ -331,6 +331,7 @@ classDiagram
         +bool dns_is_response
         +str? dns_qry_name
         +int? dns_rcode
+        +float payload_entropy
         +bool http_is_request
         +bool http_is_response
         +str? http_method
@@ -1220,6 +1221,7 @@ classDiagram
         +bool dns_is_response
         +str? dns_qry_name
         +int? dns_rcode
+        +float payload_entropy
         +bool http_is_request
         +bool http_is_response
         +str? http_method
@@ -1401,6 +1403,7 @@ classDiagram
         +list~dict~ lateral_movement_events
         +list~dict~ plugin_runs
         +list~dict~ flow_anomalies
+        +list~dict~ asset_inventory
         +list~tuple~str, str, dict~~ topology_edges
         +list~tuple~str, str, str~~ topology_ambiguous
         +list~str~ topology_isolated
@@ -2592,6 +2595,7 @@ classDiagram
         +list~float~ inter_arrivals
         +str classification
         +float entropy
+        +float byte_entropy
         +float median_size
         +float upload_ratio
         +float regularity_cv
