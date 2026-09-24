@@ -47,6 +47,7 @@ from typing import Any
 
 import pcap_parser
 from netcross_core.application.banners import build_service_fingerprints
+from netcross_core.discovery.assets import build_asset_inventory
 from netcross_core.exploit_signatures import Detection, Signature, detect_exploits
 from netcross_core.fingerprint.report import build_fingerprint_records
 from netcross_core.logging_config import get_logger
@@ -427,6 +428,7 @@ def flow_stats_findings(flows: list[dict]) -> list[dict[str, Any]]:
                     f"flux {f.get('src', '?')} -> {f.get('dst', '?')} "
                     f"classifie '{cls}' ({f.get('packet_count', 0)} paquets, "
                     f"entropie {f.get('entropy', 0.0):.2f}, "
+                    f"entropie octets {f.get('byte_entropy', 0.0):.2f}, "
                     f"ratio upload {f.get('upload_ratio', 0.0):.2f})"
                 ),
                 "points": points,
@@ -616,6 +618,9 @@ def apply_security_findings(
     # FLOW-4 (#145) : statistiques de flux (SPLT, entropie, ratio, classification)
     flow_result = analyze_flow_stats(all_packets)
     report.flow_anomalies = [f.to_dict() for f in flow_result.flows]
+
+    # Issue #350 : inventaire d'actifs -- jamais appele, la section etait vide.
+    report.asset_inventory = build_asset_inventory(all_packets).to_records()
 
     dns_suspicions = detect_dns_tunneling(all_packets).suspicions
     beacon_suspicions = detect_beaconing(all_packets).suspicions

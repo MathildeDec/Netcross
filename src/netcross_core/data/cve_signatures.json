@@ -80,6 +80,67 @@
       "params": {"role": "client_offered"},
       "protocols": ["TCP"],
       "references": ["https://nvd.nist.gov/vuln/detail/CVE-2012-4929"]
+    },
+    {
+      "id": "apache-path-traversal",
+      "name": "Apache 2.4.49 path traversal (CVE-2021-41773)",
+      "cve": ["CVE-2021-41773", "CVE-2021-42013"],
+      "severity": "anomalie",
+      "description": "Requete HTTP utilisant des sequences d'encodage de points (/.%2e/, /%%32%65/, /%2e%2e/) pour traverser le DocumentRoot d'Apache 2.4.49/2.4.50. La vulnerabilite permet de lire des fichiers hors du repertoire configure et, avec des modules charges, d'executer du code (RCE).",
+      "targets": ["http_uri", "http_user_agent", "http_headers"],
+      "regex": "\\/(\\.\\%2e|\\%2e\\.|\\%252e\\%252e|\\.\\.\\%2f|\\.\\.\\/|\\%2e\\%2e\\/)i",
+      "flags": ["ignorecase"],
+      "normalizers": ["url_decode"],
+      "protocols": ["TCP"],
+      "references": ["https://nvd.nist.gov/vuln/detail/CVE-2021-41773", "https://nvd.nist.gov/vuln/detail/CVE-2021-42013"]
+    },
+    {
+      "id": "exchange-proxylogon",
+      "name": "Microsoft Exchange ProxyLogon (CVE-2021-26855)",
+      "cve": ["CVE-2021-26855", "CVE-2021-27065"],
+      "severity": "anomalie",
+      "description": "Requete vers /ecp/ ou /ews/ avec en-tete contenant un cookie X-BEResource pointant vers un serveur arbitraire (SSRF). Permet l'execution de commandes a distance via Exchange Management Shell.",
+      "targets": ["http_uri", "http_headers"],
+      "regex": "\\/ecp\\/.*X-BEResource\\s*=",
+      "flags": ["ignorecase"],
+      "normalizers": ["url_decode"],
+      "protocols": ["TCP"],
+      "references": ["https://nvd.nist.gov/vuln/detail/CVE-2021-26855", "https://nvd.nist.gov/vuln/detail/CVE-2021-27065"]
+    },
+    {
+      "id": "bluekeep-rdp",
+      "name": "BlueKeep (RDP CVE-2019-0708)",
+      "cve": ["CVE-2019-0708"],
+      "severity": "anomalie",
+      "description": "Paquet RDP avec une longueur de canal MS_T120 anormale (superieure a la taille attendue) provoquant un depassement de tampon en mode kernel (Win NT 4.0 a Server 2008, et Windows 7/Server 2008 R2 non patches).",
+      "detector": "rdp_bluekeep",
+      "ports": [3389],
+      "protocols": ["TCP"],
+      "references": ["https://nvd.nist.gov/vuln/detail/CVE-2019-0708"]
+    },
+    {
+      "id": "http2-rapid-reset",
+      "name": "HTTP/2 Rapid Reset (CVE-2023-44487)",
+      "cve": ["CVE-2023-44487"],
+      "severity": "anomalie",
+      "description": "Tres grand nombre de requetes HTTP/2 (RST_STREAM) envoyees et immediatement annulees en peu de temps. Attaque par deni de service distribuee (DDoS) exploitant la reinitialisation rapide des flux HTTP/2.",
+      "detector": "http2_rapid_reset",
+      "params": {"min_rst_per_second": 100, "window_seconds": 10},
+      "protocols": ["TCP"],
+      "references": ["https://nvd.nist.gov/vuln/detail/CVE-2023-44487"]
+    },
+    {
+      "id": "spring4shell",
+      "name": "Spring4Shell (CVE-2022-22965)",
+      "cve": ["CVE-2022-22965"],
+      "severity": "anomalie",
+      "description": "Requete HTTP avec parametre de classe (class.module.classLoader...) permettant l'execution de code arbitraire via data binding Spring. Exploite les applications Java Spring Framework non patchees.",
+      "targets": ["http_uri", "http_headers", "http_body"],
+      "regex": "class\\.module\\.classLoader|class\\.classLoader\\.",
+      "flags": ["ignorecase"],
+      "normalizers": ["url_decode"],
+      "protocols": ["TCP"],
+      "references": ["https://nvd.nist.gov/vuln/detail/CVE-2022-22965"]
     }
   ]
 }
