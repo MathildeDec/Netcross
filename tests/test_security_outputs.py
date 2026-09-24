@@ -235,7 +235,8 @@ def test_le_html_ecrit_ses_sections_vides():
     for message in (
         "aucun service identifie",
         "aucune tentative d'exploitation detectee",
-        "aucune anomalie correlee",
+        "aucun constat des detecteurs Netcross",
+        "aucune alerte Expert Info correlee",
         "aucune CVE confirmee",
     ):
         assert message in page
