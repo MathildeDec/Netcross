@@ -146,7 +146,7 @@ def run_analysis_pipeline(
     duplicate_counts = None
     if options.detect_duplicates:
         _log(f"Détection des doublons inter-captures (seuil {options.duplicate_threshold_ms:.1f} ms)...")
-        from netcross_core.analysis import detect_cross_capture_duplicates
+        from netcross_core.forensic import detect_cross_capture_duplicates
 
         duplicate_counts = detect_cross_capture_duplicates(all_packets, options.duplicate_threshold_ms)
         duplicate_total = sum(duplicate_counts.values())
