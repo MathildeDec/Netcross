@@ -22,6 +22,7 @@ logger = get_logger(__name__)
 
 
 def layer(layers: dict, key: str) -> dict | None:
+    logger.debug("layer(layers={layers}, key={key})")
     """Couche unique (premiere/seule occurrence). None si absente."""
     val = layers.get(key)
     if val is None:
@@ -30,6 +31,7 @@ def layer(layers: dict, key: str) -> dict | None:
 
 
 def innermost(layers: dict, key: str) -> dict | None:
+    logger.debug("innermost(layers={layers}, key={key})")
     """Derniere occurrence d'une couche empilee -- la plus interne, donc
     la plus proche des vraies donnees applicatives (ex: le vrai IP client
     derriere un GRE/VXLAN/ERSPAN, pas l'IP du tunnel)."""
@@ -40,6 +42,7 @@ def innermost(layers: dict, key: str) -> dict | None:
 
 
 def all_occurrences(layers: dict, key: str) -> list[dict]:
+    logger.debug("all_occurrences(layers={layers}, key={key})")
     """Toutes les occurrences d'une couche, dans l'ordre outer -> inner."""
     val = layers.get(key)
     if val is None:
@@ -48,6 +51,7 @@ def all_occurrences(layers: dict, key: str) -> list[dict]:
 
 
 def g(d: dict | None, name: str, default: Any = None) -> Any:
+    logger.debug("g(d={d}, name={name}, default={default})")
     if d is None:
         return default
     return d.get(name, default)
@@ -64,6 +68,7 @@ def as_int(value: Any, base: int = 10) -> int | None:
 
 
 def hex_or_dec_to_int(value: Any) -> int | None:
+    logger.debug("hex_or_dec_to_int(value={value})")
     """Beaucoup de champs tshark (ip.id, gtp.teid, dhcp.id...) sont rendus
     en hexadecimal prefixe "0x...". D'autres non. On accepte les deux."""
     if value is None:
@@ -74,6 +79,7 @@ def hex_or_dec_to_int(value: Any) -> int | None:
 
 
 def checksum_is_bad(status_value: Any) -> bool | None:
+    logger.debug("checksum_is_bad(status_value={status_value})")
     """Interprete un champ de statut de checksum tshark (ip.checksum.
     status/tcp.checksum.status/udp.checksum.status), rendu en EK comme
     un CODE ENTIER en chaine decimale -- verifie empiriquement (tshark
@@ -116,6 +122,7 @@ def as_float(value: Any) -> float | None:
 
 
 def as_bool(value: Any) -> bool:
+    logger.debug("as_bool(value={value})")
     """Interprete un champ booleen EK (ip.flags.df, ip.flags.mf...).
 
     Verifie empiriquement (tshark 4.2.2, sous-champs d'un octet de flags
@@ -137,6 +144,7 @@ def as_bool(value: Any) -> bool:
 
 
 def has_expert_flag(layer: dict | None, name: str) -> bool:
+    logger.debug("has_expert_flag(layer={layer}, name={name})")
     """Un champ genere par le systeme d'expertise de tshark (tcp.analysis.
     retransmission, .fast_retransmission, .spurious_retransmission...)
     n'existe que si la condition correspondante est remplie -- toujours
@@ -163,6 +171,7 @@ def has_expert_flag(layer: dict | None, name: str) -> bool:
 
 
 def expert_flag_names(layer: dict | None) -> tuple[str, ...]:
+    logger.debug("expert_flag_names(layer={layer})")
     """Generalise has_expert_flag() ci-dessus : au lieu de tester la
     presence d'UN nom de champ d'expertise connu a la fois, renvoie TOUS
     les noms de CONDITION presents sous "_ws_expert" pour cette couche,
@@ -282,6 +291,7 @@ def _expert_label(raw: Any, table: dict[int, str]) -> str | None:
 
 
 def expert_flag_details(layer: dict | None) -> tuple[tuple[str, str | None, str | None, str | None], ...]:
+    logger.debug("expert_flag_details(layer={layer})")
     """Vue enrichie, complementaire a expert_flag_names() ci-dessus :
     pour chaque nom de CONDITION trouve sous "_ws_expert", renvoie aussi
     la severite et le groupe NATIFS tshark (traduits en libelle humain

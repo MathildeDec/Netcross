@@ -95,6 +95,7 @@ def detect_fast_flux(
     packets: Iterable[Pkt],
     thresholds: FastFluxThresholds | None = None,
 ) -> FastFluxResult:
+    logger.debug("detect_fast_flux(packets={packets}, thresholds={thresholds})")
     """Detection d'infrastructures fast flux par corrélation DNS + TCP.
 
     Parcourt les paquets en deux passes :

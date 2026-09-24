@@ -46,6 +46,7 @@ app = FastAPI(
 
 @app.get("/health", response_model=HealthResponse, tags=["meta"])
 async def health() -> HealthResponse:
+    logger.debug("health()")
     """Health check du service."""
     return HealthResponse()
 
@@ -110,6 +111,7 @@ async def upload_capture(
     responses={404: {"model": ErrorResponse}},
 )
 async def get_analysis(analysis_id: str) -> JSONResponse:
+    logger.debug("get_analysis(analysis_id={analysis_id})")
     """Récupère le rapport complet d'une analyse (JSON).
 
     Le rapport est sérialisé en dict JSON directement (sans passer par
@@ -144,6 +146,7 @@ async def get_analysis(analysis_id: str) -> JSONResponse:
     responses={404: {"model": ErrorResponse}},
 )
 async def get_security_report(analysis_id: str) -> SecurityReport:
+    logger.debug("get_security_report(analysis_id={analysis_id})")
     """Récupère les constats de sécurité d'une analyse."""
     entry = store.get(analysis_id)
     if entry is None:
@@ -172,5 +175,6 @@ async def get_security_report(analysis_id: str) -> SecurityReport:
 
 @app.get("/analyses", tags=["analyses"])
 async def list_analyses() -> dict:
+    logger.debug("list_analyses()")
     """Liste les IDs d'analyses disponibles."""
     return {"analyses": store.list_ids()}

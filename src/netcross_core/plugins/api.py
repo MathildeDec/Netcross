@@ -48,6 +48,7 @@ class InvalidFindingError(ValueError):
 
 
 def freeze(value: Any) -> Any:
+    logger.debug("freeze(value={value})")
     """Copie profonde figee : dict -> MappingProxyType, list/set -> tuple,
     dataclass/objet -> vue `ReadOnlyView`. Les scalaires traversent."""
     if isinstance(value, (*_SCALARS, bytes)):
@@ -74,6 +75,7 @@ class ReadOnlyView:
         object.__setattr__(self, "_target", target)
 
     def __getattr__(self, name: str) -> Any:
+        logger.debug("__getattr__(self={self}, name={name})")
         if name.startswith("__"):
             raise AttributeError(name)
         return freeze(getattr(object.__getattribute__(self, "_target"), name))
@@ -144,6 +146,7 @@ class Exporter(Protocol):
 
 
 def validate_finding(raw: Any) -> dict[str, Any]:
+    logger.debug("validate_finding(raw={raw})")
     """Valide et normalise un constat de plugin ; leve `InvalidFindingError`.
 
     Exigences : un dict ; `category`, `severity`, `detail` presents et non

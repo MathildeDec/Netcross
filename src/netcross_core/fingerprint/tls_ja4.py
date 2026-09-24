@@ -236,6 +236,7 @@ def _truncated_sha256(text: str) -> str:
 
 
 def compute_ja4(client_hello: dict, *, transport: str = "t") -> str:
+    logger.debug("compute_ja4(client_hello={client_hello})")
     """Calcule JA4 depuis le dict renvoye par `parse_client_hello`.
 
     `transport` : "t" (TCP, valeur normale ici -- ce module ne lit que du
@@ -297,6 +298,7 @@ def compute_ja4(client_hello: dict, *, transport: str = "t") -> str:
 
 
 def readable_client_hello(client_hello: dict) -> str:
+    logger.debug("readable_client_hello(client_hello={client_hello})")
     """Chaine lisible pour un analyste (ciphers/extensions en clair,
     complement du hash JA4 opaque) -- pas une norme, format propre a ce
     projet."""
@@ -307,6 +309,7 @@ def readable_client_hello(client_hello: dict) -> str:
 
 
 def identify(payload: bytes) -> tuple[str, str] | None:
+    logger.debug("identify(payload={payload})")
     """Point d'entree pour `netcross_core.parsing` : (JA4, forme lisible)
     si `payload` porte un ClientHello TLS decodable, None sinon."""
     client_hello = parse_client_hello(payload)

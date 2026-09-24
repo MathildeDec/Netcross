@@ -80,6 +80,7 @@ class ClientComparisonResult:
 
 
 def group_packets_by_client(all_packets, client_group):
+    logger.debug("group_packets_by_client(all_packets={all_packets}, client_group={client_group})")
     """
     Repartit all_packets par client selon un groupement explicite
     {nom: {ip1, ip2, ...}} -- voir idees.md : "--client-group
@@ -125,6 +126,7 @@ def build_client_report(
     nat_window_ms=200,
     rtp_clock_rate=8000,
 ):
+    logger.debug("build_client_report(client={client}, ips={ips}, packets={packets}, ...)")
     """Un ClientReport par client -- meme pattern que baseline_diff.py,
     qui appelle deja analyse() deux fois (avant/apres) : ici, une fois
     par client, sur le sous-ensemble de la capture qui lui est
@@ -154,6 +156,7 @@ def compare_clients(
     loss_min_pp=2.0,
     latency_min_ms=5.0,
 ):
+    logger.debug("compare_clients(all_packets={all_packets}, client_group={client_group}, reference={reference}, ...)")
     """
     Point d'entree principal.
 
@@ -213,6 +216,7 @@ def _print_signature(sig, indent="  "):
 
 
 def print_client_comparison(result: ClientComparisonResult) -> None:
+    logger.debug("print_client_comparison(result={result})")
     """Sortie console, meme esprit que print_diff_report : le client de
     reference d'abord (banniere dediee, comme les bannieres BASELINE/
     COURANT deja utilisees pour TLS/QUIC en Session 8), puis chaque
@@ -247,6 +251,7 @@ def print_client_comparison(result: ClientComparisonResult) -> None:
 
 
 def write_client_diff_csv(result: ClientComparisonResult, path: str) -> None:
+    logger.debug("write_client_diff_csv(result={result}, path={path})")
     """CSV plat, memes colonnes que write_diff_csv (baseline_diff.py)
     plus une colonne 'client' en tete -- une ligne par (client,
     DiffFinding). Le client de reference n'a pas de ligne (rien a

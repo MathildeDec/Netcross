@@ -77,6 +77,7 @@ SIP_METHODS = (
 
 
 def extract_rtp(layers: dict, udp_payload: bytes) -> dict | None:
+    logger.debug("extract_rtp(layers={layers}, udp_payload={udp_payload})")
     """Lit le resultat de la dissection RTP de tshark si presente
     (rtp.heuristic_rtp:TRUE est active par defaut dans ek_source.py,
     cf. DEFAULT_PREFS) ; sinon retombe sur l'heuristique par octets,
@@ -115,6 +116,7 @@ def _parse_rtp_heuristic(payload: bytes) -> dict | None:
 
 
 def extract_dhcp(layers: dict) -> dict | None:
+    logger.debug("extract_dhcp(layers={layers})")
     """Lit la dissection DHCP/BOOTP native de tshark. Renvoie None si le
     paquet n'est pas du DHCP (dhcp.type absent)."""
     dhcp = innermost(layers, "dhcp")
@@ -132,6 +134,7 @@ def extract_dhcp(layers: dict) -> dict | None:
 
 
 def extract_sip(layers: dict, payload: bytes) -> dict | None:
+    logger.debug("extract_sip(layers={layers}, payload={payload})")
     """Lit la dissection SIP native de tshark (reconnue sur le port 5060
     et quelques autres ports enregistres) ; sinon retombe sur
     l'heuristique par premiere ligne du payload, comme l'ancien
@@ -198,6 +201,7 @@ def _parse_sip_heuristic(payload: bytes) -> dict | None:
 
 
 def extract_dns(layers: dict) -> dict | None:
+    logger.debug("extract_dns(layers={layers})")
     """Lit la dissection DNS native de tshark (reconnue sur le port 53,
     UDP comme TCP, entre autres). Renvoie None si le paquet n'est pas du
     DNS (dns.id absent). Contrairement a RTP/SIP, pas de repli
@@ -228,6 +232,7 @@ def extract_dns(layers: dict) -> dict | None:
 
 
 def extract_http(layers: dict) -> dict | None:
+    logger.debug("extract_http(layers={layers})")
     """Lit la dissection HTTP/1.x native de tshark (reconnue sur le port 80
     et quelques autres ports enregistres/suivis). Renvoie None si ni
     http.request ni http.response n'est present -- contrairement a
@@ -371,6 +376,7 @@ def _certificate_details(tls: dict) -> dict:
 
 
 def extract_tls_certificate(layers: dict) -> dict | None:
+    logger.debug("extract_tls_certificate(layers={layers})")
     """
     Lit la dissection X.509 native de tshark au sein d'un message TLS
     Certificate (tshark dissecte automatiquement la chaine complete, y
@@ -455,6 +461,7 @@ def extract_tls_certificate(layers: dict) -> dict | None:
 
 
 def extract_tls_handshake(layers: dict) -> dict | None:
+    logger.debug("extract_tls_handshake(layers={layers})")
     """
     Session 54 -- lit UNIQUEMENT des champs d'en-tete TLS toujours en
     clair, jamais le contenu chiffre lui-meme : tls.record.content_type
@@ -510,6 +517,7 @@ def extract_tls_handshake(layers: dict) -> dict | None:
 
 
 def compute_mos(delay_ms: float, loss_pct: float):
+    logger.debug("compute_mos(delay_ms={delay_ms}, loss_pct={loss_pct})")
     """R-factor / MOS simplifies (modele type Cisco, codec G.711 : Ie=0,
     Bpl=4.3). Inchange par rapport a l'ancienne version -- calcul pur,
     aucune dependance a tshark."""

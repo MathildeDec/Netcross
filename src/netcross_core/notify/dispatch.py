@@ -63,6 +63,7 @@ class DeliveryResult:
     reason: str | None = None
 
     def line(self) -> str:
+        logger.debug("line(self={self})")
         text = f"notification {self.channel} : {_STATUS_LABELS.get(self.status, self.status)}"
         return f"{text}, {self.reason}" if self.reason else text
 
@@ -100,6 +101,7 @@ def _save_state(path: Path, state: dict[str, float]) -> None:
 
 
 def is_silenced(fingerprint: str, state_path: Path, silence_seconds: float, now: float) -> float | None:
+    logger.debug("is_silenced(fingerprint={fingerprint}, state_path={state_path}, silence_seconds={silence_seconds}, ...)")
     """Age (s) de la derniere notification du meme lot si elle est dans la
     fenetre de silence, sinon None."""
     if silence_seconds <= 0:
@@ -223,6 +225,7 @@ def run_notifications(
     silence_hours: float | None = None,
     env: dict[str, str] | None = None,
 ) -> list[DeliveryResult]:
+    logger.debug("run_notifications(summary_factory={summary_factory})")
     """Point d'entree de la CLI. `summary_factory(threshold)` construit le
     resume -- il n'est meme pas construit sans seuil.
 

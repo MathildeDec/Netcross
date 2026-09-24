@@ -98,6 +98,7 @@ class RtpStream:
 
     @property
     def file_stem(self) -> str:
+        logger.debug("file_stem(self={self})")
         raw = f"{self.point}_{self.src}_{self.sport}-{self.dst}_{self.dport}_{self.ssrc:08x}"
         return re.sub(r"[^A-Za-z0-9_.-]", "-", raw)
 
@@ -135,6 +136,7 @@ class StreamQuality:
 
 
 def parse_rtp_header(data: bytes) -> tuple[int, int, int, int, bool, bytes] | None:
+    logger.debug("parse_rtp_header(data={data})")
     """(pt, seq, ts, ssrc, marker, charge utile) ou None si pas du RTP v2."""
     if len(data) < 12 or data[0] >> 6 != 2:
         return None
@@ -164,6 +166,7 @@ _SdpMap = dict[tuple[str | None, int | None], dict[int, tuple[str, int, str, boo
 
 
 def parse_sdp(payload: bytes) -> _SdpMap:
+    logger.debug("parse_sdp(payload={payload})")
     """Table {(adresse, port) : {pt : (codec, horloge, nature, srtp)}} des SDP
     trouves dans une charge utile (SIP sur UDP/TCP). ``(None, None)``
     recoit aussi chaque correspondance : repli quand l'adresse ne colle pas
@@ -193,6 +196,7 @@ def parse_sdp(payload: bytes) -> _SdpMap:
 
 
 def collect_streams(datagrams: Iterable[tuple]) -> list[RtpStream]:
+    logger.debug("collect_streams(datagrams={datagrams})")
     """Regroupe en flux RTP des datagrammes
     ``(point, arrivee, src, sport, dst, dport, charge_utile_udp)``.
     Un flux n'est retenu que s'il ressemble vraiment a du RTP : au moins
@@ -256,6 +260,7 @@ def _extended(packets: list[_RtpPacket]) -> list[int]:
 
 
 def verdict(degradation: int | None) -> str:
+    logger.debug("verdict(degradation={degradation})")
     if degradation is None:
         return "non evaluee"
     if degradation < 5:
@@ -275,6 +280,7 @@ def _ordered_unique(st: RtpStream) -> list[tuple[int, _RtpPacket]]:
 
 
 def analyse_stream(st: RtpStream) -> StreamQuality:
+    logger.debug("analyse_stream(st={st})")
     exts = _extended(st.packets)
     unique = sorted(set(exts))
     expected = unique[-1] - unique[0] + 1
@@ -383,12 +389,14 @@ _G711 = {
 
 
 def decode_g711(codec: str, payload: bytes) -> bytes:
+    logger.debug("decode_g711(codec={codec}, payload={payload})")
     """PCM 16 bits little-endian depuis une charge utile G.711."""
     table = _G711[codec]
     return b"".join(table[x] for x in payload)
 
 
 def write_wav(st: RtpStream, path: Path) -> None:
+    logger.debug("write_wav(st={st}, path={path})")
     """Son du flux ; chaque paquet perdu devient un silence de meme duree."""
     if st.codec not in _G711:
         raise ValueError(f"codec audio {st.codec} non decode (seul G.711 PCMU/PCMA l'est)")
@@ -413,6 +421,7 @@ _START = b"\x00\x00\x00\x01"
 
 
 def depacketize_h264(ordered: Iterable[tuple[int, bytes]]) -> bytes:
+    logger.debug("depacketize_h264(ordered={ordered})")
     """Flux H.264 Annex B depuis des charges utiles RTP (RFC 6184 : NAL
     simple, STAP-A, FU-A). Un fragment FU-A dont un morceau manque est
     ecarte entier : le decodeur masque l'image plutot que d'avaler un NAL
@@ -455,6 +464,7 @@ def depacketize_h264(ordered: Iterable[tuple[int, bytes]]) -> bytes:
 
 
 def export_stream(st: RtpStream, out_dir: Path) -> Path:
+    logger.debug("export_stream(st={st}, out_dir={out_dir})")
     """Ecrit le contenu du flux ; ValueError si le codec n'est pas pris en charge."""
     if st.encrypted:
         raise ValueError("flux SRTP : contenu chiffre, non exporte")

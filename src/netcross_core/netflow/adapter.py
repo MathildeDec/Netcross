@@ -29,6 +29,7 @@ _PROTO_NAMES = {1: "ICMP", 6: "TCP", 17: "UDP"}
 
 
 def flow_record_to_pkt(flow: FlowRecord, point: str | None = None) -> Pkt:
+    logger.debug("flow_record_to_pkt(flow={flow}, point={point})")
     """Convertit un FlowRecord en Pkt synthetique.
 
     `point` etiquette le point de capture au sens Pkt (defaut :
@@ -124,6 +125,7 @@ def flow_record_to_pkt(flow: FlowRecord, point: str | None = None) -> Pkt:
 
 
 def flow_records_to_pkts(flows: list[FlowRecord], point: str | None = None) -> list[Pkt]:
+    logger.debug("flow_records_to_pkts(flows={flows}, point={point})")
     """Convertit une liste de FlowRecord en liste de Pkt synthetiques,
     meme convention que parsing.parse_capture (voir cette fonction)."""
     return [flow_record_to_pkt(flow, point=point) for flow in flows]

@@ -67,6 +67,7 @@ class StatRow:
 
     @property
     def duration_s(self) -> float:
+        logger.debug("duration_s(self={self})")
         """Duree en secondes."""
         return self.duration_ms / 1000.0
 
@@ -90,6 +91,7 @@ class StatsQuery:
     segment: str | None = None
 
     def __post_init__(self):
+        logger.debug("__post_init__(self={self})")
         if self.group_by not in GROUP_BY:
             raise ValueError(f"group_by doit etre dans {GROUP_BY}, recu: {self.group_by!r}")
         if self.sort_by not in SORT_BY:
@@ -244,6 +246,7 @@ def compute_stats(
     query: StatsQuery,
     events_by_segment: dict[str, list] | None = None,
 ) -> list[StatRow]:
+    logger.debug("compute_stats(flows={flows}, report={report}, all_packets={all_packets}, ...)")
     """Calcule les statistiques selon la requete.
 
     flows : liste de Flow (produit par build_flows()).
@@ -317,6 +320,7 @@ def compute_stats(
 
 
 def export_csv(rows: list[StatRow]) -> str:
+    logger.debug("export_csv(rows={rows})")
     """Exporte les lignes en CSV (en memoire).
 
     Les flow_keys sont serialises en representation Python (tuple) car un CSV
@@ -347,6 +351,7 @@ def export_csv(rows: list[StatRow]) -> str:
 
 
 def export_json(rows: list[StatRow]) -> list[dict]:
+    logger.debug("export_json(rows={rows})")
     """Exporte les lignes en liste de dicts (serialisable en JSON)."""
     result = []
     for row in rows:

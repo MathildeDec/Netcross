@@ -274,6 +274,7 @@ def diff_reports(
     loss_min_pp: float = 2.0,
     latency_min_ms: float = 5.0,
 ) -> list[DiffFinding]:
+    logger.debug("diff_reports(baseline={baseline}, current={current}, loss_min_pp={loss_min_pp}, ...)")
     """
     Compare deux Report deja calcules par analyse() et renvoie une
     liste de DiffFinding triee par severite (regression d'abord).
@@ -880,6 +881,7 @@ def diff_reports(
 
 
 def print_diff_report(findings: list[DiffFinding]) -> None:
+    logger.debug("print_diff_report(findings={findings})")
     print("=" * 70)
     print("COMPARAISON AVANT / APRES (baseline vs courant)")
     print("=" * 70)

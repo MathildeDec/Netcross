@@ -135,6 +135,7 @@ def _read_u16(b: bytes, i: int) -> int | None:
 
 
 def parse_client_hello(body: bytes) -> dict:
+    logger.debug("parse_client_hello(body={body})")
     """
     Extrait la version TLS proposee et le SNI (extension server_name)
     d'un corps de message ClientHello. Renvoie {} des que la structure
@@ -178,6 +179,7 @@ def parse_client_hello(body: bytes) -> dict:
 
 
 def parse_server_hello(body: bytes) -> dict:
+    logger.debug("parse_server_hello(body={body})")
     """Extrait la version TLS negociee et le cipher suite choisi."""
     if len(body) < 35:
         return {}
@@ -192,6 +194,7 @@ def parse_server_hello(body: bytes) -> dict:
 
 
 def parse_alert(body: bytes) -> dict:
+    logger.debug("parse_alert(body={body})")
     if len(body) < 2:
         return {}
     level = ALERT_LEVELS.get(body[0], f"unknown({body[0]})")
@@ -244,6 +247,7 @@ def _looks_like_tls(payload: bytes) -> bool:
 
 
 def parse_tls_capture(label: str, path: str) -> list[TlsEvent]:
+    logger.debug("parse_tls_capture(label={label}, path={path})")
     """Lit une capture via pcap_parser (tshark -T ek) et renvoie les
     evenements TLS trouves sur des segments TCP. Comme parse_capture(),
     avale les erreurs de lecture (message sur stderr, deja emis par
@@ -346,6 +350,7 @@ class HandshakeStatus:
 
     @property
     def verdict(self) -> str:
+        logger.debug("verdict(self={self})")
         if self.fatal_alert:
             return f"alert_fatal:{self.fatal_alert}"
         if self.application_data_seen:
@@ -360,6 +365,7 @@ class HandshakeStatus:
 def build_handshake_status(
     events: list[TlsEvent],
 ) -> dict[str, dict[str, HandshakeStatus]]:
+    logger.debug("build_handshake_status(events={events})")
     """point -> flow_id -> HandshakeStatus, construit en rejouant les
     evenements dans l'ordre chronologique."""
     status: dict[str, dict[str, HandshakeStatus]] = {}
@@ -403,6 +409,7 @@ def diagnose_tls(
     status_by_point: dict[str, dict[str, HandshakeStatus]],
     points_order: list[str] | None = None,
 ) -> list[TlsFinding]:
+    logger.debug("diagnose_tls(status_by_point={status_by_point}, points_order={points_order})")
     """
     Compare l'etat des handshakes TLS entre points consecutifs et
     localise le segment ou un handshake qui reussissait en amont se met
@@ -482,6 +489,7 @@ def diagnose_tls(
 
 
 def print_tls_diagnostics(findings: list[TlsFinding]) -> None:
+    logger.debug("print_tls_diagnostics(findings={findings})")
     print("=" * 70)
     print("DIAGNOSTIC TLS -- etat des handshakes par point")
     print("=" * 70)

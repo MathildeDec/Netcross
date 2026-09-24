@@ -43,6 +43,7 @@ class Notifier(Protocol):
 
 
 def validate_http_url(url: str) -> str:
+    logger.debug("validate_http_url(url={url})")
     """Refuse tout schema autre que http(s) (pas de file://, pas de ftp://)."""
     parsed = urlparse(url)
     if parsed.scheme not in {"http", "https"} or not parsed.netloc:
@@ -101,11 +102,13 @@ class WebhookNotifier:
         validate_http_url(self.url)
 
     def send(self, summary: NotificationSummary) -> bool:
+        logger.debug("send(self={self}, summary={summary})")
         _post_json(self.url, {"source": "netcross", **summary.to_dict()}, self.timeout)
         return True
 
 
 def slack_blocks(summary: NotificationSummary) -> list[dict[str, Any]]:
+    logger.debug("slack_blocks(summary={summary})")
     """Mise en forme Block Kit du resume."""
     counts = " · ".join(f"{sev} : {summary.by_severity.get(sev, 0)}" for sev in summary.by_severity)
     blocks: list[dict[str, Any]] = [
@@ -174,12 +177,14 @@ class EmailNotifier:
     name: str = "courriel"
 
     def __post_init__(self) -> None:
+        logger.debug("__post_init__(self={self})")
         if not self.host:
             raise ValueError("serveur SMTP manquant (smtp_host / NETCROSS_SMTP_HOST)")
         if not self.recipients:
             raise ValueError("aucun destinataire")
 
     def build_message(self, summary: NotificationSummary) -> EmailMessage:
+        logger.debug("build_message(self={self}, summary={summary})")
         msg = EmailMessage()
         msg["Subject"] = f"[Netcross] {summary.level or 'aucun constat'} -- score {summary.score}/100"
         msg["From"] = self.sender

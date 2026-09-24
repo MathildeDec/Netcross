@@ -75,6 +75,7 @@ class SessionObjects:
     wireshark_expert_events: list | None = None
 
     def json_kwargs(self) -> dict:
+        logger.debug("json_kwargs(self={self})")
         """Les memes objets sous la forme attendue par
         `generate_json_report(**kwargs)`. `wireshark_expert_events` est
         omis quand il vaut `None`, pour que la cle JSON reste absente --
@@ -96,6 +97,7 @@ class SessionObjects:
 def build_session_objects(
     report, findings, flows=None, all_packets=None, wireshark_expert_events=None
 ) -> SessionObjects:
+    logger.debug("build_session_objects(report={report}, findings={findings}, flows={flows}, ...)")
     """Construit les objets enrichis a partir de donnees DEJA calculees.
 
     report : objet Report (`netcross_core.analysis.analyse()`).
@@ -254,6 +256,7 @@ def _format_compliance(results, top_n) -> list[str]:
 
 
 def format_session_objects(objs, top_n=DEFAULT_TOP_N) -> list[str]:
+    logger.debug("format_session_objects(objs={objs}, top_n={top_n})")
     """Rendu console des objets enrichis, une chaine par ligne (jamais de
     `print()` ici : la GUI redirige `stdout` et les tests comparent des
     listes -- meme separation que `netcross_core.report_text`).
@@ -278,6 +281,7 @@ def format_session_objects(objs, top_n=DEFAULT_TOP_N) -> list[str]:
 
 
 def print_session_objects(objs, top_n=DEFAULT_TOP_N) -> None:
+    logger.debug("print_session_objects(objs={objs}, top_n={top_n})")
     """Ecrit `format_session_objects()` sur stdout -- pendant de
     `netcross_core.report_text.print_report()` pour les objets enrichis."""
     for line in format_session_objects(objs, top_n):

@@ -56,6 +56,7 @@ def _uptime_ms_to_epoch(uptime_ms: int, unix_secs: int, unix_nsecs: int, sys_upt
 
 
 def parse_netflow_v5_packet(data: bytes, exporter: str) -> list[FlowRecord]:
+    logger.debug("parse_netflow_v5_packet(data={data}, exporter={exporter})")
     """Decode un datagramme UDP NetFlow v5 complet en liste de
     FlowRecord. `exporter` etiquette la source (ex: adresse IP du
     routeur emetteur) -- voir FlowRecord.exporter dans models.py.
@@ -140,6 +141,7 @@ def parse_netflow_v5_packet(data: bytes, exporter: str) -> list[FlowRecord]:
 
 
 def iter_netflow_v5_file(path: str, exporter: str | None = None) -> Iterator[FlowRecord]:
+    logger.debug("iter_netflow_v5_file(path={path}, exporter={exporter})")
     """Lit un fichier contenant des datagrammes NetFlow v5 concatenes
     tels que captures bruts (ex: `tcpdump -w` filtre sur le port
     collecteur, rejoue via `tcpdump -r ... -w -` sans en-tetes pcap --

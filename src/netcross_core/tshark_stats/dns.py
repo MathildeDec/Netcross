@@ -25,6 +25,7 @@ _LABELED_RE = re.compile(r"^\s*(.+?)\s{2,}(\d[\d,]*)\s*$")
 
 
 def parse_dns_stat(text: str, application: str = "dns") -> list[ApplicationStat]:
+    logger.debug("parse_dns_stat(text={text}, application={application})")
     """Convertit la sortie ``tshark -z dns,tree`` en ApplicationStat."""
     metrics: dict[str, float] = {}
     raw: dict[str, str] = {}

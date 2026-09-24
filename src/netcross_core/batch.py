@@ -69,6 +69,7 @@ class CaptureInventory:
 
     @property
     def duration(self) -> float:
+        logger.debug("duration(self={self})")
         if self.start is None or self.end is None:
             return 0.0
         return max(0.0, self.end - self.start)
@@ -119,6 +120,7 @@ def _is_infra(pkt) -> bool:
 
 
 def inventory_from_packets(label: str, path: str, packets: Iterable) -> CaptureInventory:
+    logger.debug("inventory_from_packets(label={label}, path={path}, packets={packets})")
     """Construit l'inventaire d'une capture a partir de ses paquets decodes
     (objets exposant ts, src, dst, sport, dport, proto -- `Pkt` ou
     equivalent)."""
@@ -169,6 +171,7 @@ class PairEvaluation:
 
     @property
     def score(self) -> int:
+        logger.debug("score(self={self})")
         """Nombre de criteres satisfaits (0-3) : sert a choisir, pour une
         capture isolee, le candidat le plus proche a citer dans le motif."""
         return 3 - len(self.failed)
@@ -215,6 +218,7 @@ def evaluate_pair(
     min_common_ips: int = DEFAULT_MIN_COMMON_IPS,
     group_window: float = DEFAULT_GROUP_WINDOW,
 ) -> PairEvaluation:
+    logger.debug("evaluate_pair(a={a}, b={b})")
     """Applique les trois criteres de l'issue #277 a deux captures.
 
     `group_window` est le decalage d'horloge maximal tolere (secondes) : si
@@ -273,6 +277,7 @@ def evaluate_pair(
 
 
 def justify(ev: PairEvaluation) -> str:
+    logger.debug("justify(ev={ev})")
     """Justification ecrite d'un rapprochement (criteres satisfaits)."""
     parts = [
         f"recouvrement {ev.overlap_ratio:.0%} ({_fmt_ts(ev.overlap_start)}-{_fmt_ts(ev.overlap_end)} UTC)",
@@ -316,6 +321,7 @@ class BatchPlan:
         return sum(len(g.members) for g in self.groups)
 
     def check_invariant(self) -> None:
+        logger.debug("check_invariant(self={self})")
         """Aucun fichier perdu en route : leve AssertionError sinon."""
         counted = self.grouped_count + len(self.isolated) + len(self.failures)
         if counted != self.total:
@@ -333,6 +339,7 @@ def plan_batch(
     min_common_ips: int = DEFAULT_MIN_COMMON_IPS,
     group_window: float = DEFAULT_GROUP_WINDOW,
 ) -> BatchPlan:
+    logger.debug("plan_batch(inventories={inventories})")
     """Regroupe les captures d'un lot.
 
     Glouton et conservateur : les captures sont parcourues par ordre de
@@ -360,6 +367,7 @@ def plan_batch(
     evals: dict[tuple[str, str], PairEvaluation] = {}
 
     def ev(x: CaptureInventory, y: CaptureInventory) -> PairEvaluation:
+        logger.debug("ev(x={x}, y={y})")
         key = (x.label, y.label)
         if key not in evals:
             evals[key] = evaluate_pair(
@@ -414,6 +422,7 @@ def format_batch_index(
     capture_reports: dict[str, str] | None = None,
     synthesis: list[str] | None = None,
 ) -> str:
+    logger.debug("format_batch_index(plan={plan}, folder={folder})")
     """Rend l'index du lot -- le vrai livrable du mode batch."""
     group_reports = group_reports or {}
     capture_reports = capture_reports or {}

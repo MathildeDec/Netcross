@@ -399,6 +399,7 @@ def _lookup_native_detail(pk, flag_name: str) -> tuple[str | None, str | None, s
 
 
 def build_wireshark_expert_events(all_packets) -> list[ExpertEvent]:
+    logger.debug("build_wireshark_expert_events(all_packets={all_packets})")
     """Un ExpertEvent par (point, flag) distinct rencontre dans
     all_packets -- jamais un par paquet individuel : un flux avec des
     centaines de retransmissions produirait sinon des centaines

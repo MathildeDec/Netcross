@@ -74,6 +74,7 @@ def detect_cross_capture_duplicates(
     packets: list[Pkt],
     threshold_ms: float = DEFAULT_DUPLICATE_THRESHOLD_MS,
 ) -> dict[tuple[str, str], int]:
+    logger.debug("detect_cross_capture_duplicates(packets={packets}, threshold_ms={threshold_ms})")
     """Detecte et marque les paquets dupliques entre points de capture.
 
     Cas vise : un port miroir (SPAN) qui renvoie le meme trafic a deux
@@ -202,6 +203,7 @@ class ForensicIndex:
     # -- Evenement → flows ------------------------------------------------
 
     def event_to_flows(self, event: ExpertEvent) -> list[Flow]:
+        logger.debug("event_to_flows(self={self}, event={event})")
         """Retourne les flux lies a un ExpertEvent, par priorite :
         1. flow_keys de l'evenement (source "tshark")
         2. paquets d'evidence → flow_key
@@ -246,6 +248,7 @@ class ForensicIndex:
     # -- Evenement → paquets -----------------------------------------------
 
     def event_to_packets(self, event: ExpertEvent) -> list[PacketEvidence]:
+        logger.debug("event_to_packets(self={self}, event={event})")
         """Retourne les paquets qui justifient un ExpertEvent : d'abord
         ceux references dans evidence/packet_evidence, puis les paquets
         des flows lies (complement)."""
@@ -283,6 +286,7 @@ class ForensicIndex:
     # -- Paquet → flow ------------------------------------------------------
 
     def packet_to_flow(self, point: str, frame_number: int) -> Flow | None:
+        logger.debug("packet_to_flow(self={self}, point={point}, frame_number={frame_number})")
         """Retourne le flow auquel appartient un paquet (point + numero
         de trame), ou None si le paquet n'est pas indexe."""
         pk_key = (point, frame_number)
@@ -294,6 +298,7 @@ class ForensicIndex:
     # -- Flow → evenements --------------------------------------------------
 
     def flow_to_events(self, flow: Flow) -> list[ExpertEvent]:
+        logger.debug("flow_to_events(self={self}, flow={flow})")
         """Retourne les evenements lies a un flow : d'abord par flow_keys
         direct (tshark), puis par segment (les points du flow)."""
         events: list[ExpertEvent] = []
@@ -318,6 +323,7 @@ class ForensicIndex:
     # -- Flow → paquets -----------------------------------------------------
 
     def flow_to_packets(self, flow: Flow) -> list[Pkt]:
+        logger.debug("flow_to_packets(self={self}, flow={flow})")
         """Retourne tous les paquets d'un flow, tous points confondus,
         dans l'ordre de point puis d'arrivee."""
         per_point = self._packets_by_key.get(flow.key, {})
@@ -342,6 +348,7 @@ class ForensicIndex:
 
 
 def annotations_sidecar_path(capture_path: str) -> str:
+    logger.debug("annotations_sidecar_path(capture_path={capture_path})")
     """Chemin du sidecar JSON associe a une capture (`<capture>.annotations.json`).
 
     Ne verifie PAS l'existence du fichier -- utiliser `read_annotations`
@@ -350,6 +357,7 @@ def annotations_sidecar_path(capture_path: str) -> str:
 
 
 def read_annotations(capture_path: str) -> list[PacketAnnotation]:
+    logger.debug("read_annotations(capture_path={capture_path})")
     """Lit les annotations du sidecar associe a `capture_path`.
 
     Retourne une liste VIDE (pas d'exception) si le sidecar n'existe pas
@@ -373,6 +381,7 @@ def read_annotations(capture_path: str) -> list[PacketAnnotation]:
 
 
 def write_annotations(capture_path: str, annotations: list[PacketAnnotation]) -> None:
+    logger.debug("write_annotations(capture_path={capture_path}, annotations={annotations})")
     """Ecrit (remplace) le sidecar d'annotations associe a `capture_path`.
 
     Ecriture integrale (pas de fusion avec un sidecar preexistant) --
@@ -394,6 +403,7 @@ def write_annotations(capture_path: str, annotations: list[PacketAnnotation]) ->
 
 
 def annotations_by_tag(annotations: list[PacketAnnotation]) -> dict[str, list[PacketAnnotation]]:
+    logger.debug("annotations_by_tag(annotations={annotations})")
     """Regroupe des annotations par etiquette, pour la vue GUI filtrable
     par tag (voir netcross_gtk4.annotations_view) et pour la section
     annotations du rapport texte."""
@@ -502,6 +512,7 @@ def _track_stream(ordered: list[Pkt]) -> list[_OpenGap]:
     last_ts = 0.0
 
     def close_epoch(ts: float) -> None:
+        logger.debug("close_epoch(ts={ts})")
         for gap in open_gaps:
             gap.epoch_end_ts = ts
         finished.extend(open_gaps)
@@ -580,6 +591,7 @@ def _classify_gap(gap: _OpenGap, ack_ts: list[float], ack_nums: list[int]) -> tu
 
 
 def detect_sequence_gaps(packets: Iterable[Pkt]) -> list[SequenceGap]:
+    logger.debug("detect_sequence_gaps(packets={packets})")
     """Trous de sequence TCP des connexions presentes dans `packets`.
 
     `packets` : les paquets d'un ou plusieurs flux (typiquement `all_packets`
@@ -652,6 +664,7 @@ def detect_sequence_gaps(packets: Iterable[Pkt]) -> list[SequenceGap]:
 
 
 def validate_checksums(packets: Iterable[Pkt]) -> list[ChecksumError]:
+    logger.debug("validate_checksums(packets={packets})")
     """Valide les checksums IP/TCP/UDP d'une liste de paquets deja parses.
 
     Un paquet est signale (`ChecksumError`) UNIQUEMENT si tshark a

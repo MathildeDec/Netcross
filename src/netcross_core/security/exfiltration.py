@@ -119,6 +119,7 @@ class ExfiltrationThresholds:
 
     @property
     def ratio_floor(self) -> int:
+        logger.debug("ratio_floor(self={self})")
         if self.min_upload_for_ratio is not None:
             return self.min_upload_for_ratio
         return self.min_volume_bytes // 10
@@ -162,6 +163,7 @@ class ExfiltrationAlert:
         return compute_score(self.signals)
 
     def to_dict(self) -> dict:
+        logger.debug("to_dict(self={self})")
         score = self.score
         return {
             "point": self.point,
@@ -231,6 +233,7 @@ def detect_exfiltration(
     thresholds: ExfiltrationThresholds = DEFAULT_THRESHOLDS,
     known_destinations: frozenset[str] | None = None,
 ) -> ExfiltrationResult:
+    logger.debug("detect_exfiltration(packets={packets}, thresholds={thresholds}, known_destinations={known_destinations})")
     """
     Detecte les transferts sortants anormaux pouvant indiquer une
     exfiltration de donnees.
@@ -263,6 +266,7 @@ def detect_exfiltration(
         data["proto_bytes"][_proto_family(pk)] += pk.length
 
     def download_of(point: str, src: str, dst: str) -> int:
+        logger.debug("download_of(point={point}, src={src}, dst={dst})")
         rev = flow_data.get((point, dst, src))
         return rev["bytes"] if rev else 0
 
@@ -340,6 +344,7 @@ def detect_exfiltration(
 
 
 def dns_tunnel_sources(packets: Iterable[Pkt], dns_suspicions: Iterable[dict]) -> set[tuple[str, str]]:
+    logger.debug("dns_tunnel_sources(packets={packets}, dns_suspicions={dns_suspicions})")
     """(point, IP source) des hotes ayant interroge un domaine suspect de
     tunneling DNS (sorties `dns_tunnel.detect_dns_tunneling`)."""
     domains: dict[str, set[str]] = defaultdict(set)
@@ -366,6 +371,7 @@ def correlate_exfiltration(
     beacon_suspicions: Iterable[dict] = (),
     dns_sources: set[tuple[str, str]] | None = None,
 ) -> list[dict]:
+    logger.debug("correlate_exfiltration(alerts={alerts}, beacon_suspicions={beacon_suspicions}, dns_sources={dns_sources})")
     """Ajoute les signaux de correlation (#144, #147) aux alertes et
     recalcule score et severite. Renvoie une NOUVELLE liste, triee par
     score decroissant.

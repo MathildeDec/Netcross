@@ -183,12 +183,14 @@ class AlarmEngine:
 
     @property
     def events(self) -> list[AlarmEvent]:
+        logger.debug("events(self={self})")
         """Tous les AlarmEvent émis depuis la création du moteur
         (raised ET cleared), dans l'ordre chronologique."""
         return list(self._events)
 
     @property
     def active_alarms(self) -> list[AlarmEvent]:
+        logger.debug("active_alarms(self={self})")
         """Uniquement les AlarmEvent "raised" encore actifs (non
         encore cleared). Utile pour un tableau de bord temps réel."""
         raised: dict[tuple[str, str], AlarmEvent] = {}
@@ -201,6 +203,7 @@ class AlarmEngine:
         return list(raised.values())
 
     def feed(self, timestamp: float, signals: list[AlarmSignal]) -> list[AlarmEvent]:
+        logger.debug("feed(self={self}, timestamp={timestamp}, signals={signals})")
         """Traite un lot de signaux issus d'UN cycle d'évaluation du
         moteur de règles à l'instant `timestamp`. Renvvoie les
         AlarmEvent nouvellement émis par ce cycle (sous-ensemble de

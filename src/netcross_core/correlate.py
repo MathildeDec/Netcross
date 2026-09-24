@@ -14,6 +14,7 @@ logger = get_logger(__name__)
 
 
 def flow_key(pk: Pkt, nat_tolerant=False, nat_window_ms=200):
+    logger.debug("flow_key(pk={pk}, nat_tolerant={nat_tolerant}, nat_window_ms={nat_window_ms})")
     """
     Cle de correlation entre points de capture.
 
@@ -32,6 +33,7 @@ def flow_key(pk: Pkt, nat_tolerant=False, nat_window_ms=200):
 
 
 def correlate(all_packets, nat_tolerant=False, nat_window_ms=200, exclude_duplicates=False):
+    logger.debug("correlate(all_packets={all_packets}, nat_tolerant={nat_tolerant}, nat_window_ms={nat_window_ms}, ...)")
     """Groupe les paquets par cle de flux puis par point.
 
     exclude_duplicates (Job 41/issue #161, defaut False -> comportement
@@ -74,6 +76,7 @@ def correlate(all_packets, nat_tolerant=False, nat_window_ms=200, exclude_duplic
 
 
 def build_flows(flows: dict) -> list[Flow]:
+    logger.debug("build_flows(flows={flows})")
     """Restructure le dict `flows` (produit par correlate() ci-dessus, cle
     -> {point: [Pkt, ...]}) en une liste de `Flow` (netcross_core.
     expert_model) -- troisieme objet de contrat de la Session 0 (FEATURES.md
@@ -98,6 +101,7 @@ def build_flows(flows: dict) -> list[Flow]:
 
 
 def build_conversations(flow_list: list[Flow]) -> list[Conversation]:
+    logger.debug("build_conversations(flow_list={flow_list})")
     """Regroupe une liste de `Flow` (voir build_flows() ci-dessus) par
     paire d'adresses -- quatrieme objet de contrat de la Session 0. Un
     `Flow.endpoints` deja ordonne (min, max) suffit a regrouper un flux
@@ -115,6 +119,7 @@ def build_conversations(flow_list: list[Flow]) -> list[Conversation]:
 
 
 def compute_throughput(all_packets, bucket_seconds):
+    logger.debug("compute_throughput(all_packets={all_packets}, bucket_seconds={bucket_seconds})")
     """point -> {bucket_index: octets cumules dans cette fenetre}"""
     tp = defaultdict(lambda: defaultdict(int))
     for pk in all_packets:
@@ -161,6 +166,7 @@ TOPN_OTHER_LABEL = "autres"
 
 
 def compute_topn_series(all_packets, bucket_seconds, dimension, top_n=5):
+    logger.debug("compute_topn_series(all_packets={all_packets}, bucket_seconds={bucket_seconds}, dimension={dimension}, ...)")
     """point -> {categorie: {bucket_index: octets}}, limite aux `top_n`
     categories les plus volumineuses (en octets cumules sur toute la
     capture) PAR POINT -- le reste est agrege sous la categorie

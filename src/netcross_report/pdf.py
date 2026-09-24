@@ -407,6 +407,7 @@ def _path_table(metrics, styles):
 
 
 def path_section_story(metrics, styles, chart_path=None):
+    logger.debug("path_section_story(metrics={metrics}, styles={styles}, chart_path={chart_path})")
     """Flowables de la section "Chemin observe" (Job 16/issue #12,
     FEATURES.md 6.7) : une vue unique qui repond a "ou la qualite se
     degrade-t-elle ?".
@@ -485,6 +486,7 @@ def _sequence_table(view, styles):
 
 
 def sequence_section_story(views, styles, chart_paths=None):
+    logger.debug("sequence_section_story(views={views}, styles={styles}, chart_paths={chart_paths})")
     """Flowables de la section "Sequence des echanges" (Job 14/issue #11,
     FEATURES.md 6.5) : un diagramme + une table de references par flux.
 
@@ -532,6 +534,7 @@ def sequence_section_story(views, styles, chart_paths=None):
 
 
 def expert_section_story(session_objects, styles, top_n=EXPERT_TABLE_TOP_N):
+    logger.debug("expert_section_story(session_objects={session_objects}, styles={styles}, top_n={top_n})")
     """Flowables de la section "Expertise" du PDF (Job 4/issue #13).
 
     session_objects : SessionObjects (netcross_report.session_objects) ou
@@ -654,6 +657,7 @@ def _securite_table_constats(items, styles, avec_cve: bool, message_vide: str):
 
 
 def security_section_story(security_report, styles):
+    logger.debug("security_section_story(security_report={security_report}, styles={styles})")
     """Section "Rapport de securite" du PDF (issue #218).
 
     Renvoie une liste vide si `security_report` est None : le PDF d'une
@@ -782,6 +786,7 @@ def generate_pdf(
     sequence_views=None,
     security_report=None,
 ):
+    logger.debug("generate_pdf(r={r}, output_path={output_path}, title={title}, ...)")
     """
     r : objet Report (netcross_core.analyse). output_path : chemin du PDF.
     meta : dict optionnel de metadonnees a afficher en page de garde
@@ -1114,6 +1119,7 @@ def generate_diff_pdf(
     quic_findings_baseline=None,
     quic_findings_current=None,
 ):
+    logger.debug("generate_diff_pdf(findings={findings}, baseline={baseline}, current={current}, ...)")
     """
     Rapport PDF pour un diff baseline_diff.diff_reports() -- pendant de
     generate_pdf() pour DiffFinding plutot que Finding. Plus court : pas

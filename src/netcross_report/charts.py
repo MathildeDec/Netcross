@@ -127,6 +127,7 @@ def _save(fig, path):
 
 
 def chart_throughput(r, path):
+    logger.debug("chart_throughput(r={r}, path={path})")
     points = [p for p in r.points if r.throughput.get(p)]
     if not points:
         return None
@@ -146,6 +147,7 @@ def chart_throughput(r, path):
 
 
 def chart_latency(r, path):
+    logger.debug("chart_latency(r={r}, path={path})")
     pairs = [(a, b) for (a, b) in r.pairs if r.latency.get((a, b))]
     if not pairs:
         return None
@@ -165,6 +167,7 @@ def chart_latency(r, path):
 
 
 def chart_loss(r, path):
+    logger.debug("chart_loss(r={r}, path={path})")
     points = [p for p in r.points if r.loss_count.get(p, 0) > 0]
     if not points:
         return None
@@ -193,6 +196,7 @@ _TOPN_OTHER_COLOR = "#cbd5e1"
 
 
 def chart_topn_timeseries(r, point, dimension, path):
+    logger.debug("chart_topn_timeseries(r={r}, point={point}, dimension={dimension}, ...)")
     """
     Aire empilee du debit par categorie au fil du temps, pour UN point de
     capture et UNE dimension ("protocol"/"port"/"ip"/"dscp" -- voir
@@ -243,6 +247,7 @@ def chart_topn_timeseries(r, point, dimension, path):
 
 
 def generate_topn_charts(r, tmpdir, point=None):
+    logger.debug("generate_topn_charts(r={r}, tmpdir={tmpdir}, point={point})")
     """
     Genere les 4 graphiques temporels top-N (protocole/port/IP/DSCP) pour
     UN SEUL point de capture -- par defaut le premier de r.points (choix
@@ -283,6 +288,7 @@ DIFF_SEVERITY_SCHEME = [
 
 
 def chart_severity_summary(findings, path, scheme=None):
+    logger.debug("chart_severity_summary(findings={findings}, path={path}, scheme={scheme})")
     scheme = scheme or DEFAULT_SEVERITY_SCHEME
     counts = {key: 0 for key, _, _ in scheme}
     for f in findings:
@@ -304,6 +310,7 @@ def chart_severity_summary(findings, path, scheme=None):
 
 
 def chart_path_quality(metrics, path):
+    logger.debug("chart_path_quality(metrics={metrics}, path={path})")
     """
     Qualite le long du chemin observe : delai P95 (barres, axe de gauche)
     et taux de perte (courbe, axe de droite) segment par segment, dans
@@ -366,6 +373,7 @@ _SEQUENCE_POINT_COLORS = ["#3b82f6", "#f59e0b", "#10b981", "#8b5cf6", "#ef4444",
 
 
 def chart_sequence_diagram(view, path):
+    logger.debug("chart_sequence_diagram(view={view}, path={path})")
     """
     Diagramme de sequence d'un flux : les hotes en colonnes (lignes de vie
     verticales), le temps qui descend, une fleche par paquet vu a un point.
@@ -445,6 +453,7 @@ def chart_sequence_diagram(view, path):
 
 
 def chart_comm_map(cmap, path):
+    logger.debug("chart_comm_map(cmap={cmap}, path={path})")
     """
     Cartographie des communications : un noeud par hote, une fleche par sens
     d'echange. Taille du noeud et epaisseur de la fleche proportionnelles au
@@ -545,6 +554,7 @@ def chart_comm_map(cmap, path):
 
 
 def generate_all_charts(r, findings, tmpdir):
+    logger.debug("generate_all_charts(r={r}, findings={findings}, tmpdir={tmpdir})")
     charts = {}
     for name, fn, args in [
         ("topology", chart_topology, (r,)),

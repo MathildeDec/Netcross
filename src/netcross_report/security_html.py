@@ -254,6 +254,7 @@ def render_security_html(
     meta: dict | None = None,
     generated_at: datetime | None = None,
 ) -> str:
+    logger.debug("render_security_html(sr={sr}, title={title}, meta={meta}, ...)")
     """Rend le rapport en un document HTML autonome (chaine complete).
 
     `meta` : metadonnees libres reportees telles quelles (ticket, auteur),
@@ -345,6 +346,7 @@ def generate_security_html(
     title: str = "Rapport de securite Netcross",
     meta: dict | None = None,
 ) -> str:
+    logger.debug("generate_security_html(sr={sr}, output_path={output_path}, title={title}, ...)")
     """Ecrit le rendu HTML dans `output_path` et renvoie ce chemin."""
     chemin = Path(output_path)
     chemin.write_text(render_security_html(sr, title=title, meta=meta), encoding="utf-8")

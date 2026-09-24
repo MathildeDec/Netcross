@@ -102,12 +102,14 @@ def _sha256(data: bytes) -> str:
 
 
 def check_name(name: str) -> str:
+    logger.debug("check_name(name={name})")
     if not _NAME_RE.match(name):
         raise ModelPackError(f"nom de paquet invalide : {name!r} (minuscules, chiffres, '-' et '_', 64 caracteres max)")
     return name
 
 
 def ticket_body(pack: ModelPack) -> str:
+    logger.debug("ticket_body(pack={pack})")
     """Texte du ticket « modeles » (a coller dans l'issue, archive en piece jointe)."""
     s = pack.summary()
     labels = ", ".join(f"{k} ({v})" for k, v in s["labels"].items()) or "aucun"
@@ -142,6 +144,7 @@ def build_pack(
     description: str = "",
     seed: int | None = None,
 ) -> ModelPack:
+    logger.debug("build_pack(out_path={out_path})")
     """Ecrit le paquet ``out_path`` (ZIP) et le renvoie.
 
     ``training`` : exemples (flux FLOW-4 ou vecteurs) -- seuls les vecteurs

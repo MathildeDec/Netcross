@@ -131,6 +131,7 @@ class SupportTicket:
 
 
 def collect_environment() -> dict[str, str | None]:
+    logger.debug("collect_environment()")
     """Contexte technique non identifiant : OS, Python, presence de tshark.
 
     Volontairement PAUVRE : ni nom de machine, ni nom d'utilisateur, ni
@@ -151,6 +152,7 @@ def collect_environment() -> dict[str, str | None]:
 
 
 def format_exception(exc: BaseException) -> tuple[str, str, list[str]]:
+    logger.debug("format_exception(exc={exc})")
     """``(type, message, lignes_de_traceback)`` d'une exception.
 
     Le traceback est renvoye ligne a ligne (et non en bloc) pour que le

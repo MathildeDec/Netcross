@@ -34,6 +34,7 @@ class TrainingSetError(ValueError):
 
 
 def export_training_set(flows: list[dict], path: str | Path) -> int:
+    logger.debug("export_training_set(flows={flows}, path={path})")
     """Ecrit les flux pre-etiquetes (classification FLOW-4) a relire/corriger."""
     samples = [{"flow": f, "label": f.get("classification") or "normal"} for f in flows]
     data = {"schema": TRAINING_SCHEMA, "labels_suggeres": list(SUGGESTED_LABELS), "samples": samples}
@@ -64,6 +65,7 @@ def load_training_set(path: str | Path) -> list[tuple[dict | list[float], str]]:
 
 
 def is_feature_vector(value: object) -> bool:
+    logger.debug("is_feature_vector(value={value})")
     """Vrai pour une liste de len(FEATURE_NAMES) nombres finis (bool exclus)."""
     return (
         isinstance(value, list)
@@ -75,6 +77,7 @@ def is_feature_vector(value: object) -> bool:
 
 
 def sample_vector(sample: dict | list[float]) -> list[float]:
+    logger.debug("sample_vector(sample={sample})")
     """Vecteur de caracteristiques d'un exemple (flux FLOW-4 ou vecteur deja calcule)."""
     return list(sample) if isinstance(sample, list) else flow_features(sample)
 
@@ -111,6 +114,7 @@ class FlowClassifier:
         self._model.fit([sample_vector(f) for f, _l in samples], [label for _f, label in samples])
 
     def predict(self, flows: list[dict]) -> list[FlowPrediction]:
+        logger.debug("predict(self={self}, flows={flows})")
         if not flows:
             return []
         probas = self._model.predict_proba([flow_features(f) for f in flows])

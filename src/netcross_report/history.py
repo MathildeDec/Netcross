@@ -175,6 +175,7 @@ def _insert(conn, *, run_type, label, points, score, count_by_sev, total, meta) 
 
 
 def record_run(r, db_path, findings=None, tls_findings=None, quic_findings=None, meta=None, label=None) -> int:
+    logger.debug("record_run(r={r}, db_path={db_path}, findings={findings}, ...)")
     """
     Enregistre un resume du run d'analyse (cross_capture_analyzer_cli.py)
     dans la base SQLite `db_path` (fichier cree si absent, table creee si
@@ -212,6 +213,7 @@ def record_run(r, db_path, findings=None, tls_findings=None, quic_findings=None,
 
 
 def record_diff_run(findings, baseline, current, db_path, meta=None, label=None) -> int:
+    logger.debug("record_diff_run(findings={findings}, baseline={baseline}, current={current}, ...)")
     """
     Pendant de record_run() pour cross_capture_diff_cli.py.
 
@@ -244,6 +246,7 @@ def record_diff_run(findings, baseline, current, db_path, meta=None, label=None)
 
 
 def list_history(db_path, limit=None, label=None, run_type=None) -> list[HistoryEntry]:
+    logger.debug("list_history(db_path={db_path}, limit={limit}, label={label}, ...)")
     """
     Renvoie les runs enregistres dans `db_path`, du plus recent au plus
     ancien (ORDER BY id DESC -- id auto-incremente = ordre d'insertion,
@@ -315,6 +318,7 @@ def list_history(db_path, limit=None, label=None, run_type=None) -> list[History
 
 
 def print_history(entries: list[HistoryEntry]) -> None:
+    logger.debug("print_history(entries={entries})")
     """Rendu texte console (meme esprit que triage.print_triage) -- affiche
     exactement les entrees recues, dans l'ordre recu (deja le plus recent
     d'abord si issues de list_history) ; le nombre affiche se regle en

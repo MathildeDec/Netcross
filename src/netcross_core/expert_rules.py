@@ -2076,6 +2076,7 @@ _BY_ID: dict[str, Rule] = {r.id: r for r in _RULE_CATALOG}
 
 
 def get_rule(rule_id: str) -> Rule | None:
+    logger.debug("get_rule(rule_id={rule_id})")
     """Regle du catalogue pour cet id, `None` si absente -- jamais de
     KeyError, meme discipline defensive que get() ailleurs dans ce projet
     (_flag_label/_flag_severity/_remediation_for cote wireshark_expert.py)."""
@@ -2083,6 +2084,7 @@ def get_rule(rule_id: str) -> Rule | None:
 
 
 def list_rules(domain: str | None = None) -> list[Rule]:
+    logger.debug("list_rules(domain={domain})")
     """Toutes les regles du catalogue, dans l'ordre de _RULE_CATALOG
     (celui du texte de la section 6.2). `domain` (optionnel) filtre sur
     une valeur EXACTE de `Finding.category` (netcross_report.synthesis) --

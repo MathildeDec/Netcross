@@ -227,6 +227,7 @@ def _compute_status(observed: float, ref: ReferenceProfile, op) -> str:
 
 
 def evaluate_compliance(report, references=None) -> list[ComplianceResult]:
+    logger.debug("evaluate_compliance(report={report}, references={references})")
     """Evalue `report` contre `references` (par defaut DEFAULT_REFERENCES
     ci-dessus). Une metrique absente de `_METRIC_FUNCS` produit un
     ComplianceResult a `INDETERMINE` plutot qu'une exception -- un

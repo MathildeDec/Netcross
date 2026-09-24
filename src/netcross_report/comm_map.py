@@ -96,6 +96,7 @@ class CommMap:
 
 
 def available_protocols(flows) -> list[str]:
+    logger.debug("available_protocols(flows={flows})")
     """Protocoles presents dans le dict `flows` de `correlate()`, tries --
     sert a remplir la liste deroulante de filtrage de la GUI sans que
     celle-ci ait a parcourir les paquets elle-meme."""
@@ -120,6 +121,7 @@ def _representative_packets(per_point):
 
 
 def build_comm_map(flows, protocols=None, top_n=None, only_anomalies=False) -> CommMap:
+    logger.debug("build_comm_map(flows={flows}, protocols={protocols}, top_n={top_n}, ...)")
     """Construit la cartographie a partir du dict `flows` de `correlate()`
     (`{cle: {point: [Pkt, ...]}}`).
 
@@ -191,6 +193,7 @@ def build_comm_map(flows, protocols=None, top_n=None, only_anomalies=False) -> C
 
 
 def format_comm_map(cmap, top_n=DEFAULT_TOP_N) -> str:
+    logger.debug("format_comm_map(cmap={cmap}, top_n={top_n})")
     """Rendu texte de la cartographie -- utilise par la GUI pour legender
     le graphe (et lisible sans interface graphique, ce qui rend la vue
     verifiable en console pendant le developpement)."""

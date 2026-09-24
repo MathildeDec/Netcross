@@ -31,6 +31,7 @@ _INTERVAL_RE = re.compile(r"(\d+(?:\.\d+)?)\s*-\s*(\d+(?:\.\d+)?)?")
 
 
 def parse_io_stat(text: str, name: str = "io_stat") -> MetricSeries:
+    logger.debug("parse_io_stat(text={text}, name={name})")
     """Convertit la sortie ``tshark -z io,stat`` en MetricSeries.
 
     Les valeurs nommees sont tirees des en-tetes de colonnes (frames,

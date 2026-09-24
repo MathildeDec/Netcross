@@ -157,6 +157,7 @@ class AddressRedactor:
         return pseudo
 
     def redact(self, packets) -> None:
+        logger.debug("redact(self={self}, packets={packets})")
         """Mutation en place de chaque paquet de `packets` (Pkt ou
         RawPacket, voir docstring de module)."""
         for pk in packets:
@@ -194,6 +195,7 @@ class AddressRedactor:
                 pk.stp_root_id = f"{prio}/{self._pseudonym(mac, 'mac')}"
 
     def entries(self):
+        logger.debug("entries(self={self})")
         """Tuples (adresse_reelle, pseudonyme, type), tries par type puis
         par pseudonyme -- ordre stable pour un export reproductible
         (--redact-map, tests)."""
@@ -207,12 +209,14 @@ class AddressRedactor:
 
     @property
     def mapping(self) -> dict[str, str]:
+        logger.debug("mapping(self={self})")
         """Vue simplifiee adresse_reelle -> pseudonyme (sans le type),
         pour un usage programmatique simple (tests notamment)."""
         return {addr: pseudo for addr, (pseudo, _kind) in self._map.items()}
 
 
 def redact_packets(packets) -> AddressRedactor:
+    logger.debug("redact_packets(packets={packets})")
     """Raccourci pour le cas simple (un seul appel, un seul jeu de
     paquets) : construit un AddressRedactor neuf, redige `packets`,
     renvoie le redacteur (mapping/entries() consultables ensuite,
@@ -223,6 +227,7 @@ def redact_packets(packets) -> AddressRedactor:
 
 
 def write_redaction_map_csv(redactor: AddressRedactor, path: str) -> None:
+    logger.debug("write_redaction_map_csv(redactor={redactor}, path={path})")
     """Ecrit le mapping adresse reelle -> pseudonyme dans un CSV LOCAL
     (adresse_reelle, pseudonyme, type) -- a conserver uniquement par
     l'operateur, jamais transmis avec la capture/le rapport reidiges :

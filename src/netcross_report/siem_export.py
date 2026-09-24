@@ -138,6 +138,7 @@ def _format_extension(record: SiemRecord) -> str:
 
 
 def to_cef(records: list[SiemRecord]) -> list[str]:
+    logger.debug("to_cef(records={records})")
     """Met en forme des enregistrements en lignes CEF."""
     lines: list[str] = []
     for rec in records:
@@ -150,6 +151,7 @@ def to_cef(records: list[SiemRecord]) -> list[str]:
 
 
 def export_cef(report: Report) -> list[str]:
+    logger.debug("export_cef(report={report})")
     """Exporte les constats de securite d'un Report en lignes CEF.
 
     Retourne une liste de chaines, une par constat. Le resultat peut
@@ -193,6 +195,7 @@ def _leef_time(timestamp_ms: int) -> str:
 
 
 def to_leef(records: list[SiemRecord]) -> list[str]:
+    logger.debug("to_leef(records={records})")
     """Met en forme des enregistrements en lignes LEEF 2.0.
 
     Attributs standard QRadar : ``cat``, ``sev`` (1-10), ``devTime`` +
@@ -229,6 +232,7 @@ def to_leef(records: list[SiemRecord]) -> list[str]:
 
 
 def export_leef(report: Report) -> list[str]:
+    logger.debug("export_leef(report={report})")
     """Exporte les constats de securite d'un Report en lignes LEEF 2.0."""
     return to_leef(_to_siem_records(report))
 
@@ -246,6 +250,7 @@ def _write_lines(lines: list[str], output_path: str | Path) -> str:
 
 
 def write_cef(report: Report, output_path: str | Path) -> str:
+    logger.debug("write_cef(report={report}, output_path={output_path})")
     """Ecrit les constats de securite au format CEF dans un fichier.
 
     Retourne le chemin absolu du fichier ecrit.
@@ -254,6 +259,7 @@ def write_cef(report: Report, output_path: str | Path) -> str:
 
 
 def write_leef(report: Report, output_path: str | Path) -> str:
+    logger.debug("write_leef(report={report}, output_path={output_path})")
     """Ecrit les constats de securite au format LEEF 2.0 ; retourne le
     chemin absolu du fichier ecrit."""
     return _write_lines(export_leef(report), output_path)
@@ -267,6 +273,7 @@ def write_siem(
     observed_from: _dt.datetime | None = None,
     observed_until: _dt.datetime | None = None,
 ) -> str:
+    logger.debug("write_siem(report={report}, output_path={output_path}, fmt={fmt})")
     """Ecrit l'export `fmt` (``cef``, ``leef`` ou ``stix``). Les bornes
     temporelles ne servent qu'a STIX (dates deterministes des objets)."""
     if fmt == "cef":

@@ -98,6 +98,7 @@ _MIME_TO_TYPE: dict[str, str] = {
 
 
 def detect_file_type(data: bytes) -> str | None:
+    logger.debug("detect_file_type(data={data})")
     """Détecte le type d'un fichier à partir de ses magic bytes.
 
     Retourne le type simplifié (``zip``, ``pdf``, ``png``...) ou ``None``
@@ -165,6 +166,7 @@ class ExtractionResult:
 
     @property
     def files_by_type(self) -> dict[str, list[ExtractedFile]]:
+        logger.debug("files_by_type(self={self})")
         grouped: dict[str, list[ExtractedFile]] = {}
         for f in self.files:
             grouped.setdefault(f.type_detected, []).append(f)
@@ -324,6 +326,7 @@ def detect_extracted_files(
     *,
     extract_dir: str | None = None,
 ) -> ExtractionResult:
+    logger.debug("detect_extracted_files(packets={packets})")
     """Extrait les fichiers transmis dans les flux réseau.
 
     Parcourt les paquets et identifie les transferts de fichiers par

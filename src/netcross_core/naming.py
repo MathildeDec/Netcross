@@ -53,6 +53,7 @@ class NameEntry:
     comment: str | None = None
 
     def matches(self, address: str | None = None, mac: str | None = None) -> bool:
+        logger.debug("matches(self={self}, address={address}, mac={mac})")
         """Vrai si l'entree correspond a l'adresse ou a la MAC donnee.
 
         La comparaison des MAC est insensible a la casse ; celle des
@@ -81,6 +82,7 @@ class NameTable:
     # -- Mutation ---------------------------------------------------------
 
     def add(self, entry: NameEntry) -> None:
+        logger.debug("add(self={self}, entry={entry})")
         """Ajoute une entree. Ecrase une entree precedente pour la meme
         adresse ou MAC."""
         if not entry.name:
@@ -96,18 +98,21 @@ class NameTable:
     # -- Resolution -------------------------------------------------------
 
     def resolve(self, address: str | None) -> NameEntry | None:
+        logger.debug("resolve(self={self}, address={address})")
         """Retourne l'entree correspondant a une adresse, ou None."""
         if address is None:
             return None
         return self._by_address.get(address)
 
     def resolve_mac(self, mac: str | None) -> NameEntry | None:
+        logger.debug("resolve_mac(self={self}, mac={mac})")
         """Retourne l'entree correspondant a une MAC, ou None."""
         if mac is None:
             return None
         return self._by_mac.get(mac.lower())
 
     def display(self, address: str | None) -> str:
+        logger.debug("display(self={self}, address={address})")
         """Retourne le nom logique d'une adresse, ou l'adresse brute si
         aucune entree ne correspond (ou si l'adresse est None -> chaine
         vide). C'est le point d'entree unique des rendus."""
@@ -119,11 +124,13 @@ class NameTable:
     # -- Persistance ------------------------------------------------------
 
     def to_list(self) -> list[dict]:
+        logger.debug("to_list(self={self})")
         """Liste de dictionnaires (ordre stable) pour la serialisation."""
         return [asdict(e) for e in self._entries]
 
     @classmethod
     def from_list(cls, items: list[dict]) -> NameTable:
+        logger.debug("from_list(cls={cls}, items={items})")
         """Construit une table depuis une liste de dictionnaires. Les
         cles manquantes prennent leur valeur par defaut ; ``name`` est
         requis."""
@@ -146,6 +153,7 @@ class NameTable:
 
     @classmethod
     def load(cls, path: str | Path) -> NameTable:
+        logger.debug("load(cls={cls}, path={path})")
         """Charge une table depuis un fichier JSON ou YAML (choix par
         extension). YAML necessite ``pyyaml`` (import lazy)."""
         p = Path(path)
@@ -168,6 +176,7 @@ class NameTable:
         return cls.from_list(data)
 
     def save(self, path: str | Path) -> None:
+        logger.debug("save(self={self}, path={path})")
         """Ecrit la table en JSON ou YAML selon l'extension."""
         p = Path(path)
         items = self.to_list()

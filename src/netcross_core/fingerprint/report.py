@@ -26,6 +26,7 @@ logger = get_logger(__name__)
 
 
 def build_fingerprint_records(packets: Iterable[Pkt], known: dict | None = None) -> list[dict]:
+    logger.debug("build_fingerprint_records(packets={packets}, known={known})")
     """Liste dedupliquee des empreintes JA4/HASSH, une entree par
     (point, hote, type d'empreinte, valeur). `known` : base de
     correspondances de `fingerprint.known.load_known_fingerprints` (la
@@ -93,6 +94,7 @@ def _add(
 
 
 def compute_pkt_fingerprints(proto: str, sport: int | None, dport: int | None, payload: bytes | None) -> dict:
+    logger.debug("compute_pkt_fingerprints(proto={proto}, sport={sport}, dport={dport}, ...)")
     """Point d'entree pour `netcross_core.parsing._to_pkt` : calcule les
     champs `tls_ja4*`/`ssh_hassh*` d'un `Pkt` depuis la charge utile brute
     d'un `RawPacket` (les octets ne sont plus disponibles ensuite -- meme

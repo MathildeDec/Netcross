@@ -107,6 +107,7 @@ def _sdo_id(stix_type: str, content: Mapping[str, Any]) -> str:
 
 
 def format_timestamp(when: _dt.datetime) -> str:
+    logger.debug("format_timestamp(when={when})")
     """Horodatage STIX : UTC, precision milliseconde, suffixe ``Z``."""
     if when.tzinfo is None:
         when = when.replace(tzinfo=_dt.UTC)
@@ -115,6 +116,7 @@ def format_timestamp(when: _dt.datetime) -> str:
 
 
 def identity_object() -> dict[str, Any]:
+    logger.debug("identity_object()")
     """L'identite « Netcross » a laquelle renvoie chaque ``created_by_ref``."""
     content = {"name": "Netcross", "identity_class": "system"}
     return {
@@ -142,6 +144,7 @@ class _Builder:
         self.skipped: dict[str, int] = {}
 
     def add(self, obj: dict[str, Any]) -> str:
+        logger.debug("add(self={self}, obj={obj})")
         self.objects.setdefault(obj["id"], obj)
         return obj["id"]
 
@@ -149,6 +152,7 @@ class _Builder:
         self.skipped[reason] = self.skipped.get(reason, 0) + 1
 
     def sdo(self, stix_type: str, content: dict[str, Any], *, confidence: int | None = None) -> dict[str, Any]:
+        logger.debug("sdo(self={self}, stix_type={stix_type}, content={content})")
         obj: dict[str, Any] = {
             "type": stix_type,
             "spec_version": SPEC_VERSION,
@@ -175,6 +179,7 @@ class _Builder:
         return self.add({"type": stix_type, "spec_version": SPEC_VERSION, "id": _sco_id(stix_type, props), **props})
 
     def software(self, name: str, version: Any) -> str:
+        logger.debug("software(self={self}, name={name}, version={version})")
         props: dict[str, Any] = {"name": str(name)}
         if version:
             props["version"] = str(version)
@@ -183,6 +188,7 @@ class _Builder:
     def traffic(
         self, *, dst_ref: str, dst_port: Any = None, src_ref: str | None = None, protocol: Any = None
     ) -> str | None:
+        logger.debug("traffic(self={self})")
         props: dict[str, Any] = {"dst_ref": dst_ref, "protocols": ["tcp", str(protocol).lower()] if protocol else []}
         if src_ref:
             props["src_ref"] = src_ref
@@ -197,6 +203,7 @@ class _Builder:
         )
 
     def observed(self, refs: list[str], point: Any) -> str:
+        logger.debug("observed(self={self}, refs={refs}, point={point})")
         content: dict[str, Any] = {
             "first_observed": self.first,
             "last_observed": self.last,
@@ -323,6 +330,7 @@ def to_stix_bundle(
     observed_from: _dt.datetime | None = None,
     observed_until: _dt.datetime | None = None,
 ) -> dict[str, Any]:
+    logger.debug("to_stix_bundle(report={report})")
     """Construit le bundle STIX 2.1 (dict) des services et constats du rapport.
 
     `observed_from`/`observed_until` : bornes temporelles de la capture
@@ -370,6 +378,7 @@ def export_stix(
     observed_from: _dt.datetime | None = None,
     observed_until: _dt.datetime | None = None,
 ) -> str:
+    logger.debug("export_stix(report={report})")
     """Bundle STIX 2.1 serialise (JSON indente, cles triees, determinisme
     octet pour octet)."""
     bundle = to_stix_bundle(report, observed_from=observed_from, observed_until=observed_until)
@@ -383,6 +392,7 @@ def write_stix(
     observed_from: _dt.datetime | None = None,
     observed_until: _dt.datetime | None = None,
 ) -> str:
+    logger.debug("write_stix(report={report}, output_path={output_path})")
     """Ecrit le bundle dans un fichier ; retourne son chemin absolu."""
     path = Path(output_path)
     path.parent.mkdir(parents=True, exist_ok=True)

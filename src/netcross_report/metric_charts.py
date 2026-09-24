@@ -88,6 +88,7 @@ class MetricSeries:
     zones: list[ComplianceZone] = field(default_factory=list)
 
     def validate(self) -> None:
+        logger.debug("validate(self={self})")
         """Verifie la coherence des dimensions. Leve ValueError si
         les longueurs de timestamps/labels ne correspondent pas a
         values."""
@@ -162,6 +163,7 @@ def _save(fig, path: str) -> str:
 
 
 def render_line(series: MetricSeries, path: str) -> str | None:
+    logger.debug("render_line(series={series}, path={path})")
     """Trace une courbe lineaire. Retourne le chemin PNG ou None si
     la serie est vide."""
     if not series.values:
@@ -179,6 +181,7 @@ def render_line(series: MetricSeries, path: str) -> str | None:
 
 
 def render_area(series: MetricSeries, path: str) -> str | None:
+    logger.debug("render_area(series={series}, path={path})")
     """Trace une aire remplie sous la courbe. Retourne le chemin PNG
     ou None si la serie est vide."""
     if not series.values:
@@ -197,6 +200,7 @@ def render_area(series: MetricSeries, path: str) -> str | None:
 
 
 def render_bars(series: MetricSeries, path: str) -> str | None:
+    logger.debug("render_bars(series={series}, path={path})")
     """Trace un diagramme en barres. Utilise labels si fournis, sinon
     des index. Retourne le chemin PNG ou None si la serie est vide."""
     if not series.values:
@@ -216,6 +220,7 @@ def render_bars(series: MetricSeries, path: str) -> str | None:
 
 
 def render_histogram(series: MetricSeries, path: str) -> str | None:
+    logger.debug("render_histogram(series={series}, path={path})")
     """Trace un histogramme (distribution) des valeurs. Ignore
     timestamps et labels. Retourne le chemin PNG ou None si la serie
     est vide ou contient moins de 2 valeurs distinctes."""
@@ -235,6 +240,7 @@ def render_histogram(series: MetricSeries, path: str) -> str | None:
 
 
 def render_scatter(series: MetricSeries, path: str) -> str | None:
+    logger.debug("render_scatter(series={series}, path={path})")
     """Trace un nuage de points. Utilise timestamps si fournis, sinon
     des index. Retourne le chemin PNG ou None si la serie est vide."""
     if not series.values:
@@ -265,6 +271,7 @@ def render_metric_chart(
     path: str,
     kind: ChartKind = "line",
 ) -> str | None:
+    logger.debug("render_metric_chart(series={series}, path={path}, kind={kind})")
     """Point d'entree generique : trace un graphique de type ``kind``
     a partir de ``series``. Retourne le chemin PNG ou None si la serie
     est vide.

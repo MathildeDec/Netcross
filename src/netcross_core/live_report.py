@@ -116,6 +116,7 @@ class LiveAggregator:
             self._events.append({"type": "point_" + status, "point": label, **({"detail": error} if error else {})})
 
     def tick(self, now: float | None = None, *, final: bool = False) -> tuple[dict, dict]:
+        logger.debug("tick(self={self}, now={now})")
         """(instantane complet, ligne de journal) -- consomme les evenements."""
         now = time.time() if now is None else now
         with self._lock:
@@ -232,6 +233,7 @@ class LiveReportWriter:
         self._tail: list[dict] = []
 
     def publish(self, snapshot: dict, journal: dict) -> None:
+        logger.debug("publish(self={self}, snapshot={snapshot}, journal={journal})")
         line = json.dumps(journal, ensure_ascii=False, separators=(",", ":"))
         with self.journal_path.open("a", encoding="utf-8") as f:
             f.write(line + "\n")
@@ -270,11 +272,13 @@ class LiveReporter:
             self._publish()
 
     def start(self) -> None:
+        logger.debug("start(self={self})")
         self._publish()
         self._thread = threading.Thread(target=self._loop, name="netcross-live-report", daemon=True)
         self._thread.start()
 
     def stop(self) -> None:
+        logger.debug("stop(self={self})")
         self._stop.set()
         if self._thread is not None:
             self._thread.join()

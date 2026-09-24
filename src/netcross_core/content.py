@@ -38,11 +38,13 @@ class HttpObject:
 
     @property
     def volume_bytes(self) -> int:
+        logger.debug("volume_bytes(self={self})")
         """Volume applicatif declare par Content-Length, 0 s'il est absent."""
         return self.content_length or 0
 
     @property
     def flow(self) -> tuple:
+        logger.debug("flow(self={self})")
         """Identifiant directionnel de connexion TCP (hors sequence TCP)."""
         return (self.src, self.sport, self.dst, self.dport)
 
@@ -60,6 +62,7 @@ def extract_http_objects(
     privacy_mode: str = "metadata",
     max_objects: int | None = None,
 ) -> list[HttpObject]:
+    logger.debug("extract_http_objects(packets={packets})")
     """Inventorie les reponses HTTP et les relie aux requetes precedentes.
 
     privacy_mode:
@@ -127,6 +130,7 @@ def extract_http_objects(
 
 
 def objects_to_dicts(objects: list[HttpObject]) -> list[dict]:
+    logger.debug("objects_to_dicts(objects={objects})")
     """Serialization JSON/CSV stable, sans corps HTTP."""
     return [asdict(obj) for obj in objects]
 

@@ -65,6 +65,7 @@ def _sev(f: dict) -> str:
 
 
 def collect_facts(report: Any, ai: dict | None = None) -> dict:
+    logger.debug("collect_facts(report={report}, ai={ai})")
     """Dictionnaire compact et JSON-serialisable des faits du rapport."""
     findings = sorted(getattr(report, "security_findings", []) or [], key=lambda f: SEVERITY_ORDER.index(_sev(f)))
     flows = getattr(report, "flow_anomalies", []) or []
@@ -154,6 +155,7 @@ def _recommendations(report: Any, ai: dict | None) -> list[str]:
 
 
 def template_summary(report: Any, ai: dict | None = None) -> Summary:
+    logger.debug("template_summary(report={report}, ai={ai})")
     facts = collect_facts(report, ai)
     sev = facts["constats_par_severite"]
     total = sum(sev.values())
@@ -181,6 +183,7 @@ def template_summary(report: Any, ai: dict | None = None) -> Summary:
 
 
 def parse_engine(spec: str, endpoint: str | None = None) -> tuple[str, str, str]:
+    logger.debug("parse_engine(spec={spec}, endpoint={endpoint})")
     """``template`` | ``ollama:MODELE`` | ``llamacpp`` -> (moteur, modele, url)."""
     kind, _, model = spec.partition(":")
     if kind == "template":
@@ -232,6 +235,7 @@ def _post_json(url: str, payload: dict, timeout: float) -> dict:
 
 
 def llm_generate(kind: str, model: str, url: str, prompt: str, timeout: float = LLM_TIMEOUT_S) -> str:
+    logger.debug("llm_generate(kind={kind}, model={model}, url={url}, ...)")
     check_local_endpoint(url)
     if kind == "ollama":
         payload = {"model": model, "prompt": prompt, "stream": False, "options": {"temperature": 0.2}}

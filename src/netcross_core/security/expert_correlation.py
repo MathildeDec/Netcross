@@ -135,6 +135,7 @@ def _protocol_hint(pk: Pkt) -> str:
 
 
 def app_anomaly(pk: Pkt) -> AppAnomaly | None:
+    logger.debug("app_anomaly(pk={pk})")
     """Anomalie APPLICATIVE d'un paquet, ou None.
 
     Retient : les conditions `_ws_malformed*` et toute condition du groupe
@@ -177,6 +178,7 @@ def _endpoint(ip: str, port: int | None) -> tuple[str, int]:
 
 
 def flow_id(pk: Pkt) -> str:
+    logger.debug("flow_id(pk={pk})")
     """Identifiant BIDIRECTIONNEL d'un flux : protocole + deux extremites triees.
 
     Distinct de netcross_core.correlate.flow_key, qui inclut `key_id`
@@ -230,6 +232,7 @@ def _follows_tcp_anomaly(ts: float, tcp_ts: list[float], window_s: float) -> boo
 def correlate_expert_alerts(
     packets: Iterable[Pkt], thresholds: CorrelationThresholds = DEFAULT_THRESHOLDS
 ) -> CorrelationResult:
+    logger.debug("correlate_expert_alerts(packets={packets}, thresholds={thresholds})")
     """Detecte fuzzing / overflow / dos a partir des alertes Expert Info (voir module)."""
     flows: dict[tuple[str, str], _FlowState] = defaultdict(_FlowState)
     hosts: dict[tuple[str, str, str], list[tuple[float, int | None, str]]] = defaultdict(list)
@@ -302,6 +305,7 @@ def _suspicion(point: str, flow: str, kind: str, events: list[tuple[float, int |
 def apply_expert_correlation(
     r: Report, all_packets: Iterable[Pkt], thresholds: CorrelationThresholds = DEFAULT_THRESHOLDS
 ) -> None:
+    logger.debug("apply_expert_correlation(r={r}, all_packets={all_packets}, thresholds={thresholds})")
     """Calcule la correlation et recopie le resultat dans les champs Report dedies."""
     result = correlate_expert_alerts(all_packets, thresholds)
     for point, per_proto in result.malformed_by_point.items():

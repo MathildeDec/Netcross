@@ -52,6 +52,7 @@ _COL_ORDER = (
 
 
 def parse_conversations(text: str, protocol: str = "tcp") -> list[ConversationStat]:
+    logger.debug("parse_conversations(text={text}, protocol={protocol})")
     """Convertit la sortie ``tshark -z conv,<proto>`` en ConversationStat.
 
     ``protocol`` est le protocole demande (tcp/udp/ip...) -- reporte tel

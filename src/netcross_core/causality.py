@@ -120,6 +120,7 @@ def _match_pattern(
 
 
 def correlate_event_causes(events: list[ExpertEvent]) -> list[ExpertEvent]:
+    logger.debug("correlate_event_causes(events={events})")
     """Enrichit les `ExpertEvent` passes en argument avec `cause` et
     `impact` en correlant les symptomes co-occurrents sur un meme segment.
 
@@ -159,6 +160,7 @@ def correlate_event_causes(events: list[ExpertEvent]) -> list[ExpertEvent]:
 
 
 def correlate_diagnosis_causes(diagnoses: list[Diagnosis]) -> list[Diagnosis]:
+    logger.debug("correlate_diagnosis_causes(diagnoses={diagnoses})")
     """Derive `Diagnosis.cause` et `Diagnosis.impact` a partir des
     `ExpertEvent` deja enrichis par `correlate_event_causes()`.
 

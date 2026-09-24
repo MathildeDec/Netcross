@@ -43,6 +43,7 @@ def _run(plugin: str, kind: str, status: str, reason: str | None = None, **extra
 
 
 def run_line(run: dict[str, Any]) -> str:
+    logger.debug("run_line(run={run})")
     label = f"{_KIND_LABEL.get(run['kind'], run['kind'])} {run['plugin']}"
     status = run["status"]
     reason = run.get("reason")
@@ -65,6 +66,7 @@ def _error(exc: BaseException) -> str:
 
 
 def load_error_runs(errors: list[dict[str, str]]) -> list[dict[str, Any]]:
+    logger.debug("load_error_runs(errors={errors})")
     """Lignes de tracabilite pour les plugins demandes mais non charges."""
     return [_run(e["plugin"], "plugin", "refuse", e["reason"]) for e in errors]
 

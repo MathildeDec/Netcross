@@ -78,11 +78,13 @@ class ParsedBanner:
 
 
 def build_cpe23(vendor: str, product: str, version: str) -> str:
+    logger.debug("build_cpe23(vendor={vendor}, product={product}, version={version})")
     """Construit un identifiant CPE 2.3 (partie applicative 'a')."""
     return f"cpe:2.3:a:{vendor}:{product}:{version}:*:*:*:*:*:*:*"
 
 
 def parse_banner(banner: str) -> ParsedBanner | None:
+    logger.debug("parse_banner(banner={banner})")
     """
     Reconnait le PREMIER token "produit/version" d'une banniere parmi
     les produits catalogues (PRODUCT_ALIASES). Une banniere HTTP
@@ -100,6 +102,7 @@ def parse_banner(banner: str) -> ParsedBanner | None:
 
 
 def parse_all_banners(banner: str) -> list[ParsedBanner]:
+    logger.debug("parse_all_banners(banner={banner})")
     """Comme parse_banner(), mais renvoie tous les tokens reconnus (pas seulement le premier)."""
     parsed = []
     for token in banner.split():
@@ -135,6 +138,7 @@ def _version_key(version: str) -> tuple:
 
 
 def compare_versions(a: str, b: str) -> int:
+    logger.debug("compare_versions(a={a}, b={b})")
     """-1 si a < b, 0 si a == b, 1 si a > b (comparaison lexicographique par groupe, voir _version_key)."""
     ka, kb = _version_key(a), _version_key(b)
     if ka == kb:
@@ -151,6 +155,7 @@ def version_in_range(
     end_including: str | None = None,
     end_excluding: str | None = None,
 ) -> bool:
+    logger.debug("version_in_range(version={version})")
     """
     Teste si `version` tombe dans le range NVD decrit par les bornes
     fournies (memes noms que les champs `cpeMatch` de l'API NVD 2.0).

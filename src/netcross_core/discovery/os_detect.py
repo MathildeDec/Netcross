@@ -70,6 +70,7 @@ class OsGuess:
 
 
 def guess_initial_ttl(observed_ttl: int) -> int:
+    logger.debug("guess_initial_ttl(observed_ttl={observed_ttl})")
     """Plus petite valeur standard >= observed_ttl. Si observed_ttl
     depasse la plus grande valeur standard (255 -- plafond du champ TTL
     sur 8 bits, jamais depasse par un paquet IPv4/IPv6 valide), retombe
@@ -81,6 +82,7 @@ def guess_initial_ttl(observed_ttl: int) -> int:
 
 
 def guess_os_from_ttl(observed_ttl: int) -> OsGuess:
+    logger.debug("guess_os_from_ttl(observed_ttl={observed_ttl})")
     """Hypothese initiale a partir du seul TTL observe -- confiance
     CONFIDENCE_LOW, voir `refine_with_tcp_options` pour l'affiner."""
     initial = guess_initial_ttl(observed_ttl)
@@ -102,6 +104,7 @@ def refine_with_tcp_options(
     sack_permitted: bool,
     mss_val: int | None,
 ) -> OsGuess:
+    logger.debug("refine_with_tcp_options(guess={guess})")
     """Affine (ne contredit jamais) une hypothese TTL avec les options
     TCP d'un handshake observe pour ce meme hote. Confiance relevee a
     CONFIDENCE_MEDIUM uniquement quand Window Scale ET SACK Permis sont

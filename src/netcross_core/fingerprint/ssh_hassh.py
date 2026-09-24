@@ -119,6 +119,7 @@ def _parse_kexinit(payload: bytes) -> dict | None:
 
 
 def compute_hassh(kexinit: dict, role: str = ROLE_CLIENT) -> str:
+    logger.debug("compute_hassh(kexinit={kexinit}, role={role})")
     """HASSH (role=ROLE_CLIENT, algorithmes cote client->serveur) ou
     HASSHServer (role=ROLE_SERVER, algorithmes cote serveur->client) :
     MD5 de "kex;chiffrement;MAC;compression" (chaque champ = ses
@@ -140,6 +141,7 @@ def compute_hassh(kexinit: dict, role: str = ROLE_CLIENT) -> str:
 
 
 def readable_kexinit(kexinit: dict, role: str = ROLE_CLIENT) -> str:
+    logger.debug("readable_kexinit(kexinit={kexinit}, role={role})")
     """Chaine lisible pour un analyste -- pas une norme, format propre a
     ce projet."""
     enc_key = "encryption_algorithms_" + ("server_to_client" if role == ROLE_SERVER else "client_to_server")
@@ -154,6 +156,7 @@ def readable_kexinit(kexinit: dict, role: str = ROLE_CLIENT) -> str:
 
 
 def identify(payload: bytes, sport: int | None, dport: int | None) -> tuple[str, str, str] | None:
+    logger.debug("identify(payload={payload}, sport={sport}, dport={dport})")
     """Point d'entree pour `netcross_core.parsing` : (HASSH, role,
     forme lisible) si `payload` porte un SSH_MSG_KEXINIT decodable, None
     sinon. `role` suit la meme heuristique que

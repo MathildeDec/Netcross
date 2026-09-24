@@ -65,6 +65,7 @@ def load_known_fingerprints(path: str | Path | None = None) -> dict[str, dict]:
 
 
 def identify_tool(fingerprint_type: str, fingerprint: str, known: dict[str, dict] | None = None) -> str | None:
+    logger.debug("identify_tool(fingerprint_type={fingerprint_type}, fingerprint={fingerprint}, known={known})")
     """Nom d'outil connu pour `fingerprint` ("ja4" ou "hassh"), None si
     absent de la base (charge la base livree par defaut si `known` n'est
     pas fourni -- eviter de la recharger a chaque paquet quand on traite

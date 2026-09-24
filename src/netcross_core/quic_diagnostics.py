@@ -121,6 +121,7 @@ def _hkdf_expand_label(secret: bytes, label: str, context: bytes, length: int) -
 
 
 def derive_initial_secrets(dcid: bytes) -> tuple[bytes, bytes]:
+    logger.debug("derive_initial_secrets(dcid={dcid})")
     """Renvoie (client_initial_secret, server_initial_secret) pour QUIC v1."""
     initial_secret = _hkdf_extract(QUIC_V1_INITIAL_SALT, dcid)
     client_secret = _hkdf_expand_label(initial_secret, "client in", b"", 32)
@@ -129,6 +130,7 @@ def derive_initial_secrets(dcid: bytes) -> tuple[bytes, bytes]:
 
 
 def derive_packet_protection_keys(secret: bytes) -> tuple[bytes, bytes, bytes]:
+    logger.debug("derive_packet_protection_keys(secret={secret})")
     """Renvoie (key, iv, hp) derives d'un secret initial (client ou serveur)."""
     key = _hkdf_expand_label(secret, "quic key", b"", 16)
     iv = _hkdf_expand_label(secret, "quic iv", b"", 12)
@@ -306,6 +308,7 @@ def _parse_tls_handshake_from_crypto(crypto_data: bytes) -> dict | None:
 
 
 def parse_quic_capture(label: str, path: str) -> list[QuicEvent]:
+    logger.debug("parse_quic_capture(label={label}, path={path})")
     """Lit une capture via pcap_parser (tshark -T ek) et renvoie un
     QuicEvent pour chaque paquet QUIC Initial v1 detecte -- decrypte
     avec succes ou non (decryptable=False et sni=None dans ce dernier
@@ -362,6 +365,7 @@ def parse_quic_capture(label: str, path: str) -> list[QuicEvent]:
 
 
 def diagnose_quic(events: list[QuicEvent], points_order: list[str] | None = None):
+    logger.debug("diagnose_quic(events={events}, points_order={points_order})")
     """Compare les ClientHello QUIC vus a chaque point (par DCID -- identifie
     la connexion QUIC de facon stable meme a travers un NAT qui changerait
     IP/port). Format de sortie compatible netcross_report.triage (severity/
@@ -436,6 +440,7 @@ def diagnose_quic(events: list[QuicEvent], points_order: list[str] | None = None
 
 
 def print_quic_diagnostics(findings) -> None:
+    logger.debug("print_quic_diagnostics(findings={findings})")
     print("=" * 70)
     print("DIAGNOSTIC QUIC/HTTP3 -- ClientHello vus par point (SNI)")
     print("=" * 70)

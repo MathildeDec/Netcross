@@ -35,6 +35,7 @@ logger = get_logger(__name__)
 
 
 def build_expert_events(findings) -> list[ExpertEvent]:
+    logger.debug("build_expert_events(findings={findings})")
     """Convertit chaque Finding/DiffFinding (duck-type : `severity`/
     `category`/`segment`/`message`/`evidence`) en `ExpertEvent`. Quand
     l'objet source declare un champ `event` (`Finding`, pas `DiffFinding`
@@ -59,6 +60,7 @@ def build_expert_events(findings) -> list[ExpertEvent]:
 
 
 def build_diagnoses(events) -> list[Diagnosis]:
+    logger.debug("build_diagnoses(events={events})")
     """Regroupe une liste d'`ExpertEvent` (voir build_expert_events()
     ci-dessus) par segment -- un seul `Diagnosis` par segment distinct,
     dans l'ordre de premiere apparition."""

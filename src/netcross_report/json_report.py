@@ -250,6 +250,7 @@ def generate_json_report(
     names=None,
     security_report=None,
 ) -> str:
+    logger.debug("generate_json_report(r={r}, output_path={output_path}, title={title}, ...)")
     """
     r : objet Report (netcross_core.analyse). output_path : chemin du
     fichier JSON. meta : dict optionnel de metadonnees libres (ex:
@@ -371,6 +372,7 @@ def generate_json_diff(
     wireshark_expert_events=None,
     names=None,
 ) -> str:
+    logger.debug("generate_json_diff(findings={findings}, baseline={baseline}, current={current}, ...)")
     """
     Pendant de generate_diff_pdf() : findings est la liste de DiffFinding
     (baseline_diff.diff_reports()), baseline/current les deux Report

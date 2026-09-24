@@ -33,6 +33,7 @@ def is_tunnel(layers: dict) -> bool:
 
 
 def detect_encapsulation(layers: dict) -> tuple[str, ...]:
+    logger.debug("detect_encapsulation(layers={layers})")
     """Renvoie les tags decrivant la pile d'encapsulation detectee, dans
     le meme format textuel que l'ancienne version (VLAN100,
     MPLS[100,200], GRE, VXLAN(vni=...), GTP-U(teid=...), ERSPAN,
@@ -111,6 +112,7 @@ def _capwap_tags(layers: dict) -> list:
 
 
 def select_innermost_layers(layers: dict) -> dict:
+    logger.debug("select_innermost_layers(layers={layers})")
     """Renvoie un dict {"ip4": ..., "ip6": ..., "tcp": ..., "udp": ...,
     "icmp": ..., "icmpv6": ..., "arp": ..., "stp": ...} pointant chacun
     vers la couche EK la plus interne pertinente (en tenant compte des

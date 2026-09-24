@@ -164,6 +164,7 @@ def analyze_flow_stats(
     packets: Iterable[Pkt],
     thresholds: FlowStatsThresholds = DEFAULT_THRESHOLDS,
 ) -> FlowStatsResult:
+    logger.debug("analyze_flow_stats(packets={packets}, thresholds={thresholds})")
     """
     Calcule les statistiques de flux par paire (source, destination).
 

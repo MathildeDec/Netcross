@@ -240,6 +240,7 @@ def parse_captures_parallel(captures, max_workers=None) -> tuple[list[Pkt], list
 
 
 def read_capture_comments(captures) -> list[str]:
+    logger.debug("read_capture_comments(captures={captures})")
     """Lit le commentaire de section pcapng (Section Header Block) de
     chaque fichier de `captures` (memes paires (label, path) que
     parse_captures_parallel ci-dessus) et y attache le label -- meme
@@ -263,6 +264,7 @@ def read_capture_comments(captures) -> list[str]:
 
 
 def read_capture_infos(captures) -> list[dict]:
+    logger.debug("read_capture_infos(captures={captures})")
     """Lit les metadonnees de capture (format, snaplen, paquets perdus...)
     de chaque fichier de ``captures`` (memes paires (label, path) que
     parse_captures_parallel ci-dessus) et les renvoie sous forme de dicts
@@ -327,6 +329,7 @@ def read_capture_infos(captures) -> list[dict]:
 
 
 def parse_live(label, interface, bpf_filter=None, stop_event=None):
+    logger.debug("parse_live(label={label}, interface={interface}, bpf_filter={bpf_filter}, ...)")
     """Nouveaute (absente de l'ancienne version, qui ne savait lire
     que des fichiers deja ecrits) : capture en direct sur `interface`,
     yield un Pkt etiquete `label` au fil de l'eau -- meme pipeline de
@@ -342,6 +345,7 @@ def parse_live(label, interface, bpf_filter=None, stop_event=None):
 
 
 def parse_live_multi(interfaces, stop_event=None, *, bpf_filter=None):
+    logger.debug("parse_live_multi(interfaces={interfaces}, stop_event={stop_event})")
     """Capture en direct SIMULTANEE sur plusieurs interfaces : yield un Pkt
     au fil de l'eau, etiquete du label de son interface d'origine (le
     label devient le point de capture du Pkt, comme parse_live).
@@ -365,18 +369,21 @@ def parse_live_multi(interfaces, stop_event=None, *, bpf_filter=None):
 
 
 def parse_rtp(payload: bytes):
+    logger.debug("parse_rtp(payload={payload})")
     from pcap_parser.protocols import _parse_rtp_heuristic
 
     return _parse_rtp_heuristic(payload)
 
 
 def parse_sip(payload: bytes):
+    logger.debug("parse_sip(payload={payload})")
     from pcap_parser.protocols import _parse_sip_heuristic
 
     return _parse_sip_heuristic(payload)
 
 
 def detect_encapsulation(layers: dict):
+    logger.debug("detect_encapsulation(layers={layers})")
     """ATTENTION signature changee par rapport a l'ancienne version de ce
     module : prend desormais le dict "layers" EK d'un paquet (pcap_parser),
     pas un objet de l'ancien decodeur. Fourni pour compat de nom -- voir

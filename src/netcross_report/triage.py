@@ -103,6 +103,7 @@ class SegmentScore:
 
     @property
     def convergent(self) -> bool:
+        logger.debug("convergent(self={self})")
         """Vrai si au moins 2 categories differentes pointent vers ce segment --
         c'est la signature d'un vrai faisceau de preuves, pas un artefact
         d'une seule regle trop sensible."""
@@ -115,6 +116,7 @@ def rank_segments(
     convergence_bonus: float = 1.5,
     min_score: float = 0.0,
 ) -> list[SegmentScore]:
+    logger.debug("rank_segments(findings={findings}, severity_weights={severity_weights}, convergence_bonus={convergence_bonus}, ...)")
     """
     Regroupe des findings par segment (point ou "A -> B") et les classe
     par score decroissant.
@@ -179,6 +181,7 @@ def rank_segments(
 
 
 def print_triage(ranked: list[SegmentScore], top_n: int = 5) -> None:
+    logger.debug("print_triage(ranked={ranked}, top_n={top_n})")
     print("=" * 70)
     print(
         f"TRIAGE -- top {top_n} segments a regarder en premier "
@@ -270,6 +273,7 @@ HEALTH_LABELS: dict[str, str] = {
 
 
 def health_score(ranked: list[SegmentScore], scale: float = HEALTH_SCORE_SCALE) -> int:
+    logger.debug("health_score(ranked={ranked}, scale={scale})")
     """
     ranked : sortie de rank_segments() -- PAS les findings bruts, voir la
     note de conception ci-dessus. Renvoie un entier dans [0, 100] :
@@ -284,6 +288,7 @@ def health_score(ranked: list[SegmentScore], scale: float = HEALTH_SCORE_SCALE) 
 
 
 def health_label(score: int) -> str:
+    logger.debug("health_label(score={score})")
     """Cle courte identifiant la tranche du score (voir HEALTH_LABELS pour
     le libelle affichable, HEALTH_LABEL_THRESHOLDS pour les bornes)."""
     for threshold, label in HEALTH_LABEL_THRESHOLDS:
@@ -294,6 +299,7 @@ def health_label(score: int) -> str:
 
 
 def format_health_line(score: int) -> str:
+    logger.debug("format_health_line(score={score})")
     """Rendu texte commun (CLI console + GUI GTK4) -- une seule source pour
     le libelle exact, pour eviter que les deux divergent legerement."""
     return f"Score de sante : {score}/100 ({HEALTH_LABELS[health_label(score)]})"

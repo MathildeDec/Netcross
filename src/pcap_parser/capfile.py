@@ -86,6 +86,7 @@ _OPT_ISB_OSDROP = 7  # ISB : paquets perdus par l'OS
 
 
 def detect_format(path: str) -> str | None:
+    logger.debug("detect_format(path={path})")
     """FORMAT_PCAP, FORMAT_NSECPCAP ou FORMAT_PCAPNG d'apres les octets
     magiques du fichier (pas son extension), ou None si non reconnu
     (fichier compresse, autre format, fichier vide/tronque)."""
@@ -98,6 +99,7 @@ def detect_format(path: str) -> str | None:
 
 
 def format_extension(fmt: str | None) -> str:
+    logger.debug("format_extension(fmt={fmt})")
     """Extension de sortie coherente avec `editcap -F <fmt>` ; pcapng par
     defaut (c'est aussi ce que produit editcap sans -F)."""
     return _FORMAT_EXTENSION.get(fmt or FORMAT_PCAPNG, ".pcapng")
@@ -160,6 +162,7 @@ def _iter_pcapng_blocks(f: BinaryIO) -> Iterator[tuple[int, bytes]]:
 
 
 def has_packets(path: str) -> bool:
+    logger.debug("has_packets(path={path})")
     """True si le fichier contient au moins un paquet. Format non reconnu :
     True (on ne sait pas dire -- l'appelant ne doit pas jeter un fichier
     qu'il ne comprend pas)."""
@@ -273,6 +276,7 @@ def _read_pcapng_structure(f: BinaryIO) -> CaptureStructure | None:
 
 
 def read_structure(path: str) -> CaptureStructure | None:
+    logger.debug("read_structure(path={path})")
     """Format, version et interfaces de `path` d'apres le seul cadrage
     binaire, ou None si le format n'est pas reconnu (fichier compresse,
     autre format, vide, tronque avant son premier en-tete). Leve OSError
@@ -339,6 +343,7 @@ class _SegmentSink:
             self._file = None
 
     def write(self, raw: bytes, *, is_packet: bool) -> None:
+        logger.debug("write(self={self}, raw={raw})")
         overflow = self._size + len(raw) > self._max_bytes
         if self._file is None or (is_packet and self._packets > 0 and overflow):
             self._roll()
@@ -349,6 +354,7 @@ class _SegmentSink:
             self._packets += 1
 
     def write_if_open(self, raw: bytes) -> None:
+        logger.debug("write_if_open(self={self}, raw={raw})")
         """Pour un bloc de preambule (SHB/IDB/DSB) : s'il y a un segment en
         cours, le bloc y est ecrit aussi ; sinon il ne sera ecrit que dans le
         preambule du prochain segment."""
@@ -359,12 +365,14 @@ class _SegmentSink:
     def close(self) -> None:
         # Un dernier segment sans aucun paquet (ex : fichier qui ne contient
         # que des blocs de statistiques) n'a pas de raison d'exister.
+        logger.debug("close(self={self})")
         if self._file is not None and self._packets == 0:
             self._close_current()
             os.remove(self.paths.pop())
         self._close_current()
 
     def abort(self) -> None:
+        logger.debug("abort(self={self})")
         """Ferme et supprime tous les segments deja ecrits (echec en cours
         de route : un jeu de segments partiel serait trompeur)."""
         self._close_current()
@@ -443,6 +451,7 @@ def _split_pcapng(f: BinaryIO, sink: _SegmentSink) -> None:
 
 
 def first_timestamp(path: str) -> float:
+    logger.debug("first_timestamp(path={path})")
     """Timestamp epoch du premier paquet de `path` (pcap, nsecpcap ou
     pcapng), lu directement du cadrage binaire sans tshark. Leve
     FileNotFoundError si le fichier est absent, ValueError si le format

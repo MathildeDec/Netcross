@@ -47,11 +47,13 @@ def severity_rank(severity: str | None) -> int:
 
 
 def meets_threshold(severity: str | None, threshold: str) -> bool:
+    logger.debug("meets_threshold(severity={severity}, threshold={threshold})")
     """Vrai si `severity` est au moins aussi grave que `threshold`."""
     return severity_rank(severity) <= severity_rank(threshold)
 
 
 def finding_key(finding: Mapping[str, Any]) -> str:
+    logger.debug("finding_key(finding={finding})")
     """Identite stable d'un constat (pour l'anti-repetition)."""
     detail = _VOLATILE.sub("", str(finding.get("detail") or "")).strip()
     parts = [
@@ -61,6 +63,7 @@ def finding_key(finding: Mapping[str, Any]) -> str:
 
 
 def findings_fingerprint(findings: Iterable[Mapping[str, Any]]) -> str:
+    logger.debug("findings_fingerprint(findings={findings})")
     """Empreinte SHA-256 du LOT de constats, independante de leur ordre et
     des compteurs volatils : deux analyses de la meme capture -- ou une tache
     planifiee qui retrouve le meme probleme toutes les heures -- donnent la
@@ -99,6 +102,7 @@ class NotificationSummary:
         }
 
     def to_text(self) -> str:
+        logger.debug("to_text(self={self})")
         counts = ", ".join(f"{sev}={self.by_severity.get(sev, 0)}" for sev in SEVERITIES)
         lines = [
             f"{self.title} : niveau {self.level or 'aucun'}, score {self.score}/100",
@@ -138,6 +142,7 @@ def build_summary(
     report_path: str | None = None,
     detail: str = "resume",
 ) -> NotificationSummary:
+    logger.debug("build_summary(findings={findings})")
     """Construit le resume a notifier.
 
     `score`/`level` viennent du tableau de bord du rapport de securite (un

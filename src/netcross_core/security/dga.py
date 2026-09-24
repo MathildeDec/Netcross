@@ -334,6 +334,7 @@ def detect_dga(
     packets: Iterable[Pkt],
     thresholds: DgaThresholds | None = None,
 ) -> DgaResult:
+    logger.debug("detect_dga(packets={packets}, thresholds={thresholds})")
     """Detection de domaines DGA dans les paquets DNS.
 
     Parcourt les requetes DNS (``dns_qry_name`` non nul), calcule un

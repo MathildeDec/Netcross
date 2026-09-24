@@ -301,6 +301,7 @@ _INFORMATIVE_SEVERITIES: tuple[str, ...] = ("Chat", "Comment")
 
 
 def build_packet(ts_seconds: float, layers: dict) -> RawPacket | None:
+    logger.debug("build_packet(ts_seconds={ts_seconds}, layers={layers})")
     """Construit un RawPacket a partir des couches EK d'un paquet, ou
     None si le paquet n'a ni IPv4, ni IPv6, ni ARP, ni STP (LLDP, CDP...
     hors perimetre de cette analyse). ARP (Session 24) et STP (Session

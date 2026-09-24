@@ -189,6 +189,7 @@ def _opt_float(value) -> float | None:
 
 
 def severity_from_cvss(cvss: float) -> str:
+    logger.debug("severity_from_cvss(cvss={cvss})")
     """Tranches CVSS v3 de la NVD : >=9.0 critique, >=7.0 elevee, >=4.0
     moyenne, sinon faible (0.0 = 'none' inclus)."""
     if cvss >= 9.0:
@@ -308,6 +309,7 @@ def _build_services(fingerprints, cves: list[SecurityItem]) -> list[ServiceEntry
 
 
 def build_security_report(report) -> SecurityReport:
+    logger.debug("build_security_report(report={report})")
     """Consolide `report.service_fingerprints` et `report.security_findings`
     en un `SecurityReport` (sections triees par severite decroissante, puis
     CVSS decroissant) et calcule le tableau de bord."""
@@ -443,6 +445,7 @@ def _bar(score: int, width: int = 20) -> str:
 
 
 def format_security_report(sr: SecurityReport) -> list[str]:
+    logger.debug("format_security_report(sr={sr})")
     """Rendu texte du rapport, une chaine par ligne (jamais de `print()`
     ici, meme separation que `netcross_report.session_objects`)."""
     d = sr.dashboard
@@ -496,6 +499,7 @@ def format_security_report(sr: SecurityReport) -> list[str]:
 
 
 def print_security_report(sr: SecurityReport) -> None:
+    logger.debug("print_security_report(sr={sr})")
     """Ecrit `format_security_report()` sur stdout."""
     for line in format_security_report(sr):
         print(line)
@@ -505,6 +509,7 @@ def print_security_report(sr: SecurityReport) -> None:
 
 
 def security_report_to_dict(sr: SecurityReport) -> dict:
+    logger.debug("security_report_to_dict(sr={sr})")
     """Represente le rapport en structures Python serialisables.
 
     Socle unique des trois sorties non textuelles (JSON, HTML, PDF) : sans

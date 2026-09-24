@@ -79,6 +79,7 @@ class SegmentMetrics:
 
     @property
     def label(self) -> str:
+        logger.debug("label(self={self})")
         """Libelle du segment, identique a celui des Finding
         (`f"{a} -> {b}"`) : le lecteur doit pouvoir rapprocher une ligne de
         ce tableau d'un constat du triage sans traduction mentale."""
@@ -86,6 +87,7 @@ class SegmentMetrics:
 
     @property
     def measured(self) -> bool:
+        logger.debug("measured(self={self})")
         """Vrai si au moins une metrique de qualite a pu etre mesuree. Un
         segment non mesure est affiche quand meme (son absence de donnees
         est une information), mais il ne participe pas au classement des
@@ -154,6 +156,7 @@ def _throughput_bps(report, point) -> float | None:
 
 
 def build_path_metrics(report) -> list[SegmentMetrics]:
+    logger.debug("build_path_metrics(report={report})")
     """Une entree par segment de `report.pairs`, ordonnee le long du chemin
     observe. Pure fonction de regroupement : aucune capture relue, aucun
     seuil applique."""
@@ -186,6 +189,7 @@ def build_path_metrics(report) -> list[SegmentMetrics]:
 
 
 def rank_path_segments(metrics) -> list[SegmentMetrics]:
+    logger.debug("rank_path_segments(metrics={metrics})")
     """Segments mesures, du plus degrade au moins degrade : **pertes
     d'abord**, delai P95 ensuite, gigue en dernier recours.
 
@@ -210,6 +214,7 @@ def rank_path_segments(metrics) -> list[SegmentMetrics]:
 
 
 def degradation_summary(metrics) -> str:
+    logger.debug("degradation_summary(metrics={metrics})")
     """Phrase de tete de section : ou la qualite se degrade-t-elle ?
     Descriptive et chiffree, jamais prescriptive -- les recommandations
     restent du ressort des Finding/ExpertEvent."""

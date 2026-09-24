@@ -31,6 +31,7 @@ def _match(label: str, *keywords: str) -> bool:
 
 
 def parse_response_time(text: str, application: str = "http") -> ResponseTimeStat | None:
+    logger.debug("parse_response_time(text={text}, application={application})")
     """Convertit la sortie ``tshark -z <proto>,rtt`` en ResponseTimeStat.
 
     Retourne None si aucune metrique identifiable.

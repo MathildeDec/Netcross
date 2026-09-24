@@ -70,6 +70,7 @@ class SequenceStep:
 
     @property
     def label(self) -> str:
+        logger.debug("label(self={self})")
         """Libelle court de la fleche : protocole + ports quand ils
         existent (UDP/TCP), drapeaux TCP s'ils sont connus, et la mention
         "retr." pour une retransmission -- c'est le detail qui explique un
@@ -106,6 +107,7 @@ class SequenceView:
 
 
 def build_sequence_view(packets_by_point, title="", max_steps=DEFAULT_MAX_STEPS) -> SequenceView:
+    logger.debug("build_sequence_view(packets_by_point={packets_by_point}, title={title}, max_steps={max_steps})")
     """Construit la vue de sequence d'UN flux a partir du dict
     `{point: [Pkt, ...]}` que `correlate()` produit deja pour ce flux.
 
@@ -161,6 +163,7 @@ def build_sequence_view(packets_by_point, title="", max_steps=DEFAULT_MAX_STEPS)
 
 
 def flow_title(flow) -> str:
+    logger.debug("flow_title(flow={flow})")
     """Titre lisible d'un `Flow` (netcross_core.expert_model) : ses
     extremites et son protocole quand la cle les porte. La cle de flux est
     un tuple technique (voir `correlate.flow_key`), y compris la variante
@@ -177,6 +180,7 @@ def flow_title(flow) -> str:
 
 
 def top_flow_views(flows, flow_objects=None, max_flows=1, max_steps=DEFAULT_MAX_STEPS):
+    logger.debug("top_flow_views(flows={flows}, flow_objects={flow_objects}, max_flows={max_flows}, ...)")
     """Vues de sequence des flux les plus volumineux du dict `flows`
     (`{cle: {point: [Pkt, ...]}}` de `correlate()`).
 

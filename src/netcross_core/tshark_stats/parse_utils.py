@@ -25,6 +25,7 @@ _SEP_CHARS = frozenset("=-")
 
 
 def is_separator(line: str) -> bool:
+    logger.debug("is_separator(line={line})")
     """Vrai pour une ligne de separateur ``====`` (ou ``----``)."""
     s = line.strip()
     if len(s) < 3:
@@ -37,6 +38,7 @@ def is_filter_line(line: str) -> bool:
 
 
 def is_title_or_section(line: str) -> bool:
+    logger.debug("is_title_or_section(line={line})")
     """Lignes de titre / section sans donnees chiffrees."""
     s = line.strip()
     if not s or is_separator(s) or is_filter_line(s):
@@ -62,6 +64,7 @@ def is_title_or_section(line: str) -> bool:
 
 
 def split_fields(line: str) -> list[str]:
+    logger.debug("split_fields(line={line})")
     """Decoupe une ligne ``|``-delimitee en champs depouilles.
 
     Retourne une liste vide si la ligne ne contient pas de ``|``.
@@ -115,6 +118,7 @@ def parse_float(s: str | None) -> float | None:
 
 
 def normalize_header(s: str) -> str:
+    logger.debug("normalize_header(s={s})")
     """Normalise un nom de colonne : minuscules, espaces compactes,
     ``%`` retire, unites ``bits/s``/``mbit/s`` ramenees a ``bits_s``."""
     t = s.strip().lower()
@@ -129,6 +133,7 @@ def normalize_header(s: str) -> str:
 
 
 def find_column(headers: list[str], *keywords: str) -> int | None:
+    logger.debug("find_column(headers={headers})")
     """Retourne l'indice de la premiere colonne dont l'en-tete normalise
     contient tous les mots-cles donnes, ou None."""
     for i, h in enumerate(headers):
@@ -139,6 +144,7 @@ def find_column(headers: list[str], *keywords: str) -> int | None:
 
 
 def data_rows(text: str) -> list[str]:
+    logger.debug("data_rows(text={text})")
     """Extrait les lignes de donnees d'un tableau ``tshark -z`` : lignes
     contenant au moins un ``|`` et au moins un champ numerique, en
     ignorant separateurs, titres, filtre et en-tetes."""
@@ -158,6 +164,7 @@ def data_rows(text: str) -> list[str]:
 
 
 def header_lines(text: str) -> list[str]:
+    logger.debug("header_lines(text={text})")
     """Lignes d'en-tete d'un tableau ``tshark -z`` : lignes contenant
     ``|`` mais identifiees comme section/titre (mots-cles Address,
     Packets, Bytes, fleches...). Les en-tetes tshark sont souvent
@@ -174,6 +181,7 @@ def header_lines(text: str) -> list[str]:
 
 
 def reconstruct_headers(text: str) -> list[str]:
+    logger.debug("reconstruct_headers(text={text})")
     """Reconstruit le nom complet de chaque colonne en joignant les
     fragments d'en-tete multi-lignes par indice de colonne.
 
@@ -200,6 +208,7 @@ def reconstruct_headers(text: str) -> list[str]:
 
 
 def raw_fields_from(headers: list[str], fields: list[str]) -> dict[str, str]:
+    logger.debug("raw_fields_from(headers={headers}, fields={fields})")
     """Construit un dict ``{nom_colonne: valeur}`` pour toutes les colonnes
     d'une ligne de donnees -- absorbe les colonnes non mappees."""
     out: dict[str, str] = {}
