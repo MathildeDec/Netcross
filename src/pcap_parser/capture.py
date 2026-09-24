@@ -75,7 +75,7 @@ def parse_capture(path: str, raise_on_error: bool = False) -> list[RawPacket]:
         logger.exception("erreur: e")
         if raise_on_error:
             raise
-        print(f"impossible de lire {path} : {e}", file=sys.stderr)
+        logger.error(f"impossible de lire {path} : {e}")
         return []
     return packets
 

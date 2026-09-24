@@ -541,7 +541,7 @@ class LiveCaptureListPanel(Gtk.Box):
             # utilisable et le fichier n'est PAS touche (upsert_bpf_filter
             # refuse d'ecraser un fichier qu'il ne sait pas relire).
             logger.exception("erreur: exc")
-            print(f"netcross: filtres BPF sauvegardes ignores ({exc})", file=sys.stderr)
+            logger.warning(f"netcross: filtres BPF sauvegardes ignores ({exc})")
             return list(PREDEFINED_BPF_FILTERS)
 
     def _save_filter(self, flt):
