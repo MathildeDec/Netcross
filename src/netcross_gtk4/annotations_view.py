@@ -20,8 +20,8 @@ ligne affichable, ajout/suppression avant ecriture du sidecar).
 from __future__ import annotations
 
 from netcross_core.forensic import annotations_by_tag
-from netcross_core.models import PacketAnnotation
 from netcross_core.logging_config import get_logger
+from netcross_core.models import PacketAnnotation
 
 logger = get_logger(__name__)
 

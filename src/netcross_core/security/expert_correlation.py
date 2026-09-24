@@ -43,8 +43,8 @@ from collections import Counter, defaultdict
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 
-from netcross_core.models import Pkt, Report
 from netcross_core.logging_config import get_logger
+from netcross_core.models import Pkt, Report
 
 logger = get_logger(__name__)
 

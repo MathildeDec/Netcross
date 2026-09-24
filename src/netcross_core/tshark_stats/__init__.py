@@ -16,6 +16,7 @@ from __future__ import annotations
 
 from pathlib import Path
 
+from netcross_core.logging_config import get_logger
 from netcross_core.tshark_stats.conversations import parse_conversations
 from netcross_core.tshark_stats.dns import parse_dns_stat
 from netcross_core.tshark_stats.endpoints import parse_endpoints
@@ -36,7 +37,6 @@ from netcross_core.tshark_stats.runner import (
     TsharkUnavailableError,
     run_tshark_stat,
 )
-from netcross_core.logging_config import get_logger
 
 logger = get_logger(__name__)
 

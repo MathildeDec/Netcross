@@ -32,9 +32,12 @@ import struct
 from collections.abc import Iterator
 from dataclasses import dataclass, replace
 from typing import BinaryIO
-from netcross_core.logging_config import get_logger
 
-logger = get_logger(__name__)
+from loguru import logger as _loguru_logger
+
+# pcap_parser reste independant de netcross_core (contrat import-linter) :
+# loguru directement, lie au nom du module.
+logger = _loguru_logger.bind(name=__name__)
 
 FORMAT_PCAP = "pcap"
 FORMAT_NSECPCAP = "nsecpcap"

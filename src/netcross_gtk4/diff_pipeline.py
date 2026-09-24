@@ -11,13 +11,13 @@ from __future__ import annotations
 
 import contextlib
 import io
+from collections.abc import Sequence
 from dataclasses import dataclass, field
-from typing import Any, Callable, Sequence
+from typing import Any, Callable
 
 from netcross_core.baseline_diff import diff_reports
 from netcross_core.correlate import correlate
 from netcross_core.logging_config import get_logger
-from netcross_core.parsing import parse_capture
 
 logger = get_logger(__name__)
 
@@ -69,6 +69,7 @@ def run_diff_pipeline(
     5. Diagnostics TLS (optionnel)
     6. Diagnostics QUIC (optionnel)
     """
+
     def _log(msg: str) -> None:
         if on_progress:
             on_progress(msg)
@@ -172,6 +173,7 @@ def run_diff_pipeline(
             with contextlib.redirect_stdout(buf):
                 print("\n--quic nécessite cryptography : pip install cryptography")
         else:
+
             def _quic_findings(captures, topo):
                 events = []
                 for label, path in captures:

@@ -7,12 +7,11 @@ Couvre les chemins rarement exécutés :
 - tls (diagnostic TLS via tshark)
 - quic (diagnostic QUIC via tshark)
 """
+
 from __future__ import annotations
 
 import sys
 from unittest.mock import MagicMock
-
-import pytest
 
 from netcross_gtk4.analysis_pipeline import AnalysisOptions, run_analysis_pipeline
 from netcross_gtk4.diff_pipeline import DiffOptions, run_diff_pipeline
@@ -194,7 +193,9 @@ class TestTLSBranch:
 
         import netcross_core.tls_diagnostics as tls_mod
 
-        monkeypatch.setattr(tls_mod, "parse_tls_capture", lambda label, path: captured.setdefault("tls_calls", []).append(label) or [])
+        monkeypatch.setattr(
+            tls_mod, "parse_tls_capture", lambda label, path: captured.setdefault("tls_calls", []).append(label) or []
+        )
         monkeypatch.setattr(tls_mod, "build_handshake_status", lambda e: {})
         monkeypatch.setattr(tls_mod, "diagnose_tls", lambda s, p: ["tls_finding"])
         monkeypatch.setattr(tls_mod, "print_tls_diagnostics", lambda f: None)
@@ -263,8 +264,6 @@ class TestDiffPipelineOptionalBranches:
         """parallel=True utilise load_packets avec parallel=True (pas parse_capture en boucle)."""
         captured = {"parallel_args": []}
 
-        original_load = None
-
         def fake_load(captures, parallel, on_progress=None):
             captured["parallel_args"].append(parallel)
             return [make_pkt(src="10.0.0.1", dst="10.0.0.2")]
@@ -315,7 +314,9 @@ class TestDiffPipelineOptionalBranches:
             "netcross_gtk4.analysis_pipeline.load_packets",
             lambda captures, parallel, on_progress=None: [make_pkt(src="10.0.0.1", dst="10.0.0.2")],
         )
-        monkeypatch.setattr(tls_mod, "parse_tls_capture", lambda label, path: captured.setdefault("tls_calls", []).append(label) or [])
+        monkeypatch.setattr(
+            tls_mod, "parse_tls_capture", lambda label, path: captured.setdefault("tls_calls", []).append(label) or []
+        )
         monkeypatch.setattr(tls_mod, "build_handshake_status", lambda e: {})
         monkeypatch.setattr(tls_mod, "diagnose_tls", lambda s, p: ["tls_finding"])
         monkeypatch.setattr(tls_mod, "print_tls_diagnostics", lambda f: None)

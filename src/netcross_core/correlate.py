@@ -7,8 +7,8 @@ et calcul du debit par fenetre temporelle.
 from collections import defaultdict
 
 from netcross_core.expert_model import Conversation, Flow
-from netcross_core.models import Pkt
 from netcross_core.logging_config import get_logger
+from netcross_core.models import Pkt
 
 logger = get_logger(__name__)
 
@@ -44,7 +44,9 @@ def correlate(all_packets, nat_tolerant=False, nat_window_ms=200, exclude_duplic
     absent (et une perte sera rapportee en aval avec --order) : c'est le
     prix de ne plus doubler les compteurs de paquets/octets.
     """
-    logger.debug("correlate(all_packets={all_packets}, nat_tolerant={nat_tolerant}, nat_window_ms={nat_window_ms}, ...)")
+    logger.debug(
+        "correlate(all_packets={all_packets}, nat_tolerant={nat_tolerant}, nat_window_ms={nat_window_ms}, ...)"
+    )
     flows = defaultdict(dict)  # cle -> {point: [Pkt, ...]}
     for pk in all_packets:
         if exclude_duplicates and pk.is_duplicate:
@@ -178,7 +180,9 @@ def compute_topn_series(all_packets, bucket_seconds, dimension, top_n=5):
     compute_throughput() ci-dessus : meme decoupage en buckets, mais
     ventile le debit par categorie plutot qu'agrege.
     """
-    logger.debug("compute_topn_series(all_packets={all_packets}, bucket_seconds={bucket_seconds}, dimension={dimension}, ...)")
+    logger.debug(
+        "compute_topn_series(all_packets={all_packets}, bucket_seconds={bucket_seconds}, dimension={dimension}, ...)"
+    )
     totals = defaultdict(lambda: defaultdict(int))  # point -> categorie -> octets (pour le classement)
     raw = defaultdict(lambda: defaultdict(lambda: defaultdict(int)))  # point -> categorie -> bucket -> octets
     for pk in all_packets:

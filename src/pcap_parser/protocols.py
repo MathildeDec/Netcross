@@ -13,11 +13,13 @@ payload extrait via udp.payload / tcp.payload (champ hex EK).
 
 from __future__ import annotations
 
+from loguru import logger as _loguru_logger
+
 from pcap_parser.ek_fields import as_bool, as_float, g, hex_or_dec_to_int, innermost
 
-from netcross_core.logging_config import get_logger
-
-logger = get_logger(__name__)
+# pcap_parser reste independant de netcross_core (contrat import-linter) :
+# loguru directement, lie au nom du module.
+logger = _loguru_logger.bind(name=__name__)
 try:  # cryptography est une dependance du projet ; son absence degrade l'extraction, ne la casse pas
     from cryptography import x509 as _x509
     from cryptography.exceptions import UnsupportedAlgorithm as _UnsupportedAlgorithm

@@ -27,8 +27,8 @@ from dataclasses import dataclass, field, replace
 from typing import Any
 
 from netcross_core.expert_model import Conversation, Flow
-from netcross_core.models import Report
 from netcross_core.logging_config import get_logger
+from netcross_core.models import Report
 
 logger = get_logger(__name__)
 

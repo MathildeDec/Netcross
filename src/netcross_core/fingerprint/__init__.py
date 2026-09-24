@@ -35,6 +35,7 @@ non tries) et n'appelle pas la meme reserve.
 """
 
 from __future__ import annotations
+
 from netcross_core.logging_config import get_logger
 
 logger = get_logger(__name__)

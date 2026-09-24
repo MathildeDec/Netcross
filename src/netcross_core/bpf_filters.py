@@ -37,8 +37,8 @@ from collections.abc import Iterable
 from dataclasses import asdict
 from pathlib import Path
 
-from netcross_core.models import BPFFilter
 from netcross_core.logging_config import get_logger
+from netcross_core.models import BPFFilter
 
 logger = get_logger(__name__)
 

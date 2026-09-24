@@ -16,9 +16,12 @@ communs a tous les champs tshark -T ek :
 from __future__ import annotations
 
 from typing import Any
-from netcross_core.logging_config import get_logger
 
-logger = get_logger(__name__)
+from loguru import logger as _loguru_logger
+
+# pcap_parser reste independant de netcross_core (contrat import-linter) :
+# loguru directement, lie au nom du module.
+logger = _loguru_logger.bind(name=__name__)
 
 
 def layer(layers: dict, key: str) -> dict | None:

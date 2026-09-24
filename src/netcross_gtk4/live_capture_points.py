@@ -18,8 +18,8 @@ from __future__ import annotations
 
 from collections.abc import Sequence
 
-from pcap_parser.remote import CaptureSourceError, parse_source
 from netcross_core.logging_config import get_logger
+from pcap_parser.remote import CaptureSourceError, parse_source
 
 logger = get_logger(__name__)
 

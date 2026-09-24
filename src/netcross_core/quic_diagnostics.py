@@ -42,9 +42,8 @@ import struct
 from dataclasses import dataclass
 
 import pcap_parser
-from netcross_core.tls_diagnostics import parse_client_hello
-
 from netcross_core.logging_config import get_logger
+from netcross_core.tls_diagnostics import parse_client_hello
 
 logger = get_logger(__name__)
 try:

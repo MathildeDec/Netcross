@@ -8,9 +8,8 @@ Les fixtures de paquets viennent de conftest.make_pkt().
 
 from __future__ import annotations
 
-import pytest
-
 from conftest import make_pkt
+
 from netcross_gtk4.analysis_pipeline import (
     AnalysisOptions,
     AnalysisResult,
@@ -22,7 +21,6 @@ from netcross_gtk4.diff_pipeline import (
     DiffResult,
     run_diff_pipeline,
 )
-
 
 # ---------------------------------------------------------------------------
 # AnalysisOptions / AnalysisResult
@@ -152,7 +150,7 @@ class TestRunAnalysisPipeline:
             lambda label, path: [pkt],
         )
 
-        result = run_analysis_pipeline(
+        run_analysis_pipeline(
             [("A", "/fake/a.pcap")],
             AnalysisOptions(auto_topology=False, parallel=False),
             on_progress=lambda msg: progress.append(msg),
@@ -284,14 +282,12 @@ class TestRunDiffPipeline:
         pkt_base = make_pkt(point="A", src="10.0.0.1", dst="10.0.0.2", proto="TCP")
         pkt_curr = make_pkt(point="A", src="10.0.0.1", dst="10.0.0.2", proto="TCP")
 
-        import netcross_gtk4.diff_pipeline as diff_mod
-
         def mock_parse(label, path):
             if "baseline" in path:
                 return [pkt_base]
             return [pkt_curr]
 
-        monkeypatch.setattr(diff_mod, "parse_capture", mock_parse)
+        monkeypatch.setattr("netcross_gtk4.analysis_pipeline.parse_capture", mock_parse)
 
         result = run_diff_pipeline(
             [("A", "/fake/baseline.pcap")],
@@ -311,11 +307,8 @@ class TestRunDiffPipeline:
         pkt = make_pkt(point="A", src="10.0.0.1", dst="10.0.0.2")
         progress = []
 
-        import netcross_gtk4.diff_pipeline as diff_mod
-
         monkeypatch.setattr(
-            diff_mod,
-            "parse_capture",
+            "netcross_gtk4.analysis_pipeline.parse_capture",
             lambda label, path: [pkt],
         )
 

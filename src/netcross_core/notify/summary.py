@@ -22,8 +22,8 @@ from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from typing import Any
 
-from netcross_core.support.scrubber import TextScrubber
 from netcross_core.logging_config import get_logger
+from netcross_core.support.scrubber import TextScrubber
 
 logger = get_logger(__name__)
 

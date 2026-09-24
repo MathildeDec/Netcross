@@ -58,8 +58,8 @@ from collections import defaultdict
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 
-from netcross_report.synthesis import Finding
 from netcross_core.logging_config import get_logger
+from netcross_report.synthesis import Finding
 
 logger = get_logger(__name__)
 
@@ -143,7 +143,10 @@ def rank_segments(
     est marque `low_confidence=True` si la totalite de ses findings a
     poids non nul en dependent.
     """
-    logger.debug("rank_segments(findings={findings}, severity_weights={severity_weights}, convergence_bonus={convergence_bonus}, ...)")
+    logger.debug(
+        "rank_segments(findings={findings}, severity_weights={severity_weights}, "
+        "convergence_bonus={convergence_bonus}, ...)"
+    )
     weights = severity_weights or DEFAULT_SEVERITY_WEIGHTS
     by_segment: dict[str, list[Finding]] = defaultdict(list)
     for f in findings:

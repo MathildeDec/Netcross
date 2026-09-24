@@ -103,7 +103,9 @@ def _save_state(path: Path, state: dict[str, float]) -> None:
 def is_silenced(fingerprint: str, state_path: Path, silence_seconds: float, now: float) -> float | None:
     """Age (s) de la derniere notification du meme lot si elle est dans la
     fenetre de silence, sinon None."""
-    logger.debug("is_silenced(fingerprint={fingerprint}, state_path={state_path}, silence_seconds={silence_seconds}, ...)")
+    logger.debug(
+        "is_silenced(fingerprint={fingerprint}, state_path={state_path}, silence_seconds={silence_seconds}, ...)"
+    )
     if silence_seconds <= 0:
         return None
     last = _load_state(state_path).get(fingerprint)

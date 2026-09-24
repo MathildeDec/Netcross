@@ -29,9 +29,8 @@ from netcross_api.models import (
 )
 from netcross_api.store import store
 from netcross_core import analyse, correlate, parse_capture
-from netcross_core.security.findings import apply_security_findings, scan_capture_exploits
-
 from netcross_core.logging_config import get_logger
+from netcross_core.security.findings import apply_security_findings, scan_capture_exploits
 
 logger = get_logger(__name__)
 # Singleton pour éviter B008 (File() in argument defaults).

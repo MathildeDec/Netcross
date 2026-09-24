@@ -17,11 +17,10 @@ from __future__ import annotations
 
 import contextlib
 import io
-from dataclasses import dataclass, field
-from typing import Any, Callable, Sequence
-
 import os
-from pathlib import Path
+from collections.abc import Sequence
+from dataclasses import dataclass, field
+from typing import Callable
 
 from netcross_core.correlate import correlate
 from netcross_core.logging_config import get_logger
@@ -87,20 +86,19 @@ def load_packets(
                     on_progress(f"  [{s['label']}] ECHEC sur {s['path']} : {s['error']}")
                 else:
                     on_progress(
-                        f"  [{s['label']}] {s['count']} paquets chargés depuis {s['path']} "
-                        f"({s['seconds']:.2f}s)"
+                        f"  [{s['label']}] {s['count']} paquets chargés depuis {s['path']} ({s['seconds']:.2f}s)"
                     )
         return all_packets
 
-    all_packets = []
+    sequential: list = []
     for label, path in captures:
         if on_progress:
             on_progress(f"Lecture de {os.path.basename(path)} ({label})...")
         packets = parse_capture(label, path)
-        all_packets.extend(packets)
+        sequential.extend(packets)
         if on_progress:
             on_progress(f"  -> {len(packets)} paquets chargés")
-    return all_packets
+    return sequential
 
 
 def run_analysis_pipeline(
@@ -133,6 +131,7 @@ def run_analysis_pipeline(
     -------
     AnalysisResult
     """
+
     def _log(msg: str) -> None:
         if on_progress:
             on_progress(msg)

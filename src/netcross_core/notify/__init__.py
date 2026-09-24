@@ -3,6 +3,7 @@ netcross_core.notify -- notifications sortantes sur seuil de gravite
 (webhook, Slack, courriel), issue #280. Voir docs/notifications.md.
 """
 
+from netcross_core.logging_config import get_logger
 from netcross_core.notify.dispatch import (
     CHANNELS,
     DeliveryResult,
@@ -25,7 +26,6 @@ from netcross_core.notify.transports import (
     SlackNotifier,
     WebhookNotifier,
 )
-from netcross_core.logging_config import get_logger
 
 logger = get_logger(__name__)
 

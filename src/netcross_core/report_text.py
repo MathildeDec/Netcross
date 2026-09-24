@@ -9,6 +9,7 @@ import statistics
 from collections import Counter, defaultdict
 
 from netcross_core.forensic import annotations_by_tag
+from netcross_core.logging_config import get_logger
 from netcross_core.models import (
     SEQ_GAP_CAPTURE_DROP,
     SEQ_GAP_INDETERMINATE,
@@ -17,7 +18,6 @@ from netcross_core.models import (
     Report,
     SequenceGap,
 )
-from netcross_core.logging_config import get_logger
 
 logger = get_logger(__name__)
 

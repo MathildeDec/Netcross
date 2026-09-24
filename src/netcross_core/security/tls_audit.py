@@ -58,9 +58,9 @@ from collections.abc import Iterable, Mapping
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
+from netcross_core.logging_config import get_logger
 from netcross_core.models import Pkt
 from netcross_core.security.dns_tunnel import shannon_entropy
-from netcross_core.logging_config import get_logger
 
 logger = get_logger(__name__)
 

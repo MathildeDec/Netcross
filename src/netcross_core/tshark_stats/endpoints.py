@@ -12,6 +12,7 @@ Toutes les colonnes brutes conservees dans ``raw_fields``.
 
 from __future__ import annotations
 
+from netcross_core.logging_config import get_logger
 from netcross_core.tshark_stats.models import EndpointStat
 from netcross_core.tshark_stats.parse_utils import (
     data_rows,
@@ -21,7 +22,6 @@ from netcross_core.tshark_stats.parse_utils import (
     reconstruct_headers,
     split_fields,
 )
-from netcross_core.logging_config import get_logger
 
 logger = get_logger(__name__)
 

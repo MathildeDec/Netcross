@@ -36,9 +36,9 @@ from dataclasses import dataclass, field
 from netcross_core.causality import correlate_diagnosis_causes, correlate_event_causes
 from netcross_core.compliance import evaluate_compliance
 from netcross_core.correlate import build_conversations, build_flows
+from netcross_core.logging_config import get_logger
 from netcross_core.wireshark_expert import build_wireshark_expert_events
 from netcross_report.expert_events import build_diagnoses, build_expert_events
-from netcross_core.logging_config import get_logger
 
 logger = get_logger(__name__)
 

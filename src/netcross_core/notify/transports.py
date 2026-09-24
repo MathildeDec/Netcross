@@ -23,8 +23,8 @@ from email.message import EmailMessage
 from typing import Any, Protocol
 from urllib.parse import urlparse
 
-from netcross_core.notify.summary import NotificationSummary
 from netcross_core.logging_config import get_logger
+from netcross_core.notify.summary import NotificationSummary
 
 logger = get_logger(__name__)
 

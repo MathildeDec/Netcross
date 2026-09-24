@@ -45,6 +45,7 @@ from dataclasses import dataclass
 
 from netcross_core.correlate import flow_key
 from netcross_core.expert_model import ExpertEvent, Flow, PacketEvidence
+from netcross_core.logging_config import get_logger
 from netcross_core.models import (
     SEQ_GAP_CAPTURE_DROP,
     SEQ_GAP_INDETERMINATE,
@@ -54,7 +55,6 @@ from netcross_core.models import (
     Pkt,
     SequenceGap,
 )
-from netcross_core.logging_config import get_logger
 
 logger = get_logger(__name__)
 

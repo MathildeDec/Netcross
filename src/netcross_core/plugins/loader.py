@@ -29,8 +29,8 @@ from importlib import metadata
 from pathlib import Path
 from typing import Any
 
-from netcross_core.plugins.api import Detector, Exporter
 from netcross_core.logging_config import get_logger
+from netcross_core.plugins.api import Detector, Exporter
 
 logger = get_logger(__name__)
 

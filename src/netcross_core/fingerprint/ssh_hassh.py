@@ -25,8 +25,8 @@ from __future__ import annotations
 
 import hashlib
 
-from netcross_core.models import ROLE_CLIENT, ROLE_SERVER
 from netcross_core.logging_config import get_logger
+from netcross_core.models import ROLE_CLIENT, ROLE_SERVER
 
 logger = get_logger(__name__)
 

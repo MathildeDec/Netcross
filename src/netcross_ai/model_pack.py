@@ -38,8 +38,8 @@ from pathlib import Path
 from netcross_ai.anomaly import Baseline, BaselineError
 from netcross_ai.features import FEATURE_NAMES
 from netcross_ai.flow_classifier import TRAINING_SCHEMA, is_feature_vector, sample_vector
-from netcross_core.support import TextScrubber
 from netcross_core.logging_config import get_logger
+from netcross_core.support import TextScrubber
 
 logger = get_logger(__name__)
 

@@ -16,9 +16,9 @@ les champs non derivables du FlowRecord sont mis a leur valeur neutre
 
 from __future__ import annotations
 
+from netcross_core.logging_config import get_logger
 from netcross_core.models import Pkt
 from netcross_core.netflow.models import FlowRecord
-from netcross_core.logging_config import get_logger
 
 logger = get_logger(__name__)
 

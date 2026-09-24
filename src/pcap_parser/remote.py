@@ -40,9 +40,12 @@ import stat
 from collections.abc import Mapping
 from dataclasses import dataclass
 from urllib.parse import parse_qs, unquote
-from netcross_core.logging_config import get_logger
 
-logger = get_logger(__name__)
+from loguru import logger as _loguru_logger
+
+# pcap_parser reste independant de netcross_core (contrat import-linter) :
+# loguru directement, lie au nom du module.
+logger = _loguru_logger.bind(name=__name__)
 
 ENV_RPCAP_PASSWORD = "NETCROSS_RPCAP_PASSWORD"
 ENV_SSH_PASSWORD = "NETCROSS_SSH_PASSWORD"

@@ -9,12 +9,12 @@ import matplotlib.pyplot as plt
 from matplotlib.lines import Line2D
 
 from netcross_core.correlate import TOPN_OTHER_LABEL
+from netcross_core.logging_config import get_logger
 from netcross_report.path_metrics import build_path_metrics
 
-
-from netcross_core.logging_config import get_logger
-
 logger = get_logger(__name__)
+
+
 def chart_topology(r, path):
     """
     Diagramme de la topologie deduite : noeuds = points de capture,

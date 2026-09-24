@@ -29,12 +29,12 @@ import html
 from datetime import datetime
 from pathlib import Path
 
+from netcross_core.logging_config import get_logger
 from netcross_report.security_report import (
     SEVERITIES,
     SecurityReport,
     security_report_to_dict,
 )
-from netcross_core.logging_config import get_logger
 
 logger = get_logger(__name__)
 

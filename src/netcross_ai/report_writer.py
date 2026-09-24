@@ -24,6 +24,7 @@ from collections import Counter, defaultdict
 from dataclasses import dataclass, field
 from typing import Any
 from urllib.parse import urlparse
+
 from netcross_core.logging_config import get_logger
 
 logger = get_logger(__name__)

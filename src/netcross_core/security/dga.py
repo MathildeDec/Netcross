@@ -30,9 +30,9 @@ from __future__ import annotations
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 
+from netcross_core.logging_config import get_logger
 from netcross_core.models import Pkt
 from netcross_core.security.dns_tunnel import _is_ignored, shannon_entropy, split_domain
-from netcross_core.logging_config import get_logger
 
 logger = get_logger(__name__)
 

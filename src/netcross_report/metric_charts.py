@@ -23,6 +23,7 @@ import matplotlib
 
 matplotlib.use("Agg")
 import matplotlib.pyplot as plt
+
 from netcross_core.logging_config import get_logger
 
 logger = get_logger(__name__)

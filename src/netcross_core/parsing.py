@@ -33,13 +33,12 @@ import sys
 import pcap_parser
 from netcross_core.application.banners import extract_banners
 from netcross_core.fingerprint.report import compute_pkt_fingerprints
+from netcross_core.logging_config import get_logger
 from netcross_core.models import Pkt
 from pcap_parser.capinfos_source import read_capture_comment
 from pcap_parser.ek_source import TsharkError, TsharkNotFoundError
 from pcap_parser.packet import RawPacket
 from pcap_parser.protocols import compute_mos
-
-from netcross_core.logging_config import get_logger
 
 logger = get_logger(__name__)
 __all__ = [

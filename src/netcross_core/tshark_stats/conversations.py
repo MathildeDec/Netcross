@@ -15,6 +15,7 @@ quand il est disponible) pour absorber d'eventuelles variations.
 
 from __future__ import annotations
 
+from netcross_core.logging_config import get_logger
 from netcross_core.tshark_stats.models import ConversationStat
 from netcross_core.tshark_stats.parse_utils import (
     data_rows,
@@ -24,7 +25,6 @@ from netcross_core.tshark_stats.parse_utils import (
     reconstruct_headers,
     split_fields,
 )
-from netcross_core.logging_config import get_logger
 
 logger = get_logger(__name__)
 

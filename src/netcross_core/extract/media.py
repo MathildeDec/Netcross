@@ -37,8 +37,8 @@ from collections.abc import Iterable
 from dataclasses import dataclass, field
 from pathlib import Path
 
-from pcap_parser.protocols import compute_mos
 from netcross_core.logging_config import get_logger
+from pcap_parser.protocols import compute_mos
 
 logger = get_logger(__name__)
 

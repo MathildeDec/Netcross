@@ -21,6 +21,7 @@ Aucune donnee n'est inseree en HTML brut : tout passe par ``textContent``.
 from __future__ import annotations
 
 import json
+
 from netcross_core.logging_config import get_logger
 
 logger = get_logger(__name__)

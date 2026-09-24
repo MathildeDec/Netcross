@@ -20,8 +20,8 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from netcross_core.expert_model import ExpertEvent, Flow
-from netcross_core.models import Pkt
 from netcross_core.logging_config import get_logger
+from netcross_core.models import Pkt
 
 logger = get_logger(__name__)
 

@@ -57,9 +57,9 @@ import sqlite3
 from collections import Counter
 from dataclasses import dataclass
 
+from netcross_core.logging_config import get_logger
 from netcross_report.synthesis import build_findings
 from netcross_report.triage import HEALTH_LABELS, health_label, health_score, rank_segments
-from netcross_core.logging_config import get_logger
 
 logger = get_logger(__name__)
 

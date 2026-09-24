@@ -17,6 +17,8 @@ import hashlib
 import sys
 from dataclasses import dataclass
 
+from loguru import logger as _loguru_logger
+
 from pcap_parser.ek_fields import (
     all_occurrences,
     as_bool,
@@ -39,9 +41,10 @@ from pcap_parser.protocols import (
     extract_tls_handshake,
 )
 from pcap_parser.tunnels import detect_encapsulation, select_innermost_layers
-from netcross_core.logging_config import get_logger
 
-logger = get_logger(__name__)
+# pcap_parser reste independant de netcross_core (contrat import-linter) :
+# loguru directement, lie au nom du module.
+logger = _loguru_logger.bind(name=__name__)
 
 
 def _intern(value: str | None) -> str | None:

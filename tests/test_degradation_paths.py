@@ -19,15 +19,12 @@ from netcross_core.stats import (
 )
 from netcross_gtk4.analysis_pipeline import (
     AnalysisOptions,
-    AnalysisResult,
     run_analysis_pipeline,
 )
 from netcross_gtk4.diff_pipeline import (
     DiffOptions,
-    DiffResult,
     run_diff_pipeline,
 )
-
 
 # ---------------------------------------------------------------------------
 # Stats : séries vides, valeurs extrêmes
@@ -73,21 +70,11 @@ class TestStatsDegradation:
 
     def test_compute_stats_top_n_zero_raises(self):
         """top_n=0 lève une ValueError (doit être >= 1 ou None)."""
-        from netcross_core.expert_model import Flow
-        from netcross_core.models import Report
-
-        flow = Flow(key=("TCP", "10.0.0.1", 1234, "10.0.0.2", 443, 1000), points={"A"})
-        report = Report(points=["A"], pairs=[], bucket_seconds=1.0, rtp_clock_rate=8000)
         with pytest.raises(ValueError, match="top_n"):
             StatsQuery(group_by="flow", sort_by="packets", top_n=0)
 
     def test_compute_stats_top_n_negative_raises(self):
         """top_n négatif lève une ValueError."""
-        from netcross_core.expert_model import Flow
-        from netcross_core.models import Report
-
-        flow = Flow(key=("TCP", "10.0.0.1", 1234, "10.0.0.2", 443, 1000), points={"A"})
-        report = Report(points=["A"], pairs=[], bucket_seconds=1.0, rtp_clock_rate=8000)
         with pytest.raises(ValueError, match="top_n"):
             StatsQuery(group_by="flow", sort_by="packets", top_n=-1)
 
@@ -173,9 +160,8 @@ class TestAnalysisPipelineDegradation:
 class TestDiffPipelineDegradation:
     def test_diff_with_empty_captures(self, monkeypatch):
         """Le pipeline de diff gère les captures vides."""
-        import netcross_gtk4.diff_pipeline as diff_mod
 
-        monkeypatch.setattr(diff_mod, "parse_capture", lambda label, path: [])
+        monkeypatch.setattr("netcross_gtk4.analysis_pipeline.parse_capture", lambda label, path: [])
 
         result = run_diff_pipeline(
             [("A", "/fake/baseline.pcap")],
@@ -190,9 +176,7 @@ class TestDiffPipelineDegradation:
         """Deux captures identiques ne produisent pas de régression."""
         pkt = make_pkt(point="A", src="10.0.0.1", dst="10.0.0.2", proto="TCP")
 
-        import netcross_gtk4.diff_pipeline as diff_mod
-
-        monkeypatch.setattr(diff_mod, "parse_capture", lambda label, path: [pkt])
+        monkeypatch.setattr("netcross_gtk4.analysis_pipeline.parse_capture", lambda label, path: [pkt])
 
         result = run_diff_pipeline(
             [("A", "/fake/baseline.pcap")],
@@ -206,9 +190,7 @@ class TestDiffPipelineDegradation:
         """Le pipeline de diff fonctionne sans callback de progression."""
         pkt = make_pkt(point="A", src="10.0.0.1", dst="10.0.0.2")
 
-        import netcross_gtk4.diff_pipeline as diff_mod
-
-        monkeypatch.setattr(diff_mod, "parse_capture", lambda label, path: [pkt])
+        monkeypatch.setattr("netcross_gtk4.analysis_pipeline.parse_capture", lambda label, path: [pkt])
 
         result = run_diff_pipeline(
             [("A", "/fake/baseline.pcap")],

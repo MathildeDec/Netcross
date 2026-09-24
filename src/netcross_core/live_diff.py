@@ -42,13 +42,13 @@ from typing import Callable
 
 from netcross_core.alarms import AlarmEngine, AlarmSignal
 from netcross_core.baseline_diff import DiffFinding, diff_reports
+from netcross_core.logging_config import get_logger
 from netcross_core.models import Pkt, Report
 from pcap_parser.capture import CaptureRingBuffer
 
-
-from netcross_core.logging_config import get_logger
-
 logger = get_logger(__name__)
+
+
 @dataclass(frozen=True)
 class LiveDiffConfig:
     """Configuration de la boucle de diff live.

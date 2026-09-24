@@ -20,7 +20,6 @@ from pathlib import Path
 
 from netcross_ai.features import FEATURE_NAMES, flow_features, flow_key
 from netcross_ai.optional import require_ml
-
 from netcross_core.logging_config import get_logger
 
 logger = get_logger(__name__)

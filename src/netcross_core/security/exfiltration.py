@@ -61,8 +61,8 @@ from collections.abc import Iterable
 from dataclasses import dataclass, field
 from datetime import datetime, timezone
 
-from netcross_core.models import Pkt
 from netcross_core.logging_config import get_logger
+from netcross_core.models import Pkt
 
 logger = get_logger(__name__)
 
@@ -241,7 +241,9 @@ def detect_exfiltration(
     (baseline). Si fourni, les destinations non listees declenchent le
     signal faible `new_destination`.
     """
-    logger.debug("detect_exfiltration(packets={packets}, thresholds={thresholds}, known_destinations={known_destinations})")
+    logger.debug(
+        "detect_exfiltration(packets={packets}, thresholds={thresholds}, known_destinations={known_destinations})"
+    )
     flow_data: dict[tuple[str, str, str], dict] = defaultdict(
         lambda: {
             "bytes": 0,
@@ -380,7 +382,9 @@ def correlate_exfiltration(
     - `correlated_dns_tunnel` : le meme hote interroge un domaine suspect de
       tunneling DNS sur le meme point.
     """
-    logger.debug("correlate_exfiltration(alerts={alerts}, beacon_suspicions={beacon_suspicions}, dns_sources={dns_sources})")
+    logger.debug(
+        "correlate_exfiltration(alerts={alerts}, beacon_suspicions={beacon_suspicions}, dns_sources={dns_sources})"
+    )
     beacons = {(str(s.get("point") or ""), s.get("src"), s.get("dst")) for s in beacon_suspicions}
     dns_sources = dns_sources or set()
     out = []

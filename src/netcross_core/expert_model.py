@@ -171,6 +171,7 @@ correlation --, pas un champ a ajouter ici).
 from __future__ import annotations
 
 from dataclasses import dataclass, field
+
 from netcross_core.logging_config import get_logger
 
 logger = get_logger(__name__)

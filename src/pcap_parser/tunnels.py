@@ -15,10 +15,13 @@ maison verifiee "au mieux" contre la RFC).
 
 from __future__ import annotations
 
-from pcap_parser.ek_fields import all_occurrences, g, hex_or_dec_to_int, innermost, layer
-from netcross_core.logging_config import get_logger
+from loguru import logger as _loguru_logger
 
-logger = get_logger(__name__)
+from pcap_parser.ek_fields import all_occurrences, g, hex_or_dec_to_int, innermost, layer
+
+# pcap_parser reste independant de netcross_core (contrat import-linter) :
+# loguru directement, lie au nom du module.
+logger = _loguru_logger.bind(name=__name__)
 
 # Cles de couches EK qui signalent un vrai tunnel (l'IP/TCP/UDP le plus
 # interne doit etre utilise pour l'analyse, pas le premier trouve).

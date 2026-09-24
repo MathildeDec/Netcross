@@ -31,10 +31,9 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
-from netcross_core.models import Report
-
 # Constantes CEF
 from netcross_core.logging_config import get_logger
+from netcross_core.models import Report
 
 logger = get_logger(__name__)
 _DEVICE_VENDOR = "Netcross"

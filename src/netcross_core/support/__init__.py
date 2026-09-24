@@ -13,6 +13,7 @@ Voir docs/support-tickets.md pour l'usage et docs/quality/traceability-rule.md
 pour la regle "on remonte toujours quelque chose, meme quand tout va bien".
 """
 
+from netcross_core.logging_config import get_logger
 from netcross_core.support.scrubber import (
     CATEGORIES,
     KNOWN_LIMITS,
@@ -34,7 +35,6 @@ from netcross_core.support.ticket import (
     write_support_map_csv,
     write_ticket,
 )
-from netcross_core.logging_config import get_logger
 
 logger = get_logger(__name__)
 

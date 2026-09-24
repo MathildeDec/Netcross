@@ -54,7 +54,6 @@ sys.path.insert(0, os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 # netcross_core/netcross_report importables si ce fichier est lance directement
 # (python3 src/netcross_gtk4/app.py) sans PYTHONPATH=src prealable.
 from netcross_core import (  # noqa: E402
-    AddressRedactor,
     analyse,
     build_wireshark_expert_events,
     correlate,
@@ -62,14 +61,12 @@ from netcross_core import (  # noqa: E402
     parse_captures_parallel,
     parse_live,
     print_report,
-    read_capture_comments,
-    read_capture_infos,
-    redact_packets,
     write_detail_csv,
 )
-from netcross_core.baseline_diff import diff_reports, print_diff_report, write_diff_csv  # noqa: E402
+from netcross_core.baseline_diff import write_diff_csv  # noqa: E402
 from netcross_core.bpf_filters import PREDEFINED_BPF_FILTERS, available_bpf_filters, upsert_bpf_filter  # noqa: E402
 from netcross_core.forensic import DEFAULT_DUPLICATE_THRESHOLD_MS, detect_cross_capture_duplicates  # noqa: E402
+from netcross_core.logging_config import get_logger  # noqa: E402
 from netcross_gtk4 import capture_list, row_labels  # noqa: E402
 from netcross_gtk4.bpf_panel import (  # noqa: E402
     doit_desolidariser_le_menu,
@@ -106,14 +103,14 @@ from netcross_report.comm_map import (  # noqa: E402
     DEFAULT_TOP_N as COMM_MAP_DEFAULT_TOP_N,
 )
 from netcross_report.comm_map import (  # noqa: E402
+    available_protocols,
     build_comm_map,
     format_comm_map,
 )
 
-
-from netcross_core.logging_config import get_logger
-
 logger = get_logger(__name__)
+
+
 def _visible_scroller(vexpand=True):
     """ScrolledWindow avec scrollbar classique toujours visible (pas d'overlay
     qui disparait au survol) -- pour que le defilement reste decouvrable."""
@@ -1681,9 +1678,7 @@ class MainWindow(Gtk.ApplicationWindow):
             GLib.idle_add(self._log, msg)
 
         try:
-            result = run_diff_pipeline(
-                baseline_captures, current_captures, options, on_progress=_on_progress
-            )
+            result = run_diff_pipeline(baseline_captures, current_captures, options, on_progress=_on_progress)
         except Exception as e:  # noqa: BLE001 -- thread de fond
             logger.exception("erreur: e")
             GLib.idle_add(self._log, f"ERREUR : {e}")

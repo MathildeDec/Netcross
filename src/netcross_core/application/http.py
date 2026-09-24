@@ -12,8 +12,8 @@ from __future__ import annotations
 from collections import defaultdict, deque
 
 from netcross_core.application.models import ApplicationTransaction
-from netcross_core.models import Pkt
 from netcross_core.logging_config import get_logger
+from netcross_core.models import Pkt
 
 logger = get_logger(__name__)
 

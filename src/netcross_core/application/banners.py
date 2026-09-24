@@ -41,8 +41,8 @@ import re
 import struct
 from collections.abc import Iterable
 
-from netcross_core.models import ROLE_CLIENT, ROLE_SERVER, Banner, Pkt
 from netcross_core.logging_config import get_logger
+from netcross_core.models import ROLE_CLIENT, ROLE_SERVER, Banner, Pkt
 
 logger = get_logger(__name__)
 

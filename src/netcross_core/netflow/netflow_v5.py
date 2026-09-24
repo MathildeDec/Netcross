@@ -31,8 +31,8 @@ import ipaddress
 import struct
 from collections.abc import Iterator
 
-from netcross_core.netflow.models import FlowRecord
 from netcross_core.logging_config import get_logger
+from netcross_core.netflow.models import FlowRecord
 
 logger = get_logger(__name__)
 

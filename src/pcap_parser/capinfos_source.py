@@ -47,10 +47,13 @@ import struct
 import subprocess
 from dataclasses import dataclass
 
-from pcap_parser.capfile import CaptureStructure, InterfaceRecord, read_structure
-from netcross_core.logging_config import get_logger
+from loguru import logger as _loguru_logger
 
-logger = get_logger(__name__)
+from pcap_parser.capfile import CaptureStructure, InterfaceRecord, read_structure
+
+# pcap_parser reste independant de netcross_core (contrat import-linter) :
+# loguru directement, lie au nom du module.
+logger = _loguru_logger.bind(name=__name__)
 
 # Prefixe de la ligne portant le commentaire de section dans la sortie
 # "long report" (par defaut) de `capinfos -k`. Verifie empiriquement

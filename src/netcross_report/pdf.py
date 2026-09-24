@@ -21,6 +21,7 @@ from reportlab.platypus import (
     TableStyle,
 )
 
+from netcross_core.logging_config import get_logger
 from netcross_report.charts import (
     DIFF_SEVERITY_SCHEME,
     chart_sequence_diagram,
@@ -30,8 +31,6 @@ from netcross_report.charts import (
 from netcross_report.path_metrics import build_path_metrics, degradation_summary, rank_path_segments
 from netcross_report.synthesis import build_findings
 from netcross_report.triage import HEALTH_LABELS, health_label, health_score, rank_segments
-
-from netcross_core.logging_config import get_logger
 
 logger = get_logger(__name__)
 SEVERITY_LABELS = {

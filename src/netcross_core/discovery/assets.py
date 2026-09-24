@@ -38,8 +38,8 @@ from dataclasses import dataclass, field
 from pathlib import Path
 
 from netcross_core.discovery.os_detect import OsGuess, guess_os_from_ttl, refine_with_tcp_options
-from netcross_core.models import ROLE_SERVER, Pkt
 from netcross_core.logging_config import get_logger
+from netcross_core.models import ROLE_SERVER, Pkt
 
 logger = get_logger(__name__)
 

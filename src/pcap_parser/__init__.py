@@ -43,6 +43,8 @@ Utilisation typique :
         ...
 """
 
+from loguru import logger as _loguru_logger
+
 from pcap_parser.capfile import first_timestamp
 from pcap_parser.capinfos_source import CaptureInfo, read_capture_comment, read_capture_info
 from pcap_parser.capture import (
@@ -73,9 +75,10 @@ from pcap_parser.protocols import (
     extract_tls_certificate,
 )
 from pcap_parser.tunnels import detect_encapsulation, is_tunnel, select_innermost_layers
-from netcross_core.logging_config import get_logger
 
-logger = get_logger(__name__)
+# pcap_parser reste independant de netcross_core (contrat import-linter) :
+# loguru directement, lie au nom du module.
+logger = _loguru_logger.bind(name=__name__)
 
 __all__ = [
     "CaptureInfo",
