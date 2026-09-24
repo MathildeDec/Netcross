@@ -180,7 +180,7 @@ def _parse_live_spec(spec):
     try:
         parse_source(iface)
     except CaptureSourceError as exc:
-        logger.exception("erreur: exc")
+        logger.exception(f"échec dans _parse_live_spec: {exc}")
         print(f"Source invalide pour --live {label} : {exc}", file=sys.stderr)
         sys.exit(1)
     return label, iface, bpf or None
@@ -273,7 +273,7 @@ def _run_merge(capture_specs, output_path, dedup):
         # RuntimeError : parent de TsharkNotFoundError/TsharkError (outil
         # absent du PATH ou en echec) -- meme sortie propre que les autres
         # erreurs d'arguments de cette CLI plutot qu'une trace Python.
-        logger.exception("erreur: e")
+        logger.exception(f"échec dans _run_merge: {e}")
         print(f"--merge : {e}", file=sys.stderr)
         sys.exit(1)
     print(
@@ -311,7 +311,7 @@ def _run_convert(capture_specs, output_path, fmt):
         else:
             convert_capture(path_in, output_path, fmt=fmt)
     except (OSError, ValueError, RuntimeError) as e:
-        logger.exception("erreur: e")
+        logger.exception(f"échec dans _run_convert: {e}")
         print(f"--convert : {e}", file=sys.stderr)
         sys.exit(1)
     print(f"Converti {path_in} -> {output_path} (format: {fmt}).")
@@ -352,7 +352,7 @@ def _run_export(capture_specs, output_path, bpf_filter, time_start, time_end, en
             endpoints=endpoints,
         )
     except (TsharkNotFoundError, TsharkError, FileNotFoundError, ValueError) as e:
-        logger.exception("erreur: e")
+        logger.exception(f"échec dans _run_export: {e}")
         print(f"--export-pcap : {e}", file=sys.stderr)
         sys.exit(1)
     print(f"{output_path} cree ({label}).")
@@ -396,7 +396,7 @@ def _parse_split_spec(spec):
         else:
             value = _parse_size(raw)
     except ValueError:
-        logger.exception("erreur: ValueError")
+        logger.exception("échec dans _parse_split_spec")
         value = None
     if value is None or value <= 0:
         hint = " (unites decimales k/M/G, ex: 100M ; MiB/Mio non supportes)" if mode == "size" else ""
@@ -426,7 +426,7 @@ def _run_split(capture_specs, split_spec, output_dir):
             for path in paths:
                 segments.extend(split_capture(path, label_dir, mode, value))
         except (ValueError, OSError, RuntimeError) as e:
-            logger.exception("erreur: e")
+            logger.exception(f"échec dans _run_split: {e}")
             print(f"[{label}] ECHEC du decoupage : {e}", file=sys.stderr)
             status = 1
             continue
@@ -473,7 +473,7 @@ def _run_adjust_time(capture_specs, output_path, offset, normalize, align_to):
             align_to=align_to,
         )
     except (TsharkNotFoundError, TsharkError, FileNotFoundError, ValueError) as e:
-        logger.exception("erreur: e")
+        logger.exception(f"échec dans _run_adjust_time: {e}")
         print(f"--adjust-time : {e}", file=sys.stderr)
         sys.exit(1)
     print(f"{output_path} cree ({label}).")
@@ -507,7 +507,7 @@ def _run_replay(capture_specs, interface, speed, loop):
         # RuntimeError : parent de TcpreplayNotFoundError/TcpreplayError
         # (tcpreplay absent du PATH ou en echec) -- meme sortie propre que
         # --merge/--split plutot qu'une trace Python.
-        logger.exception("erreur: e")
+        logger.exception(f"échec dans _run_replay: {e}")
         print(f"--replay : {e}", file=sys.stderr)
         sys.exit(1)
     print(f"{paths[0]} rejoue sur {interface} (speed={speed}, loop={loop}).")
@@ -547,7 +547,7 @@ def _run_live_captures(live_specs, duration, reporter=None):
                     last_log = now
         except Exception as e:  # noqa: BLE001 -- thread de fond : une erreur sur
             # ce point doit etre rapportee sans arreter les autres points en cours.
-            logger.exception("erreur: e")
+            logger.exception(f"échec dans _worker: {e}")
             print(f"[{label}] ERREUR : {e}", file=sys.stderr)
             if reporter is not None:
                 reporter.aggregator.set_status(label, "erreur", str(e))
@@ -724,7 +724,7 @@ def _available_memory_bytes() -> int | None:
                     if len(parts) >= 2:
                         return int(parts[1]) * 1024
     except (OSError, ValueError):
-        logger.exception("erreur: e")
+        logger.exception("échec dans _available_memory_bytes")
         return None
     return None
 
@@ -921,7 +921,7 @@ def _check_extraction_args(args) -> tuple[str, ...]:
     try:
         kinds = parse_kinds(args.extract_kinds)
     except ValueError as exc:
-        logger.exception("erreur: exc")
+        logger.exception(f"échec dans _check_extraction_args: {exc}")
         print(f"--extract-kinds : {exc}", file=sys.stderr)
         sys.exit(1)
     if args.extract_contents:
@@ -994,7 +994,7 @@ def _start_live_report(args):
         try:
             server = ThreadingHTTPServer(("127.0.0.1", args.live_report_serve), handler)
         except OSError as exc:
-            logger.exception("erreur: exc")
+            logger.exception(f"échec dans log_message: {exc}")
             print(
                 f"--live-report-serve : impossible d'ecouter sur le port {args.live_report_serve} ({exc}).",
                 file=sys.stderr,
@@ -1041,7 +1041,7 @@ def _check_ai_args(args):
         if args.ai_summary:
             parse_engine(args.ai_summary, args.ai_endpoint)
     except (AIUnavailableError, WriterConfigError) as exc:
-        logger.exception("erreur: exc")
+        logger.exception(f"échec dans _check_ai_args: {exc}")
         print(f"Module IA : {exc}", file=sys.stderr)
         sys.exit(1)
     return AIOptions(
@@ -1068,7 +1068,7 @@ def _run_ai(args, ai_options, report, all_packets) -> None:
     try:
         result = run_ai(report, flows, ai_options)
     except (RuntimeError, ValueError, OSError) as exc:
-        logger.exception("erreur: exc")
+        logger.exception(f"échec dans _run_ai: {exc}")
         print(f"Module IA : {exc}", file=sys.stderr)
         sys.exit(1)
     print(format_ai(result))
@@ -1780,6 +1780,45 @@ def main():
         metavar="TYPE[,TYPE]",
         help="Avec --extract-contents : restreint l'extraction a audio, video et/ou documents (defaut : tous).",
     )
+    # Issue #359 : vue temporelle de flux -- code present mais non raccorde
+    adv = ap.add_argument_group(
+        "analyse avancee",
+        "Vue temporelle de flux (#10) et statistiques tshark (#20) : "
+        "fonctionnalites existantes mais non exposees jusqu'ici.",
+    )
+    adv.add_argument(
+        "--flow-timeline",
+        metavar="FICHIER.json",
+        help="Ecrit la chronologie detaillee des flux (phases, RTT, inter-arrivees) en JSON. Issue #359.",
+    )
+    adv.add_argument(
+        "--tshark-stats",
+        metavar="FICHIER.json",
+        help="Ecrit les statistiques tshark (conversations, endpoints, "
+        "hierarchie de protocoles, io_stat) en JSON. issue #361.",
+    )
+    adv.add_argument(
+        "--forensic-search",
+        metavar="FICHIER.json",
+        help="Recherche forensique transversale (#16) : cree un index "
+        "des paquets/flux/evenements et execute une requete. Sortie JSON.",
+    )
+    adv.add_argument(
+        "--search-text",
+        metavar="TEXTE",
+        help="Avec --forensic-search : texte a chercher (insensible a la casse).",
+    )
+    adv.add_argument(
+        "--search-address",
+        metavar="IP",
+        help="Avec --forensic-search : filtrer par adresse IP.",
+    )
+    adv.add_argument(
+        "--netflow",
+        metavar="FICHIER",
+        help="Ingestion NetFlow v5 (#32) : lit un fichier .netflow5 et "
+        "l'ajoute aux paquets a analyser (alternative a --capture).",
+    )
     args = ap.parse_args()
 
     plugin_names = [n.strip() for n in (args.plugins or "").split(",") if n.strip()]
@@ -2355,7 +2394,7 @@ def main():
             try:
                 pkts = parse_capture(label, path, raise_on_error=True)
             except (TsharkNotFoundError, TsharkError) as exc:
-                logger.exception("erreur: exc")
+                logger.exception(f"échec dans main: {exc}")
                 any_error = True
                 print(f"[{label}] ECHEC sur {path} : {exc}", file=sys.stderr)
                 continue
@@ -2368,6 +2407,18 @@ def main():
                 "resultat est incomplet.",
                 file=sys.stderr,
             )
+
+    # Issue #362 : ingestion NetFlow v5 -- code present mais non raccorde
+    if args.netflow:
+        from netcross_core.netflow import flow_records_to_pkts, iter_netflow_v5_file
+
+        try:
+            flow_records = list(iter_netflow_v5_file(args.netflow))
+            nf_pkts = flow_records_to_pkts(flow_records, point="netflow")
+            all_packets.extend(nf_pkts)
+            print(f"[netflow] {len(nf_pkts)} paquet(s) NetFlow v5 charges depuis {args.netflow}")
+        except Exception as exc:
+            print(f"[netflow] ECHEC sur {args.netflow} : {exc}", file=sys.stderr)
 
     # CVE-2 (issue #136, pour --security-report) : les signatures d'exploits
     # cherchent la charge utile BRUTE, que Pkt ne garde pas -- relecture de
@@ -2720,6 +2771,71 @@ def main():
         )
         print(f"Rapport JSON ecrit dans {args.json_report}")
 
+    # Issue #359 : vue temporelle de flux -- code present mais non raccorde
+    if args.flow_timeline:
+        import json
+        from collections import defaultdict
+
+        from netcross_core.flow_timeline import build_flow_timeline
+
+        flows_by_key: dict[tuple[str, str, str], list] = defaultdict(list)
+        for pkt in all_packets:
+            key = (pkt.src, pkt.dst, pkt.proto)
+            flows_by_key[key].append(pkt)
+        timelines = {}
+        for key, pkts in flows_by_key.items():
+            if len(pkts) < 2:
+                continue
+            tl = build_flow_timeline(pkts)
+            timelines[f"{key[0]} -> {key[1]} ({key[2]})"] = tl.to_dict()
+        with open(args.flow_timeline, "w", encoding="utf-8") as fh:
+            json.dump(timelines, fh, ensure_ascii=False, indent=2)
+        print(f"Chronologie des flux ecrite dans {args.flow_timeline}")
+
+    # Issue #361 : statistiques tshark -- code present mais non raccorde
+    if args.tshark_stats:
+        import json
+        from dataclasses import asdict
+
+        from netcross_core.tshark_stats import (
+            collect_conversations,
+            collect_endpoints,
+            collect_io_stat,
+            collect_protocol_hierarchy,
+        )
+
+        stats = {"captures": []}
+        for label, path in captures:
+            cap_stats = {"label": label, "path": path}
+            try:
+                cap_stats["conversations"] = [asdict(c) for c in collect_conversations(path)]
+                cap_stats["endpoints"] = [asdict(e) for e in collect_endpoints(path)]
+                cap_stats["protocol_hierarchy"] = [asdict(p) for p in collect_protocol_hierarchy(path)]
+                cap_stats["io_stat"] = asdict(collect_io_stat(path))
+            except Exception as exc:
+                cap_stats["error"] = str(exc)
+            stats["captures"].append(cap_stats)
+        with open(args.tshark_stats, "w", encoding="utf-8") as fh:
+            json.dump(stats, fh, ensure_ascii=False, indent=2)
+        print(f"Statistiques tshark ecrites dans {args.tshark_stats}")
+
+    # Issue #360 : recherche forensique -- code present mais non raccorde
+    if args.forensic_search:
+        import json
+        from dataclasses import asdict
+
+        from netcross_core.forensic_search import ForensicSearchIndex, ForensicSearchQuery
+
+        index = ForensicSearchIndex(all_packets)
+        query = ForensicSearchQuery(
+            text=args.search_text,
+            address=args.search_address,
+        )
+        results = index.search(query)
+        with open(args.forensic_search, "w", encoding="utf-8") as fh:
+            json.dump([asdict(r) for r in results], fh, ensure_ascii=False, indent=2)
+        print(f"Recherche forensique : {len(results)} resultat(s) ecrit(s) dans {args.forensic_search}")
+
     if args.history_db:
         from netcross_report import HistoryDatabaseError, list_history, print_history, record_run
 
@@ -2745,7 +2861,7 @@ def main():
                 entries = list_history(args.history_db, limit=args.history_show, label=args.history_label)
                 print_history(entries)
         except HistoryDatabaseError as exc:
-            logger.exception("erreur: exc")
+            logger.exception(f"échec dans main: {exc}")
             print(exc, file=sys.stderr)
             sys.exit(1)
 

@@ -68,6 +68,10 @@ from netcross_core.bpf_filters import PREDEFINED_BPF_FILTERS, available_bpf_filt
 from netcross_core.forensic import DEFAULT_DUPLICATE_THRESHOLD_MS, detect_cross_capture_duplicates  # noqa: E402
 from netcross_core.logging_config import get_logger  # noqa: E402
 from netcross_gtk4 import capture_list, row_labels  # noqa: E402
+from netcross_gtk4.annotations_view import (  # noqa: E402
+    add_annotation,
+    format_annotation_row,
+)
 from netcross_gtk4.bpf_panel import (  # noqa: E402
     doit_desolidariser_le_menu,
     indice_du_filtre_nomme,
@@ -363,7 +367,7 @@ class LiveCaptureRow(Gtk.Box):
         try:
             self._on_save_filter(demande.filtre)
         except (OSError, ValueError) as exc:
-            logger.exception("erreur: exc")
+            logger.exception(f"échec dans _on_save_filter_clicked: {exc}")
             self._save_status.set_text(str(exc))
             return
         self._save_status.set_text("")
@@ -445,7 +449,7 @@ class CaptureListPanel(Gtk.Box):
         try:
             files = dialog.open_multiple_finish(result)
         except GLib.Error:
-            logger.exception("erreur inattendue")
+            logger.exception("échec dans _on_files_chosen")
             return
         for i in range(files.get_n_items()):
             gfile = files.get_item(i)
@@ -537,7 +541,7 @@ class LiveCaptureListPanel(Gtk.Box):
             # Fichier sidecar illisible : le catalogue predefini reste
             # utilisable et le fichier n'est PAS touche (upsert_bpf_filter
             # refuse d'ecraser un fichier qu'il ne sait pas relire).
-            logger.exception("erreur: exc")
+            logger.exception(f"échec dans _initial_filters: {exc}")
             print(f"netcross: filtres BPF sauvegardes ignores ({exc})", file=sys.stderr)
             return list(PREDEFINED_BPF_FILTERS)
 
@@ -593,6 +597,9 @@ class MainWindow(Gtk.ApplicationWindow):
         # (voir dashboard_context.py), testable sans display. Les widgets
         # GTK ci-dessous ne font que le cabler.
         self.dashboard_selection = DashboardSelection()
+
+        # Issue #363 : annotations (signets sur paquets)
+        self._annotations: list = []
 
         # etat propre a la capture en direct (mode live, voir _begin_live_capture)
         self._live_capturing = False
@@ -905,6 +912,48 @@ class MainWindow(Gtk.ApplicationWindow):
         if self.exclude_duplicates_check.get_active() and not self.detect_duplicates_check.get_active():
             self.detect_duplicates_check.set_active(True)
 
+    def _on_add_annotation(self, _btn):
+        """Issue #363 : ajoute une annotation (tag + commentaire) sur une
+        trame, via le module annotations_view."""
+        frame_text = self.ann_frame_entry.get_text().strip()
+        tag = self.ann_tag_entry.get_text().strip()
+        comment = self.ann_comment_entry.get_text().strip()
+        if not frame_text or not tag:
+            return
+        try:
+            frame_number = int(frame_text)
+        except ValueError:
+            return
+        try:
+            self._annotations = add_annotation(self._annotations, frame_number, tag, comment)
+        except ValueError:
+            return
+        self.ann_frame_entry.set_text("")
+        self.ann_tag_entry.set_text("")
+        self.ann_comment_entry.set_text("")
+        self._refresh_annotations()
+
+    def _refresh_annotations(self):
+        """Reconstruit la liste des annotations affichees."""
+        # Vider la ListBox
+        while True:
+            child = self.annotations_list.get_first_child()
+            if child is None:
+                break
+            self.annotations_list.remove(child)
+        # Peupler
+        for ann in self._annotations:
+            row = Gtk.ListBoxRow()
+            label = Gtk.Label(
+                label=format_annotation_row(ann),
+                halign=Gtk.Align.START,
+                wrap=True,
+                selectable=True,
+            )
+            row.set_child(label)
+            self.annotations_list.append(row)
+        self.annotations_expander.set_sensitive(bool(self._annotations))
+
     def _on_live_toggled(self, _btn):
         if self.live_check.get_active() and self.diff_check.get_active():
             self.diff_check.set_active(False)  # declenche _on_diff_toggled -> resynchronise tout
@@ -1137,6 +1186,45 @@ class MainWindow(Gtk.ApplicationWindow):
 
         self.comm_map_expander.set_child(map_box)
         page.append(self.comm_map_expander)
+
+        # Issue #363 : annotations (#160) -- vue presente mais non raccordee
+        self.annotations_expander = Gtk.Expander(label="Annotations / signets")
+        self.annotations_expander.set_sensitive(False)
+        ann_box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
+        ann_box.set_margin_top(6)
+        ann_box.set_margin_bottom(6)
+        ann_box.set_margin_start(6)
+        ann_box.set_margin_end(6)
+
+        self.annotations_list = Gtk.ListBox()
+        self.annotations_list.set_selection_mode(Gtk.SelectionMode.NONE)
+        ann_scroller = _visible_scroller()
+        ann_scroller.set_child(self.annotations_list)
+        ann_scroller.set_vexpand(False)
+        ann_scroller.set_max_content_height(200)
+        ann_box.append(ann_scroller)
+
+        # Formulaire d'ajout simple
+        add_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=6)
+        self.ann_frame_entry = Gtk.Entry()
+        self.ann_frame_entry.set_placeholder_text("Trame #")
+        self.ann_frame_entry.set_width_chars(8)
+        self.ann_tag_entry = Gtk.Entry()
+        self.ann_tag_entry.set_placeholder_text("Tag")
+        self.ann_tag_entry.set_width_chars(12)
+        self.ann_comment_entry = Gtk.Entry()
+        self.ann_comment_entry.set_placeholder_text("Commentaire (optionnel)")
+        self.ann_comment_entry.set_hexpand(True)
+        add_btn = Gtk.Button(label="Ajouter")
+        add_btn.connect("clicked", self._on_add_annotation)
+        add_row.append(self.ann_frame_entry)
+        add_row.append(self.ann_tag_entry)
+        add_row.append(self.ann_comment_entry)
+        add_row.append(add_btn)
+        ann_box.append(add_row)
+
+        self.annotations_expander.set_child(ann_box)
+        page.append(self.annotations_expander)
 
         # -- dashboard analytique interactif (issue #18, §6.17) --
         # Six vues (timeline, segments, flows, endpoints, protocoles,
@@ -1481,7 +1569,7 @@ class MainWindow(Gtk.ApplicationWindow):
         except Exception as e:  # noqa: BLE001 -- thread de fond : toute erreur
             # (tshark, interface, permission...) doit remonter au journal GUI
             # plutot que de tuer le thread silencieusement.
-            logger.exception("erreur: e")
+            logger.exception(f"échec dans _live_capture_worker: {e}")
             GLib.idle_add(self._log, f"[{label}] ERREUR : {e}")
         GLib.idle_add(self._log, f"[{label}] capture arretee -- {count} paquet(s) au total.")
 
@@ -1562,7 +1650,7 @@ class MainWindow(Gtk.ApplicationWindow):
 
             text = buf.getvalue()
         except Exception as e:  # noqa: BLE001 -- thread de fond (analyse live) : toute erreur doit remonter au journal GUI.
-            logger.exception("erreur: e")
+            logger.exception(f"échec dans _join_live_and_analyze: {e}")
             GLib.idle_add(self._log, f"ERREUR : {e}")
             GLib.idle_add(self._on_analysis_error, str(e))
             GLib.idle_add(self._reset_live_ui)
@@ -1662,7 +1750,7 @@ class MainWindow(Gtk.ApplicationWindow):
         try:
             result = run_analysis_pipeline(captures, options, on_progress=_on_progress)
         except Exception as e:  # noqa: BLE001 -- thread de fond
-            logger.exception("erreur: e")
+            logger.exception(f"échec dans _on_progress: {e}")
             GLib.idle_add(self._log, f"ERREUR : {e}")
             GLib.idle_add(self._on_analysis_error, str(e))
             return
@@ -1715,7 +1803,7 @@ class MainWindow(Gtk.ApplicationWindow):
         try:
             result = run_diff_pipeline(baseline_captures, current_captures, options, on_progress=_on_progress)
         except Exception as e:  # noqa: BLE001 -- thread de fond
-            logger.exception("erreur: e")
+            logger.exception(f"échec dans _on_progress: {e}")
             GLib.idle_add(self._log, f"ERREUR : {e}")
             GLib.idle_add(self._on_analysis_error, str(e))
             return
@@ -1864,7 +1952,7 @@ class MainWindow(Gtk.ApplicationWindow):
         try:
             gfile = dialog.save_finish(result)
         except GLib.Error:
-            logger.exception("erreur inattendue")
+            logger.exception("échec dans _on_csv_path_chosen")
             return
         path = gfile.get_path()
         try:
@@ -1873,7 +1961,7 @@ class MainWindow(Gtk.ApplicationWindow):
             else:
                 write_diff_csv(self.last_diff_findings, path)
         except Exception as e:  # noqa: BLE001 -- callback GUI (export CSV) : erreur affichee dans la barre de statut plutot que de faire planter l'appli.
-            logger.exception("erreur: e")
+            logger.exception(f"échec dans _on_csv_path_chosen: {e}")
             self.status_label.set_text(f"Erreur CSV : {e}")
             return
         self.status_label.set_text(f"CSV ecrit : {path}")
@@ -1891,7 +1979,7 @@ class MainWindow(Gtk.ApplicationWindow):
         try:
             gfile = dialog.save_finish(result)
         except GLib.Error:
-            logger.exception("erreur inattendue")
+            logger.exception("échec dans _on_pdf_path_chosen")
             return
         self.export_pdf_to(gfile.get_path())
 
@@ -2013,7 +2101,7 @@ class MainWindow(Gtk.ApplicationWindow):
         try:
             file_obj = dialog.save_finish(result)
         except Exception:
-            logger.exception("erreur: Exception")
+            logger.exception("échec dans _on_stats_csv_saved")
             return
         if file_obj is None:
             return
@@ -2028,7 +2116,7 @@ class MainWindow(Gtk.ApplicationWindow):
                 fh.write(export_csv(rows))
             self.status_label.set_text(f"Statistiques exportees : {path}")
         except OSError as exc:
-            logger.exception("erreur: exc")
+            logger.exception(f"échec dans _on_stats_csv_saved: {exc}")
             self.status_label.set_text(f"Erreur export CSV : {exc}")
 
     def _on_stats_export_json(self, _btn):
@@ -2046,7 +2134,7 @@ class MainWindow(Gtk.ApplicationWindow):
         try:
             file_obj = dialog.save_finish(result)
         except Exception:
-            logger.exception("erreur: Exception")
+            logger.exception("échec dans _on_stats_json_saved")
             return
         if file_obj is None:
             return
@@ -2063,7 +2151,7 @@ class MainWindow(Gtk.ApplicationWindow):
                 json.dump(export_json(rows), fh, indent=2, ensure_ascii=False)
             self.status_label.set_text(f"Statistiques exportees : {path}")
         except OSError as exc:
-            logger.exception("erreur: exc")
+            logger.exception(f"échec dans _on_stats_json_saved: {exc}")
             self.status_label.set_text(f"Erreur export JSON : {exc}")
 
     # ================= cartographie des communications (issue #15) =================
@@ -2237,7 +2325,7 @@ class MainWindow(Gtk.ApplicationWindow):
             self.comm_map_picture.set_filename(rendu)
             self.comm_map_label.set_text(format_comm_map(cmap))
         except Exception as e:  # noqa: BLE001 -- dependances de rendu optionnelles, voir docstring
-            logger.exception("erreur: e")
+            logger.exception(f"échec dans _refresh_comm_map: {e}")
             self.comm_map_picture.set_filename(None)
             self.comm_map_label.set_text(f"Cartographie indisponible : {e}")
         return False
@@ -2296,7 +2384,7 @@ class MainWindow(Gtk.ApplicationWindow):
                     quic_findings_current=self.last_diff_quic_findings_current,
                 )
         except Exception as e:  # noqa: BLE001 -- thread de fond (export PDF) : idem, erreur affichee via GLib.idle_add.
-            logger.exception("erreur: e")
+            logger.exception(f"échec dans _generate_pdf_thread: {e}")
             GLib.idle_add(self._on_pdf_error, str(e))
             return
         GLib.idle_add(self._on_pdf_done, path)
@@ -2326,7 +2414,7 @@ class MainWindow(Gtk.ApplicationWindow):
         try:
             gfile = dialog.save_finish(result)
         except GLib.Error:
-            logger.exception("erreur inattendue")
+            logger.exception("échec dans _on_json_path_chosen")
             return
         self.export_json_to(gfile.get_path())
 
@@ -2362,7 +2450,7 @@ class MainWindow(Gtk.ApplicationWindow):
                     quic_findings_current=self.last_diff_quic_findings_current,
                 )
         except Exception as e:  # noqa: BLE001 -- thread de fond (export JSON) : idem, erreur affichee via GLib.idle_add.
-            logger.exception("erreur: e")
+            logger.exception(f"échec dans _generate_json_thread: {e}")
             GLib.idle_add(self._on_json_error, str(e))
             return
         GLib.idle_add(self._on_json_done, path)

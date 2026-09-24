@@ -67,6 +67,44 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+  /captures/multi:
+    post:
+      tags:
+      - captures
+      summary: Upload Multi Capture
+      description: 'Upload de plusieurs captures étiquetées, lancement de l''analyse
+        croisée.
+
+
+        Issue #354 : la corrélation entre points (pertes, latence, topologie,
+
+        mouvements latéraux) nécessite plusieurs captures étiquetées.'
+      operationId: upload_multi_capture_captures_multi_post
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Body_upload_multi_capture_captures_multi_post'
+        required: true
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MultiAnalysisSummary'
+        '400':
+          description: Bad Request
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
   /analyses/{analysis_id}:
     get:
       tags:
@@ -239,6 +277,29 @@ components:
       required:
       - file
       title: Body_upload_capture_captures_post
+    Body_upload_multi_capture_captures_multi_post:
+      properties:
+        files:
+          items:
+            type: string
+            contentMediaType: application/octet-stream
+          type: array
+          title: Files
+          description: Fichiers pcap/pcapng à analyser
+        labels:
+          type: string
+          title: Labels
+          description: 'Étiquettes séparées par virgule (ex: lan,wan,dc)'
+          default: ''
+        points_order:
+          type: string
+          title: Points Order
+          description: 'Ordre des points séparé par virgule (ex: lan,wan,dc)'
+          default: ''
+      type: object
+      required:
+      - files
+      title: Body_upload_multi_capture_captures_multi_post
     ErrorResponse:
       properties:
         detail:
@@ -271,6 +332,37 @@ components:
       type: object
       title: HealthResponse
       description: Réponse du health check.
+    MultiAnalysisSummary:
+      properties:
+        analysis_id:
+          type: string
+          title: Analysis Id
+        status:
+          type: string
+          title: Status
+          default: completed
+        point_count:
+          type: integer
+          title: Point Count
+          default: 0
+        packet_count:
+          type: integer
+          title: Packet Count
+          default: 0
+        security_finding_count:
+          type: integer
+          title: Security Finding Count
+          default: 0
+        points:
+          items:
+            type: string
+          type: array
+          title: Points
+      type: object
+      required:
+      - analysis_id
+      title: MultiAnalysisSummary
+      description: 'Résumé d''une analyse multi-points (issue #354).'
     SecurityFinding:
       properties:
         severity:

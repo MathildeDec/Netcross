@@ -130,7 +130,6 @@ def correlate_event_causes(events: list[ExpertEvent]) -> list[ExpertEvent]:
     See module docstring for the three correlation patterns and the
     segment-only scope (flow-level correlation is future work, Job 8/9).
     """
-    logger.debug("correlate_event_causes(events={events})")
     # Grouper les rule_id par segment
     rule_ids_by_segment: dict[str, set[str]] = {}
     for ev in events:
@@ -168,7 +167,6 @@ def correlate_diagnosis_causes(diagnoses: list[Diagnosis]) -> list[Diagnosis]:
     evenement du diagnostic n'a de cause, le diagnostic garde
     `cause`/`impact` a `None`.
     """
-    logger.debug("correlate_diagnosis_causes(diagnoses={diagnoses})")
     for diag in diagnoses:
         for ev in diag.events:
             if ev.cause is not None:

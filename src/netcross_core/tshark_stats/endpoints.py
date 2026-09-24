@@ -39,7 +39,6 @@ _COL_ORDER = (
 
 def parse_endpoints(text: str, protocol: str = "tcp") -> list[EndpointStat]:
     """Convertit la sortie ``tshark -z endpoints,<proto>`` en EndpointStat."""
-    logger.debug("parse_endpoints(text={text}, protocol={protocol})")
     headers = reconstruct_headers(text)
     out: list[EndpointStat] = []
     for line in data_rows(text):

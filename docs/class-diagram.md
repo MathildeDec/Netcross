@@ -34,7 +34,7 @@ flowchart TD
     pcap_parser["pcap_parser"]
     CLI -->|"17 imports"| netcross_report
     CLI -->|"8 imports"| netcross_ai
-    CLI -->|"32 imports"| netcross_core
+    CLI -->|"36 imports"| netcross_core
     CLI -->|"5 imports"| pcap_parser
     netcross_gtk4 -->|"10 imports"| netcross_report
     netcross_gtk4 -->|"48 imports"| netcross_core
@@ -341,6 +341,7 @@ classDiagram
         +float? http_response_time_ms
         +tuple~str, ...~ expert_flags
         +tuple~tuple~str, str?, str?, str?~, ...~ expert_details
+        +float payload_entropy
         +str? http_content_type
         +int? http_content_length
         +int? tcp_len
@@ -890,6 +891,7 @@ classDiagram
         <<dataclass, slots>>
         +bool tls_ccs_seen
         +bool smb_mid64_tree_connect
+        +int http2_rst_count
     }
     class _Detector {
         <<dataclass, frozen>>
@@ -940,6 +942,7 @@ classDiagram
         +dict~str, float~ inter_arrival_stats
         +list~str~ phases
         +float? rtt_estimate_ms
+        +to_dict() dict
     }
     class mod_netcross_core_flow_timeline["netcross_core.flow_timeline"] {
         <<module>>
@@ -1234,6 +1237,7 @@ classDiagram
         +str? http_content_type
         +int? http_content_length
         +bool is_duplicate
+        +float payload_entropy
         +str? comment
         +tuple~Banner, ...~ service_banners
         +int? tcp_len
@@ -1405,6 +1409,7 @@ classDiagram
         +list~dict~ lateral_movement_events
         +list~dict~ plugin_runs
         +list~dict~ flow_anomalies
+        +list~dict~ asset_inventory
         +list~tuple~str, str, dict~~ topology_edges
         +list~tuple~str, str, str~~ topology_ambiguous
         +list~str~ topology_isolated
@@ -2602,6 +2607,7 @@ classDiagram
         +list~float~ inter_arrivals
         +str classification
         +float entropy
+        +float byte_entropy
         +float median_size
         +float upload_ratio
         +float regularity_cv
@@ -3591,6 +3597,7 @@ classDiagram
         <<module>>
         +health() HealthResponse
         +upload_capture(file, label, _auth) AnalysisSummary
+        +upload_multi_capture(files, labels, points_order) MultiAnalysisSummary
         +get_analysis(analysis_id, _auth) JSONResponse
         +get_security_report(analysis_id, _auth) SecurityReport
         +list_analyses(_auth) dict
@@ -3630,6 +3637,20 @@ classDiagram
     class ErrorResponse {
         <<BaseModel>>
         +str detail
+    }
+    class MultiCaptureRequest {
+        <<BaseModel>>
+        +list~str~ labels
+        +list~str~? points_order
+    }
+    class MultiAnalysisSummary {
+        <<BaseModel>>
+        +str analysis_id
+        +str status
+        +int point_count
+        +int packet_count
+        +int security_finding_count
+        +list~str~ points
     }
 
     %% ===== netcross_api.store =====

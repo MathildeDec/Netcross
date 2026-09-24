@@ -82,6 +82,22 @@ class FlowTimeline:
     phases: list[str] = field(default_factory=list)
     rtt_estimate_ms: float | None = None
 
+    def to_dict(self) -> dict:
+        """Serialisation JSON (issue #359)."""
+        return {
+            "packet_timings": [
+                {"ts": pt.ts, "point": pt.point, "delta_ms": pt.delta_ms, "cumulative_bytes": pt.cumulative_bytes}
+                for pt in self.packet_timings
+            ],
+            "throughput_windows": [
+                {"start_ts": tw.start_ts, "end_ts": tw.end_ts, "bytes": tw.bytes, "bps": tw.bps}
+                for tw in self.throughput_windows
+            ],
+            "inter_arrival_stats": dict(self.inter_arrival_stats),
+            "phases": list(self.phases),
+            "rtt_estimate_ms": self.rtt_estimate_ms,
+        }
+
 
 def build_flow_timeline(
     packets: list[Pkt],
@@ -92,7 +108,6 @@ def build_flow_timeline(
     ``window_s`` : duree de la fenetre glissante pour le calcul du debit
     par troncon (defaut 1.0s).
     """
-    logger.debug("build_flow_timeline(packets={packets}, window_s={window_s})")
     timeline = FlowTimeline()
 
     if not packets:

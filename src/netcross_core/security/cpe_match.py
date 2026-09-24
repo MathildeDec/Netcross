@@ -80,7 +80,6 @@ class ParsedBanner:
 
 def build_cpe23(vendor: str, product: str, version: str) -> str:
     """Construit un identifiant CPE 2.3 (partie applicative 'a')."""
-    logger.debug("build_cpe23(vendor={vendor}, product={product}, version={version})")
     return f"cpe:2.3:a:{vendor}:{product}:{version}:*:*:*:*:*:*:*"
 
 
@@ -94,7 +93,6 @@ def parse_banner(banner: str) -> ParsedBanner | None:
     pas une erreur, juste un service que ce module ne sait pas encore
     situer dans le referentiel CPE).
     """
-    logger.debug("parse_banner(banner={banner})")
     for token in banner.split():
         parsed = _parse_token(token)
         if parsed is not None:
@@ -104,7 +102,6 @@ def parse_banner(banner: str) -> ParsedBanner | None:
 
 def parse_all_banners(banner: str) -> list[ParsedBanner]:
     """Comme parse_banner(), mais renvoie tous les tokens reconnus (pas seulement le premier)."""
-    logger.debug("parse_all_banners(banner={banner})")
     parsed = []
     for token in banner.split():
         result = _parse_token(token)
@@ -140,7 +137,6 @@ def _version_key(version: str) -> tuple:
 
 def compare_versions(a: str, b: str) -> int:
     """-1 si a < b, 0 si a == b, 1 si a > b (comparaison lexicographique par groupe, voir _version_key)."""
-    logger.debug("compare_versions(a={a}, b={b})")
     ka, kb = _version_key(a), _version_key(b)
     if ka == kb:
         return 0
@@ -165,7 +161,6 @@ def version_in_range(
     Sans aucune borne ni `exact`, le produit entier est considere
     concerne (CPE "cpe:...:*" sans precision de version) : renvoie True.
     """
-    logger.debug("version_in_range(version={version})")
     has_range = any(b is not None for b in (start_including, start_excluding, end_including, end_excluding))
 
     if not has_range:

@@ -266,7 +266,6 @@ def render_security_html(
     `generated_at` : horodatage injectable, pour que les tests puissent
     comparer deux rendus a l'octet pres.
     """
-    logger.debug("render_security_html(sr={sr}, title={title}, meta={meta}, ...)")
     data = security_report_to_dict(sr)
     horodatage = (generated_at or datetime.now()).strftime("%Y-%m-%d %H:%M:%S")
 
@@ -365,7 +364,6 @@ def generate_security_html(
     meta: dict | None = None,
 ) -> str:
     """Ecrit le rendu HTML dans `output_path` et renvoie ce chemin."""
-    logger.debug("generate_security_html(sr={sr}, output_path={output_path}, title={title}, ...)")
     chemin = Path(output_path)
     chemin.write_text(render_security_html(sr, title=title, meta=meta), encoding="utf-8")
     return str(chemin)

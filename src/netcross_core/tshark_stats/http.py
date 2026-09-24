@@ -32,7 +32,6 @@ def parse_http_stat(text: str, application: str = "http") -> list[ApplicationSta
     Retourne une liste (typiquement un seul record agregeant les
     metriques) ; vide si aucune metrique identifiable.
     """
-    logger.debug("parse_http_stat(text={text}, application={application})")
     metrics: dict[str, float] = {}
     raw: dict[str, str] = {}
     for line in text.splitlines():

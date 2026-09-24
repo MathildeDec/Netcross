@@ -30,7 +30,6 @@ class AIOptions:
 def run_ai(report: Any, flows: list[dict], options: AIOptions) -> dict:
     """Execute les usages demandes ; leve AIUnavailableError, BaselineError,
     TrainingSetError ou WriterConfigError sur une demande impossible."""
-    logger.debug("run_ai(report={report}, flows={flows}, options={options})")
     result: dict = {"schema": AI_SCHEMA, "flows": len(flows)}
     if options.baseline_save:
         new = Baseline.from_flows(flows, options.baseline_label)
@@ -58,7 +57,6 @@ def run_ai(report: Any, flows: list[dict], options: AIOptions) -> dict:
 
 
 def format_ai(result: dict, top: int = 10) -> str:
-    logger.debug("format_ai(result={result}, top={top})")
     lines = ["", "=" * 70, "MODULE IA LOCAL (issue #146)", "=" * 70]
     if "baseline_saved" in result:
         b = result["baseline_saved"]

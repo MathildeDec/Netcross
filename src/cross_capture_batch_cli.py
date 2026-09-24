@@ -103,7 +103,7 @@ def build_inventory(label: str, path: str) -> CaptureInventory:
     try:
         packets = parse_capture(label, path, raise_on_error=True)
     except Exception as exc:  # noqa: BLE001 -- une capture illisible ne doit pas arreter le lot
-        logger.exception("erreur: exc")
+        logger.exception(f"échec dans build_inventory: {exc}")
         msg = str(exc).strip().splitlines()[0] if str(exc).strip() else type(exc).__name__
         return CaptureInventory(label=label, path=path, error=msg[:200])
     return inventory_from_packets(label, path, packets)
@@ -127,7 +127,7 @@ def load_cached_inventory(output: str, label: str, path: str) -> CaptureInventor
             return None
         return CaptureInventory.from_dict(data["inventory"])
     except (OSError, ValueError, KeyError, TypeError):
-        logger.exception("erreur: e")
+        logger.exception("échec dans load_cached_inventory")
         return None
 
 

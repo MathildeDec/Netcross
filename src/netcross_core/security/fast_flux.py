@@ -110,7 +110,6 @@ def detect_fast_flux(
     Les connexions TCP ne sont plus utilisees : une destination contactee
     n'est pas une preuve de resolution.
     """
-    logger.debug("detect_fast_flux(packets={packets}, thresholds={thresholds})")
     if thresholds is None:
         thresholds = FastFluxThresholds()
 

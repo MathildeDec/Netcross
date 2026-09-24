@@ -93,7 +93,7 @@ def invalid_sources(points: Sequence[tuple[str, str, str | None]]) -> list[str]:
         try:
             source = parse_source(interface)
         except CaptureSourceError as exc:
-            logger.exception("erreur: exc")
+            logger.exception(f"échec dans invalid_sources: {exc}")
             errors.append(f"{label} : {exc}")
             continue
         if source.uses_stdin:

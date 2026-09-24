@@ -157,10 +157,10 @@ def load_bpf_filters(path: str | Path | None = None) -> list[BPFFilter]:
     try:
         data = json.loads(source.read_text(encoding="utf-8"))
     except FileNotFoundError:
-        logger.exception("erreur: FileNotFoundError")
+        logger.exception("échec dans load_bpf_filters")
         return []
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
-        logger.exception("erreur: exc")
+        logger.exception(f"échec dans load_bpf_filters: {exc}")
         raise ValueError(f"filtres BPF: fichier illisible {source}: {exc}") from exc
     if isinstance(data, dict):
         if "filters" not in data:
@@ -180,7 +180,6 @@ def available_bpf_filters(path: str | Path | None = None) -> list[BPFFilter]:
     sauvegardes (ceux dont le nom collisionne avec le catalogue sont ignores,
     voir l'en-tete du module). Meme contrat d'erreur que ``load_bpf_filters``.
     """
-    logger.debug("available_bpf_filters(path={path})")
     user = [f for f in load_bpf_filters(path) if _name_key(f.name) not in _PREDEFINED_KEYS]
     return [*PREDEFINED_BPF_FILTERS, *user]
 
@@ -193,7 +192,6 @@ def upsert_bpf_filter(new: BPFFilter, path: str | Path | None = None) -> list[BP
     existant est illisible (il n'est alors pas modifie). ``OSError`` si
     l'ecriture echoue.
     """
-    logger.debug("upsert_bpf_filter(new={new}, path={path})")
     clean = BPFFilter(new.name.strip(), new.expression.strip(), new.description.strip())
     key = _name_key(clean.name)
     if key in _PREDEFINED_KEYS:

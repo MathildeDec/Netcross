@@ -278,7 +278,6 @@ def generate_json_report(
     DiffFinding deja diagnostiques) : cle JSON de premier niveau
     distincte, meme convention d'absence que les autres objets Session 0.
     """
-    logger.debug("generate_json_report(r={r}, output_path={output_path}, title={title}, ...)")
     if findings is None:
         findings = build_findings(r)
     ranked = rank_segments(list(findings) + list(tls_findings or []) + list(quic_findings or []))
@@ -308,6 +307,12 @@ def generate_json_report(
         # invisible jusqu'ici). Toujours present (liste vide = rien trouve),
         # meme convention que http_objects.
         "extracted_files": list(getattr(r, "extracted_files", [])),
+        # Issue #350 : inventaire d'actifs -- toujours present (liste
+        # vide = rien trouve), meme convention que http_objects.
+        "asset_inventory": list(getattr(r, "asset_inventory", [])),
+        # flow_anomalies et lateral_movement_events : meme convention.
+        "flow_anomalies": list(getattr(r, "flow_anomalies", [])),
+        "lateral_movement_events": list(getattr(r, "lateral_movement_events", [])),
     }
     if getattr(r, "duplicate_count", None):
         # Job 41/issue #161 : cle absente si la detection n'a rien trouve
@@ -433,7 +438,6 @@ def generate_json_diff(
     cle JSON distincte de "expert_events" (qui ne porte que des
     ExpertEvent de source "netcross").
     """
-    logger.debug("generate_json_diff(findings={findings}, baseline={baseline}, current={current}, ...)")
     ranked = rank_segments(findings)
     score = health_score(ranked)
 

@@ -83,7 +83,6 @@ def extract_rtp(layers: dict, udp_payload: bytes) -> dict | None:
     (rtp.heuristic_rtp:TRUE est active par defaut dans ek_source.py,
     cf. DEFAULT_PREFS) ; sinon retombe sur l'heuristique par octets,
     identique a l'ancienne parse_rtp()."""
-    logger.debug("extract_rtp(layers={layers}, udp_payload={udp_payload})")
     rtp = innermost(layers, "rtp")
     if rtp is not None:
         seq = hex_or_dec_to_int(g(rtp, "rtp_rtp_seq"))
@@ -120,7 +119,6 @@ def _parse_rtp_heuristic(payload: bytes) -> dict | None:
 def extract_dhcp(layers: dict) -> dict | None:
     """Lit la dissection DHCP/BOOTP native de tshark. Renvoie None si le
     paquet n'est pas du DHCP (dhcp.type absent)."""
-    logger.debug("extract_dhcp(layers={layers})")
     dhcp = innermost(layers, "dhcp")
     if dhcp is None:
         return None
@@ -140,7 +138,6 @@ def extract_sip(layers: dict, payload: bytes) -> dict | None:
     et quelques autres ports enregistres) ; sinon retombe sur
     l'heuristique par premiere ligne du payload, comme l'ancien
     parse_sip() -- utile pour du SIP sur un port non standard."""
-    logger.debug("extract_sip(layers={layers}, payload={payload})")
     sip = innermost(layers, "sip")
     if sip is not None:
         msg_type = g(sip, "sip_sip_Method") or g(sip, "sip_sip_Status-Line")
@@ -165,7 +162,7 @@ def _parse_sip_heuristic(payload: bytes) -> dict | None:
     try:
         text = payload.decode("utf-8", errors="replace")
     except (AttributeError, UnicodeError):
-        logger.exception("erreur: e")
+        logger.exception("échec dans _parse_sip_heuristic")
         return None
     lines = text.split("\r\n") if "\r\n" in text else text.split("\n")
     if not lines:
@@ -215,7 +212,6 @@ def extract_dns(layers: dict) -> dict | None:
     plusieurs questions (dns.count.queries > 1, rarissime en pratique) --
     on ne garde que la premiere, meme simplification que layer()/
     innermost() pour les couches empilees ailleurs dans ce package."""
-    logger.debug("extract_dns(layers={layers})")
     dns = innermost(layers, "dns")
     if dns is None:
         return None
@@ -284,7 +280,6 @@ def extract_http(layers: dict) -> dict | None:
       (http.request.full.uri, avec schema+host) quand disponible, sinon
       le chemin seul (http.request.uri).
     """
-    logger.debug("extract_http(layers={layers})")
     http = innermost(layers, "http")
     if http is None:
         return None
@@ -329,7 +324,7 @@ def _public_key_summary(cert) -> tuple[str | None, int | None]:
     try:
         key = cert.public_key()
     except (ValueError, _UnsupportedAlgorithm):
-        logger.exception("erreur: e")
+        logger.exception("échec dans _public_key_summary")
         return None, None
     if isinstance(key, _rsa.RSAPublicKey):
         return "RSA", key.key_size
@@ -376,14 +371,14 @@ def _certificate_details(tls: dict) -> dict:
     try:
         leaf = _x509.load_der_x509_certificate(bytes.fromhex(str(blobs[0]).replace(":", "")))
     except ValueError:
-        logger.exception("erreur: ValueError")
+        logger.exception("échec dans _certificate_details")
         return {}
     key_type, key_bits = _public_key_summary(leaf)
     try:
         san = leaf.extensions.get_extension_for_class(_x509.SubjectAlternativeName).value
         san_ip = tuple(str(ip) for ip in san.get_values_for_type(_x509.IPAddress))
     except (_x509.ExtensionNotFound, ValueError):
-        logger.exception("erreur: e")
+        logger.exception("échec dans _certificate_details")
         san_ip = ()
     return {
         "issuer": leaf.issuer.rfc4514_string(),
@@ -453,7 +448,6 @@ def extract_tls_certificate(layers: dict) -> dict | None:
     ou sur un TLS 1.3 dont les cles ont ete fournies a tshark
     (SSLKEYLOGFILE), cas rare pour une capture passive sur le terrain.
     """
-    logger.debug("extract_tls_certificate(layers={layers})")
     tls = innermost(layers, "tls")
     if tls is None:
         return None
@@ -517,7 +511,6 @@ def extract_tls_handshake(layers: dict) -> dict | None:
     travail inutile sur la tres grande majorite des paquets qui n'en
     ont pas -- meme garde que extract_tls_certificate).
     """
-    logger.debug("extract_tls_handshake(layers={layers})")
     tls = innermost(layers, "tls")
     if tls is None:
         return None
@@ -541,7 +534,6 @@ def compute_mos(delay_ms: float, loss_pct: float):
     """R-factor / MOS simplifies (modele type Cisco, codec G.711 : Ie=0,
     Bpl=4.3). Inchange par rapport a l'ancienne version -- calcul pur,
     aucune dependance a tshark."""
-    logger.debug("compute_mos(delay_ms={delay_ms}, loss_pct={loss_pct})")
     d = max(0.0, delay_ms)
     # Id/Ie_eff/R : noms consacres par l'E-model simplifie (ITU-T G.107), repris tels
     # quels -- un lecteur du domaine VoIP/QoS les reconnait immediatement sous cette forme.
