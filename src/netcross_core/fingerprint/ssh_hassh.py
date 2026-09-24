@@ -26,6 +26,9 @@ from __future__ import annotations
 import hashlib
 
 from netcross_core.models import ROLE_CLIENT, ROLE_SERVER
+from netcross_core.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 _SSH_MSG_KEXINIT = 20
 _COOKIE_LEN = 16
@@ -61,6 +64,7 @@ def parse_kexinit(payload: bytes) -> dict | None:
     try:
         return _parse_kexinit(payload)
     except (IndexError, UnicodeError):
+        logger.exception("erreur: e")
         return None
 
 

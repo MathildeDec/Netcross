@@ -18,6 +18,9 @@ from netcross_core.tshark_stats.parse_utils import (
     is_separator,
     parse_int,
 )
+from netcross_core.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 #: Ligne "etiquette .... nombre" (ex: "GET requests            12").
 _LABELED_RE = re.compile(r"^\s*(.+?)\s{2,}(\d[\d,]*)\s*$")

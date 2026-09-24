@@ -39,6 +39,9 @@ from pcap_parser.ek_source import TsharkError, TsharkNotFoundError
 from pcap_parser.packet import RawPacket
 from pcap_parser.protocols import compute_mos
 
+from netcross_core.logging_config import get_logger
+
+logger = get_logger(__name__)
 __all__ = [
     "compute_mos",
     "detect_encapsulation",
@@ -157,6 +160,7 @@ def parse_capture(label, path, raise_on_error=False) -> list[Pkt]:
     try:
         raw_packets = pcap_parser.parse_capture(path, raise_on_error=True)
     except (TsharkNotFoundError, TsharkError) as e:
+        logger.exception("erreur: e")
         if raise_on_error:
             raise
         print(f"[{label}] impossible de lire {path} : {e}", file=sys.stderr)
@@ -218,6 +222,7 @@ def parse_captures_parallel(captures, max_workers=None) -> tuple[list[Pkt], list
             except Exception as e:  # noqa: BLE001 -- catch-all volontaire : un
                 # fichier en echec (tshark absent, pcap corrompu, permission...)
                 # ne doit jamais interrompre le traitement parallele des autres.
+                logger.exception("erreur: e")
                 per_file_stats.append(
                     {
                         "label": label,

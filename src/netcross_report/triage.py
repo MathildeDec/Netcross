@@ -59,6 +59,9 @@ from collections.abc import Iterable
 from dataclasses import dataclass, field
 
 from netcross_report.synthesis import Finding
+from netcross_core.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 # Poids par defaut : couvre a la fois le vocabulaire de synthesis.Finding
 # ("anomalie"/"a_surveiller"/"info") et celui de baseline_diff.DiffFinding

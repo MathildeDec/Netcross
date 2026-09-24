@@ -60,6 +60,9 @@ from datetime import datetime, timezone
 
 from netcross_core.models import Pkt
 from netcross_core.security.dns_tunnel import shannon_entropy
+from netcross_core.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 SEVERITY_ELEVEE = "elevee"
 SEVERITY_MOYENNE = "moyenne"
@@ -161,6 +164,7 @@ def parse_cert_date(value: str | None) -> datetime | None:
     try:
         return datetime.strptime(value.removesuffix(" (UTC)"), "%Y-%m-%d %H:%M:%S").replace(tzinfo=timezone.utc)
     except ValueError:
+        logger.exception("erreur: ValueError")
         return None
 
 

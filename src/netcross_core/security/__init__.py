@@ -41,6 +41,9 @@ from netcross_core.security.cve_db import (
     query_by_product,
     upsert_cve,
 )
+from netcross_core.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 __all__ = [
     "AffectedProduct",

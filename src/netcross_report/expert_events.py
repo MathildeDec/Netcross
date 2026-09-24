@@ -29,6 +29,9 @@ defensif : `DiffFinding` ne declare pas ce champ), jamais recalcule ici.
 from __future__ import annotations
 
 from netcross_core.expert_model import Diagnosis, ExpertEvent
+from netcross_core.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 
 def build_expert_events(findings) -> list[ExpertEvent]:

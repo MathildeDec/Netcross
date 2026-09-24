@@ -25,6 +25,9 @@ import sqlite3
 from dataclasses import dataclass, field
 
 from netcross_core.security.cpe_match import build_cpe23, version_in_range
+from netcross_core.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS cves (

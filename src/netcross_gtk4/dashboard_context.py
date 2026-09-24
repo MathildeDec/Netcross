@@ -28,6 +28,9 @@ from typing import Any
 
 from netcross_core.expert_model import Conversation, Flow
 from netcross_core.models import Report
+from netcross_core.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 # ---------------------------------------------------------------------------
 # Contexte de selection partage
@@ -380,6 +383,7 @@ def _port(flow: Flow, side: int) -> str:
     try:
         return str(key[2] if side == 0 else key[4])
     except IndexError:
+        logger.exception("erreur: IndexError")
         return "?"
 
 

@@ -31,6 +31,9 @@ from netcross_api.store import store
 from netcross_core import analyse, correlate, parse_capture
 from netcross_core.security.findings import apply_security_findings
 
+from netcross_core.logging_config import get_logger
+
+logger = get_logger(__name__)
 # Singleton pour éviter B008 (File() in argument defaults).
 _FILE_REQUIRED = File(default=..., description="Fichier pcap/pcapng à analyser")
 
@@ -73,6 +76,7 @@ async def upload_capture(
         tmp.write(content)
         tmp_path = tmp.name
 
+        logger.exception("erreur de parsing: exc")
     try:
         packets = parse_capture(label, tmp_path)
     except Exception as exc:

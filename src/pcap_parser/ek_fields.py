@@ -16,6 +16,9 @@ communs a tous les champs tshark -T ek :
 from __future__ import annotations
 
 from typing import Any
+from netcross_core.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 
 def layer(layers: dict, key: str) -> dict | None:
@@ -56,6 +59,7 @@ def as_int(value: Any, base: int = 10) -> int | None:
     try:
         return int(value, base) if isinstance(value, str) else int(value)
     except (TypeError, ValueError):
+        logger.exception("erreur: e")
         return None
 
 
@@ -107,6 +111,7 @@ def as_float(value: Any) -> float | None:
     try:
         return float(value)
     except (TypeError, ValueError):
+        logger.exception("erreur: e")
         return None
 
 
@@ -328,4 +333,5 @@ def as_bytes_from_hex_dump(value: Any) -> bytes:
     try:
         return bytes.fromhex(value.replace(":", ""))
     except ValueError:
+        logger.exception("erreur: ValueError")
         return b""

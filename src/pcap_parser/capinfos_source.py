@@ -48,6 +48,9 @@ import subprocess
 from dataclasses import dataclass
 
 from pcap_parser.capfile import CaptureStructure, InterfaceRecord, read_structure
+from netcross_core.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 # Prefixe de la ligne portant le commentaire de section dans la sortie
 # "long report" (par defaut) de `capinfos -k`. Verifie empiriquement
@@ -116,6 +119,7 @@ def read_capture_comment(path: str) -> str | None:
             timeout=_TIMEOUT_SECONDS,
         )
     except (OSError, subprocess.TimeoutExpired):
+        logger.exception("erreur: e")
         return None
     return _parse_capture_comment(proc.stdout)
 
@@ -214,6 +218,7 @@ def _integer(value: str | None) -> int | None:
     try:
         return int(text) if text is not None else None
     except ValueError:
+        logger.exception("erreur: ValueError")
         return None
 
 
@@ -222,6 +227,7 @@ def _number(value: str | None) -> float | None:
     try:
         return float(text) if text is not None else None
     except ValueError:
+        logger.exception("erreur: ValueError")
         return None
 
 
@@ -282,6 +288,7 @@ def read_capture_info(path: str) -> CaptureInfo | None:
             timeout=_TIMEOUT_SECONDS,
         )
     except (OSError, subprocess.TimeoutExpired):
+        logger.exception("erreur: e")
         return None
     fields = _parse_table_report(proc.stdout)
     if fields is None:
@@ -289,5 +296,6 @@ def read_capture_info(path: str) -> CaptureInfo | None:
     try:
         structure = read_structure(path)
     except (OSError, ValueError, struct.error):
+        logger.exception("erreur: e")
         structure = None
     return _build_capture_info(path, fields, structure)

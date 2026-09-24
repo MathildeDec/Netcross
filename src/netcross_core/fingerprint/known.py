@@ -38,6 +38,9 @@ from __future__ import annotations
 import json
 from functools import lru_cache
 from pathlib import Path
+from netcross_core.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 _DEFAULT_PATH = Path(__file__).with_name("known_fingerprints.json")
 
@@ -57,6 +60,7 @@ def load_known_fingerprints(path: str | Path | None = None) -> dict[str, dict]:
     try:
         return _load_cached(str(path or _DEFAULT_PATH))
     except (OSError, json.JSONDecodeError):
+        logger.exception("erreur: e")
         return {"ja4": {}, "hassh": {}}
 
 

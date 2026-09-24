@@ -16,6 +16,9 @@ les briques communes :
 from __future__ import annotations
 
 import re
+from netcross_core.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 #: Caracteres consideres comme separateurs de tableau (lignes ``====``).
 _SEP_CHARS = frozenset("=-")
@@ -91,6 +94,7 @@ def parse_int(s: str | None) -> int | None:
     try:
         return int(float(m))
     except ValueError:
+        logger.exception("erreur: ValueError")
         return None
 
 
@@ -106,6 +110,7 @@ def parse_float(s: str | None) -> float | None:
     try:
         return float(m)
     except ValueError:
+        logger.exception("erreur: ValueError")
         return None
 
 

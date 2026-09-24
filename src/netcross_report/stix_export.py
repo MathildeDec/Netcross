@@ -55,6 +55,9 @@ from pathlib import Path
 from typing import Any
 
 from netcross_core.models import Report
+from netcross_core.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 SPEC_VERSION = "2.1"
 
@@ -165,6 +168,7 @@ class _Builder:
         try:
             addr = ipaddress.ip_address(str(value))
         except ValueError:
+            logger.exception("erreur: ValueError")
             return None
         stix_type = "ipv4-addr" if addr.version == 4 else "ipv6-addr"
         props = {"value": str(addr)}
@@ -258,6 +262,7 @@ def exploit_pattern(f: Mapping[str, Any]) -> str | None:
         try:
             addr = ipaddress.ip_address(str(value))
         except ValueError:
+            logger.exception("erreur: ValueError")
             continue
         parts.append(f"network-traffic:{prop}.value = '{_escape_pattern(str(addr))}'")
     if not parts:

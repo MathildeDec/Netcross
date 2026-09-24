@@ -30,6 +30,9 @@ from collections.abc import Iterator, Mapping
 from pathlib import Path
 from types import MappingProxyType
 from typing import Any, Protocol, runtime_checkable
+from netcross_core.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 SEVERITIES = ("critique", "elevee", "moyenne", "faible")
 REQUIRED_KEYS = ("category", "severity", "detail")

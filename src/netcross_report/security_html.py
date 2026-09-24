@@ -34,6 +34,9 @@ from netcross_report.security_report import (
     SecurityReport,
     security_report_to_dict,
 )
+from netcross_core.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 # Teintes de severite. Choisies pour rester distinguables en niveaux de
 # gris (un rapport finit imprime) et lisibles par un daltonien : la

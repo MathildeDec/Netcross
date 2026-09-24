@@ -77,6 +77,7 @@ def _load_state(path: Path) -> dict[str, float]:
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
     except FileNotFoundError:
+        logger.exception("erreur: FileNotFoundError")
         return {}
     except (OSError, ValueError) as exc:
         logger.warning("notification : etat anti-repetition illisible ({}), ignore : {}", path, exc)
@@ -179,6 +180,7 @@ def notifiers_from_config(
         try:
             notifiers.append(factory())
         except ValueError as exc:
+            logger.exception("erreur: exc")
             lines.append(DeliveryResult(channel, STATUS_FAILED, f"configuration invalide : {exc}"))
 
     if webhook_url:

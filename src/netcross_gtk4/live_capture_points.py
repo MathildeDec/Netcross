@@ -19,6 +19,9 @@ from __future__ import annotations
 from collections.abc import Sequence
 
 from pcap_parser.remote import CaptureSourceError, parse_source
+from netcross_core.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 
 def split_interfaces(text: str) -> list[str]:
@@ -90,6 +93,7 @@ def invalid_sources(points: Sequence[tuple[str, str, str | None]]) -> list[str]:
         try:
             source = parse_source(interface)
         except CaptureSourceError as exc:
+            logger.exception("erreur: exc")
             errors.append(f"{label} : {exc}")
             continue
         if source.uses_stdin:

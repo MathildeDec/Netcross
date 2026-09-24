@@ -7,6 +7,9 @@ from __future__ import annotations
 
 from collections import defaultdict
 from dataclasses import dataclass, field
+from netcross_core.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 ROLE_SERVER = "server"
 ROLE_CLIENT = "client"

@@ -12,6 +12,9 @@ from collections import defaultdict, deque
 from dataclasses import asdict, dataclass
 
 from netcross_core.models import Pkt
+from netcross_core.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 
 @dataclass(frozen=True)

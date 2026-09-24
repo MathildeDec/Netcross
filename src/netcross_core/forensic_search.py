@@ -39,6 +39,9 @@ from netcross_core.models import Pkt
 if TYPE_CHECKING:  # evite d'importer pcap_parser / cryptography au runtime
     from netcross_core.quic_diagnostics import QuicEvent
     from netcross_core.tls_diagnostics import TlsEvent
+from netcross_core.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 
 # -- Types de resultats -----------------------------------------------------

@@ -42,6 +42,9 @@ import struct
 from collections.abc import Iterable
 
 from netcross_core.models import ROLE_CLIENT, ROLE_SERVER, Banner, Pkt
+from netcross_core.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 # Nombre maximal de bannieres retournees pour un seul paquet (garde-fou
 # contre un en-tete Server: pathologique, pas une limite fonctionnelle).
@@ -388,6 +391,7 @@ def extract_banners(proto: str, sport: int | None, dport: int | None, payload: b
             banners = _dns_banners(payload, proto)
         return tuple(banners[:MAX_BANNERS_PER_PACKET])
     except (ValueError, IndexError, struct.error, UnicodeError):
+        logger.exception("erreur: e")
         return ()
 
 

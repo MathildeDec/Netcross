@@ -72,6 +72,9 @@ from pcap_parser.capture import (
     replay_capture,
     split_capture,
 )
+from netcross_core.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 __all__ = [
     "DEFAULT_REFERENCES",

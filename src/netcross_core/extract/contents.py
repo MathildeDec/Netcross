@@ -137,9 +137,11 @@ def export_documents(
             try:
                 done = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout, check=False)
             except FileNotFoundError:
+                logger.exception("erreur: FileNotFoundError")
                 errors.append("documents : tshark introuvable, aucun document extrait")
                 return docs, errors
             except subprocess.TimeoutExpired:
+                logger.exception("erreur inattendue")
                 errors.append(f"documents [{label}] {proto} : delai depasse ({timeout:.0f} s)")
                 continue
             if done.returncode != 0:
@@ -202,6 +204,7 @@ def run_extraction(
                 try:
                     q.exported = str(export_stream(st, out))
                 except ValueError as exc:
+                    logger.exception("erreur: exc")
                     q.note = f"{q.note} ; {exc}" if q.note else str(exc)
             result.media.append(q)
     if out is not None and "documents" in kinds:

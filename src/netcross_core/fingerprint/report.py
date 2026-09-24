@@ -20,6 +20,9 @@ from collections.abc import Iterable
 from netcross_core.fingerprint import ssh_hassh, tls_ja4
 from netcross_core.fingerprint.known import identify_tool, load_known_fingerprints
 from netcross_core.models import ROLE_CLIENT, ROLE_SERVER, Pkt
+from netcross_core.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 
 def build_fingerprint_records(packets: Iterable[Pkt], known: dict | None = None) -> list[dict]:

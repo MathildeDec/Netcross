@@ -50,6 +50,9 @@ from collections.abc import Iterable
 from dataclasses import dataclass, field
 
 from netcross_core.models import Pkt
+from netcross_core.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 # Ports d'authentification surveilles pour le brute force.
 _AUTH_PORTS: frozenset[int] = frozenset({22, 3389, 5985, 5986})
@@ -73,6 +76,7 @@ def _is_internal(ip: str) -> bool:
     try:
         addr = ipaddress.ip_address(ip)
     except ValueError:
+        logger.exception("erreur: ValueError")
         return False
     return addr.is_private or addr.is_link_local
 
@@ -195,6 +199,7 @@ def detect_host_scans(
             try:
                 addrs = sorted(ipaddress.ip_address(h) for h in hosts)
             except ValueError:
+                logger.exception("erreur: ValueError")
                 continue
             # Grouper par /24 et chercher des plages consecutives.
             by_prefix: dict[str, list[int]] = defaultdict(list)

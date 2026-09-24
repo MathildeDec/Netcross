@@ -32,6 +32,9 @@ import struct
 from collections.abc import Iterator
 from dataclasses import dataclass, replace
 from typing import BinaryIO
+from netcross_core.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 FORMAT_PCAP = "pcap"
 FORMAT_NSECPCAP = "nsecpcap"
@@ -262,6 +265,7 @@ def _read_pcapng_structure(f: BinaryIO) -> CaptureStructure | None:
                 # totaux ; un ISB qui omet une option ne remet pas l'ancienne a None.
                 interfaces[slot] = replace(interfaces[slot], **fields)
     except (ValueError, struct.error):
+        logger.exception("erreur: e")
         pass  # bloc corrompu : on garde les interfaces lues jusque-la (comme une troncature)
     if version is None:
         return None
@@ -403,6 +407,7 @@ def split_by_size(path: str, out_prefix: str, max_bytes: int) -> list[str]:
                 _split_pcap(f, sink)
         sink.close()
     except BaseException:
+        logger.exception("erreur: BaseException")
         sink.abort()
         raise
     return sink.paths

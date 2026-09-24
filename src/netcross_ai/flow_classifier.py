@@ -21,6 +21,9 @@ from pathlib import Path
 from netcross_ai.features import FEATURE_NAMES, flow_features, flow_key
 from netcross_ai.optional import require_ml
 
+from netcross_core.logging_config import get_logger
+
+logger = get_logger(__name__)
 TRAINING_SCHEMA = "netcross.ai.training/1"
 MIN_SAMPLES = 10
 SUGGESTED_LABELS = ("normal", "interactif", "transfert", "obfusque", "tunnel", "c2", "exfiltration")
@@ -42,6 +45,7 @@ def load_training_set(path: str | Path) -> list[tuple[dict | list[float], str]]:
     try:
         data = json.loads(Path(path).read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
+        logger.exception("erreur: exc")
         raise TrainingSetError(f"jeu d'entrainement illisible ({path}) : {exc}") from exc
     if not isinstance(data, dict) or data.get("schema") != TRAINING_SCHEMA:
         raise TrainingSetError(f"{path} n'est pas un jeu {TRAINING_SCHEMA}.")

@@ -19,6 +19,9 @@ from __future__ import annotations
 import operator as _operator
 
 from netcross_core.expert_model import ComplianceResult, ReferenceProfile
+from netcross_core.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 
 def _metric_pmtud_blackhole_total(report) -> float:

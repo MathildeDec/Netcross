@@ -18,6 +18,9 @@ from netcross_ai.features import FEATURE_NAMES, flow_features, flow_key
 from netcross_ai.flow_classifier import is_feature_vector
 from netcross_ai.optional import require_ml
 
+from netcross_core.logging_config import get_logger
+
+logger = get_logger(__name__)
 BASELINE_SCHEMA = "netcross.ai.baseline/1"
 MIN_BASELINE_FLOWS = 20
 _Z_EXPLAIN = 3.0
@@ -71,6 +74,7 @@ class Baseline:
         try:
             data = json.loads(Path(path).read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError) as exc:
+            logger.exception("erreur: exc")
             raise BaselineError(f"baseline illisible ({path}) : {exc}") from exc
         return cls.from_dict(data, str(path))
 

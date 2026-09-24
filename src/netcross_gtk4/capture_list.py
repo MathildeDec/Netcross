@@ -32,6 +32,9 @@ from collections.abc import Callable, Sequence
 from typing import Any, Protocol
 
 from netcross_gtk4.bpf_panel import indice_apres_deplacement
+from netcross_core.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 PREFIXE_POINT = "POINT"
 

@@ -14,6 +14,9 @@ from __future__ import annotations
 
 import subprocess
 from pathlib import Path
+from netcross_core.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 
 class TsharkUnavailableError(RuntimeError):
@@ -45,6 +48,7 @@ def run_tshark_stat(
             check=False,
         )
     except FileNotFoundError as exc:
+        logger.exception("erreur: exc")
         raise TsharkUnavailableError(
             f"tshark introuvable sur le chemin ({tshark_bin!r}) -- installez "
             "Wireshark/tshark pour utiliser les statistiques -z"

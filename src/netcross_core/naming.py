@@ -26,6 +26,9 @@ from pathlib import Path
 
 #: Types d'equipement reconnus (non exhaustif -- tout type est accepte en
 #: entree, la table ne valide pas le vocabulaire).
+from netcross_core.logging_config import get_logger
+
+logger = get_logger(__name__)
 KNOWN_TYPES = ("client", "serveur", "routeur", "firewall", "ap", "autre")
 
 #: Extensions de fichiers reconnues pour la persistance.
@@ -190,6 +193,7 @@ def _load_yaml(text: str):
     try:
         import yaml
     except ImportError as exc:  # pragma: no cover - branche dependante de l'env
+        logger.exception("erreur: exc")
         raise ImportError(
             "lecture YAML requiert pyyaml (pip install pyyaml) ; utilisez un fichier .json pour eviter cette dependance"
         ) from exc
@@ -200,6 +204,7 @@ def _dump_yaml(items: list[dict]) -> str:
     try:
         import yaml
     except ImportError as exc:  # pragma: no cover - branche dependante de l'env
+        logger.exception("erreur: exc")
         raise ImportError(
             "ecriture YAML requiert pyyaml (pip install pyyaml) ; "
             "utilisez un fichier .json pour eviter cette dependance"

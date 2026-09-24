@@ -206,6 +206,7 @@ def _atomic_write(path: Path, text: str) -> None:
         os.chmod(tmp, 0o644)
         os.replace(tmp, path)
     except BaseException:
+        logger.exception("erreur: BaseException")
         with contextlib.suppress(OSError):
             os.unlink(tmp)
         raise

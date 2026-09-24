@@ -29,6 +29,9 @@ from netcross_core.netflow.netflow_v5 import (
     iter_netflow_v5_file,
     parse_netflow_v5_packet,
 )
+from netcross_core.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 __all__ = [
     "FlowRecord",

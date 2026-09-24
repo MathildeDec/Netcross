@@ -24,6 +24,9 @@ from collections import Counter, defaultdict
 from dataclasses import dataclass, field
 from typing import Any
 from urllib.parse import urlparse
+from netcross_core.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 SEVERITY_ORDER = ("critique", "elevee", "moyenne", "faible")
 DEFAULT_ENDPOINTS = {"ollama": "http://127.0.0.1:11434", "llamacpp": "http://127.0.0.1:8080"}
@@ -199,6 +202,7 @@ def check_local_endpoint(url: str) -> None:
     try:
         local = host == "localhost" or ipaddress.ip_address(host).is_loopback
     except ValueError:
+        logger.exception("erreur: ValueError")
         local = False
     if not local:
         raise WriterConfigError(
@@ -251,6 +255,7 @@ def write_summary(
     try:
         text = llm_generate(kind, model, url, build_prompt(collect_facts(report, ai)))
     except (OSError, urllib.error.URLError, RuntimeError, ValueError) as exc:
+        logger.exception("erreur: exc")
         base.fallback_reason = f"modele local indisponible ({exc}) : resume par gabarit"
         return base
     # Le texte libre du modele ; correlations/recommandations deterministes

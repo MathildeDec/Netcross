@@ -15,6 +15,9 @@ from __future__ import annotations
 
 from pcap_parser.ek_fields import as_bool, as_float, g, hex_or_dec_to_int, innermost
 
+from netcross_core.logging_config import get_logger
+
+logger = get_logger(__name__)
 try:  # cryptography est une dependance du projet ; son absence degrade l'extraction, ne la casse pas
     from cryptography import x509 as _x509
     from cryptography.exceptions import UnsupportedAlgorithm as _UnsupportedAlgorithm
@@ -24,6 +27,7 @@ try:  # cryptography est une dependance du projet ; son absence degrade l'extrac
     from cryptography.hazmat.primitives.asymmetric import ed25519 as _ed25519
     from cryptography.hazmat.primitives.asymmetric import rsa as _rsa
 except ImportError:  # pragma: no cover - exercee seulement sans cryptography
+    logger.exception("erreur: ImportError")
     _x509 = None  # type: ignore[assignment]
 
 # Table de correspondance code -> nom, cf. RFC 2132 section 9.6 (option
@@ -156,6 +160,7 @@ def _parse_sip_heuristic(payload: bytes) -> dict | None:
     try:
         text = payload.decode("utf-8", errors="replace")
     except (AttributeError, UnicodeError):
+        logger.exception("erreur: e")
         return None
     lines = text.split("\r\n") if "\r\n" in text else text.split("\n")
     if not lines:
@@ -298,6 +303,7 @@ def _public_key_summary(cert) -> tuple[str | None, int | None]:
     try:
         key = cert.public_key()
     except (ValueError, _UnsupportedAlgorithm):
+        logger.exception("erreur: e")
         return None, None
     if isinstance(key, _rsa.RSAPublicKey):
         return "RSA", key.key_size
@@ -318,6 +324,7 @@ def _signature_hash(cert) -> str | None:
     try:
         algo = cert.signature_hash_algorithm
     except _UnsupportedAlgorithm:
+        logger.exception("erreur: _UnsupportedAlgorithm")
         return _UNMAPPED_SIGNATURE_HASHES.get(cert.signature_algorithm_oid.dotted_string)
     return algo.name if algo is not None else None
 
@@ -343,12 +350,14 @@ def _certificate_details(tls: dict) -> dict:
     try:
         leaf = _x509.load_der_x509_certificate(bytes.fromhex(str(blobs[0]).replace(":", "")))
     except ValueError:
+        logger.exception("erreur: ValueError")
         return {}
     key_type, key_bits = _public_key_summary(leaf)
     try:
         san = leaf.extensions.get_extension_for_class(_x509.SubjectAlternativeName).value
         san_ip = tuple(str(ip) for ip in san.get_values_for_type(_x509.IPAddress))
     except (_x509.ExtensionNotFound, ValueError):
+        logger.exception("erreur: e")
         san_ip = ()
     return {
         "issuer": leaf.issuer.rfc4514_string(),

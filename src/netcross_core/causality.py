@@ -47,6 +47,9 @@ futur, explicitement hors perimetre de ce job -- voir Job 8/9.
 from __future__ import annotations
 
 from netcross_core.expert_model import Diagnosis, ExpertEvent
+from netcross_core.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 # -- Patterns de correlation ----------------------------------------------
 #

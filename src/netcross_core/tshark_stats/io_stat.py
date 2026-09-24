@@ -21,6 +21,9 @@ from netcross_core.tshark_stats.parse_utils import (
     reconstruct_headers,
     split_fields,
 )
+from netcross_core.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 #: Motif d'un intervalle temporel tshark : ``000.000-001.000`` ou
 #: ``000.000-`` (intervalle ouvert, derniere ligne).

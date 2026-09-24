@@ -6,6 +6,9 @@ netcross_api.models -- modèles Pydantic pour les requêtes/réponses API
 from __future__ import annotations
 
 from pydantic import BaseModel, Field
+from netcross_core.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 
 class HealthResponse(BaseModel):

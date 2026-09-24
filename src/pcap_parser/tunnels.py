@@ -16,6 +16,9 @@ maison verifiee "au mieux" contre la RFC).
 from __future__ import annotations
 
 from pcap_parser.ek_fields import all_occurrences, g, hex_or_dec_to_int, innermost, layer
+from netcross_core.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 # Cles de couches EK qui signalent un vrai tunnel (l'IP/TCP/UDP le plus
 # interne doit etre utilise pour l'analyse, pas le premier trouve).

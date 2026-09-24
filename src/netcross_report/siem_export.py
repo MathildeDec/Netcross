@@ -34,6 +34,9 @@ from typing import Any
 from netcross_core.models import Report
 
 # Constantes CEF
+from netcross_core.logging_config import get_logger
+
+logger = get_logger(__name__)
 _DEVICE_VENDOR = "Netcross"
 _DEVICE_PRODUCT = "Netcross"
 _DEVICE_VERSION = "1.0"

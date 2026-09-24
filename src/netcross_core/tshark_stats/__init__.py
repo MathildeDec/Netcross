@@ -36,6 +36,9 @@ from netcross_core.tshark_stats.runner import (
     TsharkUnavailableError,
     run_tshark_stat,
 )
+from netcross_core.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 __all__ = [
     "ApplicationStat",

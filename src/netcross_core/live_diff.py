@@ -46,6 +46,9 @@ from netcross_core.models import Pkt, Report
 from pcap_parser.capture import CaptureRingBuffer
 
 
+from netcross_core.logging_config import get_logger
+
+logger = get_logger(__name__)
 @dataclass(frozen=True)
 class LiveDiffConfig:
     """Configuration de la boucle de diff live.
@@ -226,6 +229,7 @@ class LiveDiffEngine:
                     self._evaluate_diff()
                     self.state.last_eval_ts = now
         except Exception:
+            logger.exception("erreur: Exception")
             if self.state.running:
                 self.state.running = False
             raise

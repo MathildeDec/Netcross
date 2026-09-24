@@ -39,6 +39,9 @@ from netcross_ai.anomaly import Baseline, BaselineError
 from netcross_ai.features import FEATURE_NAMES
 from netcross_ai.flow_classifier import TRAINING_SCHEMA, is_feature_vector, sample_vector
 from netcross_core.support import TextScrubber
+from netcross_core.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 PACK_SCHEMA = "netcross.ai.modelpack/1"
 MANIFEST = "manifest.json"
@@ -195,6 +198,7 @@ def _read_entries(path: Path) -> dict[str, bytes]:
     try:
         size = path.stat().st_size
     except OSError as exc:
+        logger.exception("erreur: exc")
         raise ModelPackError(f"paquet illisible ({path}) : {exc}") from exc
     if size > MAX_PACK_BYTES:
         raise ModelPackError(f"{path} : archive trop volumineuse ({size} octets)")
@@ -218,6 +222,7 @@ def _read_entries(path: Path) -> dict[str, bytes]:
                 entries[info.filename] = data
             return entries
     except (zipfile.BadZipFile, OSError) as exc:
+        logger.exception("erreur: exc")
         raise ModelPackError(f"{path} : archive ZIP invalide ({exc})") from exc
 
 
@@ -225,6 +230,7 @@ def _json(entries: dict[str, bytes], name: str, path: Path) -> object:
     try:
         return json.loads(entries[name].decode("utf-8"))
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        logger.exception("erreur: exc")
         raise ModelPackError(f"{path} : {name} invalide ({exc})") from exc
 
 
@@ -252,6 +258,7 @@ def read_pack(path: str | Path) -> ModelPack:
         try:
             pack.baseline = Baseline.from_dict(_json(entries, BASELINE_FILE, p), f"{p}:{BASELINE_FILE}")
         except BaselineError as exc:
+            logger.exception("erreur: exc")
             raise ModelPackError(str(exc)) from exc
     if TRAINING_FILE in entries:
         doc = _json(entries, TRAINING_FILE, p)
@@ -293,6 +300,7 @@ def import_pack(
             try:
                 doc = json.loads(target.read_text(encoding="utf-8"))
             except (OSError, json.JSONDecodeError) as exc:
+                logger.exception("erreur: exc")
                 raise ModelPackError(f"jeu local illisible ({target}) : {exc}") from exc
             if not isinstance(doc, dict) or doc.get("schema") != TRAINING_SCHEMA:
                 raise ModelPackError(f"{target} n'est pas un jeu {TRAINING_SCHEMA}")

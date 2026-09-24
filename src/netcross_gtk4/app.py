@@ -106,12 +106,14 @@ from netcross_report.comm_map import (  # noqa: E402
     DEFAULT_TOP_N as COMM_MAP_DEFAULT_TOP_N,
 )
 from netcross_report.comm_map import (  # noqa: E402
-    available_protocols,
     build_comm_map,
     format_comm_map,
 )
 
 
+from netcross_core.logging_config import get_logger
+
+logger = get_logger(__name__)
 def _visible_scroller(vexpand=True):
     """ScrolledWindow avec scrollbar classique toujours visible (pas d'overlay
     qui disparait au survol) -- pour que le defilement reste decouvrable."""
@@ -364,6 +366,7 @@ class LiveCaptureRow(Gtk.Box):
         try:
             self._on_save_filter(demande.filtre)
         except (OSError, ValueError) as exc:
+            logger.exception("erreur: exc")
             self._save_status.set_text(str(exc))
             return
         self._save_status.set_text("")
@@ -445,6 +448,7 @@ class CaptureListPanel(Gtk.Box):
         try:
             files = dialog.open_multiple_finish(result)
         except GLib.Error:
+            logger.exception("erreur inattendue")
             return
         for i in range(files.get_n_items()):
             gfile = files.get_item(i)
@@ -536,6 +540,7 @@ class LiveCaptureListPanel(Gtk.Box):
             # Fichier sidecar illisible : le catalogue predefini reste
             # utilisable et le fichier n'est PAS touche (upsert_bpf_filter
             # refuse d'ecraser un fichier qu'il ne sait pas relire).
+            logger.exception("erreur: exc")
             print(f"netcross: filtres BPF sauvegardes ignores ({exc})", file=sys.stderr)
             return list(PREDEFINED_BPF_FILTERS)
 
@@ -1446,6 +1451,7 @@ class MainWindow(Gtk.ApplicationWindow):
         except Exception as e:  # noqa: BLE001 -- thread de fond : toute erreur
             # (tshark, interface, permission...) doit remonter au journal GUI
             # plutot que de tuer le thread silencieusement.
+            logger.exception("erreur: e")
             GLib.idle_add(self._log, f"[{label}] ERREUR : {e}")
         GLib.idle_add(self._log, f"[{label}] capture arretee -- {count} paquet(s) au total.")
 
@@ -1526,6 +1532,7 @@ class MainWindow(Gtk.ApplicationWindow):
 
             text = buf.getvalue()
         except Exception as e:  # noqa: BLE001 -- thread de fond (analyse live) : toute erreur doit remonter au journal GUI.
+            logger.exception("erreur: e")
             GLib.idle_add(self._log, f"ERREUR : {e}")
             GLib.idle_add(self._on_analysis_error, str(e))
             GLib.idle_add(self._reset_live_ui)
@@ -1710,6 +1717,7 @@ class MainWindow(Gtk.ApplicationWindow):
                         print_quic_diagnostics,
                     )
                 except ImportError:
+                    logger.exception("erreur: ImportError")
                     with contextlib.redirect_stdout(buf):
                         print("\n--quic necessite cryptography : pip install cryptography --break-system-packages")
                 else:
@@ -1725,6 +1733,7 @@ class MainWindow(Gtk.ApplicationWindow):
 
             text = buf.getvalue()
         except Exception as e:  # noqa: BLE001 -- thread de fond (analyse fichier) : toute erreur doit remonter au journal GUI.
+            logger.exception("erreur: e")
             GLib.idle_add(self._log, f"ERREUR : {e}")
             GLib.idle_add(self._on_analysis_error, str(e))
             return
@@ -1844,6 +1853,7 @@ class MainWindow(Gtk.ApplicationWindow):
                         print_quic_diagnostics,
                     )
                 except ImportError:
+                    logger.exception("erreur: ImportError")
                     with contextlib.redirect_stdout(buf):
                         print("\n--quic necessite cryptography : pip install cryptography --break-system-packages")
                 else:
@@ -1868,6 +1878,7 @@ class MainWindow(Gtk.ApplicationWindow):
 
             text = buf.getvalue()
         except Exception as e:  # noqa: BLE001 -- thread de fond (comparaison baseline/courant) : idem.
+            logger.exception("erreur: e")
             GLib.idle_add(self._log, f"ERREUR : {e}")
             GLib.idle_add(self._on_analysis_error, str(e))
             return
@@ -2002,6 +2013,7 @@ class MainWindow(Gtk.ApplicationWindow):
         try:
             gfile = dialog.save_finish(result)
         except GLib.Error:
+            logger.exception("erreur inattendue")
             return
         path = gfile.get_path()
         try:
@@ -2010,6 +2022,7 @@ class MainWindow(Gtk.ApplicationWindow):
             else:
                 write_diff_csv(self.last_diff_findings, path)
         except Exception as e:  # noqa: BLE001 -- callback GUI (export CSV) : erreur affichee dans la barre de statut plutot que de faire planter l'appli.
+            logger.exception("erreur: e")
             self.status_label.set_text(f"Erreur CSV : {e}")
             return
         self.status_label.set_text(f"CSV ecrit : {path}")
@@ -2027,6 +2040,7 @@ class MainWindow(Gtk.ApplicationWindow):
         try:
             gfile = dialog.save_finish(result)
         except GLib.Error:
+            logger.exception("erreur inattendue")
             return
         self.export_pdf_to(gfile.get_path())
 
@@ -2148,6 +2162,7 @@ class MainWindow(Gtk.ApplicationWindow):
         try:
             file_obj = dialog.save_finish(result)
         except Exception:
+            logger.exception("erreur: Exception")
             return
         if file_obj is None:
             return
@@ -2162,6 +2177,7 @@ class MainWindow(Gtk.ApplicationWindow):
                 fh.write(export_csv(rows))
             self.status_label.set_text(f"Statistiques exportees : {path}")
         except OSError as exc:
+            logger.exception("erreur: exc")
             self.status_label.set_text(f"Erreur export CSV : {exc}")
 
     def _on_stats_export_json(self, _btn):
@@ -2179,6 +2195,7 @@ class MainWindow(Gtk.ApplicationWindow):
         try:
             file_obj = dialog.save_finish(result)
         except Exception:
+            logger.exception("erreur: Exception")
             return
         if file_obj is None:
             return
@@ -2195,6 +2212,7 @@ class MainWindow(Gtk.ApplicationWindow):
                 json.dump(export_json(rows), fh, indent=2, ensure_ascii=False)
             self.status_label.set_text(f"Statistiques exportees : {path}")
         except OSError as exc:
+            logger.exception("erreur: exc")
             self.status_label.set_text(f"Erreur export JSON : {exc}")
 
     # ================= cartographie des communications (issue #15) =================
@@ -2368,6 +2386,7 @@ class MainWindow(Gtk.ApplicationWindow):
             self.comm_map_picture.set_filename(rendu)
             self.comm_map_label.set_text(format_comm_map(cmap))
         except Exception as e:  # noqa: BLE001 -- dependances de rendu optionnelles, voir docstring
+            logger.exception("erreur: e")
             self.comm_map_picture.set_filename(None)
             self.comm_map_label.set_text(f"Cartographie indisponible : {e}")
         return False
@@ -2426,6 +2445,7 @@ class MainWindow(Gtk.ApplicationWindow):
                     quic_findings_current=self.last_diff_quic_findings_current,
                 )
         except Exception as e:  # noqa: BLE001 -- thread de fond (export PDF) : idem, erreur affichee via GLib.idle_add.
+            logger.exception("erreur: e")
             GLib.idle_add(self._on_pdf_error, str(e))
             return
         GLib.idle_add(self._on_pdf_done, path)
@@ -2455,6 +2475,7 @@ class MainWindow(Gtk.ApplicationWindow):
         try:
             gfile = dialog.save_finish(result)
         except GLib.Error:
+            logger.exception("erreur inattendue")
             return
         self.export_json_to(gfile.get_path())
 
@@ -2490,6 +2511,7 @@ class MainWindow(Gtk.ApplicationWindow):
                     quic_findings_current=self.last_diff_quic_findings_current,
                 )
         except Exception as e:  # noqa: BLE001 -- thread de fond (export JSON) : idem, erreur affichee via GLib.idle_add.
+            logger.exception("erreur: e")
             GLib.idle_add(self._on_json_error, str(e))
             return
         GLib.idle_add(self._on_json_done, path)

@@ -44,6 +44,9 @@ from dataclasses import dataclass
 import pcap_parser
 from netcross_core.tls_diagnostics import parse_client_hello
 
+from netcross_core.logging_config import get_logger
+
+logger = get_logger(__name__)
 try:
     from cryptography.exceptions import InvalidTag
     from cryptography.hazmat.primitives import hashes, hmac
@@ -55,6 +58,7 @@ except ImportError as e:
     # installe tant qu'il n'a pas explicitement demande --quic, et
     # afficher son propre message plutot que de voir tout le process
     # mourir a l'import.
+    logger.exception("erreur: e")
     raise ImportError(
         "netcross_core.quic_diagnostics necessite cryptography : pip install cryptography --break-system-packages"
     ) from e
@@ -256,6 +260,7 @@ def _decrypt_initial(payload: bytes, client_secret: bytes, header_info: dict) ->
     try:
         return AESGCM(key).decrypt(bytes(nonce), ciphertext, header)
     except InvalidTag:
+        logger.exception("erreur: InvalidTag")
         return None
 
 

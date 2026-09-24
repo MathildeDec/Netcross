@@ -73,6 +73,9 @@ from pcap_parser.protocols import (
     extract_tls_certificate,
 )
 from pcap_parser.tunnels import detect_encapsulation, is_tunnel, select_innermost_layers
+from netcross_core.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 __all__ = [
     "CaptureInfo",
