@@ -37,7 +37,7 @@ flowchart TD
     CLI -->|"31 imports"| netcross_core
     CLI -->|"5 imports"| pcap_parser
     netcross_gtk4 -->|"10 imports"| netcross_report
-    netcross_gtk4 -->|"20 imports"| netcross_core
+    netcross_gtk4 -->|"22 imports"| netcross_core
     netcross_gtk4 -->|"1 import"| pcap_parser
     netcross_api -->|"3 imports"| netcross_core
     netcross_report -->|"13 imports"| netcross_core
@@ -2312,6 +2312,7 @@ classDiagram
         +tuple~int, int~ office_hours_utc
         +float off_hours_ratio
         +bool external_only
+        +bool treat_test_net_as_external
         +frozenset~int~ ignored_ports
     }
     class BeaconingResult {
@@ -2320,6 +2321,7 @@ classDiagram
     }
     class mod_netcross_core_security_beaconing["netcross_core.security.beaconing"] {
         <<module>>
+        +is_external(address, treat_test_net_as_external) bool
         +detect_beaconing(packets, thresholds) BeaconingResult
     }
 
@@ -3568,7 +3570,7 @@ classDiagram
 | `netcross_api` | service REST FastAPI pour exposer les analyses Netcross (issue #209). |
 | `netcross_api.app` | application FastAPI pour exposer les analyses Netcross (issue #209). |
 | `netcross_api.models` | modèles Pydantic pour les requêtes/réponses API (issue #209). |
-| `netcross_api.store` | store en mémoire des analyses (issue #209). |
+| `netcross_api.store` | store des analyses avec statut et persistance optionnelle. |
 
 ### Diagramme
 
@@ -3580,10 +3582,11 @@ classDiagram
     class mod_netcross_api_app["netcross_api.app"] {
         <<module>>
         +health() HealthResponse
-        +upload_capture(file, label) AnalysisSummary
-        +get_analysis(analysis_id) JSONResponse
-        +get_security_report(analysis_id) SecurityReport
-        +list_analyses() dict
+        +upload_capture(file, label, _auth) AnalysisSummary
+        +get_analysis(analysis_id, _auth) JSONResponse
+        +get_security_report(analysis_id, _auth) SecurityReport
+        +list_analyses(_auth) dict
+        +get_analysis_status(analysis_id, _auth) dict
     }
 
     %% ===== netcross_api.models =====
@@ -3623,9 +3626,13 @@ classDiagram
 
     %% ===== netcross_api.store =====
     class AnalysesStore {
-        +add(report, metadata) str
+        +add(report, metadata, status) str
+        +add_pending(metadata) str
+        +complete(analysis_id, report) None
+        +fail(analysis_id, error) None
         +get(analysis_id) dict?
         +get_report(analysis_id) Report?
+        +get_status(analysis_id) str?
         +exists(analysis_id) bool
         +list_ids() list~str~
     }

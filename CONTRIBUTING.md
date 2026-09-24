@@ -29,6 +29,9 @@ Le dépôt suit un modèle `dev → main` :
 - **`main`** : branche stable, toujours déployable. Les PR vers `main`
   sont rejetées par le guard-main.yml si elles ne viennent pas de `dev`.
 - **`dev`** : branche d'intégration. Toutes les feature PRs ciblent `dev`.
+  La branche `dev` est **protégée** : aucune fusion n'est possible tant
+  que la CI (notamment le job « Qualité ») n'est pas verte, et la branche
+  doit être à jour avant la fusion.
 - **`feature/issue-NNN-description`** : une branche par issue, créée
   depuis `dev` :
 

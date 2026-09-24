@@ -69,7 +69,12 @@ _UNUSUAL_PORT_LABELS: dict[int, str] = {
 
 
 def _is_internal(ip: str) -> bool:
-    """Vrai pour une adresse RFC1918 ou link-local (169.254/16)."""
+    """Vrai pour une adresse RFC1918 ou link-local (169.254/16).
+
+    Issue #365 : les plages TEST-NET (RFC 5737, 192.0.2.0/24,
+    198.51.100.0/24, 203.0.113.0/24) sont aussi considerees comme privees
+    par ipaddress.is_private -- documente dans docs/detectors.md.
+    """
     try:
         addr = ipaddress.ip_address(ip)
     except ValueError:
