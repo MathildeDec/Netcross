@@ -122,7 +122,7 @@ def read_capture_comment(path: str) -> str | None:
             timeout=_TIMEOUT_SECONDS,
         )
     except (OSError, subprocess.TimeoutExpired):
-        logger.exception("erreur: e")
+        logger.exception("échec dans read_capture_comment")
         return None
     return _parse_capture_comment(proc.stdout)
 
@@ -174,14 +174,12 @@ class CaptureInfo:
     def dropped_by_interface(self) -> int | None:
         """Total des paquets perdus par les interfaces, ou None si la capture
         ne porte aucune statistique (pcap classique, pcapng sans ISB)."""
-        logger.debug("dropped_by_interface(self={self})")
         values = [i.dropped_by_interface for i in self.interfaces if i.dropped_by_interface is not None]
         return sum(values) if values else None
 
     @property
     def dropped_by_os(self) -> int | None:
         """Idem pour les paquets perdus par le systeme d'exploitation."""
-        logger.debug("dropped_by_os(self={self})")
         values = [i.dropped_by_os for i in self.interfaces if i.dropped_by_os is not None]
         return sum(values) if values else None
 
@@ -191,7 +189,6 @@ class CaptureInfo:
         des statistiques existent et sont toutes a zero ; None si la capture
         n'en embarque aucune -- absence d'INFORMATION, pas absence de perte :
         l'appelant ne doit jamais l'afficher comme 'aucune perte'."""
-        logger.debug("has_drops(self={self})")
         counters = [self.dropped_by_interface, self.dropped_by_os]
         known = [c for c in counters if c is not None]
         if not known:
@@ -224,7 +221,7 @@ def _integer(value: str | None) -> int | None:
     try:
         return int(text) if text is not None else None
     except ValueError:
-        logger.exception("erreur: ValueError")
+        logger.exception("échec dans _integer")
         return None
 
 
@@ -233,7 +230,7 @@ def _number(value: str | None) -> float | None:
     try:
         return float(text) if text is not None else None
     except ValueError:
-        logger.exception("erreur: ValueError")
+        logger.exception("échec dans _number")
         return None
 
 
@@ -294,7 +291,7 @@ def read_capture_info(path: str) -> CaptureInfo | None:
             timeout=_TIMEOUT_SECONDS,
         )
     except (OSError, subprocess.TimeoutExpired):
-        logger.exception("erreur: e")
+        logger.exception("échec dans read_capture_info")
         return None
     fields = _parse_table_report(proc.stdout)
     if fields is None:
@@ -302,6 +299,6 @@ def read_capture_info(path: str) -> CaptureInfo | None:
     try:
         structure = read_structure(path)
     except (OSError, ValueError, struct.error):
-        logger.exception("erreur: e")
+        logger.exception("échec dans read_capture_info")
         structure = None
     return _build_capture_info(path, fields, structure)

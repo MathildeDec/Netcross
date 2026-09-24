@@ -183,7 +183,6 @@ def analyze_flow_stats(
     tailles, entropie, ratio up/down, regularite temporelle, et
     classifie chaque flux.
     """
-    logger.debug("analyze_flow_stats(packets={packets}, thresholds={thresholds})")
     # Issue #346 : un flux est identifie PAR POINT de capture. Sans le point
     # dans la cle, un meme paquet vu sur N points etait compte N fois et les
     # horodatages de points differents s'entremelaient (inter-arrivees et

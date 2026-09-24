@@ -140,7 +140,7 @@ def _is_external(address: str) -> bool:
     try:
         return ipaddress.ip_address(address).is_global
     except ValueError:
-        logger.exception("erreur: ValueError")
+        logger.exception("échec dans _is_external")
         return False
 
 

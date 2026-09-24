@@ -52,7 +52,6 @@ class AnalysesStore:
 
     def add(self, report: Report, metadata: dict | None = None, status: str = "completed") -> str:
         """Enregistre un rapport, retourne l'ID généré."""
-        logger.debug("add(self={self}, report={report}, metadata={metadata})")
         analysis_id = uuid.uuid4().hex[:12]
         entry = {
             "report": report,

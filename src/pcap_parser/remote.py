@@ -90,7 +90,6 @@ class CaptureSource:
 
 def is_source_url(text: str) -> bool:
     """Vrai si ``text`` commence par un schema de source connu (``rpcap://``...)."""
-    logger.debug("is_source_url(text={text})")
     scheme, sep, _rest = text.partition("://")
     return bool(sep) and scheme.lower() in REMOTE_SCHEMES
 
@@ -103,7 +102,6 @@ def split_live_target(text: str) -> tuple[str, str | None]:
     crochets) ne comptent pas : le separateur est le premier ``:`` situe
     apres le debut du chemin (``/interface``).
     """
-    logger.debug("split_live_target(text={text})")
     if not is_source_url(text):
         iface, sep, bpf = text.partition(":")
         return iface, (bpf if sep else None)
@@ -124,12 +122,12 @@ def _check_host(host: str) -> str:
         try:
             return str(ipaddress.IPv6Address(host[1:-1]))
         except ValueError:
-            logger.exception("erreur: ValueError")
+            logger.exception("échec dans _check_host")
             raise CaptureSourceError(f"adresse IPv6 invalide : {host}") from None
     try:
         return str(ipaddress.IPv4Address(host))
     except ValueError:
-        logger.exception("erreur: ValueError")
+        logger.exception("échec dans _check_host")
         pass
     if _HOSTNAME_RE.match(host):
         return host
@@ -270,7 +268,6 @@ def parse_source(text: str, env: Mapping[str, str] | None = None) -> CaptureSour
     Leve CaptureSourceError si l'URL est invalide ; un nom d'interface
     locale est renvoye tel quel (tshark signalera une interface inconnue).
     """
-    logger.debug("parse_source(text={text}, env={env})")
     env = os.environ if env is None else env
     text = text.strip()
     if not text:

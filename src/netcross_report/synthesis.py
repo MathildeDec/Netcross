@@ -239,7 +239,7 @@ def _http_error_evidence(examples: list[str], status_class: int, frames: list[in
         try:
             code = int(ex.rsplit(" ", 1)[-1])
         except ValueError:
-            logger.exception("erreur: ValueError")
+            logger.exception("échec dans _http_error_evidence")
             continue
         if code // 100 == status_class:
             texts.append(ex)
@@ -249,7 +249,6 @@ def _http_error_evidence(examples: list[str], status_class: int, frames: list[in
 
 
 def build_findings(r) -> list[Finding]:
-    logger.debug("build_findings(r={r})")
     findings: list[Finding] = []
 
     # -- pertes --

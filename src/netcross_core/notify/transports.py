@@ -44,7 +44,6 @@ class Notifier(Protocol):
 
 def validate_http_url(url: str) -> str:
     """Refuse tout schema autre que http(s) (pas de file://, pas de ftp://)."""
-    logger.debug("validate_http_url(url={url})")
     parsed = urlparse(url)
     if parsed.scheme not in {"http", "https"} or not parsed.netloc:
         raise ValueError(f"URL invalide (http:// ou https:// attendu) : {url!r}")
@@ -82,10 +81,10 @@ def _post_json(url: str, payload: dict[str, Any], timeout: float) -> None:
             if not 200 <= response.status < 300:
                 raise NotifyError(f"HTTP {response.status}")
     except NotifyError:
-        logger.exception("erreur: NotifyError")
+        logger.exception("échec dans _post_json")
         raise
     except (OSError, ValueError) as exc:
-        logger.exception("erreur: exc")
+        logger.exception(f"échec dans _post_json: {exc}")
         raise NotifyError(_reason(exc)) from exc
 
 
@@ -102,14 +101,12 @@ class WebhookNotifier:
         validate_http_url(self.url)
 
     def send(self, summary: NotificationSummary) -> bool:
-        logger.debug("send(self={self}, summary={summary})")
         _post_json(self.url, {"source": "netcross", **summary.to_dict()}, self.timeout)
         return True
 
 
 def slack_blocks(summary: NotificationSummary) -> list[dict[str, Any]]:
     """Mise en forme Block Kit du resume."""
-    logger.debug("slack_blocks(summary={summary})")
     counts = " · ".join(f"{sev} : {summary.by_severity.get(sev, 0)}" for sev in summary.by_severity)
     blocks: list[dict[str, Any]] = [
         {"type": "header", "text": {"type": "plain_text", "text": summary.title[:150]}},
@@ -152,7 +149,7 @@ class SlackNotifier:
         try:
             _post_json(self.url, {"text": text, "blocks": slack_blocks(summary)}, self.timeout)
         except NotifyError as exc:
-            logger.exception("erreur: exc")
+            logger.exception(f"échec dans send: {exc}")
             if str(exc) != "HTTP 400":
                 raise
             self.degraded = True
@@ -177,14 +174,12 @@ class EmailNotifier:
     name: str = "courriel"
 
     def __post_init__(self) -> None:
-        logger.debug("__post_init__(self={self})")
         if not self.host:
             raise ValueError("serveur SMTP manquant (smtp_host / NETCROSS_SMTP_HOST)")
         if not self.recipients:
             raise ValueError("aucun destinataire")
 
     def build_message(self, summary: NotificationSummary) -> EmailMessage:
-        logger.debug("build_message(self={self}, summary={summary})")
         msg = EmailMessage()
         msg["Subject"] = f"[Netcross] {summary.level or 'aucun constat'} -- score {summary.score}/100"
         msg["From"] = self.sender
@@ -202,6 +197,6 @@ class EmailNotifier:
                     smtp.login(self.username, self.password or "")
                 smtp.send_message(msg)
         except (OSError, smtplib.SMTPException) as exc:
-            logger.exception("erreur: exc")
+            logger.exception(f"échec dans send: {exc}")
             raise NotifyError(_reason(exc)) from exc
         return True

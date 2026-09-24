@@ -69,7 +69,6 @@ class CaptureInventory:
 
     @property
     def duration(self) -> float:
-        logger.debug("duration(self={self})")
         if self.start is None or self.end is None:
             return 0.0
         return max(0.0, self.end - self.start)
@@ -108,7 +107,7 @@ def _is_meaningful_ip(addr: str) -> bool:
     try:
         ip = ipaddress.ip_address(addr)
     except ValueError:
-        logger.exception("erreur: ValueError")
+        logger.exception("échec dans _is_meaningful_ip")
         return False
     if ip.is_multicast or ip.is_unspecified or ip.is_loopback or ip.is_link_local:
         return False
@@ -123,7 +122,7 @@ def inventory_from_packets(label: str, path: str, packets: Iterable) -> CaptureI
     """Construit l'inventaire d'une capture a partir de ses paquets decodes
     (objets exposant ts, src, dst, sport, dport, proto -- `Pkt` ou
     equivalent)."""
-    logger.debug("inventory_from_packets(label={label}, path={path}, packets={packets})")
+    logger.debug("inventory_from_packets(label={}, path={})", label, path)
     inv = CaptureInventory(label=label, path=path)
     for pkt in packets:
         inv.packet_count += 1
@@ -173,7 +172,6 @@ class PairEvaluation:
     def score(self) -> int:
         """Nombre de criteres satisfaits (0-3) : sert a choisir, pour une
         capture isolee, le candidat le plus proche a citer dans le motif."""
-        logger.debug("score(self={self})")
         return 3 - len(self.failed)
 
 
@@ -226,7 +224,7 @@ def evaluate_pair(
     deux sondes aux horloges non synchronisees ne sont pas ecartees a tort.
     Au-dela, aucune correction : on refuse plutot que de recaler au hasard.
     """
-    logger.debug("evaluate_pair(a={a}, b={b})")
+    logger.debug("evaluate_pair(a={}, b={})", a, b)
     common_ips = sorted(a.ips & b.ips)
     common_pairs = sorted(set(a.pairs) & set(b.pairs))
     common_protocols = sorted(a.protocols & b.protocols)
@@ -278,7 +276,7 @@ def evaluate_pair(
 
 def justify(ev: PairEvaluation) -> str:
     """Justification ecrite d'un rapprochement (criteres satisfaits)."""
-    logger.debug("justify(ev={ev})")
+    logger.debug("justify(ev={})", ev)
     parts = [
         f"recouvrement {ev.overlap_ratio:.0%} ({_fmt_ts(ev.overlap_start)}-{_fmt_ts(ev.overlap_end)} UTC)",
         f"{len(ev.common_ips)} IP communes ({_fmt_list(ev.common_ips)})",
@@ -322,7 +320,6 @@ class BatchPlan:
 
     def check_invariant(self) -> None:
         """Aucun fichier perdu en route : leve AssertionError sinon."""
-        logger.debug("check_invariant(self={self})")
         counted = self.grouped_count + len(self.isolated) + len(self.failures)
         if counted != self.total:
             raise AssertionError(
@@ -347,7 +344,7 @@ def plan_batch(
     membre deviennent des captures isolees, avec pour motif les criteres
     manques face au candidat le plus proche.
     """
-    logger.debug("plan_batch(inventories={inventories})")
+    logger.debug("plan_batch(inventories={})", inventories)
     failures = [inv for inv in inventories if inv.error is not None]
     usable = [inv for inv in inventories if inv.error is None]
     empty = [inv for inv in usable if inv.packet_count == 0]
@@ -367,7 +364,7 @@ def plan_batch(
     evals: dict[tuple[str, str], PairEvaluation] = {}
 
     def ev(x: CaptureInventory, y: CaptureInventory) -> PairEvaluation:
-        logger.debug("ev(x={x}, y={y})")
+        logger.debug("ev(x={}, y={})", x, y)
         key = (x.label, y.label)
         if key not in evals:
             evals[key] = evaluate_pair(
@@ -423,7 +420,7 @@ def format_batch_index(
     synthesis: list[str] | None = None,
 ) -> str:
     """Rend l'index du lot -- le vrai livrable du mode batch."""
-    logger.debug("format_batch_index(plan={plan}, folder={folder})")
+    logger.debug("format_batch_index(plan={}, folder={})", plan, folder)
     group_reports = group_reports or {}
     capture_reports = capture_reports or {}
     lines = [f"LOT : {plan.total} capture(s), {folder}"]

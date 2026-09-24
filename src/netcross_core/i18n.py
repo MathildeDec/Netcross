@@ -58,7 +58,6 @@ def locale_dirs() -> list[Path]:
 def requested_languages(language: str | None = None) -> list[str] | None:
     """Langues demandees : argument, puis ``$NETCROSS_LANG`` ; ``None``
     laisse gettext lire LANGUAGE/LC_ALL/LC_MESSAGES/LANG."""
-    logger.debug("requested_languages(language={language})")
     value = language or os.environ.get(ENV_LANG)
     if not value:
         return None
@@ -92,7 +91,6 @@ def active_language() -> str | None:
 def available_languages(localedir: Path | None = None) -> list[str]:
     """Locales ayant un catalogue compile, trouvees sur disque (pas de
     liste codee en dur)."""
-    logger.debug("available_languages(localedir={localedir})")
     dirs = [localedir] if localedir else locale_dirs()
     langs: set[str] = set()
     for d in dirs:
@@ -112,13 +110,11 @@ def _(message: str) -> str:
 
 def ngettext(singular: str, plural: str, n: int) -> str:
     """Forme singulier/pluriel selon ``n`` et les regles de la langue."""
-    logger.debug("ngettext(singular={singular}, plural={plural}, n={n})")
     return _current().ngettext(singular, plural, n)
 
 
 def N_(message: str) -> str:  # noqa: N802 -- convention gettext
     """Marque ``message`` pour l'extraction sans le traduire (constantes)."""
-    logger.debug("N_(message={message})")
     return message
 
 

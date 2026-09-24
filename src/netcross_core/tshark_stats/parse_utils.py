@@ -27,7 +27,6 @@ _SEP_CHARS = frozenset("=-")
 
 def is_separator(line: str) -> bool:
     """Vrai pour une ligne de separateur ``====`` (ou ``----``)."""
-    logger.debug("is_separator(line={line})")
     s = line.strip()
     if len(s) < 3:
         return False
@@ -40,7 +39,6 @@ def is_filter_line(line: str) -> bool:
 
 def is_title_or_section(line: str) -> bool:
     """Lignes de titre / section sans donnees chiffrees."""
-    logger.debug("is_title_or_section(line={line})")
     s = line.strip()
     if not s or is_separator(s) or is_filter_line(s):
         return True
@@ -69,7 +67,6 @@ def split_fields(line: str) -> list[str]:
 
     Retourne une liste vide si la ligne ne contient pas de ``|``.
     """
-    logger.debug("split_fields(line={line})")
     if "|" not in line:
         return []
     parts = line.split("|")
@@ -98,7 +95,7 @@ def parse_int(s: str | None) -> int | None:
     try:
         return int(float(m))
     except ValueError:
-        logger.exception("erreur: ValueError")
+        logger.exception("échec dans parse_int")
         return None
 
 
@@ -114,14 +111,13 @@ def parse_float(s: str | None) -> float | None:
     try:
         return float(m)
     except ValueError:
-        logger.exception("erreur: ValueError")
+        logger.exception("échec dans parse_float")
         return None
 
 
 def normalize_header(s: str) -> str:
     """Normalise un nom de colonne : minuscules, espaces compactes,
     ``%`` retire, unites ``bits/s``/``mbit/s`` ramenees a ``bits_s``."""
-    logger.debug("normalize_header(s={s})")
     t = s.strip().lower()
     t = t.replace("%", "")
     t = t.replace("<->", " address ")
@@ -136,7 +132,6 @@ def normalize_header(s: str) -> str:
 def find_column(headers: list[str], *keywords: str) -> int | None:
     """Retourne l'indice de la premiere colonne dont l'en-tete normalise
     contient tous les mots-cles donnes, ou None."""
-    logger.debug("find_column(headers={headers})")
     for i, h in enumerate(headers):
         nh = normalize_header(h)
         if all(kw in nh for kw in keywords):
@@ -148,7 +143,6 @@ def data_rows(text: str) -> list[str]:
     """Extrait les lignes de donnees d'un tableau ``tshark -z`` : lignes
     contenant au moins un ``|`` et au moins un champ numerique, en
     ignorant separateurs, titres, filtre et en-tetes."""
-    logger.debug("data_rows(text={text})")
     rows: list[str] = []
     for line in text.splitlines():
         if is_separator(line) or is_filter_line(line):
@@ -169,7 +163,6 @@ def header_lines(text: str) -> list[str]:
     ``|`` mais identifiees comme section/titre (mots-cles Address,
     Packets, Bytes, fleches...). Les en-tetes tshark sont souvent
     eclates sur plusieurs lignes ; voir :func:`reconstruct_headers`."""
-    logger.debug("header_lines(text={text})")
     out: list[str] = []
     for line in text.splitlines():
         if is_separator(line) or is_filter_line(line):
@@ -190,7 +183,6 @@ def reconstruct_headers(text: str) -> list[str]:
     par indice de champ (apres :func:`split_fields`) et on les concatene.
     Retourne une liste vide si aucun en-tete n'est trouve.
     """
-    logger.debug("reconstruct_headers(text={text})")
     lines = header_lines(text)
     if not lines:
         return []
@@ -211,7 +203,6 @@ def reconstruct_headers(text: str) -> list[str]:
 def raw_fields_from(headers: list[str], fields: list[str]) -> dict[str, str]:
     """Construit un dict ``{nom_colonne: valeur}`` pour toutes les colonnes
     d'une ligne de donnees -- absorbe les colonnes non mappees."""
-    logger.debug("raw_fields_from(headers={headers}, fields={fields})")
     out: dict[str, str] = {}
     for i, val in enumerate(fields):
         key = headers[i] if i < len(headers) else f"col_{i}"

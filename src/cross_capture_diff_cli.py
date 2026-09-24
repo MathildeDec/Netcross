@@ -187,7 +187,7 @@ def _load_packets(scenario_name, captures, parallel, parallel_workers):
         try:
             pkts = parse_capture(label, path, raise_on_error=True)
         except (TsharkNotFoundError, TsharkError) as exc:
-            logger.exception("erreur: exc")
+            logger.exception(f"échec dans _load_packets: {exc}")
             any_error = True
             print(f"[{scenario_name}/{label}] ECHEC sur {path} : {exc}", file=sys.stderr)
             continue
@@ -220,7 +220,7 @@ def _parse_live_spec(spec):
     try:
         parse_source(iface)
     except CaptureSourceError as exc:
-        logger.exception("erreur: exc")
+        logger.exception(f"échec dans _parse_live_spec: {exc}")
         print(f"Source invalide pour --live-current {label} : {exc}", file=sys.stderr)
         sys.exit(1)
     return label, iface, bpf or None
@@ -267,7 +267,7 @@ def _run_live_captures(live_specs, duration):
                     last_log = now
         except Exception as e:  # noqa: BLE001 -- thread de fond : une erreur sur
             # ce point doit etre rapportee sans arreter les autres points en cours.
-            logger.exception("erreur: e")
+            logger.exception(f"échec dans _worker: {e}")
             print(f"[courant/{label}] ERREUR : {e}", file=sys.stderr)
         print(f"[courant/{label}] capture arretee -- {count} paquet(s) au total.")
 
@@ -782,7 +782,7 @@ def main():
                 entries = list_history(args.history_db, limit=args.history_show, label=args.history_label)
                 print_history(entries)
         except HistoryDatabaseError as exc:
-            logger.exception("erreur: exc")
+            logger.exception(f"échec dans _quic_findings: {exc}")
             print(exc, file=sys.stderr)
             sys.exit(1)
 

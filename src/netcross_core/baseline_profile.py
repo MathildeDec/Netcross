@@ -90,7 +90,6 @@ def build_baseline_profile(metric: str, values: list[float]) -> BaselineProfile:
     Si la liste est vide, retourne un profil avec count=0 et toutes les
     statistiques a zero.
     """
-    logger.debug("build_baseline_profile(metric={metric}, values={values})")
     if not values:
         return BaselineProfile(metric=metric, count=0)
 
@@ -135,7 +134,7 @@ def _extract_metrics_from_row(row: sqlite3.Row) -> dict[str, float]:
             for sev, count in counts.items():
                 metrics[f"finding_count:{sev}"] = float(count)
     except (json.JSONDecodeError, TypeError):
-        logger.exception("erreur: e")
+        logger.exception("échec dans _extract_metrics_from_row")
         pass
 
     return metrics
@@ -163,7 +162,7 @@ def load_baseline_from_db(
         conn = sqlite3.connect(db_path)
         conn.row_factory = sqlite3.Row
     except sqlite3.Error:
-        logger.exception("erreur inattendue")
+        logger.exception("échec dans load_baseline_from_db")
         return None
 
     try:
@@ -181,7 +180,7 @@ def load_baseline_from_db(
 
         rows = conn.execute(query, params).fetchall()
     except sqlite3.Error:
-        logger.exception("erreur inattendue")
+        logger.exception("échec dans load_baseline_from_db")
         conn.close()
         return None
     finally:
@@ -216,7 +215,7 @@ def load_all_baselines(
         conn = sqlite3.connect(db_path)
         conn.row_factory = sqlite3.Row
     except sqlite3.Error:
-        logger.exception("erreur inattendue")
+        logger.exception("échec dans load_all_baselines")
         return []
 
     try:
@@ -234,7 +233,7 @@ def load_all_baselines(
 
         rows = conn.execute(query, params).fetchall()
     except sqlite3.Error:
-        logger.exception("erreur inattendue")
+        logger.exception("échec dans load_all_baselines")
         conn.close()
         return []
     finally:

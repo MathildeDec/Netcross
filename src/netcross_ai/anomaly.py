@@ -57,7 +57,6 @@ class Baseline:
     @classmethod
     def from_dict(cls, data: object, source: str = "baseline") -> Baseline:
         """Valide un document ``netcross.ai.baseline/1`` deja decode."""
-        logger.debug("from_dict(cls={cls}, data={data}, source={source})")
         if not isinstance(data, dict) or data.get("schema") != BASELINE_SCHEMA:
             raise BaselineError(f"{source} n'est pas une baseline {BASELINE_SCHEMA}.")
         if data.get("features") != list(FEATURE_NAMES):
@@ -74,7 +73,7 @@ class Baseline:
         try:
             data = json.loads(Path(path).read_text(encoding="utf-8"))
         except (OSError, json.JSONDecodeError) as exc:
-            logger.exception("erreur: exc")
+            logger.exception(f"échec dans load: {exc}")
             raise BaselineError(f"baseline illisible ({path}) : {exc}") from exc
         return cls.from_dict(data, str(path))
 
@@ -108,7 +107,6 @@ def _explain(vector: list[float], means: list[float], stds: list[float]) -> list
 
 def detect_anomalies(baseline: Baseline, flows: list[dict], contamination: float | str = "auto") -> list[FlowAnomaly]:
     """Score chaque flux ; les plus atypiques en premier."""
-    logger.debug("detect_anomalies(baseline={baseline}, flows={flows}, contamination={contamination})")
     require_ml("La detection d'anomalies")
     if len(baseline.vectors) < MIN_BASELINE_FLOWS:
         raise BaselineError(
