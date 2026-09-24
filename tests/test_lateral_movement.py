@@ -121,7 +121,7 @@ def test_host_scan_detecte_plage_dans_meme_24():
 def test_brute_force_ssh_detecte():
     """20 tentatives SSH vers 3 hotes dans 300s -> brute_force."""
     pkts = [
-        make_pkt(src="192.168.1.100", dst=f"192.168.1.{host}", dport=22, ts=float(i), proto="TCP")
+        make_pkt(src="192.168.1.100", dst=f"192.168.1.{host}", sport=50000 + i, dport=22, ts=float(i), proto="TCP")
         for i in range(20)
         for host in [1, 2, 3]
     ]
@@ -133,7 +133,11 @@ def test_brute_force_ssh_detecte():
 
 def test_brute_force_rdp_detecte():
     """15 tentatives RDP (3389) vers 2 hotes -> brute_force."""
-    pkts = [make_pkt(src="192.168.1.100", dst=f"192.168.1.{(i % 2) + 1}", dport=3389, ts=float(i)) for i in range(15)]
+    # Issue #346 : une tentative = une session -> port source distinct
+    pkts = [
+        make_pkt(src="192.168.1.100", dst=f"192.168.1.{(i % 2) + 1}", sport=50000 + i, dport=3389, ts=float(i))
+        for i in range(15)
+    ]
     result = detect_lateral_movement(pkts)
     bf = [e for e in result.events if e.event_type == "brute_force"]
     assert len(bf) == 1
@@ -249,7 +253,10 @@ def test_resultat_events_by_type():
         for host in range(1, 6)
         for port in range(1, 21)
     ]
-    pkts.extend(make_pkt(src="192.168.1.200", dst=f"192.168.1.{(i % 2) + 1}", dport=22, ts=float(i)) for i in range(15))
+    pkts.extend(
+        make_pkt(src="192.168.1.200", dst=f"192.168.1.{(i % 2) + 1}", sport=50000 + i, dport=22, ts=float(i))
+        for i in range(15)
+    )
     result = detect_lateral_movement(pkts)
     by_type = result.events_by_type
     assert "port_scan" in by_type

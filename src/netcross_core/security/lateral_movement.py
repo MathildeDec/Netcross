@@ -21,7 +21,7 @@ Cinq detecteurs :
 
 - **brute_force** : tentatives repetees d'authentification (SSH port 22,
   RDP port 3389, WinRM port 5985/5986) -- >= ``brute_force_min_attempts``
-  paquets vers >= ``brute_force_min_hosts`` hotes distincts dans une
+  sessions (dst, port source) vers >= ``brute_force_min_hosts`` hotes distincts dans une
   fenetre glissante de ``brute_force_window_seconds`` secondes.
 
 - **unusual_protocol** : protocoles internes inhabituels (RDP, WinRM, SMB)
@@ -116,7 +116,11 @@ class LateralMovementThresholds:
 
 @dataclass
 class LateralMovementEvent:
-    """Un evenement de mouvement lateral detecte."""
+    """Un evenement de mouvement lateral detecte.
+
+    Issue #346 : un meme mouvement lateral vu sur N points = UN evenement.
+    `points` liste tous les points ou il a ete observe (`point` reste un
+    alias retro-compatible : premier point trie, ou None si vide)."""
 
     point: str
     source: str
@@ -124,6 +128,11 @@ class LateralMovementEvent:
     details: str
     score: float  # 0.0 a 1.0
     targets: list[str] = field(default_factory=list)
+    points: tuple[str, ...] = ()
+
+    @property
+    def points_list(self) -> list[str]:
+        return list(self.points) if self.points else ([self.point] if self.point else [])
 
 
 @dataclass
@@ -248,18 +257,25 @@ def detect_brute_force(
 ) -> list[LateralMovementEvent]:
     """Detecte les tentatives de brute force : auth repetee vers N hotes."""
     logger.debug("detect_brute_force(packets={packets}, thresholds={thresholds})")
-    # point -> source -> list of (ts, dst) for auth ports
-    auth_map: dict[str, dict[str, list[tuple[float, str]]]] = defaultdict(lambda: defaultdict(list))
+    # Issue #346 : une tentative = une SESSION (dst, port source), pas un
+    # paquet -- 36 sessions SSH de 4 paquets etaient rapportees comme
+    # « 144 tentatives ». On retient l'horodatage du premier paquet.
+    # point -> source -> (dst, sport) -> ts du premier paquet
+    sessions: dict[str, dict[str, dict[tuple[str, int | None], float]]] = defaultdict(lambda: defaultdict(dict))
     for pkt in packets:
         if pkt.dport not in _AUTH_PORTS:
             continue
         if not _is_internal(pkt.src) or not _is_internal(pkt.dst):
             continue
-        auth_map[pkt.point][pkt.src].append((pkt.ts, pkt.dst))
+        per_src = sessions[pkt.point][pkt.src]
+        skey = (pkt.dst, pkt.sport)
+        if skey not in per_src or pkt.ts < per_src[skey]:
+            per_src[skey] = pkt.ts
 
     events: list[LateralMovementEvent] = []
-    for point, sources in auth_map.items():
-        for src, attempts in sources.items():
+    for point, sources in sessions.items():
+        for src, per_session in sources.items():
+            attempts = [(ts, dst) for (dst, _sport), ts in per_session.items()]
             if len(attempts) < thresholds.brute_force_min_attempts:
                 continue
             # Fenetre glissante : trouver une fenetre ou il y a >= min_attempts
@@ -404,8 +420,37 @@ def detect_lateral_movement(
     events.extend(detect_unusual_protocols(packets, thresholds))
     events.extend(detect_new_connections(packets, thresholds))
 
+    # Issue #346 : dedoublonner les evenements multi-points -- un meme
+    # mouvement lateral (source, type, cibles) vu sur N points de capture
+    # est UN evenement avec N points, pas N evenements separes.
+    deduped: dict[tuple[str, str, str], LateralMovementEvent] = {}
+    for ev in events:
+        key = (ev.source, ev.event_type, ev.details)
+        if key in deduped:
+            existing = deduped[key]
+            pts = set(existing.points_list) | {ev.point}
+            deduped[key] = LateralMovementEvent(
+                point=sorted(pts)[0] if pts else ev.point,
+                source=ev.source,
+                event_type=ev.event_type,
+                details=ev.details,
+                score=max(existing.score, ev.score),
+                targets=sorted(set(existing.targets) | set(ev.targets)),
+                points=tuple(sorted(pts)),
+            )
+        else:
+            deduped[key] = LateralMovementEvent(
+                point=ev.point,
+                source=ev.source,
+                event_type=ev.event_type,
+                details=ev.details,
+                score=ev.score,
+                targets=ev.targets,
+                points=(ev.point,) if ev.point else (),
+            )
+    events = list(deduped.values())
+
     if events:
-        # Logging sera ajoute quand #245 (loguru) sera merge dans dev.
-        pass
+        logger.info("mouvements lateraux : {n} evenement(s) apres dedoublonnage multi-points", n=len(events))
 
     return LateralMovementResult(events=events, suspicious=bool(events))
