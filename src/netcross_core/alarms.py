@@ -37,6 +37,10 @@ from __future__ import annotations
 
 from dataclasses import dataclass, field
 
+from netcross_core.logging_config import get_logger
+
+logger = get_logger(__name__)
+
 
 @dataclass(frozen=True)
 class AlarmSignal:
@@ -182,12 +186,14 @@ class AlarmEngine:
     def events(self) -> list[AlarmEvent]:
         """Tous les AlarmEvent émis depuis la création du moteur
         (raised ET cleared), dans l'ordre chronologique."""
+        logger.debug("events(self={self})")
         return list(self._events)
 
     @property
     def active_alarms(self) -> list[AlarmEvent]:
         """Uniquement les AlarmEvent "raised" encore actifs (non
         encore cleared). Utile pour un tableau de bord temps réel."""
+        logger.debug("active_alarms(self={self})")
         raised: dict[tuple[str, str], AlarmEvent] = {}
         for evt in self._events:
             key = (evt.rule_id, evt.segment)
@@ -207,6 +213,7 @@ class AlarmEngine:
         AlarmConfig est ignoré silencieusement — le moteur ne surveille
         que ce qu'on lui a demandé de surveiller.
         """
+        logger.debug("feed(self={self}, timestamp={timestamp}, signals={signals})")
         new_events: list[AlarmEvent] = []
 
         # Indexer les signaux reçus ce cycle par (rule_id, segment).

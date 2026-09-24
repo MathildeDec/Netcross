@@ -17,9 +17,16 @@ from __future__ import annotations
 
 from typing import Any
 
+from loguru import logger as _loguru_logger
+
+# pcap_parser reste independant de netcross_core (contrat import-linter) :
+# loguru directement, lie au nom du module.
+logger = _loguru_logger.bind(name=__name__)
+
 
 def layer(layers: dict, key: str) -> dict | None:
     """Couche unique (premiere/seule occurrence). None si absente."""
+    logger.debug("layer(layers={layers}, key={key})")
     val = layers.get(key)
     if val is None:
         return None
@@ -30,6 +37,7 @@ def innermost(layers: dict, key: str) -> dict | None:
     """Derniere occurrence d'une couche empilee -- la plus interne, donc
     la plus proche des vraies donnees applicatives (ex: le vrai IP client
     derriere un GRE/VXLAN/ERSPAN, pas l'IP du tunnel)."""
+    logger.debug("innermost(layers={layers}, key={key})")
     val = layers.get(key)
     if val is None:
         return None
@@ -38,6 +46,7 @@ def innermost(layers: dict, key: str) -> dict | None:
 
 def all_occurrences(layers: dict, key: str) -> list[dict]:
     """Toutes les occurrences d'une couche, dans l'ordre outer -> inner."""
+    logger.debug("all_occurrences(layers={layers}, key={key})")
     val = layers.get(key)
     if val is None:
         return []
@@ -45,6 +54,7 @@ def all_occurrences(layers: dict, key: str) -> list[dict]:
 
 
 def g(d: dict | None, name: str, default: Any = None) -> Any:
+    logger.debug("g(d={d}, name={name}, default={default})")
     if d is None:
         return default
     return d.get(name, default)
@@ -56,12 +66,14 @@ def as_int(value: Any, base: int = 10) -> int | None:
     try:
         return int(value, base) if isinstance(value, str) else int(value)
     except (TypeError, ValueError):
+        logger.exception("erreur: e")
         return None
 
 
 def hex_or_dec_to_int(value: Any) -> int | None:
     """Beaucoup de champs tshark (ip.id, gtp.teid, dhcp.id...) sont rendus
     en hexadecimal prefixe "0x...". D'autres non. On accepte les deux."""
+    logger.debug("hex_or_dec_to_int(value={value})")
     if value is None:
         return None
     if isinstance(value, str) and value.lower().startswith("0x"):
@@ -85,6 +97,7 @@ def checksum_is_bad(status_value: Any) -> bool | None:
     OU si le champ est absent (couche sans checksum -- IPv6 n'a pas de
     checksum d'en-tete, par exemple) -- jamais suppose invalide/valide
     par defaut, un statut inconnu n'est ni l'un ni l'autre."""
+    logger.debug("checksum_is_bad(status_value={status_value})")
     code = hex_or_dec_to_int(status_value)
     if code == 0:
         return True
@@ -107,6 +120,7 @@ def as_float(value: Any) -> float | None:
     try:
         return float(value)
     except (TypeError, ValueError):
+        logger.exception("erreur: e")
         return None
 
 
@@ -122,6 +136,7 @@ def as_bool(value: Any) -> bool:
     EK different) plutot que de supposer un seul format, par symetrie
     avec hex_or_dec_to_int qui fait la meme chose pour les nombres.
     Absent (champ non emis) -> False, comme le reste du module."""
+    logger.debug("as_bool(value={value})")
     if isinstance(value, bool):
         return value
     if value is None:
@@ -148,6 +163,7 @@ def has_expert_flag(layer: dict | None, name: str) -> bool:
     ci-dessus, par prudence (non confirme necessaire par la capture de
     test, qui n'a jamais produit qu'une seule condition a la fois, mais
     pas exclu non plus et le cout de le gerer est nul)."""
+    logger.debug("has_expert_flag(layer={layer}, name={name})")
     if layer is None:
         return False
     expert = layer.get("_ws_expert")
@@ -196,6 +212,7 @@ def expert_flag_names(layer: dict | None) -> tuple[str, ...]:
     Vide si la couche est absente ou ne porte aucun signal d'expertise
     (cas le plus frequent : la grande majorite des paquets n'ont aucune
     condition d'expertise tshark active)."""
+    logger.debug("expert_flag_names(layer={layer})")
     if layer is None:
         return ()
     expert = layer.get("_ws_expert")
@@ -301,6 +318,7 @@ def expert_flag_details(layer: dict | None) -> tuple[tuple[str, str | None, str 
 
     Vide si la couche est absente ou ne porte aucun signal d'expertise --
     meme convention que expert_flag_names()."""
+    logger.debug("expert_flag_details(layer={layer})")
     if layer is None:
         return ()
     expert = layer.get("_ws_expert")
@@ -328,4 +346,5 @@ def as_bytes_from_hex_dump(value: Any) -> bytes:
     try:
         return bytes.fromhex(value.replace(":", ""))
     except ValueError:
+        logger.exception("erreur: ValueError")
         return b""

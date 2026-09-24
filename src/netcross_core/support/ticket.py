@@ -139,6 +139,7 @@ def collect_environment() -> dict[str, str | None]:
     (``platform.system()``) et sa version majeure suffisent a reproduire
     la majorite des incidents.
     """
+    logger.debug("collect_environment()")
     tshark = shutil.which("tshark")
     return {
         "systeme": platform.system(),
@@ -157,6 +158,7 @@ def format_exception(exc: BaseException) -> tuple[str, str, list[str]]:
     scrubber puisse le traiter ligne par ligne -- les chemins de fichiers
     y sont nombreux et c'est precisement ce qu'il faut rediger.
     """
+    logger.debug("format_exception(exc={exc})")
     lines = traceback.format_exception(type(exc), exc, exc.__traceback__)
     flat = [ln.rstrip("\n") for chunk in lines for ln in chunk.splitlines()]
     return type(exc).__name__, str(exc), flat
@@ -378,6 +380,7 @@ def install_crash_handler(
             write_ticket(ticket, path)
             print(f"\nTicket de support anonymise ecrit : {path}", file=sys.stderr)
         except Exception as inner:  # noqa: BLE001 - jamais masquer le crash d'origine
+            logger.exception("erreur: inner")
             print(f"\nEchec d'ecriture du ticket de support : {inner}", file=sys.stderr)
         previous(exc_type, exc_value, exc_tb)
 

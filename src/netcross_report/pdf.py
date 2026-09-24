@@ -21,6 +21,7 @@ from reportlab.platypus import (
     TableStyle,
 )
 
+from netcross_core.logging_config import get_logger
 from netcross_report.charts import (
     DIFF_SEVERITY_SCHEME,
     chart_sequence_diagram,
@@ -31,6 +32,7 @@ from netcross_report.path_metrics import build_path_metrics, degradation_summary
 from netcross_report.synthesis import build_findings
 from netcross_report.triage import HEALTH_LABELS, health_label, health_score, rank_segments
 
+logger = get_logger(__name__)
 SEVERITY_LABELS = {
     "anomalie": "Anomalie",
     "a_surveiller": "A surveiller",
@@ -418,6 +420,7 @@ def path_section_story(metrics, styles, chart_path=None):
     aucune section : pas de titre orphelin dans un rapport a un seul point
     de capture, meme convention que expert_section_story().
     """
+    logger.debug("path_section_story(metrics={metrics}, styles={styles}, chart_path={chart_path})")
     if not metrics:
         return []
     story = [
@@ -490,6 +493,7 @@ def sequence_section_story(views, styles, chart_paths=None):
     blanc). Liste vide de vues => aucune section, comme
     expert_section_story()/path_section_story().
     """
+    logger.debug("sequence_section_story(views={views}, styles={styles}, chart_paths={chart_paths})")
     views = [v for v in (views or []) if v.steps]
     if not views:
         return []
@@ -540,6 +544,7 @@ def expert_section_story(session_objects, styles, top_n=EXPERT_TABLE_TOP_N):
     produire de PDF : les tests inspectent les Table/Paragraph renvoyes,
     la ou relire le PDF final imposerait d'en extraire le texte.
     """
+    logger.debug("expert_section_story(session_objects={session_objects}, styles={styles}, top_n={top_n})")
     if session_objects is None:
         return []
     story = [
@@ -650,6 +655,46 @@ def _securite_table_constats(items, styles, avec_cve: bool, message_vide: str):
     return _grid_table(data, largeurs, highlight=highlight)
 
 
+def _securite_table_detecteurs(items, styles, message_vide: str):
+    """Constats des detecteurs Netcross regroupes par detecteur (#347) :
+    chaque detecteur ayant produit un constat a au moins une ligne, avec
+    son total ; au plus MAX_ROWS_PER_DETECTOR exemples par detecteur."""
+    from netcross_report.security_report import MAX_ROWS_PER_DETECTOR, group_by_detector
+
+    if not items:
+        return Paragraph(message_vide, styles["Normal"])
+    entetes = ["Gravite", "Detecteur", "Detail", "Cible", "Point"]
+    data = [[Paragraph(f"<b>{h}</b>", styles["Cell"]) for h in entetes]]
+    highlight = []
+    for g in group_by_detector(items):
+        for n, i in enumerate(g.items[:MAX_ROWS_PER_DETECTOR]):
+            etiquette = f"<b>{g.label}</b> ({len(g.items)})" if n == 0 else ""
+            data.append(
+                [
+                    Paragraph(i.get("severity") or "-", styles["Cell"]),
+                    Paragraph(etiquette, styles["Cell"]),
+                    Paragraph(i.get("detail") or "-", styles["Cell"]),
+                    Paragraph(_securite_cible(i.get("host"), i.get("port")), styles["Cell"]),
+                    Paragraph(i.get("point") or "-", styles["Cell"]),
+                ]
+            )
+            couleur = _SEVERITY_PDF_COLORS.get(i.get("severity"))
+            if couleur is not None:
+                highlight.append((len(data) - 1, couleur))
+        reste = len(g.items) - MAX_ROWS_PER_DETECTOR
+        if reste > 0:
+            data.append(
+                [
+                    Paragraph("", styles["Cell"]),
+                    Paragraph("", styles["Cell"]),
+                    Paragraph(f"... {reste} autre(s) constat(s) {g.label}", styles["Cell"]),
+                    Paragraph("", styles["Cell"]),
+                    Paragraph("", styles["Cell"]),
+                ]
+            )
+    return _grid_table(data, [1.7 * cm, 3.4 * cm, 7.0 * cm, 2.9 * cm, 2.0 * cm], highlight=highlight)
+
+
 def security_section_story(security_report, styles):
     """Section "Rapport de securite" du PDF (issue #218).
 
@@ -663,9 +708,10 @@ def security_section_story(security_report, styles):
     vides comprises, avec leur message d'absence -- c'est le manque qui a
     produit l'issue #259 : une donnee calculee, jamais rendue.
     """
+    logger.debug("security_section_story(security_report={security_report}, styles={styles})")
     if security_report is None:
         return []
-    from netcross_report.security_report import SEVERITIES, security_report_to_dict
+    from netcross_report.security_report import SEVERITIES, is_expert_info, security_report_to_dict
 
     data = security_report_to_dict(security_report)
     d = data["dashboard"]
@@ -689,7 +735,8 @@ def security_section_story(security_report, styles):
                 ("Score de risque", f"{d['score']}/100 (niveau : {niveau})"),
                 ("Services detectes", f"{d['services_total']} (dont {d['services_vulnerable']} vulnerable(s))"),
                 ("Tentatives d'exploitation", str(d["exploits"])),
-                ("Anomalies (Expert Info)", str(d["anomalies"])),
+                ("Constats des detecteurs Netcross", str(d["anomalies_netcross"])),
+                ("Alertes Expert Info correlees", str(d["anomalies_expert_info"])),
                 ("CVE confirmees", str(d["cves"])),
                 (
                     "Repartition par severite",
@@ -739,23 +786,28 @@ def security_section_story(security_report, styles):
     else:
         story.append(Paragraph("Aucun service identifie dans cette capture.", styles["Normal"]))
 
-    for titre, cle, avec_cve, vide, source_filter in (
-        ("Tentatives d'exploitation detectees", "exploits", False, "Aucune tentative d'exploitation detectee.", None),
-        ("Anomalies (detecteurs Netcross)", "anomalies", False, "Aucune anomalie detectee.", "netcross"),
-        ("Anomalies correlees (Expert Info)", "anomalies", False, "Aucune anomalie correlee.", "expert_info"),
-        ("CVE confirmees", "cves", True, "Aucune CVE confirmee.", None),
-    ):
-        story.append(Paragraph(titre, styles["H2b"]))
-        items = data[cle]
-        if source_filter is not None:
-            items = [i for i in items if i.get("source") == source_filter]
-        story.append(_securite_table_constats(items, styles, avec_cve, vide))
+    # Issue #348 : les detecteurs Netcross et les alertes Expert Info de
+    # Wireshark sont deux sources distinctes, deux sections distinctes.
+    data["netcross"] = [i for i in data["anomalies"] if not is_expert_info(i)]
+    data["expert_info"] = [i for i in data["anomalies"] if is_expert_info(i)]
+    story.append(Paragraph("Tentatives d'exploitation detectees", styles["H2b"]))
+    story.append(_securite_table_constats(data["exploits"], styles, False, "Aucune tentative d'exploitation detectee."))
+    story.append(Paragraph("Anomalies (detecteurs Netcross)", styles["H2b"]))
+    story.append(_securite_table_detecteurs(data["netcross"], styles, "Aucun constat des detecteurs Netcross."))
+    story.append(Paragraph("Anomalies (alertes Expert Info correlees)", styles["H2b"]))
+    story.append(_securite_table_constats(data["expert_info"], styles, False, "Aucune alerte Expert Info correlee."))
+    story.append(Paragraph("CVE confirmees", styles["H2b"]))
+    story.append(_securite_table_constats(data["cves"], styles, True, "Aucune CVE confirmee."))
 
     tronques = [
         (cle, len(data[cle]))
-        for cle in ("services", "exploits", "anomalies", "cves")
+        for cle in ("services", "exploits", "expert_info", "cves")
         if len(data[cle]) > MAX_SECURITY_ROWS
     ]
+    from netcross_report.security_report import MAX_ROWS_PER_DETECTOR, group_by_detector
+
+    if any(len(g.items) > MAX_ROWS_PER_DETECTOR for g in group_by_detector(data["netcross"])):
+        tronques.append(("detecteurs Netcross", len(data["netcross"])))
     if tronques:
         # Ne jamais tronquer en silence : le lecteur doit savoir combien de
         # lignes il ne voit pas, et ou les retrouver.
@@ -818,6 +870,7 @@ def generate_pdf(
     (meme convention d'absence que tls_findings/quic_findings ci-dessus,
     et jamais de recalcul ici : ces objets sont construits par l'appelant).
     """
+    logger.debug("generate_pdf(r={r}, output_path={output_path}, title={title}, ...)")
     if findings is None:
         findings = build_findings(r)
     ranked = rank_segments(list(findings) + list(tls_findings or []) + list(quic_findings or []))
@@ -1141,6 +1194,7 @@ def generate_diff_pdf(
     apporter de vraie semantique de diff en echange. Voir claude.md pour
     la discussion complete de ce choix.
     """
+    logger.debug("generate_diff_pdf(findings={findings}, baseline={baseline}, current={current}, ...)")
     ranked = rank_segments(findings)
 
     with tempfile.TemporaryDirectory() as tmpdir:

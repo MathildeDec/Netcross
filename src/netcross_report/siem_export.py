@@ -31,9 +31,11 @@ from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
+# Constantes CEF
+from netcross_core.logging_config import get_logger
 from netcross_core.models import Report
 
-# Constantes CEF
+logger = get_logger(__name__)
 _DEVICE_VENDOR = "Netcross"
 _DEVICE_PRODUCT = "Netcross"
 _DEVICE_VERSION = "1.0"
@@ -136,6 +138,7 @@ def _format_extension(record: SiemRecord) -> str:
 
 def to_cef(records: list[SiemRecord]) -> list[str]:
     """Met en forme des enregistrements en lignes CEF."""
+    logger.debug("to_cef(records={records})")
     lines: list[str] = []
     for rec in records:
         name = _escape_cef_field(f"{rec.category}: {rec.detail}"[:255])
@@ -153,6 +156,7 @@ def export_cef(report: Report) -> list[str]:
     etre ecrit ligne par ligne dans un fichier ``.cef`` ou envoye
     directement a un SIEM via syslog.
     """
+    logger.debug("export_cef(report={report})")
     return to_cef(_to_siem_records(report))
 
 
@@ -196,6 +200,7 @@ def to_leef(records: list[SiemRecord]) -> list[str]:
     ``devTimeFormat``, ``src``/``dst``/``dstPort`` quand le constat les
     porte ; attributs propres : ``point`` (point de capture), ``cveId``,
     ``msg`` (detail, tronque a 1000 caracteres)."""
+    logger.debug("to_leef(records={records})")
     lines: list[str] = []
     for rec in records:
         f = rec.finding
@@ -227,6 +232,7 @@ def to_leef(records: list[SiemRecord]) -> list[str]:
 
 def export_leef(report: Report) -> list[str]:
     """Exporte les constats de securite d'un Report en lignes LEEF 2.0."""
+    logger.debug("export_leef(report={report})")
     return to_leef(_to_siem_records(report))
 
 
@@ -247,12 +253,14 @@ def write_cef(report: Report, output_path: str | Path) -> str:
 
     Retourne le chemin absolu du fichier ecrit.
     """
+    logger.debug("write_cef(report={report}, output_path={output_path})")
     return _write_lines(export_cef(report), output_path)
 
 
 def write_leef(report: Report, output_path: str | Path) -> str:
     """Ecrit les constats de securite au format LEEF 2.0 ; retourne le
     chemin absolu du fichier ecrit."""
+    logger.debug("write_leef(report={report}, output_path={output_path})")
     return _write_lines(export_leef(report), output_path)
 
 
@@ -266,6 +274,7 @@ def write_siem(
 ) -> str:
     """Ecrit l'export `fmt` (``cef``, ``leef`` ou ``stix``). Les bornes
     temporelles ne servent qu'a STIX (dates deterministes des objets)."""
+    logger.debug("write_siem(report={report}, output_path={output_path}, fmt={fmt})")
     if fmt == "cef":
         return write_cef(report, output_path)
     if fmt == "leef":

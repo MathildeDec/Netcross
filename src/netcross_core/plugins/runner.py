@@ -43,6 +43,7 @@ def _run(plugin: str, kind: str, status: str, reason: str | None = None, **extra
 
 
 def run_line(run: dict[str, Any]) -> str:
+    logger.debug("run_line(run={run})")
     label = f"{_KIND_LABEL.get(run['kind'], run['kind'])} {run['plugin']}"
     status = run["status"]
     reason = run.get("reason")
@@ -66,6 +67,7 @@ def _error(exc: BaseException) -> str:
 
 def load_error_runs(errors: list[dict[str, str]]) -> list[dict[str, Any]]:
     """Lignes de tracabilite pour les plugins demandes mais non charges."""
+    logger.debug("load_error_runs(errors={errors})")
     return [_run(e["plugin"], "plugin", "refuse", e["reason"]) for e in errors]
 
 
@@ -100,6 +102,7 @@ def run_detectors(detectors: list[Detector], packets: list[Any], report: Any) ->
             try:
                 finding = validate_finding(item)
             except InvalidFindingError as exc:
+                logger.exception("erreur: exc")
                 problems.append(str(exc))
                 continue
             finding["plugin"] = name

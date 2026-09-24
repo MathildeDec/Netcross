@@ -8,6 +8,7 @@ vaut None plutot que de faire planter l'import de tout le package (un
 appelant qui ne veut que le triage ou le JSON n'a pas a installer
 reportlab)."""
 
+from netcross_core.logging_config import get_logger
 from netcross_report.comm_map import (
     CommEdge,
     CommMap,
@@ -77,9 +78,12 @@ from netcross_report.triage import (
     rank_segments,
 )
 
+logger = get_logger(__name__)
+
 try:
     from netcross_report.pdf import generate_diff_pdf, generate_pdf
 except ImportError:
+    logger.debug("dépendance optionnelle absente: ImportError")
     generate_pdf = None  # type: ignore[assignment]  # reportlab absent -- repli optionnel
     generate_diff_pdf = None  # type: ignore[assignment]
 

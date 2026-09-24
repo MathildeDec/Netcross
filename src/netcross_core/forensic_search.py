@@ -39,6 +39,9 @@ from netcross_core.models import Pkt
 if TYPE_CHECKING:  # evite d'importer pcap_parser / cryptography au runtime
     from netcross_core.quic_diagnostics import QuicEvent
     from netcross_core.tls_diagnostics import TlsEvent
+from netcross_core.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 
 # -- Types de resultats -----------------------------------------------------
@@ -331,6 +334,7 @@ class ForensicSearchIndex:
     def search(self, query: ForensicSearchQuery) -> list[ForensicSearchResult]:
         """Execute la requete et retourne les resultats tries par temps
         croissant puis par type."""
+        logger.debug("search(self={self}, query={query})")
         results: list[ForensicSearchResult] = []
         needle = (query.text or "").lower()
         field_val = (query.field_value or "").lower()

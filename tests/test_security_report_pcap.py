@@ -157,7 +157,8 @@ def test_pcap_legitime_service_non_affecte_rapport_sans_constat(monkeypatch, cap
     assert "score de risque global : 0/100" in out
     assert "services detectes : 1 (dont 0 vulnerable(s))" in out
     assert "exploits detectes : 0" in out
-    assert "anomalies (Expert Info) : 0" in out
+    assert "constats des detecteurs Netcross : 0" in out
+    assert "alertes Expert Info correlees : 0" in out
     assert "CVE confirmees : 0" in out
     assert "aucune tentative d'exploitation detectee" in out
     assert "aucune CVE confirmee" in out

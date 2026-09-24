@@ -20,7 +20,9 @@ from pathlib import Path
 
 from netcross_ai.features import FEATURE_NAMES, flow_features, flow_key
 from netcross_ai.optional import require_ml
+from netcross_core.logging_config import get_logger
 
+logger = get_logger(__name__)
 TRAINING_SCHEMA = "netcross.ai.training/1"
 MIN_SAMPLES = 10
 SUGGESTED_LABELS = ("normal", "interactif", "transfert", "obfusque", "tunnel", "c2", "exfiltration")
@@ -32,6 +34,7 @@ class TrainingSetError(ValueError):
 
 def export_training_set(flows: list[dict], path: str | Path) -> int:
     """Ecrit les flux pre-etiquetes (classification FLOW-4) a relire/corriger."""
+    logger.debug("export_training_set(flows={flows}, path={path})")
     samples = [{"flow": f, "label": f.get("classification") or "normal"} for f in flows]
     data = {"schema": TRAINING_SCHEMA, "labels_suggeres": list(SUGGESTED_LABELS), "samples": samples}
     Path(path).write_text(json.dumps(data, ensure_ascii=False, indent=1), encoding="utf-8")
@@ -42,6 +45,7 @@ def load_training_set(path: str | Path) -> list[tuple[dict | list[float], str]]:
     try:
         data = json.loads(Path(path).read_text(encoding="utf-8"))
     except (OSError, json.JSONDecodeError) as exc:
+        logger.exception("erreur: exc")
         raise TrainingSetError(f"jeu d'entrainement illisible ({path}) : {exc}") from exc
     if not isinstance(data, dict) or data.get("schema") != TRAINING_SCHEMA:
         raise TrainingSetError(f"{path} n'est pas un jeu {TRAINING_SCHEMA}.")
@@ -61,6 +65,7 @@ def load_training_set(path: str | Path) -> list[tuple[dict | list[float], str]]:
 
 def is_feature_vector(value: object) -> bool:
     """Vrai pour une liste de len(FEATURE_NAMES) nombres finis (bool exclus)."""
+    logger.debug("is_feature_vector(value={value})")
     return (
         isinstance(value, list)
         and len(value) == len(FEATURE_NAMES)
@@ -72,6 +77,7 @@ def is_feature_vector(value: object) -> bool:
 
 def sample_vector(sample: dict | list[float]) -> list[float]:
     """Vecteur de caracteristiques d'un exemple (flux FLOW-4 ou vecteur deja calcule)."""
+    logger.debug("sample_vector(sample={sample})")
     return list(sample) if isinstance(sample, list) else flow_features(sample)
 
 
@@ -107,6 +113,7 @@ class FlowClassifier:
         self._model.fit([sample_vector(f) for f, _l in samples], [label for _f, label in samples])
 
     def predict(self, flows: list[dict]) -> list[FlowPrediction]:
+        logger.debug("predict(self={self}, flows={flows})")
         if not flows:
             return []
         probas = self._model.predict_proba([flow_features(f) for f in flows])

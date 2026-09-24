@@ -29,6 +29,7 @@ from __future__ import annotations
 
 from dataclasses import dataclass
 
+from netcross_core.logging_config import get_logger
 from netcross_core.security.cpe_match import ParsedBanner, parse_all_banners, parse_banner
 from netcross_core.security.cve_db import (
     AffectedProduct,
@@ -41,6 +42,8 @@ from netcross_core.security.cve_db import (
     query_by_product,
     upsert_cve,
 )
+
+logger = get_logger(__name__)
 
 __all__ = [
     "AffectedProduct",

@@ -24,7 +24,10 @@ from __future__ import annotations
 import sqlite3
 from dataclasses import dataclass, field
 
+from netcross_core.logging_config import get_logger
 from netcross_core.security.cpe_match import build_cpe23, version_in_range
+
+logger = get_logger(__name__)
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS cves (
@@ -70,6 +73,7 @@ class AffectedProduct:
     version_end_excluding: str | None = None
 
     def matches(self, vendor: str, product: str, version: str) -> bool:
+        logger.debug("matches(self={self}, vendor={vendor}, product={product}, ...)")
         if self.vendor.lower() != vendor.lower() or self.product.lower() != product.lower():
             return False
         return version_in_range(
@@ -100,6 +104,7 @@ class CveEntry:
         contient ici que des entrees deja filtrees par (vendor, product)
         par query_by_product() : seule la version reste a comparer.
         """
+        logger.debug("matching_cpe(self={self}, version={version})")
         for product in self.affected:
             if version_in_range(
                 version,
@@ -115,6 +120,7 @@ class CveEntry:
 
 def connect_cve_db(db_path) -> sqlite3.Connection:
     """Ouvre (et cree si absent) la base SQLite `db_path`, schema applique."""
+    logger.debug("connect_cve_db(db_path={db_path})")
     conn = sqlite3.connect(db_path)
     conn.executescript(_SCHEMA)
     return conn
@@ -122,6 +128,7 @@ def connect_cve_db(db_path) -> sqlite3.Connection:
 
 def init_db(db_path) -> sqlite3.Connection:
     """Alias explicite de connect_cve_db() pour les appelants qui ne font que creer la base (scripts/import_nvd.py)."""
+    logger.debug("init_db(db_path={db_path})")
     return connect_cve_db(db_path)
 
 
@@ -137,6 +144,7 @@ def upsert_cve(conn: sqlite3.Connection, entry: CveEntry) -> None:
     voir son score CVSS ou sa description revisee par le NVD apres
     publication initiale).
     """
+    logger.debug("upsert_cve(conn={conn}, entry={entry})")
     conn.execute(
         "INSERT INTO cves (cve_id, description, cvss_score, cvss_severity, published) "
         "VALUES (?, ?, ?, ?, ?) "
@@ -169,6 +177,7 @@ def upsert_cve(conn: sqlite3.Connection, entry: CveEntry) -> None:
 
 def get_cve(conn: sqlite3.Connection, cve_id: str) -> CveEntry | None:
     """Recupere une CVE par identifiant, avec tous ses produits affectes (sans filtre)."""
+    logger.debug("get_cve(conn={conn}, cve_id={cve_id})")
     row = conn.execute(
         "SELECT cve_id, description, cvss_score, cvss_severity, published FROM cves WHERE cve_id = ?",
         (cve_id,),
@@ -199,6 +208,7 @@ def query_by_product(conn: sqlite3.Connection, vendor: str, product: str) -> lis
     CveEntry.matching_cpe() utilisable directement par correlate_banner()
     sans reparcourir tous les produits d'une CVE multi-produits.
     """
+    logger.debug("query_by_product(conn={conn}, vendor={vendor}, product={product})")
     cve_ids = [
         row[0]
         for row in conn.execute(

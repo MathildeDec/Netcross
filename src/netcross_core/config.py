@@ -55,12 +55,17 @@ from pathlib import Path
 
 # tomllib est dans la stdlib depuis Python 3.11.
 # Pour 3.9-3.10, tomli est un fallback optionnel.
+from netcross_core.logging_config import get_logger
+
+logger = get_logger(__name__)
 try:
     import tomllib
 except ModuleNotFoundError:  # pragma: no cover
+    logger.exception("erreur: ModuleNotFoundError")
     try:
         import tomli as tomllib  # type: ignore[no-redef]
     except ModuleNotFoundError:
+        logger.exception("erreur: ModuleNotFoundError")
         tomllib = None  # type: ignore[assignment]
 
 
@@ -148,6 +153,7 @@ def load_config(config_path: str | Path | None = None) -> NetcrossConfig:
     Retourne une ``NetcrossConfig`` avec les valeurs par défaut si aucun
     fichier n'est trouvé (pas d'erreur).
     """
+    logger.debug("load_config(config_path={config_path})")
     if tomllib is None:
         return NetcrossConfig()
 

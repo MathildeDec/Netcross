@@ -9,7 +9,10 @@ import matplotlib.pyplot as plt
 from matplotlib.lines import Line2D
 
 from netcross_core.correlate import TOPN_OTHER_LABEL
+from netcross_core.logging_config import get_logger
 from netcross_report.path_metrics import build_path_metrics
+
+logger = get_logger(__name__)
 
 
 def chart_topology(r, path):
@@ -34,6 +37,7 @@ def chart_topology(r, path):
     try:
         generations = list(nx.topological_generations(G))
     except nx.NetworkXUnfeasible:
+        logger.exception("erreur inattendue")
         generations = None  # ne devrait pas arriver (reduction transitive deja acyclique)
 
     pos = {}
@@ -123,6 +127,7 @@ def _save(fig, path):
 
 
 def chart_throughput(r, path):
+    logger.debug("chart_throughput(r={r}, path={path})")
     points = [p for p in r.points if r.throughput.get(p)]
     if not points:
         return None
@@ -142,6 +147,7 @@ def chart_throughput(r, path):
 
 
 def chart_latency(r, path):
+    logger.debug("chart_latency(r={r}, path={path})")
     pairs = [(a, b) for (a, b) in r.pairs if r.latency.get((a, b))]
     if not pairs:
         return None
@@ -161,6 +167,7 @@ def chart_latency(r, path):
 
 
 def chart_loss(r, path):
+    logger.debug("chart_loss(r={r}, path={path})")
     points = [p for p in r.points if r.loss_count.get(p, 0) > 0]
     if not points:
         return None
@@ -205,6 +212,7 @@ def chart_topn_timeseries(r, point, dimension, path):
     generate_topn_charts() pour le choix du/des point(s) traces dans le
     rapport.
     """
+    logger.debug("chart_topn_timeseries(r={r}, point={point}, dimension={dimension}, ...)")
     by_cat = r.topn_timeseries.get(dimension, {}).get(point)
     if not by_cat:
         return None
@@ -250,6 +258,7 @@ def generate_topn_charts(r, tmpdir, point=None):
     Renvoie {dimension: chemin_png} pour les dimensions ayant produit un
     graphique (dimension absente du dict si aucune donnee).
     """
+    logger.debug("generate_topn_charts(r={r}, tmpdir={tmpdir}, point={point})")
     if point is None:
         point = r.points[0] if r.points else None
     if point is None:
@@ -279,6 +288,7 @@ DIFF_SEVERITY_SCHEME = [
 
 
 def chart_severity_summary(findings, path, scheme=None):
+    logger.debug("chart_severity_summary(findings={findings}, path={path}, scheme={scheme})")
     scheme = scheme or DEFAULT_SEVERITY_SCHEME
     counts = {key: 0 for key, _, _ in scheme}
     for f in findings:
@@ -316,6 +326,7 @@ def chart_path_quality(metrics, path):
     de trafic commun), le masquer ferait croire a un chemin plus court
     qu'il ne l'est. `None` si aucun segment.
     """
+    logger.debug("chart_path_quality(metrics={metrics}, path={path})")
     if not metrics:
         return None
 
@@ -376,6 +387,7 @@ def chart_sequence_diagram(view, path):
     `None` si la vue n'a aucune etape ou un seul hote (une fleche qui part
     et revient au meme endroit ne dessine rien de lisible).
     """
+    logger.debug("chart_sequence_diagram(view={view}, path={path})")
     if not view or not view.steps or len(view.hosts) < 2:
         return None
 
@@ -456,6 +468,7 @@ def chart_comm_map(cmap, path):
 
     `None` si la carte est vide (aucune arete apres filtrage).
     """
+    logger.debug("chart_comm_map(cmap={cmap}, path={path})")
     if not cmap or not cmap.edges:
         return None
 
@@ -541,6 +554,7 @@ def chart_comm_map(cmap, path):
 
 
 def generate_all_charts(r, findings, tmpdir):
+    logger.debug("generate_all_charts(r={r}, findings={findings}, tmpdir={tmpdir})")
     charts = {}
     for name, fn, args in [
         ("topology", chart_topology, (r,)),

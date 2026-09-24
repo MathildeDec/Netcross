@@ -8,6 +8,10 @@ from __future__ import annotations
 from collections import defaultdict
 from dataclasses import dataclass, field
 
+from netcross_core.logging_config import get_logger
+
+logger = get_logger(__name__)
+
 ROLE_SERVER = "server"
 ROLE_CLIENT = "client"
 
@@ -175,6 +179,9 @@ class Pkt:
     # RawPacket.tcp_len pour la justification complete), None hors TCP ou quand
     # l'information n'existe pas (paquets synthetiques de l'adaptateur NetFlow...).
     tcp_len: int | None = None
+    # Adresses A/AAAA d'une reponse DNS (issue #344, fast flux), reportees
+    # depuis RawPacket.dns_answers ; tuple vide hors reponse DNS.
+    dns_answers: tuple[str, ...] = ()
     # -- Checksums IP/TCP/UDP (Job 43/issue #163) : valeurs brutes (chaine
     # hex) et verdicts tri-etats (True=invalide, False=valide, None=non
     # determine) reportes tels quels depuis RawPacket. Pas encore consommes

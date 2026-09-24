@@ -259,3 +259,68 @@ def test_parse_live_multi_valide_ses_arguments_des_l_appel():
         parsing_mod.parse_live_multi([])
     with pytest.raises(ValueError, match="en double"):
         parsing_mod.parse_live_multi([("LAN", "eth0"), ("LAN", "eth1")])
+
+
+# -- couverture des branches manquantes (issue #246) -------------------------
+
+
+def test_parse_capture_timed_renvoie_pkts_et_duree(monkeypatch):
+    """Lines 188-192 : _parse_capture_timed renvoie (pkts, duree)."""
+    raws = [_raw(src="1.1.1.1"), _raw(src="2.2.2.2")]
+    monkeypatch.setattr(parsing_mod.pcap_parser, "parse_capture", lambda path, raise_on_error=True: raws)
+    pkts, seconds = parsing_mod._parse_capture_timed("WAN", "capture.pcap")
+    assert [p.src for p in pkts] == ["1.1.1.1", "2.2.2.2"]
+    assert isinstance(seconds, float) and seconds >= 0.0
+
+
+def test_parse_captures_parallel_succes_et_tri(monkeypatch):
+    """Lines 199-239 : parse_captures_parallel avec deux captures reussies."""
+    import concurrent.futures
+
+    # ThreadPoolExecutor pour que le monkeypatch de parse_capture soit visible
+    monkeypatch.setattr(concurrent.futures, "ProcessPoolExecutor", concurrent.futures.ThreadPoolExecutor)
+
+    raws_a = [_raw(src="1.1.1.1")]
+    raws_b = [_raw(src="2.2.2.2")]
+
+    def fake_parse(label, path, raise_on_error=False):
+        if "a" in path:
+            return raws_a
+        return raws_b
+
+    monkeypatch.setattr(parsing_mod, "parse_capture", fake_parse)
+    pkts, stats = parsing_mod.parse_captures_parallel([("A", "/fake/a.pcap"), ("B", "/fake/b.pcap")])
+    assert len(pkts) == 2
+    assert [s["label"] for s in stats] == ["A", "B"]
+    assert stats[0]["count"] == 1
+    assert stats[0]["error"] is None
+
+
+def test_parse_captures_parallel_capture_en_echec_ne_stoppe_pas(monkeypatch):
+    """Lines 222-234 : un fichier en echec ne stoppe pas les autres."""
+    import concurrent.futures
+
+    monkeypatch.setattr(concurrent.futures, "ProcessPoolExecutor", concurrent.futures.ThreadPoolExecutor)
+
+    def boom(label, path, raise_on_error=False):
+        raise RuntimeError("tshark absent")
+
+    monkeypatch.setattr(parsing_mod, "parse_capture", boom)
+    pkts, stats = parsing_mod.parse_captures_parallel([("A", "/fake/a.pcap")])
+    assert pkts == []
+    assert stats[0]["count"] == 0
+    assert stats[0]["seconds"] is None
+    assert "RuntimeError" in stats[0]["error"]
+
+
+def test_parse_live_yield_un_pkt_par_raw(monkeypatch):
+    """Line 344 : parse_live yield un Pkt etiquete pour chaque raw."""
+
+    def fake_iter_live(interface, bpf_filter=None, stop_event=None):
+        yield _raw(ts=1.0, src="10.0.0.1")
+        yield _raw(ts=2.0, src="10.0.0.2")
+
+    monkeypatch.setattr(parsing_mod.pcap_parser, "iter_live", fake_iter_live)
+    pkts = list(parsing_mod.parse_live("LAN", "eth0"))
+    assert [p.src for p in pkts] == ["10.0.0.1", "10.0.0.2"]
+    assert all(p.point == "LAN" for p in pkts)

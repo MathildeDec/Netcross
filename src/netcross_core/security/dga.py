@@ -30,8 +30,11 @@ from __future__ import annotations
 from collections.abc import Iterable
 from dataclasses import dataclass, field
 
+from netcross_core.logging_config import get_logger
 from netcross_core.models import Pkt
 from netcross_core.security.dns_tunnel import _is_ignored, shannon_entropy, split_domain
+
+logger = get_logger(__name__)
 
 # Bigrammes frequents en anglais (noms de domaine legitimes).
 # Un domaine legitime a une proportion elevee de ces bigrammes.
@@ -340,6 +343,7 @@ def detect_dga(
     Le ratio NXDOMAIN est calcule par domaine : nombre de reponses
     NXDOMAIN (rcode=3) / nombre total de reponses pour ce domaine.
     """
+    logger.debug("detect_dga(packets={packets}, thresholds={thresholds})")
     if thresholds is None:
         thresholds = DgaThresholds()
 

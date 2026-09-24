@@ -37,7 +37,10 @@ from collections.abc import Iterable
 from dataclasses import asdict
 from pathlib import Path
 
+from netcross_core.logging_config import get_logger
 from netcross_core.models import BPFFilter
+
+logger = get_logger(__name__)
 
 #: Version du format du fichier de sauvegarde (cle ``version``). Incrementee
 #: si la structure change de facon incompatible ; le chargeur actuel ignore
@@ -90,6 +93,7 @@ _PREDEFINED_KEYS = frozenset(_name_key(f.name) for f in PREDEFINED_BPF_FILTERS)
 
 def default_bpf_filters_path() -> Path:
     """Chemin par defaut du fichier de sauvegarde : ``~/.netcross/bpf_filters.json``."""
+    logger.debug("default_bpf_filters_path()")
     return Path.home() / ".netcross" / "bpf_filters.json"
 
 
@@ -114,6 +118,7 @@ def save_bpf_filters(filters: Iterable[BPFFilter], path: str | Path | None = Non
         tmp.write_text(payload, encoding="utf-8")
         os.replace(tmp, target)
     except BaseException:
+        logger.exception("erreur: BaseException")
         tmp.unlink(missing_ok=True)
         raise
     return target
@@ -152,8 +157,10 @@ def load_bpf_filters(path: str | Path | None = None) -> list[BPFFilter]:
     try:
         data = json.loads(source.read_text(encoding="utf-8"))
     except FileNotFoundError:
+        logger.exception("erreur: FileNotFoundError")
         return []
     except (UnicodeDecodeError, json.JSONDecodeError) as exc:
+        logger.exception("erreur: exc")
         raise ValueError(f"filtres BPF: fichier illisible {source}: {exc}") from exc
     if isinstance(data, dict):
         if "filters" not in data:
@@ -173,6 +180,7 @@ def available_bpf_filters(path: str | Path | None = None) -> list[BPFFilter]:
     sauvegardes (ceux dont le nom collisionne avec le catalogue sont ignores,
     voir l'en-tete du module). Meme contrat d'erreur que ``load_bpf_filters``.
     """
+    logger.debug("available_bpf_filters(path={path})")
     user = [f for f in load_bpf_filters(path) if _name_key(f.name) not in _PREDEFINED_KEYS]
     return [*PREDEFINED_BPF_FILTERS, *user]
 
@@ -185,6 +193,7 @@ def upsert_bpf_filter(new: BPFFilter, path: str | Path | None = None) -> list[BP
     existant est illisible (il n'est alors pas modifie). ``OSError`` si
     l'ecriture echoue.
     """
+    logger.debug("upsert_bpf_filter(new={new}, path={path})")
     clean = BPFFilter(new.name.strip(), new.expression.strip(), new.description.strip())
     key = _name_key(clean.name)
     if key in _PREDEFINED_KEYS:

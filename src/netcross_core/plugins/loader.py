@@ -29,7 +29,10 @@ from importlib import metadata
 from pathlib import Path
 from typing import Any
 
+from netcross_core.logging_config import get_logger
 from netcross_core.plugins.api import Detector, Exporter
+
+logger = get_logger(__name__)
 
 GROUPS = {"detector": "netcross.detectors", "exporter": "netcross.exporters"}
 FORBIDDEN_IMPORTS = ("netcross_report", "netcross_gtk4")
@@ -59,6 +62,7 @@ class LoadedPlugins:
 
 def forbidden_imports(source: str) -> list[str]:
     """Modules interdits importes par `source` (import et from ... import)."""
+    logger.debug("forbidden_imports(source={source})")
     found = []
     for node in ast.walk(ast.parse(source)):
         names: list[str] = []
@@ -76,10 +80,12 @@ def _check_source(path: str | None, label: str) -> None:
     try:
         source = Path(path).read_text(encoding="utf-8")
     except OSError:
+        logger.exception("erreur: OSError")
         return
     try:
         bad = forbidden_imports(source)
     except SyntaxError as exc:
+        logger.exception("erreur: exc")
         raise PluginLoadError(f"{label} : erreur de syntaxe ({exc.msg}, ligne {exc.lineno})") from exc
     if bad:
         raise PluginLoadError(
@@ -94,6 +100,7 @@ def _entry_points(group: str) -> list[metadata.EntryPoint]:
 
 def discover_installed() -> list[PluginInfo]:
     """Plugins installes (metadonnees seulement, AUCUN import)."""
+    logger.debug("discover_installed()")
     infos = []
     for kind, group in GROUPS.items():
         for ep in _entry_points(group):
@@ -129,6 +136,7 @@ def load_path_module(path: str) -> dict[str, list[Any]]:
     try:
         spec.loader.exec_module(module)
     except Exception as exc:
+        logger.exception("erreur: exc")
         sys.modules.pop(mod_name, None)
         raise PluginLoadError(f"--plugin-path {path} : import en erreur ({exc.__class__.__name__}: {exc})") from exc
     out: dict[str, list[Any]] = {"detector": [], "exporter": []}
@@ -147,11 +155,13 @@ def _load_entry_point(ep: metadata.EntryPoint, kind: str) -> Any:
     try:
         spec = importlib.util.find_spec(module_name)
     except (ImportError, ValueError) as exc:
+        logger.exception("erreur: exc")
         raise PluginLoadError(f"{label} : module {module_name} introuvable ({exc})") from exc
     _check_source(spec.origin if spec else None, label)
     try:
         obj = ep.load()
     except Exception as exc:
+        logger.exception("erreur: exc")
         raise PluginLoadError(f"{label} : import en erreur ({exc.__class__.__name__}: {exc})") from exc
     return _check_kind(_instantiate(obj), kind, label)
 
@@ -169,6 +179,7 @@ def load_plugins(authorized: list[str], plugin_paths: list[str] | None = None) -
         try:
             objs = load_path_module(path)
         except PluginLoadError as exc:
+            logger.exception("erreur: exc")
             loaded.errors.append({"plugin": path, "reason": str(exc)})
             continue
         for det in objs["detector"]:
@@ -188,6 +199,7 @@ def load_plugins(authorized: list[str], plugin_paths: list[str] | None = None) -
             try:
                 obj = _load_entry_point(ep, kind)
             except PluginLoadError as exc:
+                logger.exception("erreur: exc")
                 loaded.errors.append({"plugin": ep.name, "reason": str(exc)})
                 continue
             if kind == "detector":
@@ -214,6 +226,7 @@ def list_plugins(authorized: list[str], plugin_paths: list[str] | None = None) -
         try:
             objs = load_path_module(path)
         except PluginLoadError as exc:
+            logger.exception("erreur: exc")
             origin = f"fichier:{path}"
             rows.append({"name": path, "kind": "?", "origin": origin, "authorized": False, "error": str(exc)})
             continue
