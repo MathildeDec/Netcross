@@ -440,7 +440,6 @@ def test_rapport_texte_montre_chaque_detecteur_quand_tous_se_declenchent(tmp_pat
             assert _norm(finding["detail"])[:40] in text, f"{name} masque par la troncature du rapport texte"
 
 
-@pytest.mark.xfail(strict=True, reason="#349 / #150 : Report.extracted_files n'est rendu nulle part")
 def test_fichiers_extraits_rendus(tmp_path):
     r = Report(points=[POINT])
     sha = "9f86d081884c7d659a2feaa0c55ad015a3bf4f1b2b0b822cd15d6c15b0f00a08"
