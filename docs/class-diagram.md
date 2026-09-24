@@ -3360,6 +3360,7 @@ classDiagram
         +list~str~ points
         +str source
         +str? plugin
+        +str? detector
     }
     class ServiceEntry {
         <<dataclass, slots>>
