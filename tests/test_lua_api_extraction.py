@@ -285,6 +285,12 @@ def test_example_heading_without_source() -> None:
     assert exemples == ["a = 1\n\n-- sugar\nb = 2"]
 
 
+def test_inline_macros() -> None:
+    assert ext.clean_inline("(e.g. menu:Lua Scripts[My Stats])") == "(e.g. Lua Scripts > My Stats)"
+    assert ext.clean_inline("press kbd:[Ctrl+L]") == "press Ctrl+L"
+    assert ext.clean_inline("The <<lua_class_Column,``Column``>>s") == "The `Column`s"
+
+
 def test_identifiers_not_mangled() -> None:
     assert ext.clean_inline("use snake_case_name and a*b*c") == "use snake_case_name and a*b*c"
 

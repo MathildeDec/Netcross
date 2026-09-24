@@ -1021,7 +1021,7 @@
     "Columns": {
       "nom": "Columns",
       "module": "Pinfo",
-      "description": "The ``Column``s of the packet list.",
+      "description": "The `Column`s of the packet list.",
       "exemples": [],
       "methodes": [
         {
@@ -1069,7 +1069,7 @@
           "nom": "__index",
           "genre": "metamethode",
           "signature": "columns:__index()",
-          "description": "Get a specific ``Column``.",
+          "description": "Get a specific `Column`.",
           "arguments": [],
           "retours": [],
           "erreurs": [],
@@ -1108,13 +1108,13 @@
               "nom": "addr1",
               "type": "",
               "optionnel": false,
-              "description": "First ``Address`` of the conversation."
+              "description": "First `Address` of the conversation."
             },
             {
               "nom": "addr2",
               "type": "",
               "optionnel": true,
-              "description": "Second ``Address`` of theconversation. (defaults to nil)"
+              "description": "Second `Address` of theconversation. (defaults to nil)"
             },
             {
               "nom": "port1",
@@ -3647,7 +3647,7 @@
               "nom": "name",
               "type": "",
               "optionnel": false,
-              "description": "The name of the menu item. Use slashes to separate submenus. (e.g. menu:Lua Scripts[My Fancy Statistics]). (string)"
+              "description": "The name of the menu item. Use slashes to separate submenus. (e.g. Lua Scripts > My Fancy Statistics). (string)"
             },
             {
               "nom": "action",
@@ -3659,7 +3659,7 @@
               "nom": "group",
               "type": "",
               "optionnel": true,
-              "description": "Where to place the item in the menu hierarchy. If omitted, defaults to MENU_STAT_GENERIC. Valid packet (Wireshark) items are:\n\n- MENU_PACKET_ANALYZE_UNSORTED: Analyze\n- MENU_PACKET_STAT_UNSORTED: Statistics\n- MENU_STAT_GENERIC: Statistics, first section\n- MENU_STAT_RESPONSE_TIME: Service Response Time\n- MENU_STAT_RSERPOOL: Reliable Server Pooling (RSerPool)\n- MENU_TELEPHONY_UNSORTED: Telephony\n- MENU_TELEPHONY_ANSI: ANSI\n- MENU_TELEPHONY_GSM: GSM\n- MENU_TELEPHONY_3GPP_UU: 3GPP Uu\n- MENU_TELEPHONY_MTP3: MTP3\n- MENU_TELEPHONY_SCTP: SCTP\n- MENU_TOOLS_UNSORTED: Tools\n\nValid log (Stratoshark) items are:\n\n- MENU_LOG_ANALYZE_UNSORTED: Analyze\n- MENU_LOG_STAT_UNSORTED: Statistics\n\nThe following are deprecated and shouldn't be used in new code:\n\n- MENU_ANALYZE_CONVERSATION_FILTER, Conversation Filter registration is not yet supported in Lua\n- MENU_STAT_CONVERSATION_LIST, Conversations registration is not yet supported in Lua\n- MENU_STAT_ENDPOINT_LIST, Endpoints registration is not yet supported in Lua\n- MENU_ANALYZE_UNSORTED, superseded by MENU_PACKET_ANALYZE_UNSORTED\n- MENU_ANALYZE_CONVERSATION, superseded by MENU_ANALYZE_CONVERSATION_FILTER\n- MENU_STAT_CONVERSATION, superseded by MENU_STAT_CONVERSATION_LIST\n- MENU_STAT_ENDPOINT, superseded by MENU_STAT_ENDPOINT_LIST\n- MENU_STAT_RESPONSE, superseded by MENU_STAT_RESPONSE_TIME\n- MENU_STAT_UNSORTED, superseded by MENU_PACKET_STAT_UNSORTED\n- MENU_STAT_TELEPHONY, superseded by MENU_TELEPHONY_UNSORTED\n- MENU_STAT_TELEPHONY_ANSI, superseded by MENU_TELEPHONY_ANSI\n- MENU_STAT_TELEPHONY_GSM, superseded by MENU_TELEPHONY_GSM\n- MENU_STAT_TELEPHONY_3GPP_UU, superseded by MENU_TELEPHONY_3GPP_UU\n- MENU_STAT_TELEPHONY_MTP3, superseded by MENU_TELEPHONY_MTP3\n- MENU_STAT_TELEPHONY_SCTP, superseded by MENU_TELEPHONY_SCTP"
+              "description": "Where to place the item in the menu hierarchy. If omitted, defaults to MENU_STAT_GENERIC. Valid packet (Wireshark) items are:\n\n- MENU_PACKET_ANALYZE_UNSORTED: Analyze\n- MENU_PACKET_STAT_UNSORTED: Statistics\n- MENU_STAT_GENERIC: Statistics, first section\n- MENU_STAT_RESPONSE_TIME: Statistics > Service Response Time\n- MENU_STAT_RSERPOOL: Statistics > Reliable Server Pooling (RSerPool)\n- MENU_TELEPHONY_UNSORTED: Telephony\n- MENU_TELEPHONY_ANSI: Telephony > ANSI\n- MENU_TELEPHONY_GSM: Telephony > GSM\n- MENU_TELEPHONY_3GPP_UU: Telephony > 3GPP Uu\n- MENU_TELEPHONY_MTP3: Telephony > MTP3\n- MENU_TELEPHONY_SCTP: Telephony > SCTP\n- MENU_TOOLS_UNSORTED: Tools\n\nValid log (Stratoshark) items are:\n\n- MENU_LOG_ANALYZE_UNSORTED: Analyze\n- MENU_LOG_STAT_UNSORTED: Statistics\n\nThe following are deprecated and shouldn't be used in new code:\n\n- MENU_ANALYZE_CONVERSATION_FILTER, Analyze > Conversation Filter registration is not yet supported in Lua\n- MENU_STAT_CONVERSATION_LIST, Statistics > Conversations registration is not yet supported in Lua\n- MENU_STAT_ENDPOINT_LIST, Statistics > Endpoints registration is not yet supported in Lua\n- MENU_ANALYZE_UNSORTED, superseded by MENU_PACKET_ANALYZE_UNSORTED\n- MENU_ANALYZE_CONVERSATION, superseded by MENU_ANALYZE_CONVERSATION_FILTER\n- MENU_STAT_CONVERSATION, superseded by MENU_STAT_CONVERSATION_LIST\n- MENU_STAT_ENDPOINT, superseded by MENU_STAT_ENDPOINT_LIST\n- MENU_STAT_RESPONSE, superseded by MENU_STAT_RESPONSE_TIME\n- MENU_STAT_UNSORTED, superseded by MENU_PACKET_STAT_UNSORTED\n- MENU_STAT_TELEPHONY, superseded by MENU_TELEPHONY_UNSORTED\n- MENU_STAT_TELEPHONY_ANSI, superseded by MENU_TELEPHONY_ANSI\n- MENU_STAT_TELEPHONY_GSM, superseded by MENU_TELEPHONY_GSM\n- MENU_STAT_TELEPHONY_3GPP_UU, superseded by MENU_TELEPHONY_3GPP_UU\n- MENU_STAT_TELEPHONY_MTP3, superseded by MENU_TELEPHONY_MTP3\n- MENU_STAT_TELEPHONY_SCTP, superseded by MENU_TELEPHONY_SCTP"
             }
           ],
           "retours": [],
@@ -5505,7 +5505,7 @@
           "nom": "conversation",
           "nom_complet": "pinfo.conversation",
           "mode": "RW",
-          "description": "On read, returns a ``Conversation`` object (equivalent to ``Conversation.find_from_pinfo(pinfo, 0, True)``)\n\nOn write, sets the ``Dissector`` for the current conversation (shortcut for ``pinfo.conversation.dissector = dissector``). Accepts either a ``Dissector`` object or a ``Proto`` object with an assigned dissector",
+          "description": "On read, returns a `Conversation` object (equivalent to `Conversation.find_from_pinfo(pinfo, 0, True)`)\n\nOn write, sets the `Dissector` for the current conversation (shortcut for `pinfo.conversation.dissector = dissector`). Accepts either a `Dissector` object or a `Proto` object with an assigned dissector",
           "exemples": [],
           "section": "lua_class_attrib_pinfo_conversation",
           "depuis_version": ""
@@ -6088,7 +6088,7 @@
           "nom": "fields",
           "nom_complet": "proto.fields",
           "mode": "RW",
-          "description": "The Lua table of this dissector's ``ProtoField``s. ``ProtoField``s added to this table are registered to the `Proto` (and any removed are deregistered if previously registered.)",
+          "description": "The Lua table of this dissector's `ProtoField`s. `ProtoField`s added to this table are registered to the `Proto` (and any removed are deregistered if previously registered.)",
           "exemples": [],
           "section": "lua_class_attrib_proto_fields",
           "depuis_version": ""

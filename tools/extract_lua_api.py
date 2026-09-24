@@ -57,7 +57,7 @@ _PASS_RE = re.compile(r"\$\$(.*?)\$\$")
 _EXAMPLE_TITLE_RE = re.compile(r"^(?:=+\s*|\.)?examples?:?\s*$", re.IGNORECASE)
 _BOLD_RE = re.compile(r"(?<![\w*])\*{1,2}([^*\s](?:[^*]*?[^*\s])?)\*{1,2}(?![\w*])")
 _ITALIC_RE = re.compile(r"(?<![\w_])_([^_\s](?:[^_]*?[^_\s])?)_(?![\w_])")
-_MACRO_RE = re.compile(r"\b(?:menu|kbd|btn):([^\[\s]*)\[([^\]]*)\]")
+_MACRO_RE = re.compile(r"\b(menu|kbd|btn):([^\[\]]*?)\[([^\]]*)\]")
 _ATTR_REF_RE = re.compile(r"\{set:[^}]*\}\s*")
 _BLOCK_ATTR_RE = re.compile(r"^\[[^\]]*=[^\]]*\]$")
 _LIST_RE = re.compile(r"^(\*+|-|\.+|\d+\.)\s+(.*)$")
@@ -75,10 +75,19 @@ def clean_inline(text: str) -> str:
     text = _BARE_XREF_RE.sub(r"\1", text)
     text = _LINK_RE.sub(lambda m: f"{m.group(2)} ({m.group(1)})" if m.group(2) else m.group(1), text)
     text = _PASS_RE.sub(r"\1", text)
-    text = _MACRO_RE.sub(lambda m: m.group(2) or m.group(1), text)
+    text = _MACRO_RE.sub(_macro, text)
+    text = re.sub(r"``([^`]+)``", r"`\1`", text)
     text = _ATTR_REF_RE.sub("", text)
     text = _BOLD_RE.sub(r"\1", text)
     return _ITALIC_RE.sub(r"\1", text)
+
+
+def _macro(m: re.Match[str]) -> str:
+    """menu:Tools[Lua > Reload] -> 'Tools > Lua > Reload' ; kbd:[Ctrl+L] -> 'Ctrl+L'."""
+    cible, contenu = m.group(2).strip(), m.group(3).strip()
+    if m.group(1) == "menu":
+        return " > ".join(x for x in (cible, contenu) if x)
+    return contenu or cible
 
 
 def _table(rows: list[str]) -> str:
