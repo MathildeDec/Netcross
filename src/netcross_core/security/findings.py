@@ -173,6 +173,7 @@ def anomaly_findings(suspicions: Iterable[dict]) -> list[dict[str, Any]]:
                 "category": "anomalie",
                 "detail": detail,
                 "point": s.get("point") or None,
+                "source": "expert_info",
             }
         )
     return findings
@@ -354,7 +355,10 @@ def lateral_movement_findings(events: list[dict]) -> list[dict[str, Any]]:
     La severite depend du type : brute_force = elevee, port_scan et
     host_scan = moyenne, unusual_protocol et new_connection = faible.
     Un mouvement lateral reste un INDICE a confirmer (un scan peut etre
-    un audit legitime), jamais une compromission averee."""
+    un audit legitime), jamais une compromission averee.
+
+    Issue #346 : `point` est maintenant renseigne depuis l'evenement
+    (et `points` expose pour le rendu multi-points)."""
     severity_map = {
         "brute_force": "elevee",
         "port_scan": "moyenne",
@@ -365,6 +369,7 @@ def lateral_movement_findings(events: list[dict]) -> list[dict[str, Any]]:
     findings: list[dict[str, Any]] = []
     for ev in events:
         ev_type = ev.get("type", "unknown")
+        points = ev.get("points") or ([ev["point"]] if ev.get("point") else [])
         findings.append(
             {
                 "severity": severity_map.get(ev_type, "faible"),
@@ -373,7 +378,8 @@ def lateral_movement_findings(events: list[dict]) -> list[dict[str, Any]]:
                     f"mouvement lateral ({ev_type}) : {ev.get('details', '?')} "
                     f"-- source {ev.get('source', '?')}, score {ev.get('score', 0.0)}"
                 ),
-                "point": ev.get("point") or None,
+                "points": points,
+                "point": points[0] if points else None,
             }
         )
     return findings
@@ -386,7 +392,11 @@ def flow_stats_findings(flows: list[dict]) -> list[dict[str, Any]]:
     """Un constat `anomalie` par flux dont la classification n'est pas
     `normal`. Severite : `elevee` pour `obfusque` (chiffrement/obfuscation
     suspect), `moyenne` pour `transfert` (volume inhabituel), `faible`
-    pour `interactif` (session interactive, souvent legitime)."""
+    pour `interactif` (session interactive, souvent legitime).
+
+    Issue #346 : le champ `point` (et `points` multi-points) etait
+    absent -- lateral_movement et flow_stats etaient attribues a
+    personne (point = null)."""
     severity_map = {
         "obfusque": "elevee",
         "transfert": "moyenne",
@@ -397,6 +407,7 @@ def flow_stats_findings(flows: list[dict]) -> list[dict[str, Any]]:
         cls = f.get("classification", "normal")
         if cls == "normal":
             continue
+        points = f.get("points") or ([f["point"]] if f.get("point") else [])
         findings.append(
             {
                 "severity": severity_map.get(cls, "faible"),
@@ -407,6 +418,8 @@ def flow_stats_findings(flows: list[dict]) -> list[dict[str, Any]]:
                     f"entropie {f.get('entropy', 0.0):.2f}, "
                     f"ratio upload {f.get('upload_ratio', 0.0):.2f})"
                 ),
+                "points": points,
+                "point": points[0] if points else None,
             }
         )
     return findings
@@ -456,17 +469,22 @@ def cve_findings(fingerprints: Iterable[dict], conn) -> list[dict[str, Any]]:
 
 def dga_findings(alerts: list[dict]) -> list[dict[str, Any]]:
     """Un constat `anomalie` par alerte DGA. Severite `elevee` si score >= 0.8,
-    `moyenne` sinon. Un domaine DGA reste un INDICE a confirmer."""
+    `moyenne` sinon. Un domaine DGA reste un INDICE a confirmer.
+
+    Issue #343 : un domaine DGA vu sur N points de capture est UN constat,
+    pas N. Les points sont exposes dans `points` (liste) pour le rendu."""
     findings: list[dict[str, Any]] = []
     for a in alerts:
         score = a.get("score", 0.0)
         severity = "elevee" if score >= 0.8 else "moyenne"
+        points = a.get("points") or ([a["point"]] if a.get("point") else [])
         findings.append(
             {
                 "severity": severity,
                 "category": "anomalie",
                 "detail": (f"domaine DGA suspect : {a.get('domain', '?')} -- score {score} ({a.get('reason', '?')})"),
-                "point": a.get("point") or None,
+                "points": points,
+                "point": points[0] if points else None,
             }
         )
     return findings
@@ -474,11 +492,15 @@ def dga_findings(alerts: list[dict]) -> list[dict[str, Any]]:
 
 def fast_flux_findings(alerts: list[dict]) -> list[dict[str, Any]]:
     """Un constat `anomalie` par alerte fast flux. Severite `elevee` pour
-    ip_rotation, `moyenne` pour high_nxdomain."""
+    ip_rotation, `moyenne` pour high_nxdomain.
+
+    Issue #343 : un domaine suspect vu sur N points = UN constat. Les
+    points sont exposes dans `points` (liste)."""
     severity_map = {"ip_rotation": "elevee", "high_nxdomain": "moyenne"}
     findings: list[dict[str, Any]] = []
     for a in alerts:
         a_type = a.get("alert_type", "unknown")
+        points = a.get("points") or ([a["point"]] if a.get("point") else [])
         findings.append(
             {
                 "severity": severity_map.get(a_type, "moyenne"),
@@ -487,7 +509,8 @@ def fast_flux_findings(alerts: list[dict]) -> list[dict[str, Any]]:
                     f"fast flux ({a_type}) : {a.get('domain', '?')} "
                     f"-- {a.get('reason', '?')}, score {a.get('score', 0.0)}"
                 ),
-                "point": a.get("point") or None,
+                "points": points,
+                "point": points[0] if points else None,
             }
         )
     return findings
@@ -534,6 +557,7 @@ def apply_security_findings(
     dga_result = detect_dga(all_packets)
     report.dga_alerts = [
         {
+            "points": list(a.points),
             "point": a.point,
             "domain": a.domain,
             "score": a.score,
@@ -549,6 +573,7 @@ def apply_security_findings(
     ff_result = detect_fast_flux(all_packets)
     report.fast_flux_alerts = [
         {
+            "points": list(a.points),
             "point": a.point,
             "domain": a.domain,
             "alert_type": a.alert_type,

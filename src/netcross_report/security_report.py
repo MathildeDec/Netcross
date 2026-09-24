@@ -86,6 +86,14 @@ class SecurityItem:
     host: str | None = None
     port: int | None = None
     point: str | None = None
+    # Issue #343 : liste de tous les points ou ce constat a ete observe
+    # (un meme evenement vu sur 3 points = 1 constat, 3 points). `point`
+    # reste expose comme alias retro-compatible (premier point trie, ou None).
+    points: list[str] = field(default_factory=list)
+    # Issue #348 : distingue les anomalies d'un detecteur Netcross
+    # ("netcross", defaut) d'une alerte Expert Info de Wireshark correlee
+    # ("expert_info", CVE-3).
+    source: str = "netcross"
     # nom du detecteur tiers qui a produit le constat (issue #284) ; None
     # pour un constat du coeur
     plugin: str | None = None
@@ -214,6 +222,8 @@ def _to_item(raw) -> SecurityItem | None:
         host=_opt_str(raw.get("host")),
         port=_opt_int(raw.get("port")),
         point=_opt_str(raw.get("point")),
+        points=[str(p) for p in raw.get("points", []) if p] if isinstance(raw.get("points"), list) else [],
+        source=_opt_str(raw.get("source")) or "netcross",
         plugin=_opt_str(raw.get("plugin")),
     )
 
@@ -351,8 +361,14 @@ def _format_item(item: SecurityItem) -> str:
     line = " ".join(parts)
     if item.detail:
         line += f" -- {item.detail}"
-    if item.point:
-        line += f" (point {item.point})"
+    # Issue #343 : si plusieurs points, tous les lister ; sinon afficher le
+    # point unique (compatibilite ascendante).
+    shown_points = item.points if item.points else ([item.point] if item.point else [])
+    if shown_points:
+        if len(shown_points) == 1:
+            line += f" (point {shown_points[0]})"
+        else:
+            line += f" (points {', '.join(shown_points)})"
     if item.plugin:
         line += f" [plugin {item.plugin}]"
     return "  " + line
@@ -446,9 +462,20 @@ def format_security_report(sr: SecurityReport) -> list[str]:
         [_format_item(i) for i in sr.exploits],
         "aucune tentative d'exploitation detectee",
     )
+    # Issue #348 : deux origines distinctes, jamais melangees -- un
+    # detecteur Netcross (DGA, fast flux, mouvements lateraux, tunneling
+    # DNS, beaconing, audit TLS, incoherences de protocole) n'est PAS une
+    # alerte Expert Info de Wireshark correlee (CVE-3).
+    netcross_anomalies = [i for i in sr.anomalies if i.source != "expert_info"]
+    expert_info_anomalies = [i for i in sr.anomalies if i.source == "expert_info"]
+    lines += _section(
+        "Anomalies (detecteurs Netcross)",
+        [_format_item(i) for i in netcross_anomalies],
+        "aucune anomalie detectee",
+    )
     lines += _section(
         "Anomalies (alertes Expert Info correlees)",
-        [_format_item(i) for i in sr.anomalies],
+        [_format_item(i) for i in expert_info_anomalies],
         "aucune anomalie correlee",
     )
     lines += _section(
@@ -529,6 +556,8 @@ def security_report_to_dict(sr: SecurityReport) -> dict:
                     "host": i.host,
                     "port": i.port,
                     "point": i.point,
+                    "points": list(i.points),
+                    "source": i.source,
                     "plugin": i.plugin,
                 }
                 for i in items
