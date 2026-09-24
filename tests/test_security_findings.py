@@ -37,13 +37,13 @@ from netcross_core.security.findings import (
     MAX_CVE_DETAIL_CHARS,
     anomaly_findings,
     apply_security_findings,
-    cve_findings,
-    exploit_findings,
-    scan_capture_exploits,
-    exfiltration_findings,
-    sequence_gap_findings,
     cross_capture_duplicate_findings,
+    cve_findings,
+    exfiltration_findings,
+    exploit_findings,
     extracted_file_findings,
+    scan_capture_exploits,
+    sequence_gap_findings,
 )
 from netcross_report.security_report import build_security_report, format_security_report
 from scripts.import_nvd import import_from_file
@@ -643,18 +643,31 @@ def test_apply_security_findings_inclut_exfiltration_et_forensic():
     # Injecter des données de détection directement sur le Report
     r.sequence_gaps = [
         SequenceGap(
-            point="A", src="10.0.0.1", sport=1234, dst="10.0.0.2", dport=443,
-            start_seq=1000, end_seq=2000, missing_bytes=1000,
-            ts=1.0, frame_number=5, cause="SEQ_GAP_CAPTURE_DROP",
+            point="A",
+            src="10.0.0.1",
+            sport=1234,
+            dst="10.0.0.2",
+            dport=443,
+            start_seq=1000,
+            end_seq=2000,
+            missing_bytes=1000,
+            ts=1.0,
+            frame_number=5,
+            cause="SEQ_GAP_CAPTURE_DROP",
             evidence="test",
         )
     ]
     r.duplicate_count = {("A", "B"): 3}
     r.exfiltration_alerts = [
         {
-            "point": "A", "src": "10.0.0.5", "dst": "198.51.100.1",
-            "signals": ["high_volume"], "upload_bytes": 15_000_000,
-            "download_bytes": 0, "score": 0.9, "reason": "test",
+            "point": "A",
+            "src": "10.0.0.5",
+            "dst": "198.51.100.1",
+            "signals": ["high_volume"],
+            "upload_bytes": 15_000_000,
+            "download_bytes": 0,
+            "score": 0.9,
+            "reason": "test",
         }
     ]
 

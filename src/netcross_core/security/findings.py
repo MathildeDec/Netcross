@@ -48,6 +48,7 @@ from typing import Any
 import pcap_parser
 from netcross_core.application.banners import build_service_fingerprints
 from netcross_core.exploit_signatures import Detection, Signature, detect_exploits
+from netcross_core.extract.carver import detect_extracted_files
 from netcross_core.fingerprint.report import build_fingerprint_records
 from netcross_core.logging_config import get_logger
 from netcross_core.models import Pkt, Report
@@ -70,8 +71,6 @@ from netcross_core.security.tls_audit import (
     TlsAuditResult,
     audit_tls_certificates,
 )
-from netcross_core.security.exfiltration import detect_exfiltration
-from netcross_core.extract.carver import detect_extracted_files
 
 logger = get_logger(__name__)
 
@@ -295,12 +294,15 @@ def _fmt_bytes(n: int) -> str:
 
 def exfiltration_findings(alerts: Iterable[dict]) -> list[dict[str, Any]]:
     """Un constat `anomalie` par alerte de `exfiltration.detect_exfiltration`
-    (apres `correlate_exfiltration`). Severite calculee par le module
-    (moyenne, elevee a partir d'un score de 60/100) : un transfert sortant
-    volumineux reste un INDICE -- une sauvegarde cloud legitime y ressemble."""
+    (apres `correlate_exfiltration`). Severite `elevee` si au moins un signal
+    fort (high_volume ou asymmetric_ratio), `moyenne` sinon : un transfert
+    sortant volumineux reste un INDICE -- une sauvegarde cloud legitime y ressemble."""
     findings = []
     for a in alerts:
-        signals = ", ".join(_EXFIL_SIGNAL_LABELS.get(sig, sig) for sig in a.get("signals") or [])
+        sig_list = a.get("signals") or []
+        has_strong = any(s in ("high_volume", "asymmetric_ratio") for s in sig_list)
+        severity = a.get("severity") or ("elevee" if has_strong else "moyenne")
+        signals = ", ".join(_EXFIL_SIGNAL_LABELS.get(sig, sig) for sig in sig_list)
         ratio = a.get("ratio")
         ratio_txt = "aucun retour" if ratio is None else f"ratio {ratio}:1"
         detail = (
@@ -314,7 +316,7 @@ def exfiltration_findings(alerts: Iterable[dict]) -> list[dict[str, Any]]:
             detail += f" -- trames {frames}"
         findings.append(
             {
-                "severity": a.get("severity") or "moyenne",
+                "severity": severity,
                 "category": "anomalie",
                 "detector": "exfiltration",
                 "detail": detail,
@@ -543,34 +545,6 @@ _EXFIL_SIGNAL_LABELS = {
 }
 
 
-def exfiltration_findings(alerts: list[dict]) -> list[dict[str, Any]]:
-    """Un constat `anomalie` par alerte d'exfiltration de donnees.
-    La severite est `elevee` si au moins un signal fort est present
-    (high_volume ou asymmetric_ratio), `moyenne` sinon. Une
-    exfiltration reste un INDICE a confirmer (un transfert legitime
-    peut etre volumineux et asymetrique)."""
-    findings: list[dict[str, Any]] = []
-    for a in alerts:
-        signals = a.get("signals") or []
-        has_strong = any(s in ("high_volume", "asymmetric_ratio") for s in signals)
-        severity = "elevee" if has_strong else "moyenne"
-        signal_labels = ", ".join(_EXFIL_SIGNAL_LABELS.get(s, s) for s in signals)
-        detail = (
-            f"suspicion d'exfiltration : {a.get('src', '?')} -> {a.get('dst', '?')} "
-            f"-- {signal_labels} "
-            f"-- {a.get('upload_bytes', 0)} octets emis, score {a.get('score', 0.0)}"
-        )
-        findings.append(
-            {
-                "severity": severity,
-                "category": "anomalie",
-                "detail": detail,
-                "point": a.get("point") or None,
-            }
-        )
-    return findings
-
-
 # -- FORENSIC : trous de sequence TCP et doublons cross-capture -----------------
 
 
@@ -637,11 +611,7 @@ def extracted_file_findings(extraction) -> list[dict[str, Any]]:
         src = getattr(ef, "src", "?")
         dst = getattr(ef, "dst", "?")
         point = getattr(ef, "point", None)
-        detail = (
-            f"fichier extrait : {filename} "
-            f"({size} octets, {proto}) "
-            f"-- {src} -> {dst}"
-        )
+        detail = f"fichier extrait : {filename} ({size} octets, {proto}) -- {src} -> {dst}"
         findings.append(
             {
                 "severity": "faible",

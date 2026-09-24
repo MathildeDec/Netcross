@@ -24,8 +24,8 @@ from netcross_core.forensic import detect_sequence_gaps
 from netcross_core.logging_config import get_logger
 from netcross_core.models import Pkt, Report
 from netcross_core.parsing import compute_mos
-from netcross_core.security.expert_correlation import apply_expert_correlation
 from netcross_core.security.exfiltration import detect_exfiltration
+from netcross_core.security.expert_correlation import apply_expert_correlation
 
 logger = get_logger(__name__)
 
