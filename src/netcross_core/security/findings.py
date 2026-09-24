@@ -171,6 +171,7 @@ def anomaly_findings(suspicions: Iterable[dict]) -> list[dict[str, Any]]:
             {
                 "severity": SUSPICION_SEVERITY.get(kind, "faible"),
                 "category": "anomalie",
+                "detector": "expert_info",
                 "detail": detail,
                 "point": s.get("point") or None,
             }
@@ -216,6 +217,7 @@ def dns_tunnel_findings(suspicions: Iterable[dict]) -> list[dict[str, Any]]:
             {
                 "severity": s.get("severity") or "faible",
                 "category": "anomalie",
+                "detector": "dns_tunnel",
                 "detail": detail,
                 "point": s.get("point") or None,
             }
@@ -256,6 +258,7 @@ def beaconing_findings(suspicions: Iterable[dict]) -> list[dict[str, Any]]:
             {
                 "severity": s.get("severity") or "faible",
                 "category": "anomalie",
+                "detector": "beaconing",
                 "detail": detail,
                 "point": s.get("point") or None,
             }
@@ -306,6 +309,7 @@ def exfiltration_findings(alerts: Iterable[dict]) -> list[dict[str, Any]]:
             {
                 "severity": a.get("severity") or "moyenne",
                 "category": "anomalie",
+                "detector": "exfiltration",
                 "detail": detail,
                 "point": a.get("point") or None,
             }
@@ -337,6 +341,7 @@ def tls_audit_findings(audit: TlsAuditResult) -> list[dict[str, Any]]:
                 {
                     "severity": issue.severity,
                     "category": "anomalie",
+                    "detector": "tls_audit",
                     "detail": detail,
                     "host": cert["host"],
                     "port": cert["port"],
@@ -369,6 +374,7 @@ def lateral_movement_findings(events: list[dict]) -> list[dict[str, Any]]:
             {
                 "severity": severity_map.get(ev_type, "faible"),
                 "category": "anomalie",
+                "detector": "lateral_movement",
                 "detail": (
                     f"mouvement lateral ({ev_type}) : {ev.get('details', '?')} "
                     f"-- source {ev.get('source', '?')}, score {ev.get('score', 0.0)}"
@@ -401,6 +407,7 @@ def flow_stats_findings(flows: list[dict]) -> list[dict[str, Any]]:
             {
                 "severity": severity_map.get(cls, "faible"),
                 "category": "anomalie",
+                "detector": "flow_stats",
                 "detail": (
                     f"flux {f.get('src', '?')} -> {f.get('dst', '?')} "
                     f"classifie '{cls}' ({f.get('packet_count', 0)} paquets, "
@@ -465,6 +472,7 @@ def dga_findings(alerts: list[dict]) -> list[dict[str, Any]]:
             {
                 "severity": severity,
                 "category": "anomalie",
+                "detector": "dga",
                 "detail": (f"domaine DGA suspect : {a.get('domain', '?')} -- score {score} ({a.get('reason', '?')})"),
                 "point": a.get("point") or None,
             }
@@ -483,6 +491,7 @@ def fast_flux_findings(alerts: list[dict]) -> list[dict[str, Any]]:
             {
                 "severity": severity_map.get(a_type, "moyenne"),
                 "category": "anomalie",
+                "detector": "fast_flux",
                 "detail": (
                     f"fast flux ({a_type}) : {a.get('domain', '?')} "
                     f"-- {a.get('reason', '?')}, score {a.get('score', 0.0)}"
