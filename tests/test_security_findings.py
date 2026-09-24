@@ -142,6 +142,37 @@ def test_exploit_point_vide_devient_none():
     assert finding["point"] is None
 
 
+def test_exploit_meme_signature_sur_3_points_donne_un_seul_constat():
+    """Issue #343 : un Log4Shell vu sur 3 points de capture = UN constat,
+    pas trois. Les 3 points sont listes dans `points`."""
+    from netcross_core.exploit_signatures import Detection
+
+    detections = [
+        Detection(
+            signature_id="CVE-2021-44228", name="Log4Shell", src="10.0.0.1",
+            dst="10.0.0.5", sport=40000, dport=80, proto="TCP",
+            cves=("CVE-2021-44228",), severity="anomalie", target="payload",
+            ts=1.0, frame_number=1, payload_hash=None, evidence="${jndi:", point="LAN",
+        ),
+        Detection(
+            signature_id="CVE-2021-44228", name="Log4Shell", src="10.0.0.1",
+            dst="10.0.0.5", sport=40001, dport=80, proto="TCP",
+            cves=("CVE-2021-44228",), severity="anomalie", target="payload",
+            ts=2.0, frame_number=2, payload_hash=None, evidence="${jndi:", point="WAN",
+        ),
+        Detection(
+            signature_id="CVE-2021-44228", name="Log4Shell", src="10.0.0.1",
+            dst="10.0.0.5", sport=40002, dport=80, proto="TCP",
+            cves=("CVE-2021-44228",), severity="anomalie", target="payload",
+            ts=3.0, frame_number=3, payload_hash=None, evidence="${jndi:", point="DC",
+        ),
+    ]
+    findings = exploit_findings(detections)
+    assert len(findings) == 1
+    assert sorted(findings[0]["points"]) == ["DC", "LAN", "WAN"]
+    assert findings[0]["point"] == "DC"  # premier point trie
+
+
 @pytest.mark.parametrize("payload", [p.payload for p in LEGITIMATE])
 def test_trafic_legitime_ne_produit_aucun_constat_exploit(payload):
     assert exploit_findings(detect_exploits([FakeRaw(payload)])) == []

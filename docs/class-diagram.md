@@ -2583,6 +2583,7 @@ classDiagram
         <<dataclass>>
         +str src
         +str dst
+        +str? point
         +int packet_count
         +int byte_count
         +list~tuple~int, float~~ splt

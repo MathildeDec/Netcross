@@ -73,6 +73,10 @@ class FlowStat:
 
     src: str
     dst: str
+    # Issue #346 : le point de capture est necessaire pour attribuer le
+    # constat -- FlowStat n'avait pas ce champ, flow_stats_findings
+    # produisait point = null.
+    point: str | None = None
     packet_count: int = 0
     byte_count: int = 0
     # SPLT : liste de (taille, delta_t) pour les N premiers paquets
@@ -96,6 +100,7 @@ class FlowStat:
         return {
             "src": self.src,
             "dst": self.dst,
+            "point": self.point,
             "packet_count": self.packet_count,
             "byte_count": self.byte_count,
             "splt": list(self.splt),
@@ -171,13 +176,16 @@ def analyze_flow_stats(
     flows: dict[tuple[str, str], FlowStat] = {}
     # Garder les timestamps par flux pour calculer les inter-arrivees
     flow_timestamps: dict[tuple[str, str], list[float]] = defaultdict(list)
+    # Issue #346 : garder le point du premier paquet vu pour ce flux
+    flow_points: dict[tuple[str, str], str | None] = {}
 
     for pk in packets:
         key = (pk.src, pk.dst)
         flow = flows.get(key)
         if flow is None:
-            flow = FlowStat(src=pk.src, dst=pk.dst)
+            flow = FlowStat(src=pk.src, dst=pk.dst, point=pk.point or None)
             flows[key] = flow
+            flow_points[key] = pk.point or None
 
         flow.packet_count += 1
         flow.byte_count += pk.length

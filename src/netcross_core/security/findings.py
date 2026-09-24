@@ -108,14 +108,18 @@ def scan_capture_exploits(label: str, path: str, signatures: Sequence[Signature]
 
 
 def exploit_findings(detections: Iterable[Detection]) -> list[dict[str, Any]]:
-    """Un constat `exploit` par (signature, point, source, destination,
-    port destination) : une rafale de requetes identiques ne noie pas le
+    """Un constat `exploit` par (signature, source, destination, port
+    destination) : une rafale de requetes identiques ne noie pas le
     rapport, elle est resumee par son nombre d'occurrences. L'hote/port du
     constat sont ceux de la CIBLE (destination), l'extrait de preuve est
-    celui de la premiere occurrence."""
+    celui de la premiere occurrence.
+
+    Issue #343 : le point n'est plus dans la cle de regroupement -- un
+    meme exploit vu sur 3 points de capture est UN constat, pas trois.
+    Les points sont collects dans `points` (liste)."""
     grouped: dict[tuple, dict[str, Any]] = {}
     for d in detections:
-        key = (d.signature_id, d.point, d.src, d.dst, d.dport)
+        key = (d.signature_id, d.src, d.dst, d.dport)
         entry = grouped.get(key)
         if entry is None:
             cves = ", ".join(d.cves)
@@ -131,6 +135,7 @@ def exploit_findings(detections: Iterable[Detection]) -> list[dict[str, Any]]:
                 "host": d.dst,
                 "port": d.dport,
                 "point": d.point or None,
+                "points": [d.point] if d.point else [],
                 # pour les exports SIEM (issue #279) : source, signature et
                 # CVE structurees, sans reanalyser le texte de `detail`
                 "src": d.src,
@@ -140,11 +145,17 @@ def exploit_findings(detections: Iterable[Detection]) -> list[dict[str, Any]]:
             }
         else:
             entry["_count"] += 1
+            if d.point and d.point not in entry["points"]:
+                entry["points"].append(d.point)
     findings = []
     for entry in grouped.values():
         count = entry.pop("_count")
         if count > 1:
             entry["detail"] += f" -- {count} occurrences"
+        # point = premier point trie (compatibilite ascendante)
+        pts = sorted(entry.get("points", []))
+        entry["points"] = pts
+        entry["point"] = pts[0] if pts else None
         findings.append(entry)
     return findings
 

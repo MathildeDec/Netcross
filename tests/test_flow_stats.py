@@ -215,6 +215,29 @@ def test_flow_to_dict():
     assert d["flows"][0]["dst"] == SERVER
 
 
+def test_flow_stat_point_renseigne_depuis_paquet():
+    """Issue #346 : FlowStat doit porter le point de capture du paquet,
+    sinon flow_stats_findings produit point = null."""
+    pkts = [make_pkt(src=CLIENT, dst=SERVER, length=100, ts=0.0, point="A")]
+    result = analyze_flow_stats(pkts)
+    assert result.flows[0].point == "A"
+    assert result.flows[0].to_dict()["point"] == "A"
+
+
+def test_flow_stats_findings_point_renseigne():
+    """Issue #346 : flow_stats_findings doit produire un constat avec le
+    point renseigne, pas null."""
+    from netcross_core.security.findings import flow_stats_findings
+
+    pkts = [make_pkt(src=CLIENT, dst=SERVER, length=1500, ts=float(i), point="A") for i in range(20)]
+    result = analyze_flow_stats(pkts)
+    flows = [f.to_dict() for f in result.flows]
+    findings = flow_stats_findings(flows)
+    # Un flux de 20 paquets de 1500 octets est classifie 'transfert'
+    assert len(findings) >= 1
+    assert findings[0]["point"] == "A"
+
+
 # -- Tests: seuils personnalisables -------------------------------------------
 
 
