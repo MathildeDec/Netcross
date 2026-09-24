@@ -38,6 +38,9 @@ from netcross_ai.outbox import (
     queue_pack,
     submission,
 )
+from netcross_core.logging_config import get_logger
+
+logger = get_logger(__name__)
 
 EXIT_OFFLINE = 3
 
@@ -173,6 +176,7 @@ def main(argv: list[str] | None = None) -> int:
     try:
         return int(args.func(args))
     except (ModelPackError, BaselineError, TrainingSetError, OSError) as exc:
+        logger.exception("erreur: exc")
         print(f"Erreur : {exc}", file=sys.stderr)
         return 1
 

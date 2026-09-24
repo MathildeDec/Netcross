@@ -1,0 +1,11 @@
+cross_capture_analyzer_cli
+cross_capture_batch_cli
+cross_capture_diff_cli
+cross_history_cli
+netcross_ai
+netcross_ai_models_cli
+netcross_api
+netcross_core
+netcross_gtk4
+netcross_report
+pcap_parser

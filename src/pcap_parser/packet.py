@@ -18,6 +18,8 @@ import math
 import sys
 from dataclasses import dataclass
 
+from loguru import logger as _loguru_logger
+
 from pcap_parser.ek_fields import (
     all_occurrences,
     as_bool,
@@ -40,6 +42,10 @@ from pcap_parser.protocols import (
     extract_tls_handshake,
 )
 from pcap_parser.tunnels import detect_encapsulation, select_innermost_layers
+
+# pcap_parser reste independant de netcross_core (contrat import-linter) :
+# loguru directement, lie au nom du module.
+logger = _loguru_logger.bind(name=__name__)
 
 
 def _intern(value: str | None) -> str | None:
@@ -289,6 +295,9 @@ class RawPacket:
     http_content_type: str | None = None
     http_content_length: int | None = None
     tcp_len: int | None = None
+    # Adresses A/AAAA de la reponse DNS (issue #344) : tuple vide hors
+    # reponse DNS. Voir protocols._dns_answers.
+    dns_answers: tuple[str, ...] = ()
     # Commentaire de paquet pcapng (Enhanced Packet Block, option
     # opt_comment -- Job 39, issue #159). None sur un pcap classique (le
     # format ne porte aucune notion de commentaire) ou sur un paquet
@@ -327,6 +336,7 @@ def build_packet(ts_seconds: float, layers: dict) -> RawPacket | None:
     hors perimetre de cette analyse). ARP (Session 24) et STP (Session
     25) sont traites malgre l'absence d'en-tete IP -- voir les branches
     `elif arp is not None`/`elif stp is not None` ci-dessous."""
+    logger.debug("build_packet(ts_seconds={ts_seconds}, layers={layers})")
     frame = layers.get("frame") or {}
     length = hex_or_dec_to_int(g(frame, "frame_frame_len")) or 0
     frame_number = hex_or_dec_to_int(g(frame, "frame_frame_number"))
@@ -520,6 +530,7 @@ def build_packet(ts_seconds: float, layers: dict) -> RawPacket | None:
     sip_call_id = sip_msg_type = sip_cseq = sip_user_agent = sip_server = None
     dns_txn_id = dns_qry_name = dns_rcode = None
     dns_is_response = False
+    dns_answers: tuple[str, ...] = ()
     http_method = http_uri = None
     http_status_code = None
     http_response_time_ms = None
@@ -665,6 +676,7 @@ def build_packet(ts_seconds: float, layers: dict) -> RawPacket | None:
             dns_is_response = dns["is_response"]
             dns_qry_name = _intern(dns["qry_name"])
             dns_rcode = dns["rcode"]
+            dns_answers = dns["answers"]
 
     if proto == "TCP":
         # HTTP/1.x uniquement -- TCP est necessaire mais pas suffisant
@@ -849,6 +861,7 @@ def build_packet(ts_seconds: float, layers: dict) -> RawPacket | None:
         expert_flags=expert_flags,
         expert_details=expert_details,
         tcp_len=tcp_len,
+        dns_answers=dns_answers,
         ip_checksum=ip_checksum,
         ip_checksum_bad=ip_checksum_bad,
         tcp_checksum=tcp_checksum,

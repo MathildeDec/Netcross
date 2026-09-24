@@ -11,7 +11,10 @@ from __future__ import annotations
 from collections import defaultdict, deque
 from dataclasses import asdict, dataclass
 
+from netcross_core.logging_config import get_logger
 from netcross_core.models import Pkt
+
+logger = get_logger(__name__)
 
 
 @dataclass(frozen=True)
@@ -36,11 +39,13 @@ class HttpObject:
     @property
     def volume_bytes(self) -> int:
         """Volume applicatif declare par Content-Length, 0 s'il est absent."""
+        logger.debug("volume_bytes(self={self})")
         return self.content_length or 0
 
     @property
     def flow(self) -> tuple:
         """Identifiant directionnel de connexion TCP (hors sequence TCP)."""
+        logger.debug("flow(self={self})")
         return (self.src, self.sport, self.dst, self.dport)
 
 
@@ -70,6 +75,7 @@ def extract_http_objects(
     car aucune taille observee fiable de l'objet n'est deduite artificiellement
     a partir des segments TCP.
     """
+    logger.debug("extract_http_objects(packets={packets})")
     if privacy_mode not in {"metadata", "forensic"}:
         raise ValueError("privacy_mode doit etre 'metadata' ou 'forensic'")
 
@@ -125,6 +131,7 @@ def extract_http_objects(
 
 def objects_to_dicts(objects: list[HttpObject]) -> list[dict]:
     """Serialization JSON/CSV stable, sans corps HTTP."""
+    logger.debug("objects_to_dicts(objects={objects})")
     return [asdict(obj) for obj in objects]
 
 

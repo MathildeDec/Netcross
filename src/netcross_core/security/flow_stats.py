@@ -36,7 +36,10 @@ from collections.abc import Iterable
 from dataclasses import dataclass, field
 from statistics import mean, median, pstdev
 
+from netcross_core.logging_config import get_logger
 from netcross_core.models import Pkt
+
+logger = get_logger(__name__)
 
 # -- Constantes ---------------------------------------------------------------
 
@@ -94,6 +97,8 @@ class FlowStat:
     median_size: float = 0.0
     upload_ratio: float = 0.0
     regularity_cv: float = 0.0  # coefficient de variation des intervalles
+    # Issue #346 : point de capture du flux (un seul : les flux sont par point)
+    points: list[str] = field(default_factory=list)
 
     def to_dict(self) -> dict:
         return {
@@ -112,6 +117,8 @@ class FlowStat:
             "median_size": self.median_size,
             "upload_ratio": self.upload_ratio,
             "regularity_cv": self.regularity_cv,
+            "points": list(self.points),
+            "point": self.points[0] if self.points else None,
         }
 
 
@@ -176,15 +183,20 @@ def analyze_flow_stats(
     tailles, entropie, ratio up/down, regularite temporelle, et
     classifie chaque flux.
     """
-    flows: dict[tuple[str, str], FlowStat] = {}
+    logger.debug("analyze_flow_stats(packets={packets}, thresholds={thresholds})")
+    # Issue #346 : un flux est identifie PAR POINT de capture. Sans le point
+    # dans la cle, un meme paquet vu sur N points etait compte N fois et les
+    # horodatages de points differents s'entremelaient (inter-arrivees et
+    # classification faussees).
+    flows: dict[tuple[str, str, str], FlowStat] = {}
     # Garder les timestamps par flux pour calculer les inter-arrivees
-    flow_timestamps: dict[tuple[str, str], list[float]] = defaultdict(list)
+    flow_timestamps: dict[tuple[str, str, str], list[float]] = defaultdict(list)
 
     for pk in packets:
-        key = (pk.src, pk.dst)
+        key = (pk.point, pk.src, pk.dst)
         flow = flows.get(key)
         if flow is None:
-            flow = FlowStat(src=pk.src, dst=pk.dst)
+            flow = FlowStat(src=pk.src, dst=pk.dst, points=[pk.point] if pk.point else [])
             flows[key] = flow
 
         flow.packet_count += 1
@@ -207,14 +219,14 @@ def analyze_flow_stats(
         flow_timestamps[key].append(pk.ts)
 
         # Download : paquets dans l'autre sens (dst->src)
-        rev_key = (pk.dst, pk.src)
+        rev_key = (pk.point, pk.dst, pk.src)
         rev_flow = flows.get(rev_key)
         if rev_flow is not None:
             rev_flow.download_bytes += pk.length
 
     # Recalculer download pour tous les flux
     for key, flow in flows.items():
-        rev_key = (key[1], key[0])
+        rev_key = (key[0], key[2], key[1])
         if rev_key in flows:
             flow.download_bytes = flows[rev_key].upload_bytes
 

@@ -11,12 +11,15 @@ from __future__ import annotations
 
 import re
 
+from netcross_core.logging_config import get_logger
 from netcross_core.tshark_stats.models import ProtocolHierarchyStat
 from netcross_core.tshark_stats.parse_utils import (
     is_filter_line,
     is_separator,
     parse_int,
 )
+
+logger = get_logger(__name__)
 
 #: Indentation par niveau dans la sortie io,phs (espaces).
 _INDENT = 4
@@ -26,6 +29,7 @@ _DATA_RE = re.compile(r"\d")
 
 def parse_protocol_hierarchy(text: str) -> list[ProtocolHierarchyStat]:
     """Convertit la sortie ``tshark -z io,phs`` en ProtocolHierarchyStat."""
+    logger.debug("parse_protocol_hierarchy(text={text})")
     # Indentation minimale observee parmi les lignes de donnees -> niveau 0.
     data: list[tuple[int, str, list[str]]] = []
     for line in text.splitlines():

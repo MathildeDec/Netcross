@@ -808,27 +808,33 @@ netcross/
 ├── install.sh              installation des dependances systeme
 ├── requirements.txt         installation alternative via pip (repli sans uv)
 ├── requirements-dev.txt     dependances de developpement, repli sans uv (pytest, ruff, import-linter, pre-commit)
-├── pyproject.toml           dependances (uv, Session 55) + config ruff (lint/format) + import-linter (couches)
-├── uv.lock                  verrou de dependances uv (Session 55)
+├── pyproject.toml           dependances (uv) + config ruff (lint/format) + import-linter (couches) + mypy
+├── uv.lock                  verrou de dependances uv
 ├── .pre-commit-config.yaml  hooks pre-commit (ruff, ruff-format, import-linter, class-diagram)
-├── .github/workflows/ci.yml pipeline CI GitHub Actions (lint, format, import-linter, pytest ; issue #176)
+├── .github/workflows/      CI GitHub Actions (lint, format, import-linter, mypy, pytest, deb/rpm, mkdocs, garde)
 ├── pytest.ini               configuration pytest (pythonpath = src)
-├── docs/
-│   ├── class-diagram.md     diagramme de classes (GENERE depuis src/, ne pas editer a la main ; issue #140)
+├── docs/                   documentation MkDocs
+│   ├── class-diagram.md     diagramme de classes (GENERE depuis src/)
+│   ├── detectors.md         comportement et limites des detecteurs (#365)
 │   ├── features-backlog.md  fonctionnalites, dette, comparaison OmniPeek
-│   └── sessions/             historique detaille session par session (session-01.md ... session-41.md)
+│   └── sessions/             historique detaille session par session
 ├── scripts/
-│   ├── generate_class_diagram.py  genere docs/class-diagram.md depuis src/ (hook pre-commit ; issue #140)
-│   └── import_nvd.py        import periodique du flux NVD dans la base CVE locale (issue #138)
+│   ├── generate_class_diagram.py  genere docs/class-diagram.md depuis src/
+│   └── import_nvd.py        import periodique du flux NVD dans la base CVE locale
 ├── tests/                   suite de tests automatisés (pytest)
 ├── src/
 │   ├── cross_capture_analyzer_cli.py   CLI (argparse)
+│   ├── pcap_parser/         parsing tshark -T ek -> RawPacket/Pkt (DNS, HTTP, TLS, RTP, SIP...)
 │   ├── netcross_core/       moteur d'analyse (aucune dependance a une UI)
-│   │   └── security/        base CVE locale + correlation de versions (issue #138)
-│   ├── netcross_report/     generation du rapport PDF (synthese, graphiques)
+│   │   ├── security/        detecteurs (beaconing, exfiltration, DGA, fast flux, lateral movement, flow_stats, DNS tunnel, TLS audit)
+│   │   ├── discovery/       inventaire d'actifs, empreintes (JA4/HASSH)
+│   │   ├── exploit_signatures/  signatures d'exploits (CVE)
+│   │   └── data/            signatures CVE (JSON), fingerprint known
+│   ├── netcross_report/     generation du rapport (PDF, JSON, HTML, SIEM, STIX)
+│   ├── netcross_api/        API REST (FastAPI)
 │   └── netcross_gtk4/       interface graphique GTK4
 ├── build-deb/               packaging Debian/Ubuntu (.deb)
-└── build-rpm/                packaging RHEL/Rocky (.rpm)
+└── build-rpm/               packaging RHEL/Rocky (.rpm)
 ```
 
 Le suivi de projet est volontairement scindé en trois niveaux de détail

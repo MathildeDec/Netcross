@@ -117,6 +117,7 @@ class LiveAggregator:
 
     def tick(self, now: float | None = None, *, final: bool = False) -> tuple[dict, dict]:
         """(instantane complet, ligne de journal) -- consomme les evenements."""
+        logger.debug("tick(self={self}, now={now})")
         now = time.time() if now is None else now
         with self._lock:
             self._seq += 1
@@ -206,6 +207,7 @@ def _atomic_write(path: Path, text: str) -> None:
         os.chmod(tmp, 0o644)
         os.replace(tmp, path)
     except BaseException:
+        logger.exception("erreur: BaseException")
         with contextlib.suppress(OSError):
             os.unlink(tmp)
         raise
@@ -231,6 +233,7 @@ class LiveReportWriter:
         self._tail: list[dict] = []
 
     def publish(self, snapshot: dict, journal: dict) -> None:
+        logger.debug("publish(self={self}, snapshot={snapshot}, journal={journal})")
         line = json.dumps(journal, ensure_ascii=False, separators=(",", ":"))
         with self.journal_path.open("a", encoding="utf-8") as f:
             f.write(line + "\n")
@@ -269,11 +272,13 @@ class LiveReporter:
             self._publish()
 
     def start(self) -> None:
+        logger.debug("start(self={self})")
         self._publish()
         self._thread = threading.Thread(target=self._loop, name="netcross-live-report", daemon=True)
         self._thread.start()
 
     def stop(self) -> None:
+        logger.debug("stop(self={self})")
         self._stop.set()
         if self._thread is not None:
             self._thread.join()

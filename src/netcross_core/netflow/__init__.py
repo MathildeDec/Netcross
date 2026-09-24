@@ -22,6 +22,7 @@ Utilisation typique (mode fichier, rejeu) ::
     pkts = flow_records_to_pkts(flows)  # reutilisable par correlate()/analyse()
 """
 
+from netcross_core.logging_config import get_logger
 from netcross_core.netflow.adapter import flow_record_to_pkt, flow_records_to_pkts
 from netcross_core.netflow.models import FlowRecord
 from netcross_core.netflow.netflow_v5 import (
@@ -29,6 +30,8 @@ from netcross_core.netflow.netflow_v5 import (
     iter_netflow_v5_file,
     parse_netflow_v5_packet,
 )
+
+logger = get_logger(__name__)
 
 __all__ = [
     "FlowRecord",
