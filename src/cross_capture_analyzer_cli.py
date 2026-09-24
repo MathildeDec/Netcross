@@ -1780,6 +1780,45 @@ def main():
         metavar="TYPE[,TYPE]",
         help="Avec --extract-contents : restreint l'extraction a audio, video et/ou documents (defaut : tous).",
     )
+    # Issue #359 : vue temporelle de flux -- code present mais non raccorde
+    adv = ap.add_argument_group(
+        "analyse avancee",
+        "Vue temporelle de flux (#10) et statistiques tshark (#20) : "
+        "fonctionnalites existantes mais non exposees jusqu'ici.",
+    )
+    adv.add_argument(
+        "--flow-timeline",
+        metavar="FICHIER.json",
+        help="Ecrit la chronologie detaillee des flux (phases, RTT, inter-arrivees) en JSON. Issue #359.",
+    )
+    adv.add_argument(
+        "--tshark-stats",
+        metavar="FICHIER.json",
+        help="Ecrit les statistiques tshark (conversations, endpoints, "
+        "hierarchie de protocoles, io_stat) en JSON. issue #361.",
+    )
+    adv.add_argument(
+        "--forensic-search",
+        metavar="FICHIER.json",
+        help="Recherche forensique transversale (#16) : cree un index "
+        "des paquets/flux/evenements et execute une requete. Sortie JSON.",
+    )
+    adv.add_argument(
+        "--search-text",
+        metavar="TEXTE",
+        help="Avec --forensic-search : texte a chercher (insensible a la casse).",
+    )
+    adv.add_argument(
+        "--search-address",
+        metavar="IP",
+        help="Avec --forensic-search : filtrer par adresse IP.",
+    )
+    adv.add_argument(
+        "--netflow",
+        metavar="FICHIER",
+        help="Ingestion NetFlow v5 (#32) : lit un fichier .netflow5 et "
+        "l'ajoute aux paquets a analyser (alternative a --capture).",
+    )
     args = ap.parse_args()
 
     plugin_names = [n.strip() for n in (args.plugins or "").split(",") if n.strip()]
@@ -2369,6 +2408,18 @@ def main():
                 file=sys.stderr,
             )
 
+    # Issue #362 : ingestion NetFlow v5 -- code present mais non raccorde
+    if args.netflow:
+        from netcross_core.netflow import flow_records_to_pkts, iter_netflow_v5_file
+
+        try:
+            flow_records = list(iter_netflow_v5_file(args.netflow))
+            nf_pkts = flow_records_to_pkts(flow_records, point="netflow")
+            all_packets.extend(nf_pkts)
+            print(f"[netflow] {len(nf_pkts)} paquet(s) NetFlow v5 charges depuis {args.netflow}")
+        except Exception as exc:
+            print(f"[netflow] ECHEC sur {args.netflow} : {exc}", file=sys.stderr)
+
     # CVE-2 (issue #136, pour --security-report) : les signatures d'exploits
     # cherchent la charge utile BRUTE, que Pkt ne garde pas -- relecture de
     # chaque fichier passe a --capture, independante du mode de chargement
@@ -2719,6 +2770,71 @@ def main():
             **session_objects.json_kwargs(),
         )
         print(f"Rapport JSON ecrit dans {args.json_report}")
+
+    # Issue #359 : vue temporelle de flux -- code present mais non raccorde
+    if args.flow_timeline:
+        import json
+        from collections import defaultdict
+
+        from netcross_core.flow_timeline import build_flow_timeline
+
+        flows_by_key: dict[tuple[str, str, str], list] = defaultdict(list)
+        for pkt in all_packets:
+            key = (pkt.src, pkt.dst, pkt.proto)
+            flows_by_key[key].append(pkt)
+        timelines = {}
+        for key, pkts in flows_by_key.items():
+            if len(pkts) < 2:
+                continue
+            tl = build_flow_timeline(pkts)
+            timelines[f"{key[0]} -> {key[1]} ({key[2]})"] = tl.to_dict()
+        with open(args.flow_timeline, "w", encoding="utf-8") as fh:
+            json.dump(timelines, fh, ensure_ascii=False, indent=2)
+        print(f"Chronologie des flux ecrite dans {args.flow_timeline}")
+
+    # Issue #361 : statistiques tshark -- code present mais non raccorde
+    if args.tshark_stats:
+        import json
+        from dataclasses import asdict
+
+        from netcross_core.tshark_stats import (
+            collect_conversations,
+            collect_endpoints,
+            collect_io_stat,
+            collect_protocol_hierarchy,
+        )
+
+        stats = {"captures": []}
+        for label, path in captures:
+            cap_stats = {"label": label, "path": path}
+            try:
+                cap_stats["conversations"] = [asdict(c) for c in collect_conversations(path)]
+                cap_stats["endpoints"] = [asdict(e) for e in collect_endpoints(path)]
+                cap_stats["protocol_hierarchy"] = [asdict(p) for p in collect_protocol_hierarchy(path)]
+                cap_stats["io_stat"] = asdict(collect_io_stat(path))
+            except Exception as exc:
+                cap_stats["error"] = str(exc)
+            stats["captures"].append(cap_stats)
+        with open(args.tshark_stats, "w", encoding="utf-8") as fh:
+            json.dump(stats, fh, ensure_ascii=False, indent=2)
+        print(f"Statistiques tshark ecrites dans {args.tshark_stats}")
+
+    # Issue #360 : recherche forensique -- code present mais non raccorde
+    if args.forensic_search:
+        import json
+        from dataclasses import asdict
+
+        from netcross_core.forensic_search import ForensicSearchIndex, ForensicSearchQuery
+
+        index = ForensicSearchIndex(all_packets)
+        query = ForensicSearchQuery(
+            text=args.search_text,
+            address=args.search_address,
+        )
+        results = index.search(query)
+        with open(args.forensic_search, "w", encoding="utf-8") as fh:
+            json.dump([asdict(r) for r in results], fh, ensure_ascii=False, indent=2)
+        print(f"Recherche forensique : {len(results)} resultat(s) ecrit(s) dans {args.forensic_search}")
 
     if args.history_db:
         from netcross_report import HistoryDatabaseError, list_history, print_history, record_run
