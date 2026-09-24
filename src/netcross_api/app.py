@@ -35,6 +35,9 @@ from netcross_core.security.findings import apply_security_findings, scan_captur
 
 # Singleton pour éviter B008 (File() in argument defaults).
 _FILE_REQUIRED = File(default=..., description="Fichier pcap/pcapng à analyser")
+_FILES_REQUIRED = File(default=..., description="Fichiers pcap/pcapng à analyser")
+_LABELS_FORM = Form(default="", description="Étiquettes séparées par virgule (ex: lan,wan,dc)")
+_POINTS_ORDER_FORM = Form(default="", description="Ordre des points séparé par virgule (ex: lan,wan,dc)")
 
 app = FastAPI(
     title="Netcross API",
@@ -111,9 +114,9 @@ async def upload_capture(
     responses={400: {"model": ErrorResponse}},
 )
 async def upload_multi_capture(
-    files: list[UploadFile] = File(default=..., description="Fichiers pcap/pcapng à analyser"),
-    labels: str = Form(default="", description="Étiquettes séparées par virgule (ex: lan,wan,dc)"),
-    points_order: str = Form(default="", description="Ordre des points séparé par virgule (ex: lan,wan,dc)"),
+    files: list[UploadFile] = _FILES_REQUIRED,
+    labels: str = _LABELS_FORM,
+    points_order: str = _POINTS_ORDER_FORM,
 ) -> MultiAnalysisSummary:
     """Upload de plusieurs captures étiquetées, lancement de l'analyse croisée.
 
@@ -124,7 +127,7 @@ async def upload_multi_capture(
         raise HTTPException(status_code=400, detail="Au moins 2 fichiers sont requis pour l'analyse multi-points")
 
     # Parser les étiquettes
-    label_list = [l.strip() for l in labels.split(",") if l.strip()] if labels else []
+    label_list = [lbl.strip() for lbl in labels.split(",") if lbl.strip()] if labels else []
     if len(label_list) != len(files):
         label_list = [f"point-{i}" for i in range(len(files))]
 
