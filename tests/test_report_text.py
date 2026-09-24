@@ -464,3 +464,35 @@ def test_print_annotations_trie_par_numero_de_trame_dans_un_tag(capsys):
     print_annotations(annotations)
     out = capsys.readouterr().out
     assert out.index("trame #1") < out.index("trame #99")
+
+
+def test_print_report_fichiers_extraits_affiches(capsys):
+    """Issue #349 : r.extracted_files est rempli depuis #150, mais aucun
+    rendu ne l'exposait -- un executable PE telecharge en HTTP etait
+    invisible du rapport. Le texte doit montrer la section et au moins un
+    fichier avec son empreinte (SHA-256 si presente, MD5 sinon)."""
+    from netcross_core.models import Report
+
+    r = Report(points=["A"])
+    r.extracted_files = [
+        {
+            "point": "A",
+            "proto_source": "HTTP",
+            "src": "10.0.0.2",
+            "dst": "10.0.0.5",
+            "ts": 1.0,
+            "uri": "/malware.exe",
+            "content_type": "application/octet-stream",
+            "size": 13312,
+            "hash_md5": "d41d8cd98f00b204e9800998ecf8427e",
+            "hash_sha256": "e3b0c44298fc1c149afbf4c8996fb92427ae41e4649b934ca495991b7852b855",
+            "type_detected": "PE",
+            "frame_number": 42,
+        }
+    ]
+    print_report(r)
+    out = capsys.readouterr().out
+    assert "Fichiers extraits" in out
+    assert "/malware.exe" in out
+    assert "PE" in out
+    assert "e3b0c44298fc1c14" in out  # debut du SHA-256

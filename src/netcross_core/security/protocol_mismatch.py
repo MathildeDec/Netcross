@@ -204,6 +204,7 @@ def detect_protocol_mismatches(packets: list[Pkt]) -> list[dict[str, Any]]:
                     "dport": pkt.dport,
                     "detected_proto": proto_name,
                     "description": description,
+                    "point": pkt.point or None,
                 }
             )
     logger.info("protocol_mismatch : {} mismatch(es) detecte(s) sur {} paquet(s)", len(details), len(packets))

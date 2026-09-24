@@ -297,6 +297,13 @@ def generate_json_report(
         "health_score": score,
         "health_label": health_label(score),
         "http_objects": list(getattr(r, "http_objects", [])),
+        # SCENARIO-4 (#150) : fichiers extraits (HTTP, email, SMB, FTP) --
+        # rempli par `netcross_core.analysis.analyse` via
+        # `extract.carver.detect_extracted_files`, mais inerte sans cette
+        # exposition (issue #349 : un executable PE telecharge en HTTP etait
+        # invisible jusqu'ici). Toujours present (liste vide = rien trouve),
+        # meme convention que http_objects.
+        "extracted_files": list(getattr(r, "extracted_files", [])),
     }
     if getattr(r, "duplicate_count", None):
         # Job 41/issue #161 : cle absente si la detection n'a rien trouve
