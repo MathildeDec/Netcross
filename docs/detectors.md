@@ -39,5 +39,5 @@ le détecteur de beaconing peut les signaler.
 
 ## Voir aussi
 
-- [README.md](../README.md) — vue d'ensemble du projet
-- [CONTRIBUTING.md](../CONTRIBUTING.md) — guide de contribution
+- [README.md](https://github.com/MathildeDec/Netcross/blob/dev/README.md) — vue d'ensemble du projet
+- [CONTRIBUTING.md](https://github.com/MathildeDec/Netcross/blob/dev/CONTRIBUTING.md) — guide de contribution

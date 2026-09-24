@@ -84,5 +84,5 @@
 ## Voir aussi
 
 - [Tableau récapitulatif des issues](issues-summary.md)
-- [Backlog complet](features-backlog.md)
-- [Diagramme de classes](class-diagram.md)
+- [Backlog complet](../features-backlog.md)
+- [Diagramme de classes](../class-diagram.md)
