@@ -11,7 +11,7 @@
 > Il remplace l'ancienne section 3 de `docs/features-backlog.md`, tenue à la main, qui avait dérivé
 > (voir `docs/sessions/session-36.md`, issue #140).
 
-156 modules · 234 classes · 519 fonctions publiques de module.
+157 modules · 234 classes · 522 fonctions publiques de module.
 
 Conventions : `+` public, `-` privé (préfixe `_`) ; `int?` = `int | None` ; `list~str~` = `list[str]` ;
 `<<module>>` regroupe les fonctions publiques d'un module ; `A --> B : champ` = `A` a un champ annoté
@@ -2087,6 +2087,7 @@ classDiagram
 | `netcross_core.netflow.adapter` | conversion FlowRecord -> Pkt. |
 | `netcross_core.netflow.models` | structure de donnees partagee pour un flux agrege NetFlow/sFlow (FlowRecord), distincte de Pkt. |
 | `netcross_core.netflow.netflow_v5` | parseur NetFlow v5 (RFC 1568 / format Cisco historique, le plus repandu et le plus simple des protocoles vises par cet ADR -- voir docs/adr/netflow-sflow-architecture.md, Phase 1 du plan… |
+| `netcross_core.netflow.summary` | Resume d'un export NetFlow (issue #362) : volumes, protocoles, principaux emetteurs, conversations et ports de destination. |
 
 ### Diagramme
 
@@ -2138,6 +2139,14 @@ classDiagram
         <<module>>
         +parse_netflow_v5_packet(data, exporter) list~FlowRecord~
         +iter_netflow_v5_file(path, exporter) Iterator~FlowRecord~
+    }
+
+    %% ===== netcross_core.netflow.summary =====
+    class mod_netcross_core_netflow_summary["netcross_core.netflow.summary"] {
+        <<module>>
+        +protocol_name(number) str
+        +summarize_flow_records(records, top) dict
+        +format_flow_summary(summary) list~str~
     }
 ```
 
