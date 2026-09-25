@@ -1509,6 +1509,7 @@ class MainWindow(Gtk.ApplicationWindow):
 
     def _on_live_duration_elapsed(self, session_id):
         if self._live_capturing and session_id == self._live_session_id:
+            logger.debug("_on_live_duration_elapsed: durée maximale atteinte, session={}", session_id)
             self._log("Duree maximale atteinte -- arret automatique de la capture.")
             self._end_live_capture()
         return False  # ne pas repeter le timeout (GLib.timeout_add_seconds)
@@ -1643,6 +1644,7 @@ class MainWindow(Gtk.ApplicationWindow):
         GLib.idle_add(self._reset_live_ui)
 
     def _reset_live_ui(self):
+        logger.debug("_reset_live_ui: réinitialisation de l'interface de capture en direct")
         self._live_capturing = False
         self.live_panel.set_sensitive(True)
         self.live_extra_box.set_sensitive(True)
@@ -1949,6 +1951,7 @@ class MainWindow(Gtk.ApplicationWindow):
     def on_export_csv(self, _btn):
         if self.last_mode is None:
             return
+        logger.debug("on_export_csv: mode={}", self.last_mode)
         dialog = Gtk.FileDialog()
         dialog.set_initial_name("details_flux.csv" if self.last_mode == "single" else "ecarts.csv")
         dialog.save(self, None, self._on_csv_path_chosen)
@@ -1960,6 +1963,7 @@ class MainWindow(Gtk.ApplicationWindow):
             logger.exception("échec dans _on_csv_path_chosen")
             return
         path = gfile.get_path()
+        logger.debug("_on_csv_path_chosen: mode={} path={}", self.last_mode, path)
         try:
             if self.last_mode == "single":
                 write_detail_csv(path, self.last_flows, self.last_report.points)
@@ -1969,6 +1973,7 @@ class MainWindow(Gtk.ApplicationWindow):
             logger.exception(f"échec dans _on_csv_path_chosen: {e}")
             self.status_label.set_text(f"Erreur CSV : {e}")
             return
+        logger.debug("_on_csv_path_chosen: CSV écrit {}", path)
         self.status_label.set_text(f"CSV ecrit : {path}")
 
     # ================= export PDF =================
@@ -1976,6 +1981,7 @@ class MainWindow(Gtk.ApplicationWindow):
     def on_export_pdf(self, _btn):
         if self.last_mode is None:
             return
+        logger.debug("on_export_pdf: mode={}", self.last_mode)
         dialog = Gtk.FileDialog()
         dialog.set_initial_name("rapport_analyse.pdf" if self.last_mode == "single" else "rapport_comparaison.pdf")
         dialog.save(self, None, self._on_pdf_path_chosen)
@@ -1986,6 +1992,7 @@ class MainWindow(Gtk.ApplicationWindow):
         except GLib.Error:
             logger.exception("échec dans _on_pdf_path_chosen")
             return
+        logger.debug("_on_pdf_path_chosen: chemin choisi")
         self.export_pdf_to(gfile.get_path())
 
     def export_pdf_to(self, path):
@@ -2131,6 +2138,7 @@ class MainWindow(Gtk.ApplicationWindow):
         if not rows:
             return
         path = file_obj.get_path()
+        logger.debug("_on_stats_csv_saved: {} ligne(s) vers {}", len(rows), path)
         try:
             with open(path, "w", encoding="utf-8") as fh:
                 fh.write(export_csv(rows))
@@ -2169,6 +2177,7 @@ class MainWindow(Gtk.ApplicationWindow):
         if not rows:
             return
         path = file_obj.get_path()
+        logger.debug("_on_stats_json_saved: {} ligne(s) vers {}", len(rows), path)
         try:
             with open(path, "w", encoding="utf-8") as fh:
                 json.dump(export_json(rows), fh, indent=2, ensure_ascii=False)
@@ -2432,10 +2441,12 @@ class MainWindow(Gtk.ApplicationWindow):
         GLib.idle_add(self._on_pdf_done, path)
 
     def _on_pdf_error(self, message):
+        logger.debug("_on_pdf_error: {}", message)
         self.status_label.set_text(f"Erreur PDF : {message}")
         return False
 
     def _on_pdf_done(self, path):
+        logger.debug("_on_pdf_done: {}", path)
         self.status_label.set_text(f"PDF ecrit : {path}")
         return False
 
@@ -2448,6 +2459,7 @@ class MainWindow(Gtk.ApplicationWindow):
     def on_export_json(self, _btn):
         if self.last_mode is None:
             return
+        logger.debug("on_export_json: mode={}", self.last_mode)
         dialog = Gtk.FileDialog()
         dialog.set_initial_name("rapport_analyse.json" if self.last_mode == "single" else "rapport_comparaison.json")
         dialog.save(self, None, self._on_json_path_chosen)
@@ -2458,6 +2470,7 @@ class MainWindow(Gtk.ApplicationWindow):
         except GLib.Error:
             logger.exception("échec dans _on_json_path_chosen")
             return
+        logger.debug("_on_json_path_chosen: chemin choisi")
         self.export_json_to(gfile.get_path())
 
     def export_json_to(self, path):
@@ -2501,10 +2514,12 @@ class MainWindow(Gtk.ApplicationWindow):
         GLib.idle_add(self._on_json_done, path)
 
     def _on_json_error(self, message):
+        logger.debug("_on_json_error: {}", message)
         self.status_label.set_text(f"Erreur JSON : {message}")
         return False
 
     def _on_json_done(self, path):
+        logger.debug("_on_json_done: {}", path)
         self.status_label.set_text(f"JSON ecrit : {path}")
         return False
 
@@ -2530,6 +2545,7 @@ class MainWindow(Gtk.ApplicationWindow):
     def on_export_security(self, suffix):
         if self.last_security_report is None:
             return
+        logger.debug("on_export_security: format={}", suffix)
         dialog = Gtk.FileDialog()
         dialog.set_initial_name(f"rapport_securite{suffix}")
         dialog.save(self, None, lambda d, r: self._on_security_path_chosen(d, r))
@@ -2540,6 +2556,7 @@ class MainWindow(Gtk.ApplicationWindow):
         except GLib.Error:
             logger.exception("échec dans _on_security_path_chosen")
             return
+        logger.debug("_on_security_path_chosen: chemin choisi")
         self.export_security_to(gfile.get_path())
 
     def export_security_to(self, path):
