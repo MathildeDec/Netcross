@@ -11,7 +11,7 @@
 > Il remplace l'ancienne section 3 de `docs/features-backlog.md`, tenue à la main, qui avait dérivé
 > (voir `docs/sessions/session-36.md`, issue #140).
 
-160 modules · 237 classes · 531 fonctions publiques de module.
+160 modules · 240 classes · 533 fonctions publiques de module.
 
 Conventions : `+` public, `-` privé (préfixe `_`) ; `int?` = `int | None` ; `list~str~` = `list[str]` ;
 `<<module>>` regroupe les fonctions publiques d'un module ; `A --> B : champ` = `A` a un champ annoté
@@ -39,7 +39,7 @@ flowchart TD
     netcross_gtk4 -->|"13 imports"| netcross_report
     netcross_gtk4 -->|"51 imports"| netcross_core
     netcross_gtk4 -->|"2 imports"| pcap_parser
-    netcross_api -->|"7 imports"| netcross_core
+    netcross_api -->|"6 imports"| netcross_core
     netcross_report -->|"32 imports"| netcross_core
     netcross_ai -->|"10 imports"| netcross_core
     netcross_core -->|"17 imports"| pcap_parser
@@ -3705,9 +3705,9 @@ classDiagram
 | Module | Rôle |
 |---|---|
 | `netcross_api` | service REST FastAPI pour exposer les analyses Netcross (issue #209). |
-| `netcross_api.app` | application FastAPI pour exposer les analyses Netcross (issue #209). |
+| `netcross_api.app` | application FastAPI pour exposer les analyses Netcross (issues #209, #354, #356). |
 | `netcross_api.models` | modèles Pydantic pour les requêtes/réponses API (issue #209). |
-| `netcross_api.store` | store des analyses avec statut et persistance optionnelle. |
+| `netcross_api.store` | analyses de l'API : statut, document JSON, persistance. |
 
 ### Diagramme
 
@@ -3716,16 +3716,19 @@ classDiagram
     direction LR
 
     %% ===== netcross_api.app =====
+    class AnalysisError {
+        <<Exception>>
+    }
     class mod_netcross_api_app["netcross_api.app"] {
         <<module>>
         +health() HealthResponse
-        +upload_capture(file, label, _auth) AnalysisSummary
+        +upload_capture(file, label, wait, _auth) JSONResponse
         +segment_losses(report) list~SegmentLoss~
-        +upload_multi_capture(files, labels, points_order, _auth) MultiAnalysisSummary
+        +upload_multi_capture(files, labels, points_order, wait, _auth) JSONResponse
         +get_analysis(analysis_id, _auth) JSONResponse
         +get_security_report(analysis_id, _auth) SecurityReport
         +list_analyses(_auth) dict
-        +get_analysis_status(analysis_id, _auth) dict
+        +get_analysis_status(analysis_id, _auth) AnalysisStatus
     }
 
     %% ===== netcross_api.models =====
@@ -3741,6 +3744,19 @@ classDiagram
         +int point_count
         +int packet_count
         +int security_finding_count
+    }
+    class AnalysisAccepted {
+        <<BaseModel>>
+        +str analysis_id
+        +str status
+        +str status_url
+    }
+    class AnalysisStatus {
+        <<BaseModel>>
+        +str analysis_id
+        +str status
+        +str? error
+        +dict? summary
     }
     class SecurityFinding {
         <<BaseModel>>
@@ -3788,15 +3804,19 @@ classDiagram
 
     %% ===== netcross_api.store =====
     class AnalysesStore {
-        +add(report, metadata, status) str
-        +add_pending(metadata) str
-        +complete(analysis_id, report) None
+        +persistent() bool
+        +create_pending(metadata) str
+        +complete(analysis_id, document, summary) None
         +fail(analysis_id, error) None
         +get(analysis_id) dict?
-        +get_report(analysis_id) Report?
         +get_status(analysis_id) str?
-        +exists(analysis_id) bool
         +list_ids() list~str~
+        +clear() None
+    }
+    class mod_netcross_api_store["netcross_api.store"] {
+        <<module>>
+        +jsonable(value) Any
+        +report_document(report) dict~str, Any~
     }
 
     %% ===== relations =====

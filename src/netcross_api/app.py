@@ -1,30 +1,44 @@
 """
 netcross_api.app -- application FastAPI pour exposer les analyses Netcross
-(issue #209).
+(issues #209, #354, #356).
 
 Endpoints :
-    POST /captures          — upload d'un pcap, lance l'analyse
-    POST /captures/multi    — upload de plusieurs pcaps, analyse croisée (#354)
-    GET  /analyses/{id}     — rapport complet (JSON)
+    POST /captures              — upload d'un pcap, analyse en tâche de fond
+    POST /captures/multi        — plusieurs pcaps étiquetés, analyse croisée (#354)
+    GET  /analyses              — IDs des analyses connues
+    GET  /analyses/{id}/status  — pending / completed / failed (+ résumé)
+    GET  /analyses/{id}         — rapport complet (JSON)
     GET  /analyses/{id}/security — constats de sécurité
-    GET  /health            — health check
+    GET  /health                — health check (jamais authentifié)
 
-Le service dépend de netcross_core (analyse) et netcross_report (sérialisation
-JSON). FastAPI/uvicorn sont en dépendance optionnelle (extra ``api``).
+Déploiement (#356), par variables d'environnement lues au démarrage :
+    NETCROSS_API_TOKEN      jeton exigé dans l'en-tête X-API-Key (sinon
+                            authentification désactivée : usage local)
+    NETCROSS_MAX_UPLOAD_MB  taille maximale d'un fichier (défaut 100)
+    NETCROSS_API_MAX_FILES  nombre maximal de fichiers par requête (défaut 16)
+    NETCROSS_API_WORKERS    analyses simultanées en tâche de fond (défaut 2)
+    NETCROSS_DB_PATH        base SQLite : analyses conservées au redémarrage
+
+Le service dépend de netcross_core (analyse). FastAPI/uvicorn sont en
+dépendance optionnelle (extra ``api``).
 """
 
 from __future__ import annotations
 
+import hmac
 import os
 import tempfile
-from dataclasses import fields, is_dataclass
+from concurrent.futures import ThreadPoolExecutor
 from pathlib import Path
 
-from fastapi import Depends, FastAPI, File, Form, HTTPException, UploadFile
+from fastapi import Depends, FastAPI, File, Form, HTTPException, Query, Request, UploadFile
+from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import JSONResponse
 from fastapi.security import APIKeyHeader
 
 from netcross_api.models import (
+    AnalysisAccepted,
+    AnalysisStatus,
     AnalysisSummary,
     ErrorResponse,
     HealthResponse,
@@ -33,7 +47,7 @@ from netcross_api.models import (
     SecurityReport,
     SegmentLoss,
 )
-from netcross_api.store import store
+from netcross_api.store import COMPLETED, FAILED, PENDING, report_document, store
 from netcross_core import analyse, correlate, parse_capture
 from netcross_core.logging_config import get_logger
 from netcross_core.security.findings import apply_security_findings, scan_capture_exploits
@@ -45,6 +59,10 @@ _FILES_REQUIRED = File(default=..., description="Fichiers pcap/pcapng à analyse
 _LABEL_FORM = Form(default="capture", description="Étiquette du point de capture (ex: lan)")
 _LABELS_FORM = Form(default="", description="Étiquettes séparées par virgule (ex: lan,wan,dc)")
 _POINTS_ORDER_FORM = Form(default="", description="Ordre des points séparé par virgule (ex: lan,wan,dc)")
+_WAIT_QUERY = Query(
+    default=False,
+    description="true : attendre la fin de l'analyse (201 + résumé) au lieu de 202 + statut pending",
+)
 
 # Issue #356 : authentification par jeton configurable via env var.
 # Si NETCROSS_API_TOKEN n'est pas défini, l'authentification est désactivée
@@ -52,18 +70,33 @@ _POINTS_ORDER_FORM = Form(default="", description="Ordre des points séparé par
 _API_TOKEN = os.environ.get("NETCROSS_API_TOKEN")
 _api_key_header = APIKeyHeader(name="X-API-Key", auto_error=False)
 
-# Limite d'upload configurable (défaut 100 Mo).
 _MAX_UPLOAD_BYTES = int(os.environ.get("NETCROSS_MAX_UPLOAD_MB", "100")) * 1024 * 1024
+_MAX_FILES = int(os.environ.get("NETCROSS_API_MAX_FILES", "16"))
+_WORKERS = int(os.environ.get("NETCROSS_API_WORKERS", "2"))
+_CHUNK_BYTES = 1024 * 1024
+# Marge multipart (en-têtes de parties, champs labels/points_order) tolérée
+# au-delà de la somme des fichiers dans le contrôle Content-Length.
+_MULTIPART_MARGIN = 1024 * 1024
+
+_executor: ThreadPoolExecutor | None = None
+
+
+def _get_executor() -> ThreadPoolExecutor:
+    """Pool des analyses en tâche de fond, créé à la première demande."""
+    global _executor
+    if _executor is None:
+        _executor = ThreadPoolExecutor(max_workers=max(1, _WORKERS), thread_name_prefix="netcross-api")
+    return _executor
 
 
 def _verify_api_key(api_key: str | None = Depends(_api_key_header)) -> None:
     """Dépendance FastAPI : vérifie le jeton d'authentification.
 
-    Issue #356 : si NETCROSS_API_TOKEN est défini, toutes les routes
-    nécessitent l'en-tête X-API-Key. Sinon, l'authentification est
-    désactivée (mode développement local).
+    Issue #356 : si NETCROSS_API_TOKEN est défini, toutes les routes sauf
+    /health exigent l'en-tête X-API-Key (comparaison à temps constant).
+    Sinon, l'authentification est désactivée (mode développement local).
     """
-    if _API_TOKEN and api_key != _API_TOKEN:
+    if _API_TOKEN and not (api_key and hmac.compare_digest(api_key.encode(), _API_TOKEN.encode())):
         raise HTTPException(status_code=401, detail="Jeton d'authentification invalide ou manquant")
 
 
@@ -74,6 +107,26 @@ app = FastAPI(
 )
 
 
+def _max_mb() -> int:
+    return _MAX_UPLOAD_BYTES // 1024 // 1024
+
+
+@app.middleware("http")
+async def _refuser_corps_trop_gros(request: Request, call_next):
+    """413 avant lecture du corps quand Content-Length dépasse déjà ce que
+    la route acceptera (issue #356). Starlette met le multipart en tampon
+    avant d'appeler la route : sans ce contrôle, un envoi énorme serait
+    reçu en entier avant d'être refusé. Un envoi sans Content-Length
+    (chunked) reste borné fichier par fichier par ``_save_upload``."""
+    if request.method == "POST" and request.url.path.startswith("/captures"):
+        longueur = request.headers.get("content-length", "")
+        if longueur.isdigit() and int(longueur) > _MAX_UPLOAD_BYTES * _MAX_FILES + _MULTIPART_MARGIN:
+            return JSONResponse(
+                status_code=413, content={"detail": f"Requête trop volumineuse (max {_max_mb()} Mo par fichier)"}
+            )
+    return await call_next(request)
+
+
 @app.get("/health", response_model=HealthResponse, tags=["meta"])
 async def health() -> HealthResponse:
     """Health check du service."""
@@ -81,64 +134,134 @@ async def health() -> HealthResponse:
     return HealthResponse()
 
 
+async def _save_upload(file: UploadFile, label: str) -> str:
+    """Copie l'upload sur disque par blocs, 413 dès que la limite est
+    dépassée (issue #356) : le fichier n'est jamais chargé en mémoire."""
+    total = 0
+    tmp = tempfile.NamedTemporaryFile(suffix=".pcap", delete=False)  # noqa: SIM115 -- fermé ci-dessous
+    try:
+        with tmp:
+            while chunk := await file.read(_CHUNK_BYTES):
+                total += len(chunk)
+                if total > _MAX_UPLOAD_BYTES:
+                    raise HTTPException(status_code=413, detail=f"Fichier {label} trop volumineux (max {_max_mb()} Mo)")
+                tmp.write(chunk)
+    except BaseException:
+        Path(tmp.name).unlink(missing_ok=True)
+        raise
+    return tmp.name
+
+
+class AnalysisError(Exception):
+    """Échec d'analyse attribuable aux captures ; le message est rendu tel
+    quel au client (statut failed, ou 400 avec ?wait=true)."""
+
+
+def _analyse_captures(captures: list[tuple[str, str]], order_list: list[str] | None, multi: bool) -> tuple[dict, dict]:
+    """Analyse complète (corrélation, sécurité) ; retourne le document JSON
+    du rapport et le résumé. Exécuté hors de la boucle asyncio."""
+    all_packets = []
+    for label, path in captures:
+        try:
+            pkts = parse_capture(label, path)
+        except Exception as exc:
+            raise AnalysisError(f"Erreur de parsing pour {label}: {exc}") from exc
+        if not pkts:
+            raise AnalysisError(f"Aucun paquet trouvé dans la capture {label}")
+        all_packets.extend(pkts)
+    try:
+        flows = correlate(all_packets)
+        points_order = order_list if multi else [captures[0][0]]
+        report = analyse(flows, points_order=points_order, all_packets=all_packets)
+        # CVE-2 : scanner les exploits sur chaque fichier
+        detections = []
+        for label, path in captures:
+            detections.extend(scan_capture_exploits(label, path))
+        apply_security_findings(report, all_packets, detections=detections)
+    except Exception as exc:
+        raise AnalysisError(f"Erreur d'analyse: {exc}") from exc
+
+    summary: dict = {
+        "point_count": len(report.points),
+        "packet_count": len(all_packets),
+        "security_finding_count": len(report.security_findings),
+    }
+    if multi:
+        summary["points"] = list(report.points)
+        summary["order_source"] = "points_order" if order_list else "auto"
+        summary["segments"] = [seg.model_dump() for seg in segment_losses(report)]
+    return report_document(report), summary
+
+
+def _run_job(analysis_id: str, captures: list[tuple[str, str]], order_list: list[str] | None, multi: bool) -> None:
+    """Tâche de fond : analyse puis completed/failed ; supprime les fichiers."""
+    try:
+        document, summary = _analyse_captures(captures, order_list, multi)
+    except AnalysisError as exc:
+        store.fail(analysis_id, str(exc))
+    except Exception as exc:  # défense : une tâche ne doit jamais rester pending
+        logger.exception("analyse {} : erreur interne", analysis_id)
+        store.fail(analysis_id, f"Erreur interne: {exc}")
+    else:
+        store.complete(analysis_id, document, summary)
+    finally:
+        for _label, path in captures:
+            Path(path).unlink(missing_ok=True)
+
+
+async def _dispatch(
+    captures: list[tuple[str, str]], metadata: dict, order_list: list[str] | None, multi: bool, wait: bool
+) -> JSONResponse:
+    """Enregistre l'analyse en pending puis l'exécute : en tâche de fond
+    (202) ou, avec ``wait``, dans le pool de threads de la requête (201)."""
+    analysis_id = store.create_pending(metadata)
+    status_url = f"/analyses/{analysis_id}/status"
+    if not wait:
+        _get_executor().submit(_run_job, analysis_id, captures, order_list, multi)
+        accepted = AnalysisAccepted(analysis_id=analysis_id, status=PENDING, status_url=status_url)
+        return JSONResponse(status_code=202, content=accepted.model_dump(), headers={"Location": status_url})
+    await run_in_threadpool(_run_job, analysis_id, captures, order_list, multi)
+    entry = store.get(analysis_id)
+    assert entry is not None
+    if entry["status"] == FAILED:
+        raise HTTPException(status_code=400, detail=entry["error"])
+    model = MultiAnalysisSummary if multi else AnalysisSummary
+    summary = model(analysis_id=analysis_id, status=COMPLETED, **entry["summary"])
+    return JSONResponse(status_code=201, content=summary.model_dump(), headers={"Location": f"/analyses/{analysis_id}"})
+
+
+_UPLOAD_RESPONSES: dict = {
+    201: {"model": AnalysisSummary, "description": "Analyse terminée (?wait=true)"},
+    400: {"model": ErrorResponse},
+    401: {"model": ErrorResponse},
+    413: {"model": ErrorResponse},
+}
+
+
 @app.post(
     "/captures",
-    response_model=AnalysisSummary,
-    status_code=201,
+    response_model=AnalysisAccepted,
+    status_code=202,
     tags=["captures"],
-    responses={400: {"model": ErrorResponse}},
+    responses=_UPLOAD_RESPONSES,
 )
 async def upload_capture(
     file: UploadFile = _FILE_REQUIRED,
     label: str = _LABEL_FORM,
+    wait: bool = _WAIT_QUERY,
     _auth: None = Depends(_verify_api_key),
-) -> AnalysisSummary:
-    """Upload d'un fichier pcap, lancement de l'analyse.
+) -> JSONResponse:
+    """Upload d'un fichier pcap, analyse en tâche de fond.
 
-    Le fichier est temporairement écrit sur disque pour que tshark puisse
-    le lire, puis supprimé. L'analyse complète (correlation + sécurité) est
-    exécutée et le rapport est stocké en mémoire.
+    Réponse 202 ``{"status": "pending"}`` : suivre ``status_url`` jusqu'à
+    ``completed`` (ou ``failed`` avec ``error``). ``?wait=true`` attend la
+    fin et retourne directement le résumé (201).
     """
     if not file.filename:
         raise HTTPException(status_code=400, detail="Nom de fichier manquant")
-
-    # Issue #356 : limite de taille d'upload configurable
-    content = await file.read()
-    if len(content) > _MAX_UPLOAD_BYTES:
-        max_mb = _MAX_UPLOAD_BYTES // 1024 // 1024
-        raise HTTPException(status_code=413, detail=f"Fichier trop volumineux (max {max_mb} Mo)")
-
-    # Écrire le fichier uploadé sur disque (tshark lit des fichiers, pas des streams)
-    with tempfile.NamedTemporaryFile(suffix=".pcap", delete=False) as tmp:
-        tmp.write(content)
-        tmp_path = tmp.name
-
-    try:
-        packets = parse_capture(label, tmp_path)
-        if not packets:
-            raise HTTPException(status_code=400, detail="Aucun paquet trouvé dans le fichier")
-
-        # Corrélation + analyse
-        flows = correlate(packets)
-        report = analyse(flows, points_order=[label], all_packets=packets)
-        detections = scan_capture_exploits(label, tmp_path)
-        apply_security_findings(report, packets, detections=detections)
-    except HTTPException:
-        raise
-    except Exception as exc:
-        raise HTTPException(status_code=400, detail=f"Erreur de parsing: {exc}") from exc
-    finally:
-        Path(tmp_path).unlink(missing_ok=True)
-
-    # Stocker l'analyse
-    analysis_id = store.add(report, metadata={"filename": file.filename, "label": label})
-
-    return AnalysisSummary(
-        analysis_id=analysis_id,
-        point_count=len(report.points),
-        packet_count=len(packets),
-        security_finding_count=len(report.security_findings),
-    )
+    path = await _save_upload(file, label)
+    metadata = {"filename": file.filename, "label": label}
+    return await _dispatch([(label, path)], metadata, None, multi=False, wait=wait)
 
 
 def _parse_labels(labels: str, file_count: int) -> list[str]:
@@ -210,120 +333,80 @@ def segment_losses(report) -> list[SegmentLoss]:
 
 @app.post(
     "/captures/multi",
-    response_model=MultiAnalysisSummary,
-    status_code=201,
+    response_model=AnalysisAccepted,
+    status_code=202,
     tags=["captures"],
-    responses={400: {"model": ErrorResponse}, 413: {"model": ErrorResponse}},
+    responses={
+        **_UPLOAD_RESPONSES,
+        201: {"model": MultiAnalysisSummary, "description": "Analyse terminée (?wait=true)"},
+    },
 )
 async def upload_multi_capture(
     files: list[UploadFile] = _FILES_REQUIRED,
     labels: str = _LABELS_FORM,
     points_order: str = _POINTS_ORDER_FORM,
+    wait: bool = _WAIT_QUERY,
     _auth: None = Depends(_verify_api_key),
-) -> MultiAnalysisSummary:
+) -> JSONResponse:
     """Upload de plusieurs captures étiquetées, analyse croisée entre points.
 
     Issue #354 : équivalent de ``netcross -f LAN=lan.pcap -f DC=dc.pcap
     --order LAN,DC``. ``labels`` donne une étiquette par fichier (dans
     l'ordre des fichiers) ; ``points_order`` (facultatif) fixe l'ordre
-    amont -> aval, sinon il est déduit du trafic. La réponse détaille les
-    pertes et le délai de chaque segment.
+    amont -> aval, sinon il est déduit du trafic. Le résumé (``?wait=true``
+    ou ``/status``) détaille les pertes et le délai de chaque segment.
     """
     if not files or len(files) < 2:
         raise HTTPException(status_code=400, detail="Au moins 2 fichiers sont requis pour l'analyse multi-points")
+    if len(files) > _MAX_FILES:
+        raise HTTPException(status_code=400, detail=f"Au plus {_MAX_FILES} fichiers par requête")
     label_list = _parse_labels(labels, len(files))
     order_list = _parse_points_order(points_order, label_list)
 
-    all_packets = []
-    tmp_paths: list[tuple[str, str]] = []
+    captures: list[tuple[str, str]] = []
     try:
         for file, label in zip(files, label_list, strict=True):
             if not file.filename:
                 raise HTTPException(status_code=400, detail=f"Nom de fichier manquant pour {label}")
-            content = await file.read()
-            if len(content) > _MAX_UPLOAD_BYTES:
-                max_mb = _MAX_UPLOAD_BYTES // 1024 // 1024
-                raise HTTPException(status_code=413, detail=f"Fichier {label} trop volumineux (max {max_mb} Mo)")
-            with tempfile.NamedTemporaryFile(suffix=".pcap", delete=False) as tmp:
-                tmp.write(content)
-                tmp_paths.append((label, tmp.name))
-            try:
-                pkts = parse_capture(label, tmp.name)
-            except Exception as exc:
-                raise HTTPException(status_code=400, detail=f"Erreur de parsing pour {label}: {exc}") from exc
-            if not pkts:
-                raise HTTPException(status_code=400, detail=f"Aucun paquet trouvé dans la capture {label}")
-            all_packets.extend(pkts)
-
-        flows = correlate(all_packets)
-        report = analyse(flows, points_order=order_list, all_packets=all_packets)
-
-        # CVE-2 : scanner les exploits sur chaque fichier
-        detections = []
-        for label, tmp_path in tmp_paths:
-            detections.extend(scan_capture_exploits(label, tmp_path))
-        apply_security_findings(report, all_packets, detections=detections)
-    except HTTPException:
+            captures.append((label, await _save_upload(file, label)))
+    except BaseException:
+        for _label, path in captures:
+            Path(path).unlink(missing_ok=True)
         raise
-    except Exception as exc:
-        raise HTTPException(status_code=400, detail=f"Erreur d'analyse: {exc}") from exc
-    finally:
-        for _label, tp in tmp_paths:
-            Path(tp).unlink(missing_ok=True)
 
-    analysis_id = store.add(
-        report,
-        metadata={"files": [f.filename for f in files], "labels": label_list, "points_order": order_list},
-    )
-
-    return MultiAnalysisSummary(
-        analysis_id=analysis_id,
-        point_count=len(report.points),
-        packet_count=len(all_packets),
-        security_finding_count=len(report.security_findings),
-        points=list(report.points),
-        order_source="points_order" if order_list else "auto",
-        segments=segment_losses(report),
-    )
+    metadata = {"files": [f.filename for f in files], "labels": label_list, "points_order": order_list}
+    return await _dispatch(captures, metadata, order_list, multi=True, wait=wait)
 
 
-def _jsonable(value):
-    """Rend un champ de Report sérialisable en JSON.
-
-    Les dictionnaires par segment (``latency``, ``qos_change``...) ont des
-    clés tuple (amont, aval), refusées par JSON : dès deux points, l'ancien
-    ``dict(val)`` faisait échouer GET /analyses/{id} (issue #354). Elles
-    deviennent « amont -> aval », le libellé des constats et des segments.
-    """
-    if hasattr(value, "items"):
-        return {(" -> ".join(map(str, k)) if isinstance(k, tuple) else str(k)): _jsonable(v) for k, v in value.items()}
-    if isinstance(value, (list, tuple, set, frozenset)):
-        return [_jsonable(v) for v in value]
-    if is_dataclass(value) and not isinstance(value, type):
-        return {f.name: _jsonable(getattr(value, f.name)) for f in fields(value)}
-    if value is None or isinstance(value, (str, int, float, bool)):
-        return value
-    return str(value)
+def _completed_document(analysis_id: str) -> dict:
+    """Document d'une analyse terminée ; 404 inconnue, 409 pending/failed."""
+    entry = store.get(analysis_id)
+    if entry is None:
+        raise HTTPException(status_code=404, detail=f"Analyse {analysis_id} introuvable")
+    if entry["status"] == PENDING:
+        raise HTTPException(
+            status_code=409, detail=f"Analyse {analysis_id} en cours (pending) : suivre /analyses/{analysis_id}/status"
+        )
+    if entry["status"] == FAILED:
+        raise HTTPException(status_code=409, detail=f"Analyse {analysis_id} en echec : {entry['error']}")
+    return entry["document"]
 
 
-@app.get(
-    "/analyses/{analysis_id}",
-    tags=["analyses"],
-    responses={404: {"model": ErrorResponse}},
-)
+_ANALYSIS_RESPONSES: dict = {
+    401: {"model": ErrorResponse},
+    404: {"model": ErrorResponse},
+    409: {"model": ErrorResponse},
+}
+
+
+@app.get("/analyses/{analysis_id}", tags=["analyses"], responses=_ANALYSIS_RESPONSES)
 async def get_analysis(analysis_id: str, _auth: None = Depends(_verify_api_key)) -> JSONResponse:
-    """Récupère le rapport complet d'une analyse (JSON).
+    """Récupère le rapport complet d'une analyse terminée (JSON).
 
-    Le rapport est sérialisé en dict JSON directement (sans passer par
-    generate_json_report qui écrit sur disque) ; les clés par segment
-    deviennent « amont -> aval » (voir ``_jsonable``).
+    Les clés par segment sont « amont -> aval » (voir ``store.jsonable``).
     """
     logger.debug("get_analysis(analysis_id={})", analysis_id)
-    report = store.get_report(analysis_id)
-    if report is None:
-        raise HTTPException(status_code=404, detail=f"Analyse {analysis_id} introuvable")
-
-    doc: dict = {f.name: _jsonable(getattr(report, f.name)) for f in fields(report)}
+    doc = dict(_completed_document(analysis_id))
     doc["_analysis_id"] = analysis_id
     return JSONResponse(content=doc)
 
@@ -332,16 +415,12 @@ async def get_analysis(analysis_id: str, _auth: None = Depends(_verify_api_key))
     "/analyses/{analysis_id}/security",
     response_model=SecurityReport,
     tags=["analyses"],
-    responses={404: {"model": ErrorResponse}},
+    responses=_ANALYSIS_RESPONSES,
 )
 async def get_security_report(analysis_id: str, _auth: None = Depends(_verify_api_key)) -> SecurityReport:
-    """Récupère les constats de sécurité d'une analyse."""
+    """Récupère les constats de sécurité d'une analyse terminée."""
     logger.debug("get_security_report(analysis_id={})", analysis_id)
-    entry = store.get(analysis_id)
-    if entry is None:
-        raise HTTPException(status_code=404, detail=f"Analyse {analysis_id} introuvable")
-
-    report = entry["report"]
+    doc = _completed_document(analysis_id)
     findings = [
         SecurityFinding(
             severity=f.get("severity", ""),
@@ -349,41 +428,40 @@ async def get_security_report(analysis_id: str, _auth: None = Depends(_verify_ap
             detail=f.get("detail", ""),
             point=f.get("point"),
         )
-        for f in report.security_findings
+        for f in doc.get("security_findings", [])
     ]
-
     return SecurityReport(
         analysis_id=analysis_id,
         findings=findings,
-        service_fingerprints=report.service_fingerprints,
-        lateral_movement_events=getattr(report, "lateral_movement_events", []),
-        dga_alerts=getattr(report, "dga_alerts", []),
-        fast_flux_alerts=getattr(report, "fast_flux_alerts", []),
+        service_fingerprints=doc.get("service_fingerprints", []),
+        lateral_movement_events=doc.get("lateral_movement_events", []),
+        dga_alerts=doc.get("dga_alerts", []),
+        fast_flux_alerts=doc.get("fast_flux_alerts", []),
     )
 
 
-@app.get("/analyses", tags=["analyses"])
+@app.get("/analyses", tags=["analyses"], responses={401: {"model": ErrorResponse}})
 async def list_analyses(_auth: None = Depends(_verify_api_key)) -> dict:
-    """Liste les IDs d'analyses disponibles."""
+    """Liste les IDs d'analyses disponibles (tous statuts)."""
     logger.debug("list_analyses()")
     return {"analyses": store.list_ids()}
 
 
 @app.get(
     "/analyses/{analysis_id}/status",
+    response_model=AnalysisStatus,
     tags=["analyses"],
-    responses={404: {"model": ErrorResponse}},
+    responses={401: {"model": ErrorResponse}, 404: {"model": ErrorResponse}},
 )
-async def get_analysis_status(analysis_id: str, _auth: None = Depends(_verify_api_key)) -> dict:
-    """Retourne le statut d'une analyse (issue #356).
-
-    Statuts possibles : ``pending``, ``completed``, ``failed``.
-    """
-    status = store.get_status(analysis_id)
-    if status is None:
-        raise HTTPException(status_code=404, detail="Analyse introuvable")
+async def get_analysis_status(analysis_id: str, _auth: None = Depends(_verify_api_key)) -> AnalysisStatus:
+    """Statut d'une analyse (issue #356) : ``pending``, ``completed`` (avec
+    le résumé, segments compris en multi-points) ou ``failed`` (``error``)."""
     entry = store.get(analysis_id)
-    result: dict = {"analysis_id": analysis_id, "status": status}
-    if status == "failed" and entry and entry.get("error"):
-        result["error"] = entry["error"]
-    return result
+    if entry is None:
+        raise HTTPException(status_code=404, detail=f"Analyse {analysis_id} introuvable")
+    return AnalysisStatus(
+        analysis_id=analysis_id,
+        status=entry["status"],
+        error=entry["error"],
+        summary=entry["summary"],
+    )

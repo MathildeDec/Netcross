@@ -29,6 +29,25 @@ class AnalysisSummary(BaseModel):
     security_finding_count: int = 0
 
 
+class AnalysisAccepted(BaseModel):
+    """Réponse 202 des uploads : analyse enregistrée, en tâche de fond (#356)."""
+
+    analysis_id: str
+    status: str = "pending"
+    status_url: str = Field(description="Route à interroger jusqu'à completed/failed")
+
+
+class AnalysisStatus(BaseModel):
+    """Statut d'une analyse pour GET /analyses/{id}/status (issue #356)."""
+
+    analysis_id: str
+    status: str = Field(description="pending, completed ou failed")
+    error: str | None = Field(default=None, description="Cause de l'échec (status failed)")
+    summary: dict | None = Field(
+        default=None, description="Résumé (compteurs, et points/segments en multi-points) une fois completed"
+    )
+
+
 class SecurityFinding(BaseModel):
     """Un constat de sécurité sérialisé."""
 
