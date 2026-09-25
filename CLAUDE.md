@@ -13,16 +13,19 @@ que pour un contexte spécifique, pas systématiquement.
 
 ## État courant
 
-- **2957 tests** (`pytest`), suite complète rejouée à chaque
-  session avant tout nouveau code. 6 sautés : `networkx` absent (1) et
-  GTK4 absent (5). Couverture mesurée : **78,9 %** — les manques réels
-  sont `netcross_gtk4/app.py` (0 %, 1493 instructions, soit 47 % de tout
-  le code non couvert), `netcross_report/pdf.py` (32,6 %) et
-  `charts.py` (28,8 %), suivis par #246 et ses sous-issues #285 à #288.
-  Outillage qualité (`ruff`, `import-linter`) intégralement
-  vert ; `mypy` est configuré dans `pyproject.toml` et la CI (job
-  "Types") ; `pre-commit` non exécutable dans cet environnement (zip livré
-  sans `.git` — voir Commandes qualité ci-dessous).
+- **Tests** : 4057 collectés au 2026-09-25 (`pytest --collect-only -q`),
+  suite complète rejouée à chaque session avant tout nouveau code. Les
+  tests sautés dépendent de l'environnement (GTK4, `networkx`, `tshark`,
+  modèles IA absents) : relire le résumé `pytest` plutôt qu'un chiffre
+  figé ici. Couverture : seuil **bloquant** `fail_under = 80` dans
+  `[tool.coverage.report]` de `pyproject.toml`, appliqué par la CI
+  (`pytest --cov`, issue #246) ; 82,2 % mesurés sur `dev` le 2026-09-23
+  (voir `docs/quality/seuil-couverture.md`). Ce seuil n'existe que sur
+  `dev` tant que `dev` n'est pas fusionné dans `main`.
+  Outillage qualité : `ruff` (lint + format), `import-linter`, `mypy`
+  (configuré dans `pyproject.toml`, job CI « Types », 0 erreur exigée) et
+  le diagramme de classes (`scripts/generate_class_diagram.py --check`)
+  sont tous bloquants en CI.
 - **Job 34 (issue #154)** : fusion de captures PCAP — nouvelle fonction
   `pcap_parser.capture.merge_captures(paths, output_path, dedup=False)`
   (réexportée par `pcap_parser` et `netcross_core`) et flags

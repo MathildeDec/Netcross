@@ -869,14 +869,28 @@ netcross/
 │   └── import_nvd.py        import periodique du flux NVD dans la base CVE locale
 ├── tests/                   suite de tests automatisés (pytest)
 ├── src/
-│   ├── cross_capture_analyzer_cli.py   CLI (argparse)
+│   ├── cross_capture_analyzer_cli.py   CLI principale (argparse)
+│   ├── cross_capture_batch_cli.py      analyse par lots d'un repertoire de captures
+│   ├── cross_capture_diff_cli.py       comparaison de deux rapports JSON
+│   ├── cross_history_cli.py            historique des analyses
+│   ├── netcross_ai_models_cli.py       gestion des modeles IA locaux
+│   ├── netcross_lua_doc_cli.py         documentation de l'API Lua Wireshark
 │   ├── pcap_parser/         parsing tshark -T ek -> RawPacket/Pkt (DNS, HTTP, TLS, RTP, SIP...)
 │   ├── netcross_core/       moteur d'analyse (aucune dependance a une UI)
-│   │   ├── security/        detecteurs (beaconing, exfiltration, DGA, fast flux, lateral movement, flow_stats, DNS tunnel, TLS audit)
-│   │   ├── discovery/       inventaire d'actifs, empreintes (JA4/HASSH)
-│   │   ├── exploit_signatures/  signatures d'exploits (CVE)
-│   │   └── data/            signatures CVE (JSON), fingerprint known
+│   │   ├── security/        detecteurs (beaconing, exfiltration, DGA, fast flux, lateral movement, flow_stats, DNS tunnel, TLS audit, CVE)
+│   │   ├── discovery/       inventaire d'actifs, detection d'OS
+│   │   ├── fingerprint/     base d'empreintes connues (JA4/HASSH)
+│   │   ├── extract/         extraction de fichiers (HTTP, email, SMB, FTP)
+│   │   ├── netflow/         ingestion NetFlow/sFlow (non raccordee, #362)
+│   │   ├── tshark_stats/    adaptateurs de statistiques tshark -z
+│   │   ├── plugins/         detecteurs et sorties tierces (#284)
+│   │   ├── notify/          notifications sortantes (webhook, Slack, courriel)
+│   │   ├── support/         tickets de support anonymises (#269)
+│   │   ├── application/     transactions applicatives HTTP/DNS (requete -> reponse)
+│   │   ├── data/            signatures CVE (JSON), empreintes connues
+│   │   └── exploit_signatures.py  signatures d'exploits (CVE)
 │   ├── netcross_report/     generation du rapport (PDF, JSON, HTML, SIEM, STIX)
+│   ├── netcross_ai/         module IA (modeles locaux)
 │   ├── netcross_api/        API REST (FastAPI)
 │   └── netcross_gtk4/       interface graphique GTK4
 ├── build-deb/               packaging Debian/Ubuntu (.deb)
