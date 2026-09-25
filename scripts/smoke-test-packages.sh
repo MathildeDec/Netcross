@@ -41,6 +41,8 @@ check_rpm() {
     done
     grep -q "/usr/share/netcross/netcross_core/data/cve_signatures.json$" <<<"$listing" \
         || fail "rpm : cve_signatures.json absent"
+    grep -q "/usr/share/netcross/netcross_core/data/cve_seed.json$" <<<"$listing" \
+        || fail "rpm : cve_seed.json absent"
     grep -q "/usr/share/netcross/data/lua_api.json$" <<<"$listing" || fail "rpm : lua_api.json absent"
     for l in "${LAUNCHERS[@]}"; do
         grep -q "^/usr/bin/$l$" <<<"$listing" || fail "rpm : lanceur /usr/bin/$l absent"
@@ -129,6 +131,7 @@ if errors:
 print(f"imports : {len(mods)} modules OK")
 PY
     [ -f /usr/share/netcross/netcross_core/data/cve_signatures.json ] || fail "cve_signatures.json absent"
+    [ -f /usr/share/netcross/netcross_core/data/cve_seed.json ] || fail "cve_seed.json absent"
     HOME="$(mktemp -d)" /usr/bin/netcross-lua-doc --class Tvb | grep -q "tvb:range" \
         || fail "netcross-lua-doc --class Tvb depuis le paquet installe"
     echo "netcross-lua-doc : fiche Tvb servie depuis /usr/share/netcross/data/lua_api.json"

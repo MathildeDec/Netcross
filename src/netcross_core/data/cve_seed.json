@@ -1,0 +1,862 @@
+{
+ "version": 1,
+ "source": "NVD API 2.0 (https://services.nvd.nist.gov/rest/json/cves/2.0)",
+ "generated": "2026-09-25",
+ "cves": [
+  {
+   "cve_id": "CVE-2021-41773",
+   "description": "A flaw was found in a change made to path normalization in Apache HTTP Server 2.4.49. An attacker could use a path traversal attack to map URLs to files outside the directories configured by Alias-like directives. If files outside of these directories are not protected by the usual default configuration \"require all denied\", these requests can succeed. If CGI scripts are also enabled for these aliased pathes, this could allow for remote code execution. This issue is known to be exploited in the wild. This issue only affects Apache 2.4.49 and not earlier versions. The fix in Apache HTTP Server 2.4.50 was found to be incomplete, see CVE-2021-42013.",
+   "cvss_score": 9.8,
+   "cvss_severity": "CRITICAL",
+   "published": "2021-10-05T09:15:07.593",
+   "affected": [
+    {
+     "vendor": "apache",
+     "product": "http_server",
+     "version": "2.4.49",
+     "version_start_including": null,
+     "version_start_excluding": null,
+     "version_end_including": null,
+     "version_end_excluding": null
+    }
+   ]
+  },
+  {
+   "cve_id": "CVE-2021-42013",
+   "description": "It was found that the fix for CVE-2021-41773 in Apache HTTP Server 2.4.50 was insufficient. An attacker could use a path traversal attack to map URLs to files outside the directories configured by Alias-like directives. If files outside of these directories are not protected by the usual default configuration \"require all denied\", these requests can succeed. If CGI scripts are also enabled for these aliased pathes, this could allow for remote code execution. This issue only affects Apache 2.4.49 and Apache 2.4.50 and not earlier versions.",
+   "cvss_score": 9.8,
+   "cvss_severity": "CRITICAL",
+   "published": "2021-10-07T16:15:09.270",
+   "affected": [
+    {
+     "vendor": "apache",
+     "product": "http_server",
+     "version": "2.4.49",
+     "version_start_including": null,
+     "version_start_excluding": null,
+     "version_end_including": null,
+     "version_end_excluding": null
+    },
+    {
+     "vendor": "apache",
+     "product": "http_server",
+     "version": "2.4.50",
+     "version_start_including": null,
+     "version_start_excluding": null,
+     "version_end_including": null,
+     "version_end_excluding": null
+    }
+   ]
+  },
+  {
+   "cve_id": "CVE-2021-44790",
+   "description": "A carefully crafted request body can cause a buffer overflow in the mod_lua multipart parser (r:parsebody() called from Lua scripts). The Apache httpd team is not aware of an exploit for the vulnerabilty though it might be possible to craft one. This issue affects Apache HTTP Server 2.4.51 and earlier.",
+   "cvss_score": 9.8,
+   "cvss_severity": "CRITICAL",
+   "published": "2021-12-20T12:15:07.440",
+   "affected": [
+    {
+     "vendor": "apache",
+     "product": "http_server",
+     "version": null,
+     "version_start_including": null,
+     "version_start_excluding": null,
+     "version_end_including": null,
+     "version_end_excluding": "2.4.52"
+    }
+   ]
+  },
+  {
+   "cve_id": "CVE-2019-0211",
+   "description": "In Apache HTTP Server 2.4 releases 2.4.17 to 2.4.38, with MPM event, worker or prefork, code executing in less-privileged child processes or threads (including scripts executed by an in-process scripting interpreter) could execute arbitrary code with the privileges of the parent process (usually root) by manipulating the scoreboard. Non-Unix systems are not affected.",
+   "cvss_score": 7.8,
+   "cvss_severity": "HIGH",
+   "published": "2019-04-08T22:29:00.387",
+   "affected": [
+    {
+     "vendor": "apache",
+     "product": "http_server",
+     "version": null,
+     "version_start_including": "2.4.17",
+     "version_start_excluding": null,
+     "version_end_including": "2.4.38",
+     "version_end_excluding": null
+    }
+   ]
+  },
+  {
+   "cve_id": "CVE-2017-15715",
+   "description": "In Apache httpd 2.4.0 to 2.4.29, the expression specified in <FilesMatch> could match '$' to a newline character in a malicious filename, rather than matching only the end of the filename. This could be exploited in environments where uploads of some files are are externally blocked, but only by matching the trailing portion of the filename.",
+   "cvss_score": 8.1,
+   "cvss_severity": "HIGH",
+   "published": "2018-03-26T15:29:00.287",
+   "affected": [
+    {
+     "vendor": "apache",
+     "product": "http_server",
+     "version": null,
+     "version_start_including": "2.4.0",
+     "version_start_excluding": null,
+     "version_end_including": "2.4.29",
+     "version_end_excluding": null
+    }
+   ]
+  },
+  {
+   "cve_id": "CVE-2023-25690",
+   "description": "Some mod_proxy configurations on Apache HTTP Server versions 2.4.0 through 2.4.55 allow a HTTP Request Smuggling attack.\n\n\n\n\nConfigurations are affected when mod_proxy is enabled along with some form of RewriteRule\n or ProxyPassMatch in which a non-specific pattern matches\n some portion of the user-supplied request-target (URL) data and is then\n re-inserted into the proxied request-target using variable \nsubstitution. For example, something like:\n\n\n\n\nRewriteEngine on\nRewriteRule \"^/here/(.*)\" \"http://example.com:8080/elsewhere?$1\"; [P]\nProxyPassReverse /here/ http://example.com:8080/\n\n\nRequest splitting/smuggling could result in bypass of access controls in the proxy server, proxying unintended URLs to existing origin servers, and cache poisoning. Users are recommended to update to at least version 2.4.56 of Apache HTTP Server.",
+   "cvss_score": 9.8,
+   "cvss_severity": "CRITICAL",
+   "published": "2023-03-07T16:15:09.477",
+   "affected": [
+    {
+     "vendor": "apache",
+     "product": "http_server",
+     "version": null,
+     "version_start_including": "2.4.0",
+     "version_start_excluding": null,
+     "version_end_including": "2.4.55",
+     "version_end_excluding": null
+    }
+   ]
+  },
+  {
+   "cve_id": "CVE-2024-38476",
+   "description": "Vulnerability in core of Apache HTTP Server 2.4.59 and earlier are vulnerably to information disclosure, SSRF or local script execution via backend applications whose response headers are malicious or exploitable.\n\nUsers are recommended to upgrade to version 2.4.60, which fixes this issue.",
+   "cvss_score": 9.8,
+   "cvss_severity": "CRITICAL",
+   "published": "2024-07-01T19:15:04.977",
+   "affected": [
+    {
+     "vendor": "apache",
+     "product": "http_server",
+     "version": null,
+     "version_start_including": "2.4.0",
+     "version_start_excluding": null,
+     "version_end_including": null,
+     "version_end_excluding": "2.4.60"
+    }
+   ]
+  },
+  {
+   "cve_id": "CVE-2024-6387",
+   "description": "A security regression (CVE-2006-5051) was discovered in OpenSSH's server (sshd). There is a race condition which can lead sshd to handle some signals in an unsafe manner. An unauthenticated, remote attacker may be able to trigger it by failing to authenticate within a set time period.",
+   "cvss_score": 8.1,
+   "cvss_severity": "HIGH",
+   "published": "2024-07-01T13:15:06.467",
+   "affected": [
+    {
+     "vendor": "openbsd",
+     "product": "openssh",
+     "version": null,
+     "version_start_including": null,
+     "version_start_excluding": null,
+     "version_end_including": null,
+     "version_end_excluding": "4.4"
+    },
+    {
+     "vendor": "openbsd",
+     "product": "openssh",
+     "version": null,
+     "version_start_including": "8.6",
+     "version_start_excluding": null,
+     "version_end_including": "9.8",
+     "version_end_excluding": null
+    },
+    {
+     "vendor": "openbsd",
+     "product": "openssh",
+     "version": "4.4",
+     "version_start_including": null,
+     "version_start_excluding": null,
+     "version_end_including": null,
+     "version_end_excluding": null
+    },
+    {
+     "vendor": "openbsd",
+     "product": "openssh",
+     "version": "8.5",
+     "version_start_including": null,
+     "version_start_excluding": null,
+     "version_end_including": null,
+     "version_end_excluding": null
+    },
+    {
+     "vendor": "openbsd",
+     "product": "openssh",
+     "version": "8.6",
+     "version_start_including": null,
+     "version_start_excluding": null,
+     "version_end_including": null,
+     "version_end_excluding": null
+    }
+   ]
+  },
+  {
+   "cve_id": "CVE-2023-38408",
+   "description": "The PKCS#11 feature in ssh-agent in OpenSSH before 9.3p2 has an insufficiently trustworthy search path, leading to remote code execution if an agent is forwarded to an attacker-controlled system. (Code in /usr/lib is not necessarily safe for loading into ssh-agent.) NOTE: this issue exists because of an incomplete fix for CVE-2016-10009.",
+   "cvss_score": 9.8,
+   "cvss_severity": "CRITICAL",
+   "published": "2023-07-20T03:15:10.170",
+   "affected": [
+    {
+     "vendor": "openbsd",
+     "product": "openssh",
+     "version": null,
+     "version_start_including": null,
+     "version_start_excluding": null,
+     "version_end_including": null,
+     "version_end_excluding": "9.3"
+    },
+    {
+     "vendor": "openbsd",
+     "product": "openssh",
+     "version": "9.3",
+     "version_start_including": null,
+     "version_start_excluding": null,
+     "version_end_including": null,
+     "version_end_excluding": null
+    }
+   ]
+  },
+  {
+   "cve_id": "CVE-2018-15473",
+   "description": "OpenSSH through 7.7 is prone to a user enumeration vulnerability due to not delaying bailout for an invalid authenticating user until after the packet containing the request has been fully parsed, related to auth2-gss.c, auth2-hostbased.c, and auth2-pubkey.c.",
+   "cvss_score": 5.3,
+   "cvss_severity": "MEDIUM",
+   "published": "2018-08-17T19:29:00.223",
+   "affected": [
+    {
+     "vendor": "openbsd",
+     "product": "openssh",
+     "version": null,
+     "version_start_including": null,
+     "version_start_excluding": null,
+     "version_end_including": "7.7",
+     "version_end_excluding": null
+    }
+   ]
+  },
+  {
+   "cve_id": "CVE-2014-0160",
+   "description": "The (1) TLS and (2) DTLS implementations in OpenSSL 1.0.1 before 1.0.1g do not properly handle Heartbeat Extension packets, which allows remote attackers to obtain sensitive information from process memory via crafted packets that trigger a buffer over-read, as demonstrated by reading private keys, related to d1_both.c and t1_lib.c, aka the Heartbleed bug.",
+   "cvss_score": 7.5,
+   "cvss_severity": "HIGH",
+   "published": "2014-04-07T22:55:03.893",
+   "affected": [
+    {
+     "vendor": "openssl",
+     "product": "openssl",
+     "version": null,
+     "version_start_including": "1.0.1",
+     "version_start_excluding": null,
+     "version_end_including": null,
+     "version_end_excluding": "1.0.1g"
+    }
+   ]
+  },
+  {
+   "cve_id": "CVE-2022-3602",
+   "description": "A buffer overrun can be triggered in X.509 certificate verification, specifically in name constraint checking. Note that this occurs after certificate chain signature verification and requires either a CA to have signed the malicious certificate or for the application to continue certificate verification despite failure to construct a path to a trusted issuer. An attacker can craft a malicious email address to overflow four attacker-controlled bytes on the stack. This buffer overflow could result in a crash (causing a denial of service) or potentially remote code execution. Many platforms implement stack overflow protections which would mitigate against the risk of remote code execution. The risk may be further mitigated based on stack layout for any given platform/compiler. Pre-announcements of CVE-2022-3602 described this issue as CRITICAL. Further analysis based on some of the mitigating factors described above have led this to be downgraded to HIGH. Users are still encouraged to upgrade to a new version as soon as possible. In a TLS client, this can be triggered by connecting to a malicious server. In a TLS server, this can be triggered if the server requests client authentication and a malicious client connects. Fixed in OpenSSL 3.0.7 (Affected 3.0.0,3.0.1,3.0.2,3.0.3,3.0.4,3.0.5,3.0.6).",
+   "cvss_score": 7.5,
+   "cvss_severity": "HIGH",
+   "published": "2022-11-01T18:15:10.983",
+   "affected": [
+    {
+     "vendor": "openssl",
+     "product": "openssl",
+     "version": null,
+     "version_start_including": "3.0.0",
+     "version_start_excluding": null,
+     "version_end_including": null,
+     "version_end_excluding": "3.0.7"
+    }
+   ]
+  },
+  {
+   "cve_id": "CVE-2016-2107",
+   "description": "The AES-NI implementation in OpenSSL before 1.0.1t and 1.0.2 before 1.0.2h does not consider memory allocation during a certain padding check, which allows remote attackers to obtain sensitive cleartext information via a padding-oracle attack against an AES CBC session. NOTE: this vulnerability exists because of an incorrect fix for CVE-2013-0169.",
+   "cvss_score": 5.9,
+   "cvss_severity": "MEDIUM",
+   "published": "2016-05-05T01:59:03.200",
+   "affected": [
+    {
+     "vendor": "openssl",
+     "product": "openssl",
+     "version": null,
+     "version_start_including": null,
+     "version_start_excluding": null,
+     "version_end_including": "1.0.1s",
+     "version_end_excluding": null
+    },
+    {
+     "vendor": "openssl",
+     "product": "openssl",
+     "version": "1.0.2",
+     "version_start_including": null,
+     "version_start_excluding": null,
+     "version_end_including": null,
+     "version_end_excluding": null
+    },
+    {
+     "vendor": "openssl",
+     "product": "openssl",
+     "version": "1.0.2a",
+     "version_start_including": null,
+     "version_start_excluding": null,
+     "version_end_including": null,
+     "version_end_excluding": null
+    },
+    {
+     "vendor": "openssl",
+     "product": "openssl",
+     "version": "1.0.2b",
+     "version_start_including": null,
+     "version_start_excluding": null,
+     "version_end_including": null,
+     "version_end_excluding": null
+    },
+    {
+     "vendor": "openssl",
+     "product": "openssl",
+     "version": "1.0.2c",
+     "version_start_including": null,
+     "version_start_excluding": null,
+     "version_end_including": null,
+     "version_end_excluding": null
+    },
+    {
+     "vendor": "openssl",
+     "product": "openssl",
+     "version": "1.0.2d",
+     "version_start_including": null,
+     "version_start_excluding": null,
+     "version_end_including": null,
+     "version_end_excluding": null
+    },
+    {
+     "vendor": "openssl",
+     "product": "openssl",
+     "version": "1.0.2e",
+     "version_start_including": null,
+     "version_start_excluding": null,
+     "version_end_including": null,
+     "version_end_excluding": null
+    },
+    {
+     "vendor": "openssl",
+     "product": "openssl",
+     "version": "1.0.2f",
+     "version_start_including": null,
+     "version_start_excluding": null,
+     "version_end_including": null,
+     "version_end_excluding": null
+    },
+    {
+     "vendor": "openssl",
+     "product": "openssl",
+     "version": "1.0.2g",
+     "version_start_including": null,
+     "version_start_excluding": null,
+     "version_end_including": null,
+     "version_end_excluding": null
+    }
+   ]
+  },
+  {
+   "cve_id": "CVE-2021-23017",
+   "description": "A security issue in nginx resolver was identified, which might allow an attacker who is able to forge UDP packets from the DNS server to cause 1-byte memory overwrite, resulting in worker process crash or potential other impact.",
+   "cvss_score": 7.7,
+   "cvss_severity": "HIGH",
+   "published": "2021-06-01T13:15:07.853",
+   "affected": [
+    {
+     "vendor": "f5",
+     "product": "nginx",
+     "version": null,
+     "version_start_including": "0.6.18",
+     "version_start_excluding": null,
+     "version_end_including": null,
+     "version_end_excluding": "1.20.1"
+    }
+   ]
+  },
+  {
+   "cve_id": "CVE-2013-2028",
+   "description": "The ngx_http_parse_chunked function in http/ngx_http_parse.c in nginx 1.3.9 through 1.4.0 allows remote attackers to cause a denial of service (crash) and execute arbitrary code via a chunked Transfer-Encoding request with a large chunk size, which triggers an integer signedness error and a stack-based buffer overflow.",
+   "cvss_score": 7.5,
+   "cvss_severity": "HIGH",
+   "published": "2013-07-20T03:37:20.730",
+   "affected": [
+    {
+     "vendor": "f5",
+     "product": "nginx",
+     "version": null,
+     "version_start_including": "1.3.9",
+     "version_start_excluding": null,
+     "version_end_including": "1.4.0",
+     "version_end_excluding": null
+    }
+   ]
+  },
+  {
+   "cve_id": "CVE-2011-2523",
+   "description": "vsftpd 2.3.4 downloaded between 20110630 and 20110703 contains a backdoor which opens a shell on port 6200/tcp.",
+   "cvss_score": 9.8,
+   "cvss_severity": "CRITICAL",
+   "published": "2019-11-27T21:15:12.387",
+   "affected": [
+    {
+     "vendor": "vsftpd_project",
+     "product": "vsftpd",
+     "version": "2.3.4",
+     "version_start_including": null,
+     "version_start_excluding": null,
+     "version_end_including": null,
+     "version_end_excluding": null
+    }
+   ]
+  },
+  {
+   "cve_id": "CVE-2015-3306",
+   "description": "The mod_copy module in ProFTPD 1.3.5 allows remote attackers to read and write to arbitrary files via the site cpfr and site cpto commands.",
+   "cvss_score": 10.0,
+   "cvss_severity": "HIGH",
+   "published": "2015-05-18T15:59:10.743",
+   "affected": [
+    {
+     "vendor": "proftpd",
+     "product": "proftpd",
+     "version": "1.3.5",
+     "version_start_including": null,
+     "version_start_excluding": null,
+     "version_end_including": null,
+     "version_end_excluding": null
+    }
+   ]
+  },
+  {
+   "cve_id": "CVE-2019-12815",
+   "description": "An arbitrary file copy vulnerability in mod_copy in ProFTPD up to 1.3.5b allows for remote code execution and information disclosure without authentication, a related issue to CVE-2015-3306.",
+   "cvss_score": 9.8,
+   "cvss_severity": "CRITICAL",
+   "published": "2019-07-19T23:15:11.030",
+   "affected": [
+    {
+     "vendor": "proftpd",
+     "product": "proftpd",
+     "version": null,
+     "version_start_including": null,
+     "version_start_excluding": null,
+     "version_end_including": "1.3.5b",
+     "version_end_excluding": null
+    }
+   ]
+  },
+  {
+   "cve_id": "CVE-2019-10149",
+   "description": "A flaw was found in Exim versions 4.87 to 4.91 (inclusive). Improper validation of recipient address in deliver_message() function in /src/deliver.c may lead to remote command execution.",
+   "cvss_score": 9.8,
+   "cvss_severity": "CRITICAL",
+   "published": "2019-06-05T14:29:11.293",
+   "affected": [
+    {
+     "vendor": "exim",
+     "product": "exim",
+     "version": null,
+     "version_start_including": "4.87",
+     "version_start_excluding": null,
+     "version_end_including": "4.91",
+     "version_end_excluding": null
+    }
+   ]
+  },
+  {
+   "cve_id": "CVE-2019-15846",
+   "description": "Exim before 4.92.2 allows remote attackers to execute arbitrary code as root via a trailing backslash.",
+   "cvss_score": 9.8,
+   "cvss_severity": "CRITICAL",
+   "published": "2019-09-06T11:15:11.620",
+   "affected": [
+    {
+     "vendor": "exim",
+     "product": "exim",
+     "version": null,
+     "version_start_including": null,
+     "version_start_excluding": null,
+     "version_end_including": null,
+     "version_end_excluding": "4.92.2"
+    }
+   ]
+  },
+  {
+   "cve_id": "CVE-2017-7494",
+   "description": "Samba since version 3.5.0 and before 4.6.4, 4.5.10 and 4.4.14 is vulnerable to remote code execution vulnerability, allowing a malicious client to upload a shared library to a writable share, and then cause the server to load and execute it.",
+   "cvss_score": 9.8,
+   "cvss_severity": "CRITICAL",
+   "published": "2017-05-30T18:29:00.190",
+   "affected": [
+    {
+     "vendor": "samba",
+     "product": "samba",
+     "version": null,
+     "version_start_including": "3.5.0",
+     "version_start_excluding": null,
+     "version_end_including": null,
+     "version_end_excluding": "4.4.0"
+    },
+    {
+     "vendor": "samba",
+     "product": "samba",
+     "version": null,
+     "version_start_including": "4.4.0",
+     "version_start_excluding": null,
+     "version_end_including": null,
+     "version_end_excluding": "4.4.14"
+    },
+    {
+     "vendor": "samba",
+     "product": "samba",
+     "version": null,
+     "version_start_including": "4.5.0",
+     "version_start_excluding": null,
+     "version_end_including": null,
+     "version_end_excluding": "4.5.10"
+    },
+    {
+     "vendor": "samba",
+     "product": "samba",
+     "version": null,
+     "version_start_including": "4.6.0",
+     "version_start_excluding": null,
+     "version_end_including": null,
+     "version_end_excluding": "4.6.4"
+    }
+   ]
+  },
+  {
+   "cve_id": "CVE-2017-14491",
+   "description": "Heap-based buffer overflow in dnsmasq before 2.78 allows remote attackers to cause a denial of service (crash) or execute arbitrary code via a crafted DNS response.",
+   "cvss_score": 9.8,
+   "cvss_severity": "CRITICAL",
+   "published": "2017-10-04T01:29:02.870",
+   "affected": [
+    {
+     "vendor": "thekelleys",
+     "product": "dnsmasq",
+     "version": null,
+     "version_start_including": null,
+     "version_start_excluding": null,
+     "version_end_including": "2.77",
+     "version_end_excluding": null
+    }
+   ]
+  },
+  {
+   "cve_id": "CVE-2020-8617",
+   "description": "Using a specially-crafted message, an attacker may potentially cause a BIND server to reach an inconsistent state if the attacker knows (or successfully guesses) the name of a TSIG key used by the server. Since BIND, by default, configures a local session key even on servers whose configuration does not otherwise make use of it, almost all current BIND servers are vulnerable. In releases of BIND dating from March 2018 and after, an assertion check in tsig.c detects this inconsistent state and deliberately exits. Prior to the introduction of the check the server would continue operating in an inconsistent state, with potentially harmful results.",
+   "cvss_score": 7.5,
+   "cvss_severity": "HIGH",
+   "published": "2020-05-19T14:15:11.987",
+   "affected": [
+    {
+     "vendor": "isc",
+     "product": "bind",
+     "version": null,
+     "version_start_including": "9.0.0",
+     "version_start_excluding": null,
+     "version_end_including": "9.11.18",
+     "version_end_excluding": null
+    },
+    {
+     "vendor": "isc",
+     "product": "bind",
+     "version": null,
+     "version_start_including": "9.12.0",
+     "version_start_excluding": null,
+     "version_end_including": "9.12.4",
+     "version_end_excluding": null
+    },
+    {
+     "vendor": "isc",
+     "product": "bind",
+     "version": null,
+     "version_start_including": "9.13.0",
+     "version_start_excluding": null,
+     "version_end_including": "9.13.7",
+     "version_end_excluding": null
+    },
+    {
+     "vendor": "isc",
+     "product": "bind",
+     "version": null,
+     "version_start_including": "9.14.0",
+     "version_start_excluding": null,
+     "version_end_including": "9.14.11",
+     "version_end_excluding": null
+    },
+    {
+     "vendor": "isc",
+     "product": "bind",
+     "version": null,
+     "version_start_including": "9.15.0",
+     "version_start_excluding": null,
+     "version_end_including": "9.15.6",
+     "version_end_excluding": null
+    },
+    {
+     "vendor": "isc",
+     "product": "bind",
+     "version": null,
+     "version_start_including": "9.16.0",
+     "version_start_excluding": null,
+     "version_end_including": "9.16.2",
+     "version_end_excluding": null
+    },
+    {
+     "vendor": "isc",
+     "product": "bind",
+     "version": null,
+     "version_start_including": "9.17.0",
+     "version_start_excluding": null,
+     "version_end_including": "9.17.1",
+     "version_end_excluding": null
+    },
+    {
+     "vendor": "isc",
+     "product": "bind",
+     "version": "9.12.4",
+     "version_start_including": null,
+     "version_start_excluding": null,
+     "version_end_including": null,
+     "version_end_excluding": null
+    },
+    {
+     "vendor": "isc",
+     "product": "bind",
+     "version": "9.9.3",
+     "version_start_including": null,
+     "version_start_excluding": null,
+     "version_end_including": null,
+     "version_end_excluding": null
+    },
+    {
+     "vendor": "isc",
+     "product": "bind",
+     "version": "9.10.5",
+     "version_start_including": null,
+     "version_start_excluding": null,
+     "version_end_including": null,
+     "version_end_excluding": null
+    },
+    {
+     "vendor": "isc",
+     "product": "bind",
+     "version": "9.10.7",
+     "version_start_including": null,
+     "version_start_excluding": null,
+     "version_end_including": null,
+     "version_end_excluding": null
+    },
+    {
+     "vendor": "isc",
+     "product": "bind",
+     "version": "9.11.3",
+     "version_start_including": null,
+     "version_start_excluding": null,
+     "version_end_including": null,
+     "version_end_excluding": null
+    },
+    {
+     "vendor": "isc",
+     "product": "bind",
+     "version": "9.11.5",
+     "version_start_including": null,
+     "version_start_excluding": null,
+     "version_end_including": null,
+     "version_end_excluding": null
+    },
+    {
+     "vendor": "isc",
+     "product": "bind",
+     "version": "9.11.6",
+     "version_start_including": null,
+     "version_start_excluding": null,
+     "version_end_including": null,
+     "version_end_excluding": null
+    },
+    {
+     "vendor": "isc",
+     "product": "bind",
+     "version": "9.11.7",
+     "version_start_including": null,
+     "version_start_excluding": null,
+     "version_end_including": null,
+     "version_end_excluding": null
+    },
+    {
+     "vendor": "isc",
+     "product": "bind",
+     "version": "9.11.8",
+     "version_start_including": null,
+     "version_start_excluding": null,
+     "version_end_including": null,
+     "version_end_excluding": null
+    }
+   ]
+  },
+  {
+   "cve_id": "CVE-2023-25725",
+   "description": "HAProxy before 2.7.3 may allow a bypass of access control because HTTP/1 headers are inadvertently lost in some situations, aka \"request smuggling.\" The HTTP header parsers in HAProxy may accept empty header field names, which could be used to truncate the list of HTTP headers and thus make some headers disappear after being parsed and processed for HTTP/1.0 and HTTP/1.1. For HTTP/2 and HTTP/3, the impact is limited because the headers disappear before being parsed and processed, as if they had not been sent by the client. The fixed versions are 2.7.3, 2.6.9, 2.5.12, 2.4.22, 2.2.29, and 2.0.31.",
+   "cvss_score": 9.1,
+   "cvss_severity": "CRITICAL",
+   "published": "2023-02-14T19:15:11.530",
+   "affected": [
+    {
+     "vendor": "haproxy",
+     "product": "haproxy",
+     "version": null,
+     "version_start_including": null,
+     "version_start_excluding": null,
+     "version_end_including": null,
+     "version_end_excluding": "2.0.31"
+    },
+    {
+     "vendor": "haproxy",
+     "product": "haproxy",
+     "version": null,
+     "version_start_including": "2.1.0",
+     "version_start_excluding": null,
+     "version_end_including": null,
+     "version_end_excluding": "2.2.29"
+    },
+    {
+     "vendor": "haproxy",
+     "product": "haproxy",
+     "version": null,
+     "version_start_including": "2.3.0",
+     "version_start_excluding": null,
+     "version_end_including": null,
+     "version_end_excluding": "2.4.22"
+    },
+    {
+     "vendor": "haproxy",
+     "product": "haproxy",
+     "version": null,
+     "version_start_including": "2.5.0",
+     "version_start_excluding": null,
+     "version_end_including": null,
+     "version_end_excluding": "2.5.12"
+    },
+    {
+     "vendor": "haproxy",
+     "product": "haproxy",
+     "version": null,
+     "version_start_including": "2.6.0",
+     "version_start_excluding": null,
+     "version_end_including": null,
+     "version_end_excluding": "2.6.9"
+    },
+    {
+     "vendor": "haproxy",
+     "product": "haproxy",
+     "version": null,
+     "version_start_including": "2.7.0",
+     "version_start_excluding": null,
+     "version_end_including": null,
+     "version_end_excluding": "2.7.3"
+    }
+   ]
+  },
+  {
+   "cve_id": "CVE-2022-22707",
+   "description": "In lighttpd 1.4.46 through 1.4.63, the mod_extforward_Forwarded function of the mod_extforward plugin has a stack-based buffer overflow (4 bytes representing -1), as demonstrated by remote denial of service (daemon crash) in a non-default configuration. The non-default configuration requires handling of the Forwarded header in a somewhat unusual manner. Also, a 32-bit system is much more likely to be affected than a 64-bit system.",
+   "cvss_score": 5.9,
+   "cvss_severity": "MEDIUM",
+   "published": "2022-01-06T06:15:07.243",
+   "affected": [
+    {
+     "vendor": "lighttpd",
+     "product": "lighttpd",
+     "version": null,
+     "version_start_including": "1.4.46",
+     "version_start_excluding": null,
+     "version_end_including": "1.4.63",
+     "version_end_excluding": null
+    }
+   ]
+  },
+  {
+   "cve_id": "CVE-2024-4577",
+   "description": "In PHP versions 8.1.* before 8.1.29, 8.2.* before 8.2.20, 8.3.* before 8.3.8, when using Apache and PHP-CGI on Windows, if the system is set up to use certain code pages, Windows may use \"Best-Fit\" behavior to replace characters in command line given to Win32 API functions. PHP CGI module may misinterpret those characters as PHP options, which may allow a malicious user to pass options to PHP binary being run, and thus reveal the source code of scripts, run arbitrary PHP code on the server, etc.",
+   "cvss_score": 9.8,
+   "cvss_severity": "CRITICAL",
+   "published": "2024-06-09T20:15:09.550",
+   "affected": [
+    {
+     "vendor": "php",
+     "product": "php",
+     "version": null,
+     "version_start_including": "8.1.0",
+     "version_start_excluding": null,
+     "version_end_including": null,
+     "version_end_excluding": "8.1.29"
+    },
+    {
+     "vendor": "php",
+     "product": "php",
+     "version": null,
+     "version_start_including": "8.2.0",
+     "version_start_excluding": null,
+     "version_end_including": null,
+     "version_end_excluding": "8.2.20"
+    },
+    {
+     "vendor": "php",
+     "product": "php",
+     "version": null,
+     "version_start_including": "8.3.0",
+     "version_start_excluding": null,
+     "version_end_including": null,
+     "version_end_excluding": "8.3.8"
+    }
+   ]
+  },
+  {
+   "cve_id": "CVE-2019-11043",
+   "description": "In PHP versions 7.1.x below 7.1.33, 7.2.x below 7.2.24 and 7.3.x below 7.3.11 in certain configurations of FPM setup it is possible to cause FPM module to write past allocated buffers into the space reserved for FCGI protocol data, thus opening the possibility of remote code execution.",
+   "cvss_score": 8.7,
+   "cvss_severity": "HIGH",
+   "published": "2019-10-28T15:15:13.863",
+   "affected": [
+    {
+     "vendor": "php",
+     "product": "php",
+     "version": null,
+     "version_start_including": "7.1.0",
+     "version_start_excluding": null,
+     "version_end_including": null,
+     "version_end_excluding": "7.1.33"
+    },
+    {
+     "vendor": "php",
+     "product": "php",
+     "version": null,
+     "version_start_including": "7.2.0",
+     "version_start_excluding": null,
+     "version_end_including": null,
+     "version_end_excluding": "7.2.24"
+    },
+    {
+     "vendor": "php",
+     "product": "php",
+     "version": null,
+     "version_start_including": "7.3.0",
+     "version_start_excluding": null,
+     "version_end_including": null,
+     "version_end_excluding": "7.3.11"
+    }
+   ]
+  }
+ ]
+}

@@ -144,6 +144,7 @@ from netcross_core.forensic import DEFAULT_DUPLICATE_THRESHOLD_MS, detect_cross_
 from netcross_core.logging_config import get_logger
 from netcross_core.security import close_db, connect_cve_db
 from netcross_core.security import findings as security_findings
+from netcross_core.security.cve_seed import open_seed_db
 from netcross_core.support import (
     SCOPES as SUPPORT_SCOPES,
 )
@@ -1430,7 +1431,8 @@ def main():
         "--cve-db",
         help="Avec --security-report : base CVE SQLite locale (construite par "
         "scripts/import_nvd.py) pour la correlation version -> CVE. Doit "
-        "designer un fichier existant (aucune base vide n'est creee).",
+        "designer un fichier existant (aucune base vide n'est creee). Sans cette "
+        "option, une base minimale embarquee (quelques CVE critiques) est utilisee.",
     )
     notify = ap.add_argument_group(
         "notifications (issue #280)",
@@ -2611,7 +2613,8 @@ def main():
 
     # --security-report (issue #139) : consolidation des quatre detecteurs
     # (CVE-1 a CVE-4) sur le rapport deja rempli par analyse(), puis rendu
-    # dedie -- voir docs/security-report.md. cve_conn reste None sans --cve-db :
+    # dedie -- voir docs/security-report.md. Sans --cve-db, base minimale
+    # embarquee (issue #353) ; cve_conn ne reste None que si elle est illisible :
     # les services sont listes sans correlation CVE, et l'absence de base est
     # signalee pour ne pas laisser croire a une absence de vulnerabilite.
     # Reste None si --security-report n'est pas demande, ou si l'analyse de
@@ -2622,7 +2625,22 @@ def main():
     if args.security_report:
         cve_conn = connect_cve_db(args.cve_db) if args.cve_db else None
         if cve_conn is None:
-            print("Aucune base CVE fournie (--cve-db) : services listes sans correlation CVE.")
+            # issue #353 : filet de securite sans configuration -- quelques CVE
+            # critiques (NVD) sur les produits catalogues, chargees en memoire.
+            try:
+                cve_conn, cve_seed = open_seed_db()
+            except (OSError, ValueError) as exc:
+                print(
+                    f"Aucune base CVE fournie (--cve-db) et base embarquee illisible ({exc}) : "
+                    "services listes sans correlation CVE."
+                )
+            else:
+                print(
+                    f"Aucune base CVE fournie (--cve-db) : base minimale embarquee utilisee "
+                    f"({len(cve_seed.entries)} CVE critiques, NVD {cve_seed.generated}). "
+                    "Une version absente de cette selection n'est PAS pour autant non vulnerable : "
+                    "construire une base complete avec scripts/import_nvd.py."
+                )
         try:
             security_findings.apply_security_findings(
                 r,
