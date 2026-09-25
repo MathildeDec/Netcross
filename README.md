@@ -813,6 +813,23 @@ interface graphique (29 tests) ; le rendu est `charts.chart_comm_map()`. La
 vue se désactive après une comparaison baseline/courant, qui ne conserve
 pas les flux.
 
+**Annotations / signets** (section repliable de la page Résultats) :
+étiquette et commentaire libres posés sur un numéro de trame (celui
+qu'affiche Wireshark ou un constat), pour un point de capture choisi dans
+la liste. Chaque annotation est écrite **immédiatement** dans le sidecar
+JSON de sa capture, `<capture>.annotations.json`, puis relue à l'analyse
+suivante des mêmes fichiers. Un clic droit sur une annotation propose
+« Ajouter une étiquette sur cette trame » (formulaire prérempli) ou
+« Supprimer cette étiquette » ; sur la liste vide, « Ajouter une
+étiquette ». Une case par étiquette présente filtre la vue (aucune cochée
+= tout afficher). Une saisie invalide (trame non numérique, étiquette vide)
+affiche un message plutôt que d'être ignorée. Un sidecar illisible passe
+son point en **lecture seule** : il n'est jamais écrasé, les autres points
+restent annotables. La section est vide après une comparaison ou une
+capture en direct, qui n'ont pas de fichier de capture à annoter. La
+logique est dans `netcross_gtk4/annotations_view.py` (`AnnotationStore`,
+testée sans GTK) et le widget dans `netcross_gtk4/annotations_panel.py`.
+
 **Parité restante avec le CLI** : la capture en direct est désormais
 disponible sur les deux CLI — `--live` sur `cross_capture_analyzer_cli.py`
 et `--live-current` sur `cross_capture_diff_cli.py` (voir ci-dessus, le

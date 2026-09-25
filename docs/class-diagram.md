@@ -11,7 +11,7 @@
 > Il remplace l'ancienne section 3 de `docs/features-backlog.md`, tenue à la main, qui avait dérivé
 > (voir `docs/sessions/session-36.md`, issue #140).
 
-158 modules · 235 classes · 526 fonctions publiques de module.
+159 modules · 237 classes · 527 fonctions publiques de module.
 
 Conventions : `+` public, `-` privé (préfixe `_`) ; `int?` = `int | None` ; `list~str~` = `list[str]` ;
 `<<module>>` regroupe les fonctions publiques d'un module ; `A --> B : champ` = `A` a un champ annoté
@@ -37,7 +37,7 @@ flowchart TD
     CLI -->|"39 imports"| netcross_core
     CLI -->|"5 imports"| pcap_parser
     netcross_gtk4 -->|"10 imports"| netcross_report
-    netcross_gtk4 -->|"48 imports"| netcross_core
+    netcross_gtk4 -->|"49 imports"| netcross_core
     netcross_gtk4 -->|"2 imports"| pcap_parser
     netcross_api -->|"7 imports"| netcross_core
     netcross_report -->|"32 imports"| netcross_core
@@ -55,6 +55,7 @@ du graphe de dépendances ci-dessus (qui ne compte que des `import`).
 ```mermaid
 flowchart LR
     AnalysisResult["netcross_gtk4.analysis_pipeline.AnalysisResult"]
+    AnnotationStore["netcross_gtk4.annotations_view.AnnotationStore"]
     BPFFilter["netcross_core.models.BPFFilter"]
     Baseline["netcross_ai.anomaly.Baseline"]
     CaptureInfo["pcap_parser.capinfos_source.CaptureInfo"]
@@ -77,6 +78,7 @@ flowchart LR
     LoadedPlugins["netcross_core.plugins.loader.LoadedPlugins"]
     ModelPack["netcross_ai.model_pack.ModelPack"]
     OsGuess["netcross_core.discovery.os_detect.OsGuess"]
+    PacketAnnotation["netcross_core.models.PacketAnnotation"]
     Pkt["netcross_core.models.Pkt"]
     Report["netcross_core.models.Report"]
     SegmentScore["netcross_report.triage.SegmentScore"]
@@ -84,6 +86,7 @@ flowchart LR
     _Detector["netcross_core.exploit_signatures._Detector"]
     netcross_core_security_expert_correlation__FlowState["netcross_core.security.expert_correlation._FlowState"]
     AnalysisResult -->|report| Report
+    AnnotationStore -->|by_label| PacketAnnotation
     CaptureInfo -->|interfaces| InterfaceRecord
     ClientReport -->|report| Report
     ContentExtraction -->|media| StreamQuality
@@ -3796,6 +3799,7 @@ classDiagram
 |---|---|
 | `netcross_gtk4` | — |
 | `netcross_gtk4.analysis_pipeline` | pipeline d'analyse extrait de MainWindow (issue #246, #285 -- lot supplémentaire). |
+| `netcross_gtk4.annotations_panel` | panneau GTK des annotations (issue #363). |
 | `netcross_gtk4.annotations_view` | logique de presentation pour l'etiquetage/signets sur paquets (Job 40 / issue #160, section "Metadonnees et annotation"). |
 | `netcross_gtk4.app` | interface GTK4 pour netcross_core / netcross_report. |
 | `netcross_gtk4.bpf_panel` | Decisions du panneau de filtres BPF de la capture live, sorties de ``netcross_gtk4/app.py`` (issue #285, quatrieme lot). |
@@ -3851,7 +3855,35 @@ classDiagram
         +run_analysis_pipeline(captures, options, on_progress) AnalysisResult
     }
 
+    %% ===== netcross_gtk4.annotations_panel =====
+    class AnnotationsPanel {
+        <<Gtk.Box>>
+        +load(captures) None
+        +clear() None
+        +selected_point() str?
+        +prefill(point, frame_number) None
+        +submit() bool
+        +remove(point, frame_number, tag) None
+        +toggle_tag(tag, active) None
+        +refresh() None
+        +visible_rows()
+        +context_actions(target) list~tuple~str, Callable~(), None~~~
+    }
+
     %% ===== netcross_gtk4.annotations_view =====
+    class AnnotationStore {
+        <<dataclass>>
+        +list~tuple~str, str~~ captures
+        +dict~str, list~PacketAnnotation~~ by_label
+        +dict~str, str~ errors
+        +load(captures)$ AnnotationStore
+        +labels() list~str~
+        +writable_labels() list~str~
+        +add(label, frame_number, tag, comment) None
+        +remove(label, frame_number, tag) None
+        +tags() list~str~
+        +rows(selected_tags) list~tuple~str, PacketAnnotation~~
+    }
     class mod_netcross_gtk4_annotations_view["netcross_gtk4.annotations_view"] {
         <<module>>
         +available_tags(annotations) list~str~
@@ -3859,6 +3891,7 @@ classDiagram
         +format_annotation_row(annotation) str
         +add_annotation(annotations, frame_number, tag, comment, color) list~PacketAnnotation~
         +remove_annotation(annotations, frame_number, tag) list~PacketAnnotation~
+        +parse_frame_number(text) int
     }
 
     %% ===== netcross_gtk4.app =====
