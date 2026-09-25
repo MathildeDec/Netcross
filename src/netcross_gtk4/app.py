@@ -136,6 +136,7 @@ class CaptureRow(Gtk.Box):
         super().__init__(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
         self.path = path
         self._on_change = on_change
+        logger.debug("CaptureRow: label={} path={}", default_label, path)
         self.set_margin_top(4)
         self.set_margin_bottom(4)
         self.set_margin_start(8)
@@ -176,10 +177,12 @@ class CaptureRow(Gtk.Box):
 
     def _deplacer(self, *, vers_le_haut):
         """Deplace la ligne d'un cran, ou ne fait rien si elle est au bord
+        logger.debug("CaptureRow._deplacer: vers_le_haut={} path={}", vers_le_haut, self.path)
         (voir `capture_list.deplacer_ligne`)."""
         capture_list.deplacer_ligne(self.get_parent(), vers_le_haut=vers_le_haut)
 
     def _on_remove(self, _btn):
+        logger.debug("CaptureRow._on_remove: {}", self.path)
         capture_list.retirer_ligne(self.get_parent(), self._on_change)
 
     @property
@@ -216,6 +219,13 @@ class LiveCaptureRow(Gtk.Box):
     ):
         super().__init__(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
         self._on_change = on_change
+        logger.debug(
+            "LiveCaptureRow: label={} interface={} filtre={} filtres_proposes={}",
+            default_label,
+            interface,
+            bpf_filter,
+            len(filters or []),
+        )
         self.set_margin_top(4)
         self.set_margin_bottom(4)
         self.set_margin_start(8)
@@ -288,6 +298,7 @@ class LiveCaptureRow(Gtk.Box):
         """Remplace les filtres proposes par le menu deroulant ; la selection
         revient sur le titre (le texte du champ filtre n'est pas modifie)."""
         self._filters = list(filters)
+        logger.debug("set_filters: {} filtre(s) proposé(s)", len(self._filters))
         self._syncing_dropdown = True
         try:
             noms = noms_du_menu(self._filters, _FILTER_PICKER_TITLE)
@@ -312,6 +323,7 @@ class LiveCaptureRow(Gtk.Box):
         index, expression = selection_apres_choix(dropdown.get_selected(), self._filters)
         if index is None:
             return
+        logger.debug("_on_filter_picked: index={} expression={}", index, expression)
         self._select_filter_index(index)
         self.filter_entry.set_text(expression)
 
@@ -319,9 +331,11 @@ class LiveCaptureRow(Gtk.Box):
         """Le champ a ete edite a la main : le menu ne doit plus annoncer un
         filtre dont le texte n'est plus celui du champ."""
         if doit_desolidariser_le_menu(self.filter_dropdown.get_selected(), self._filters, entry.get_text()):
+            logger.debug("_on_filter_text_changed: champ édité, menu désolidarisé")
             self._select_filter_index(0)
 
     def _build_save_popover(self):
+        logger.debug("_build_save_popover: construction du popover d'enregistrement")
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
         box.set_margin_top(8)
         box.set_margin_bottom(8)
@@ -353,6 +367,7 @@ class LiveCaptureRow(Gtk.Box):
 
     def _on_save_filter_clicked(self, _widget):
         name = self._save_name_entry.get_text().strip()
+        logger.debug("_on_save_filter_clicked: nom={}", name)
         demande = valider_sauvegarde(
             self.filter_entry.get_text(),
             name,
@@ -360,6 +375,7 @@ class LiveCaptureRow(Gtk.Box):
             sauvegarde_possible=self._on_save_filter is not None,
         )
         if not demande.acceptee:
+            logger.debug("_on_save_filter_clicked: refusé ({})", demande.message)
             self._save_status.set_text(demande.message)
             return
         try:
@@ -368,6 +384,7 @@ class LiveCaptureRow(Gtk.Box):
             logger.exception(f"échec dans _on_save_filter_clicked: {exc}")
             self._save_status.set_text(str(exc))
             return
+        logger.debug("_on_save_filter_clicked: filtre {} enregistré", name)
         self._save_status.set_text("")
         self._save_name_entry.set_text("")
         self._save_desc_entry.set_text("")
@@ -379,12 +396,15 @@ class LiveCaptureRow(Gtk.Box):
             self._select_filter_index(indice)
 
     def _on_up(self, _btn):
+        logger.debug("LiveCaptureRow._on_up: {}", self.label)
         capture_list.deplacer_ligne(self.get_parent(), vers_le_haut=True)
 
     def _on_down(self, _btn):
+        logger.debug("LiveCaptureRow._on_down: {}", self.label)
         capture_list.deplacer_ligne(self.get_parent(), vers_le_haut=False)
 
     def _on_remove(self, _btn):
+        logger.debug("LiveCaptureRow._on_remove: {}", self.label)
         capture_list.retirer_ligne(self.get_parent(), self._on_change)
 
     @property
@@ -408,6 +428,7 @@ class CaptureListPanel(Gtk.Box):
     def __init__(self, heading, on_change=None):
         super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=6)
         self._on_change = on_change
+        logger.debug("CaptureListPanel: {}", heading)
 
         header = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
         header.append(
@@ -433,6 +454,7 @@ class CaptureListPanel(Gtk.Box):
         self.append(frame)
 
     def _on_add_clicked(self, _btn):
+        logger.debug("_on_add_clicked: ouverture du sélecteur de captures")
         dialog = Gtk.FileDialog()
         filt = Gtk.FileFilter()
         filt.add_pattern("*.pcap")
@@ -449,6 +471,7 @@ class CaptureListPanel(Gtk.Box):
         except GLib.Error:
             logger.exception("échec dans _on_files_chosen")
             return
+        logger.debug("_on_files_chosen: {} fichier(s) choisi(s)", files.get_n_items())
         for i in range(files.get_n_items()):
             gfile = files.get_item(i)
             self.add_row(gfile.get_path())
@@ -458,6 +481,7 @@ class CaptureListPanel(Gtk.Box):
         pilote sans dialogue (tests automatises, appel programmatique)."""
         if default_label is None:
             default_label = capture_list.nom_par_defaut_fichier(path)
+        logger.debug("CaptureListPanel.add_row: label={} path={}", default_label, path)
         row = CaptureRow(path, default_label, on_change=self._on_change)
         self.listbox.append(row)
         if self._on_change:
@@ -492,6 +516,7 @@ class LiveCaptureListPanel(Gtk.Box):
         self._on_change = on_change
         self._filters_path = filters_path
         self._filters = self._initial_filters()
+        logger.debug("LiveCaptureListPanel: {} ({} filtre(s) BPF)", heading, len(self._filters))
 
         header = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
         header.append(
@@ -519,6 +544,7 @@ class LiveCaptureListPanel(Gtk.Box):
     def add_row(self, default_label=None, interface="", bpf_filter=""):
         if default_label is None:
             default_label = capture_list.nom_par_defaut_live(len(self.rows()))
+        logger.debug("LiveCaptureListPanel.add_row: label={} interface={}", default_label, interface)
         row = LiveCaptureRow(
             default_label,
             interface,
@@ -533,21 +559,23 @@ class LiveCaptureListPanel(Gtk.Box):
         return row
 
     def _initial_filters(self):
+        logger.debug("_initial_filters: fichier={}", self._filters_path)
         try:
             return available_bpf_filters(self._filters_path)
         except (OSError, ValueError) as exc:
             # Fichier sidecar illisible : le catalogue predefini reste
             # utilisable et le fichier n'est PAS touche (upsert_bpf_filter
             # refuse d'ecraser un fichier qu'il ne sait pas relire).
-            logger.exception(f"échec dans _initial_filters: {exc}")
-            print(f"netcross: filtres BPF sauvegardes ignores ({exc})", file=sys.stderr)
+            logger.exception(f"échec dans _initial_filters, filtres BPF sauvegardés ignorés : {exc}")
             return list(PREDEFINED_BPF_FILTERS)
 
     def _save_filter(self, flt):
         """Persiste ``flt`` puis rafraichit le menu de chaque ligne. Les
         erreurs (nom reserve au catalogue, fichier illisible, E/S) remontent
         a la ligne appelante, qui les affiche dans son popover."""
+        logger.debug("_save_filter: {}", flt.name)
         self._filters = upsert_bpf_filter(flt, self._filters_path)
+        logger.debug("_save_filter: {} filtre(s), {} ligne(s) rafraîchie(s)", len(self._filters), len(self.rows()))
         for row in self.rows():
             row.set_filters(self._filters)
 
