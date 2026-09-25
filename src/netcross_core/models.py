@@ -669,6 +669,10 @@ class Report:
     # `security.findings.apply_security_findings` via
     # `discovery.assets.build_asset_inventory`.
     asset_inventory: list[dict] = field(default_factory=list)
+    # Issue #350 : taille de la baseline d'hotes connus passee a
+    # l'inventaire (--known-hosts) ; 0 = pas de baseline, donc aucun hote
+    # n'est marque nouveau (`is_new` toujours False).
+    asset_baseline_size: int = 0
     # -- topologie deduite (ordre + chemins multiples) --
     topology_edges: list[tuple[str, str, dict]] = field(default_factory=list)
     topology_ambiguous: list[tuple[str, str, str]] = field(default_factory=list)

@@ -11,7 +11,7 @@
 > Il remplace l'ancienne section 3 de `docs/features-backlog.md`, tenue à la main, qui avait dérivé
 > (voir `docs/sessions/session-36.md`, issue #140).
 
-155 modules · 234 classes · 515 fonctions publiques de module.
+155 modules · 234 classes · 518 fonctions publiques de module.
 
 Conventions : `+` public, `-` privé (préfixe `_`) ; `int?` = `int | None` ; `list~str~` = `list[str]` ;
 `<<module>>` regroupe les fonctions publiques d'un module ; `A --> B : champ` = `A` a un champ annoté
@@ -1477,6 +1477,7 @@ classDiagram
         +list~dict~ plugin_runs
         +list~dict~ flow_anomalies
         +list~dict~ asset_inventory
+        +int asset_baseline_size
         +list~tuple~str, str, dict~~ topology_edges
         +list~tuple~str, str, str~~ topology_ambiguous
         +list~str~ topology_isolated
@@ -2647,13 +2648,14 @@ classDiagram
         +tls_audit_findings(audit) list~dict~str, Any~~
         +lateral_movement_findings(events) list~dict~str, Any~~
         +flow_stats_findings(flows) list~dict~str, Any~~
+        +new_host_findings(assets) list~dict~str, Any~~
         +cve_findings(fingerprints, conn) list~dict~str, Any~~
         +dga_findings(alerts) list~dict~str, Any~~
         +fast_flux_findings(alerts) list~dict~str, Any~~
         +sequence_gap_findings(gaps) list~dict~str, Any~~
         +cross_capture_duplicate_findings(duplicate_count) list~dict~str, Any~~
         +extracted_file_findings(extraction) list~dict~str, Any~~
-        +apply_security_findings(report, all_packets, detections, cve_conn, tls_policy, known_destinations) None
+        +apply_security_findings(report, all_packets, detections, cve_conn, tls_policy, known_destinations, known_hosts) None
     }
 
     %% ===== netcross_core.security.flow_stats =====
@@ -3484,6 +3486,9 @@ classDiagram
         +int anomalies_netcross
         +int anomalies_expert_info
         +int cves
+        +int assets_total
+        +int assets_new
+        +int assets_baseline_size
         +dict~str, int~ by_severity
         +int score
         +str? level
@@ -3497,6 +3502,7 @@ classDiagram
         +SecurityDashboard dashboard
         +list~dict~ notifications
         +list~dict~ plugins
+        +list~dict~ assets
     }
     class mod_netcross_report_security_report["netcross_report.security_report"] {
         <<module>>
@@ -3505,6 +3511,8 @@ classDiagram
         +group_by_detector(items) list~DetectorGroup~
         +severity_from_cvss(cvss) str
         +build_security_report(report) SecurityReport
+        +asset_os_label(asset) str
+        +asset_ports_label(asset) str
         +format_security_report(sr) list~str~
         +print_security_report(sr) None
         +security_report_to_dict(sr) dict

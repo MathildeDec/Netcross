@@ -443,6 +443,39 @@ def flow_stats_findings(flows: list[dict]) -> list[dict[str, Any]]:
     return findings
 
 
+# -- SCENARIO-5 (#151, #350) : nouveaux hotes vs baseline -------------------
+
+
+def new_host_findings(assets: list[dict]) -> list[dict[str, Any]]:
+    """Un constat `anomalie` (severite `moyenne`) par hote de l'inventaire
+    absent de la baseline d'hotes connus (`is_new`). Sans baseline, aucun
+    hote n'est nouveau : liste vide (voir build_asset_inventory)."""
+    findings: list[dict[str, Any]] = []
+    for a in assets:
+        if not a.get("is_new"):
+            continue
+        os_guess = a.get("os_guess") or {}
+        ports = ", ".join(f"{p['transport']}/{p['port']}" for p in a.get("ports") or [])
+        details = [f"OS {os_guess['family']} (confiance {os_guess['confidence']})" if os_guess else "OS inconnu"]
+        if a.get("mac"):
+            details.append(f"MAC {a['mac']}")
+        details.append(f"ports exposes : {ports}" if ports else "aucun port expose observe")
+        details.append(f"{a.get('packet_count', 0)} paquets")
+        points = list(a.get("points") or [])
+        findings.append(
+            {
+                "severity": "moyenne",
+                "category": "anomalie",
+                "detector": "asset_inventory",
+                "host": a.get("ip"),
+                "detail": f"nouvel hote {a.get('ip', '?')} absent de la baseline ({', '.join(details)})",
+                "points": points,
+                "point": points[0] if points else None,
+            }
+        )
+    return findings
+
+
 # -- CVE-4 : correlation version -> CVE -------------------------------------
 
 
@@ -637,6 +670,7 @@ def apply_security_findings(
     cve_conn=None,
     tls_policy: TlsAuditPolicy | None = None,
     known_destinations: frozenset[str] | None = None,
+    known_hosts: frozenset[str] | None = None,
 ) -> None:
     """Remplit `report.service_fingerprints` et `report.security_findings`
     (remplacement, pas ajout : deux appels donnent le meme resultat).
@@ -723,7 +757,12 @@ def apply_security_findings(
     report.flow_anomalies = [f.to_dict() for f in flow_result.flows]
 
     # Issue #350 : inventaire d'actifs -- jamais appele, la section etait vide.
-    report.asset_inventory = build_asset_inventory(all_packets).to_records()
+    # `known_hosts` (--known-hosts) : baseline d'hotes connus ; les hotes
+    # absents sont marques `is_new` et deviennent des constats (donc aussi
+    # des evenements SIEM, qui exportent report.security_findings).
+    inventory = build_asset_inventory(all_packets, baseline_hosts=set(known_hosts) if known_hosts else None)
+    report.asset_inventory = inventory.to_records()
+    report.asset_baseline_size = inventory.baseline_size
 
     dns_suspicions = detect_dns_tunneling(all_packets).suspicions
     beacon_suspicions = detect_beaconing(all_packets).suspicions
@@ -742,6 +781,7 @@ def apply_security_findings(
         + sequence_gap_findings(report.sequence_gaps)
         + cross_capture_duplicate_findings(dict(report.duplicate_count))
         + extracted_file_findings(extraction)
+        + new_host_findings(report.asset_inventory)
     )
     if cve_conn is not None:
         findings += cve_findings(report.service_fingerprints, cve_conn)

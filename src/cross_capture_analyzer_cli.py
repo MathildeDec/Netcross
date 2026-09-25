@@ -1421,6 +1421,14 @@ def main():
         "`new_destination`) ; sans baseline, ce signal n'est jamais emis.",
     )
     ap.add_argument(
+        "--known-hosts",
+        metavar="FICHIER.json",
+        help="Avec --security-report : baseline des hotes connus pour l'inventaire d'actifs "
+        "(issue #350) -- liste JSON d'IP, ou objet avec une cle `hosts`. Chaque hote vu dans "
+        "la capture et absent de la liste est marque NOUVEAU et devient un constat (rapport, "
+        "JSON, export SIEM) ; sans baseline, aucun hote n'est signale nouveau.",
+    )
+    ap.add_argument(
         "--siem-export",
         choices=("cef", "leef", "stix"),
         help="Avec --security-report et --siem-output : exporte les constats pour un SIEM -- "
@@ -1869,6 +1877,24 @@ def main():
             )
             sys.exit(1)
         known_destinations = frozenset(hosts)
+    known_hosts = None
+    if args.known_hosts:
+        if not args.security_report:
+            print("--known-hosts necessite --security-report.", file=sys.stderr)
+            sys.exit(1)
+        if not os.path.isfile(args.known_hosts):
+            print(f"--known-hosts : fichier introuvable : {args.known_hosts}", file=sys.stderr)
+            sys.exit(1)
+        baseline = load_baseline_hosts(args.known_hosts)
+        if not baseline:
+            # Meme regle que --known-destinations : une baseline vide ferait
+            # passer TOUS les hotes pour nouveaux.
+            print(
+                f"--known-hosts : aucune IP lue dans {args.known_hosts} (JSON invalide ou liste vide).",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        known_hosts = frozenset(baseline)
     # Meme discipline que --cve-db : echouer tot et clairement plutot que
     # de produire un fichier HTML vide, ou de ne rien ecrire en silence --
     # l'utilisateur croirait avoir un rapport (issue #218).
@@ -2536,6 +2562,7 @@ def main():
                 detections=security_detections,
                 cve_conn=cve_conn,
                 known_destinations=known_destinations,
+                known_hosts=known_hosts,
             )
             # Conserve pour les sorties PDF/JSON/HTML (issue #218) :
             # jusqu'ici l'objet etait construit, imprime, puis perdu -- les
