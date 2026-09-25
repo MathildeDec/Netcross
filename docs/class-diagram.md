@@ -11,7 +11,7 @@
 > Il remplace l'ancienne section 3 de `docs/features-backlog.md`, tenue à la main, qui avait dérivé
 > (voir `docs/sessions/session-36.md`, issue #140).
 
-158 modules · 235 classes · 525 fonctions publiques de module.
+158 modules · 235 classes · 526 fonctions publiques de module.
 
 Conventions : `+` public, `-` privé (préfixe `_`) ; `int?` = `int | None` ; `list~str~` = `list[str]` ;
 `<<module>>` regroupe les fonctions publiques d'un module ; `A --> B : champ` = `A` a un champ annoté
@@ -951,6 +951,7 @@ classDiagram
     class mod_netcross_core_flow_timeline["netcross_core.flow_timeline"] {
         <<module>>
         +build_flow_timeline(packets, window_s) FlowTimeline
+        +build_flow_timelines(packets, window_s, min_packets) dict
     }
 
     %% ===== netcross_core.flow_view =====

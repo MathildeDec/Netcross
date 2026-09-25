@@ -140,6 +140,7 @@ from netcross_core import (
     write_redaction_map_csv,
 )
 from netcross_core.discovery import load_baseline_hosts
+from netcross_core.flow_timeline import build_flow_timelines
 from netcross_core.forensic import DEFAULT_DUPLICATE_THRESHOLD_MS, detect_cross_capture_duplicates
 from netcross_core.logging_config import get_logger
 from netcross_core.security import close_db, connect_cve_db
@@ -220,6 +221,104 @@ def _parse_client_group_spec(spec):
     return name, ip_set
 
 
+_SEARCH_FIELDS = ("sni", "uri", "http_status", "call_id", "dns_name", "method", "content_type", "message")
+
+
+def _advanced_options_error(args) -> str | None:
+    """Validation de --flow-timeline/--tshark-stats/--forensic-search et des
+    --search-* AVANT l'analyse : une erreur detectee apres des minutes de
+    parsing ferait perdre le run."""
+    search = {
+        "--search-text": args.search_text,
+        "--search-address": args.search_address,
+        "--search-point": args.search_point,
+        "--search-protocol": args.search_protocol,
+        "--search-port": args.search_port,
+        "--search-field": args.search_field,
+        "--search-value": args.search_value,
+    }
+    orphans = [flag for flag, value in search.items() if value is not None]
+    if orphans and not args.forensic_search:
+        return f"{', '.join(orphans)} necessite --forensic-search."
+    if args.search_field is not None and args.search_field not in _SEARCH_FIELDS:
+        return f"--search-field : champ inconnu {args.search_field!r} (attendu : {', '.join(_SEARCH_FIELDS)})."
+    if args.search_port is not None and not 0 <= args.search_port <= 65535:
+        return "--search-port doit etre compris entre 0 et 65535."
+    if args.flow_timeline_window <= 0:
+        return "--flow-timeline-window doit etre > 0."
+    if args.tshark_stats and not args.capture:
+        return "--tshark-stats relit les fichiers --capture avec tshark : sans objet en --live seul."
+    return None
+
+
+def _write_json_output(path, payload, label) -> None:
+    import json
+
+    with open(path, "w", encoding="utf-8") as fh:
+        json.dump(payload, fh, ensure_ascii=False, indent=2)
+    print(f"{label} ecrite(s) dans {path}")
+
+
+def _collect_tshark_stats(captures) -> dict:
+    """Statistiques tshark -z par fichier (issue #361). Une capture en echec
+    porte une cle `error` explicite (et un message stderr) au lieu de faire
+    perdre les autres ; tshark absent est une erreur par capture elle aussi."""
+    import subprocess
+    from dataclasses import asdict
+
+    from netcross_core.tshark_stats import (
+        TsharkUnavailableError,
+        collect_conversations,
+        collect_endpoints,
+        collect_io_stat,
+        collect_protocol_hierarchy,
+    )
+
+    result: dict = {"version": 1, "captures": []}
+    for label, path in captures:
+        entry: dict = {"label": label, "path": path}
+        try:
+            entry["conversations"] = {
+                proto: [asdict(c) for c in collect_conversations(path, proto)] for proto in ("tcp", "udp")
+            }
+            entry["endpoints"] = {
+                proto: [asdict(e) for e in collect_endpoints(path, proto)] for proto in ("tcp", "udp")
+            }
+            entry["protocol_hierarchy"] = [asdict(p) for p in collect_protocol_hierarchy(path)]
+            entry["io_stat"] = asdict(collect_io_stat(path))
+        except (TsharkUnavailableError, subprocess.SubprocessError, OSError) as exc:
+            entry = {"label": label, "path": path, "error": str(exc)}
+            print(f"--tshark-stats {label} ({path}) : {exc}", file=sys.stderr)
+        result["captures"].append(entry)
+    return result
+
+
+def _run_forensic_search(args, all_packets, flows) -> None:
+    """Recherche forensique (issue #360) : la requete est rappelee dans le
+    JSON pour qu'un resultat vide reste interpretable."""
+    from dataclasses import asdict
+
+    from netcross_core.forensic_search import ForensicSearchIndex, ForensicSearchQuery
+
+    query = ForensicSearchQuery(
+        text=args.search_text,
+        point=args.search_point,
+        protocol=args.search_protocol,
+        address=args.search_address,
+        port=args.search_port,
+        field=args.search_field,
+        field_value=args.search_value,
+    )
+    results = ForensicSearchIndex(all_packets, flows=flows).search(query)
+    payload = {
+        "version": 1,
+        "query": {k: v for k, v in asdict(query).items() if v is not None},
+        "count": len(results),
+        "results": [asdict(r) for r in results],
+    }
+    _write_json_output(args.forensic_search, payload, f"Recherche forensique ({len(results)} resultat(s))")
+
+
 def _run_netflow(args) -> int:
     """Mode --netflow (issue #362) : resume d'exports NetFlow v5, sans analyse
     multi-points. Code de retour : 0, ou 1 (options incompatibles, fichier
@@ -243,6 +342,9 @@ def _run_netflow(args) -> int:
             ("--pdf-report", args.pdf_report),
             ("--security-report", args.security_report),
             ("--triage", args.triage),
+            ("--flow-timeline", args.flow_timeline),
+            ("--tshark-stats", args.tshark_stats),
+            ("--forensic-search", args.forensic_search),
         )
         if given
     ]
@@ -1881,38 +1983,51 @@ def main():
         metavar="TYPE[,TYPE]",
         help="Avec --extract-contents : restreint l'extraction a audio, video et/ou documents (defaut : tous).",
     )
-    # Issue #359 : vue temporelle de flux -- code present mais non raccorde
+    # Issues #359, #360, #361 : modules d'analyse avancee exposes au CLI
     adv = ap.add_argument_group(
         "analyse avancee",
-        "Vue temporelle de flux (#10) et statistiques tshark (#20) : "
-        "fonctionnalites existantes mais non exposees jusqu'ici.",
+        "Chronologie des flux (#359), recherche forensique (#360) et statistiques tshark (#361), "
+        "chacune ecrite en JSON. S'ajoutent a l'analyse --capture/--live habituelle.",
     )
     adv.add_argument(
         "--flow-timeline",
         metavar="FICHIER.json",
-        help="Ecrit la chronologie detaillee des flux (phases, RTT, inter-arrivees) en JSON. Issue #359.",
+        help="Chronologie de chaque conversation, point par point : inter-arrivees, debit par "
+        "fenetre, phases (slow-start, rafale, inactivite...), RTT estime.",
+    )
+    adv.add_argument(
+        "--flow-timeline-window",
+        type=float,
+        default=1.0,
+        metavar="SECONDES",
+        help="Avec --flow-timeline : duree des fenetres de debit (defaut 1.0).",
     )
     adv.add_argument(
         "--tshark-stats",
         metavar="FICHIER.json",
-        help="Ecrit les statistiques tshark (conversations, endpoints, "
-        "hierarchie de protocoles, io_stat) en JSON. issue #361.",
+        help="Statistiques tshark -z de chaque fichier --capture : conversations et endpoints TCP/UDP, "
+        "hierarchie de protocoles, io_stat. Necessite tshark ; refuse avec --live.",
     )
     adv.add_argument(
         "--forensic-search",
         metavar="FICHIER.json",
-        help="Recherche forensique transversale (#16) : cree un index "
-        "des paquets/flux/evenements et execute une requete. Sortie JSON.",
+        help="Recherche forensique dans les paquets et flux decodes ; criteres --search-* combines "
+        "par ET (aucun critere : tout est liste).",
+    )
+    adv.add_argument("--search-text", metavar="TEXTE", help="Texte libre (insensible a la casse).")
+    adv.add_argument("--search-address", metavar="IP", help="Adresse source ou destination.")
+    adv.add_argument("--search-point", metavar="POINT", help="Point de capture.")
+    adv.add_argument("--search-protocol", metavar="PROTO", help="Protocole (TCP, UDP, DNS, HTTP...).")
+    adv.add_argument("--search-port", type=int, metavar="PORT", help="Port source ou destination.")
+    adv.add_argument(
+        "--search-field",
+        metavar="CHAMP",
+        help="Champ decode : sni, uri, http_status, call_id, dns_name, method, content_type, message.",
     )
     adv.add_argument(
-        "--search-text",
-        metavar="TEXTE",
-        help="Avec --forensic-search : texte a chercher (insensible a la casse).",
-    )
-    adv.add_argument(
-        "--search-address",
-        metavar="IP",
-        help="Avec --forensic-search : filtrer par adresse IP.",
+        "--search-value",
+        metavar="VALEUR",
+        help="Valeur cherchee dans --search-field (sans --search-field : dans tous les champs).",
     )
     args = ap.parse_args()
 
@@ -1925,6 +2040,10 @@ def main():
 
     if not args.capture and not args.live:
         print("Il faut fournir au moins un --capture ou un --live.", file=sys.stderr)
+        sys.exit(1)
+    advanced_error = _advanced_options_error(args)
+    if advanced_error:
+        print(advanced_error, file=sys.stderr)
         sys.exit(1)
     if args.capture and args.live:
         print(
@@ -2122,6 +2241,9 @@ def main():
             for flag, given in (
                 ("--pdf-report", args.pdf_report),
                 ("--json-report", args.json_report),
+                ("--flow-timeline", args.flow_timeline),
+                ("--tshark-stats", args.tshark_stats),
+                ("--forensic-search", args.forensic_search),
                 ("--detail-csv", args.detail_csv),
                 ("--history-db", args.history_db),
                 ("--client-group", args.client_group),
@@ -2162,6 +2284,9 @@ def main():
             for flag, given in (
                 ("--pdf-report", args.pdf_report),
                 ("--json-report", args.json_report),
+                ("--flow-timeline", args.flow_timeline),
+                ("--tshark-stats", args.tshark_stats),
+                ("--forensic-search", args.forensic_search),
                 ("--detail-csv", args.detail_csv),
                 ("--history-db", args.history_db),
                 ("--client-group", args.client_group),
@@ -2265,6 +2390,9 @@ def main():
             for flag, given in (
                 ("--pdf-report", args.pdf_report),
                 ("--json-report", args.json_report),
+                ("--flow-timeline", args.flow_timeline),
+                ("--tshark-stats", args.tshark_stats),
+                ("--forensic-search", args.forensic_search),
                 ("--detail-csv", args.detail_csv),
                 ("--history-db", args.history_db),
                 ("--client-group", args.client_group),
@@ -2893,70 +3021,17 @@ def main():
         )
         print(f"Rapport JSON ecrit dans {args.json_report}")
 
-    # Issue #359 : vue temporelle de flux -- code present mais non raccorde
+    # Issues #359/#360/#361 : sorties JSON d'analyse avancee
     if args.flow_timeline:
-        import json
-        from collections import defaultdict
-
-        from netcross_core.flow_timeline import build_flow_timeline
-
-        flows_by_key: dict[tuple[str, str, str], list] = defaultdict(list)
-        for pkt in all_packets:
-            key = (pkt.src, pkt.dst, pkt.proto)
-            flows_by_key[key].append(pkt)
-        timelines = {}
-        for key, pkts in flows_by_key.items():
-            if len(pkts) < 2:
-                continue
-            tl = build_flow_timeline(pkts)
-            timelines[f"{key[0]} -> {key[1]} ({key[2]})"] = tl.to_dict()
-        with open(args.flow_timeline, "w", encoding="utf-8") as fh:
-            json.dump(timelines, fh, ensure_ascii=False, indent=2)
-        print(f"Chronologie des flux ecrite dans {args.flow_timeline}")
-
-    # Issue #361 : statistiques tshark -- code present mais non raccorde
+        _write_json_output(
+            args.flow_timeline,
+            build_flow_timelines(all_packets, window_s=args.flow_timeline_window),
+            "Chronologie des flux",
+        )
     if args.tshark_stats:
-        import json
-        from dataclasses import asdict
-
-        from netcross_core.tshark_stats import (
-            collect_conversations,
-            collect_endpoints,
-            collect_io_stat,
-            collect_protocol_hierarchy,
-        )
-
-        stats = {"captures": []}
-        for label, path in captures:
-            cap_stats = {"label": label, "path": path}
-            try:
-                cap_stats["conversations"] = [asdict(c) for c in collect_conversations(path)]
-                cap_stats["endpoints"] = [asdict(e) for e in collect_endpoints(path)]
-                cap_stats["protocol_hierarchy"] = [asdict(p) for p in collect_protocol_hierarchy(path)]
-                cap_stats["io_stat"] = asdict(collect_io_stat(path))
-            except Exception as exc:
-                cap_stats["error"] = str(exc)
-            stats["captures"].append(cap_stats)
-        with open(args.tshark_stats, "w", encoding="utf-8") as fh:
-            json.dump(stats, fh, ensure_ascii=False, indent=2)
-        print(f"Statistiques tshark ecrites dans {args.tshark_stats}")
-
-    # Issue #360 : recherche forensique -- code present mais non raccorde
+        _write_json_output(args.tshark_stats, _collect_tshark_stats(captures), "Statistiques tshark")
     if args.forensic_search:
-        import json
-        from dataclasses import asdict
-
-        from netcross_core.forensic_search import ForensicSearchIndex, ForensicSearchQuery
-
-        index = ForensicSearchIndex(all_packets)
-        query = ForensicSearchQuery(
-            text=args.search_text,
-            address=args.search_address,
-        )
-        results = index.search(query)
-        with open(args.forensic_search, "w", encoding="utf-8") as fh:
-            json.dump([asdict(r) for r in results], fh, ensure_ascii=False, indent=2)
-        print(f"Recherche forensique : {len(results)} resultat(s) ecrit(s) dans {args.forensic_search}")
+        _run_forensic_search(args, all_packets, flows)
 
     if args.history_db:
         from netcross_report import HistoryDatabaseError, list_history, print_history, record_run

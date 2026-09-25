@@ -417,6 +417,27 @@ Options utiles :
   (défaut 1). Incompatible avec `--live`/`--merge`/`--split` et avec les
   options d'analyse/de rapport (comme `--merge`, plusieurs fichiers
   segmentés doivent d'abord être fusionnés en un seul).
+- `--flow-timeline chronologie.json` : chronologie de chaque conversation,
+  point par point (les copies d'un même paquet vues à plusieurs points ne
+  sont pas mélangées) et dans les deux sens : inter-arrivées (min, max,
+  moyenne, médiane), débit par fenêtre de `--flow-timeline-window`
+  secondes (défaut 1), phases (slow-start, régime établi, rafale,
+  inactivité), RTT estimé sur la poignée de main. Les conversations d'un
+  seul paquet sont omises.
+- `--forensic-search resultats.json` : recherche dans les paquets et les
+  flux décodés. Les critères sont combinés par ET : `--search-text`
+  (texte libre, insensible à la casse), `--search-address`,
+  `--search-point`, `--search-protocol`, `--search-port`, et
+  `--search-field` (`sni`, `uri`, `http_status`, `call_id`, `dns_name`,
+  `method`, `content_type`, `message`) avec `--search-value`. Le JSON
+  rappelle la requête et le nombre de résultats ; sans critère, tout est
+  listé. Par exemple :
+  `--forensic-search r.json --search-field uri --search-value admin`.
+- `--tshark-stats stats.json` : statistiques `tshark -z` de chaque fichier
+  `--capture` (conversations et endpoints TCP/UDP, hiérarchie de
+  protocoles, io_stat). Une capture en échec, par exemple sans tshark,
+  porte une clé `error` et un message sur stderr, sans faire perdre les
+  autres. Refusé en `--live` seul.
 - `--netflow [EXPORTATEUR=]FICHIER` (répétable) : résumé d'un export
   NetFlow v5 (datagrammes concatenés, par exemple la charge utile UDP
   collectée sur le port du collecteur) — volumes totaux et période, par
