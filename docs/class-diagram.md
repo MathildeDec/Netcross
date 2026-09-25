@@ -11,7 +11,7 @@
 > Il remplace l'ancienne section 3 de `docs/features-backlog.md`, tenue à la main, qui avait dérivé
 > (voir `docs/sessions/session-36.md`, issue #140).
 
-160 modules · 240 classes · 533 fonctions publiques de module.
+160 modules · 240 classes · 540 fonctions publiques de module.
 
 Conventions : `+` public, `-` privé (préfixe `_`) ; `int?` = `int | None` ; `list~str~` = `list[str]` ;
 `<<module>>` regroupe les fonctions publiques d'un module ; `A --> B : champ` = `A` a un champ annoté
@@ -34,7 +34,7 @@ flowchart TD
     pcap_parser["pcap_parser"]
     CLI -->|"17 imports"| netcross_report
     CLI -->|"8 imports"| netcross_ai
-    CLI -->|"39 imports"| netcross_core
+    CLI -->|"40 imports"| netcross_core
     CLI -->|"5 imports"| pcap_parser
     netcross_gtk4 -->|"13 imports"| netcross_report
     netcross_gtk4 -->|"53 imports"| netcross_core
@@ -1147,7 +1147,14 @@ classDiagram
     %% ===== netcross_core.logging_config =====
     class mod_netcross_core_logging_config["netcross_core.logging_config"] {
         <<module>>
-        +configure_logging(level) None
+        +level_from_env() str
+        +is_debug_level(level) bool
+        +configure_logging(level, log_file, force) None
+        +enable_debug(level, log_file) None
+        +current_level() str
+        +is_debug_enabled() bool
+        +add_debug_argument(parser) None
+        +apply_debug_argument(args) None
         +get_logger(name)
     }
 

@@ -66,7 +66,7 @@ from netcross_core import (  # noqa: E402
 from netcross_core.baseline_diff import write_diff_csv  # noqa: E402
 from netcross_core.bpf_filters import PREDEFINED_BPF_FILTERS, available_bpf_filters, upsert_bpf_filter  # noqa: E402
 from netcross_core.forensic import DEFAULT_DUPLICATE_THRESHOLD_MS, detect_cross_capture_duplicates  # noqa: E402
-from netcross_core.logging_config import get_logger  # noqa: E402
+from netcross_core.logging_config import DEBUG_FLAG, enable_debug, get_logger, is_debug_enabled  # noqa: E402
 from netcross_gtk4 import capture_list, row_labels  # noqa: E402
 from netcross_gtk4.annotations_panel import AnnotationsPanel  # noqa: E402
 from netcross_gtk4.bpf_panel import (  # noqa: E402
@@ -2628,9 +2628,15 @@ class NetcrossApp(Gtk.Application):
 
 
 def main():
-    logger.debug("main: démarrage de la GUI GTK4, argv={}", sys.argv[1:])
+    # --debug est propre a Netcross : retire avant Gtk.Application.run, qui
+    # refuserait une option inconnue.
+    argv = list(sys.argv)
+    if DEBUG_FLAG in argv:
+        argv = [a for a in argv if a != DEBUG_FLAG]
+        enable_debug()
+    logger.debug("main: démarrage de la GUI GTK4, argv={} debug={}", argv[1:], is_debug_enabled())
     app = NetcrossApp()
-    return app.run(sys.argv)
+    return app.run(argv)
 
 
 if __name__ == "__main__":
