@@ -165,10 +165,10 @@ def test_pcap_legitime_service_non_affecte_rapport_sans_constat(monkeypatch, cap
     assert "(niveau : aucun constat)" in out
 
 
-def test_pcap_legitime_sans_base_cve_ne_pretend_pas_avoir_verifie(monkeypatch, capsys, tmp_path):
-    """Sans --cve-db, le rapport reste vide de constats mais la CLI doit
-    signaler l'absence de correlation (« aucune vulnerabilite connue » ne
-    veut alors pas dire « non vulnerable »)."""
+def test_pcap_sans_base_cve_utilise_la_base_embarquee(monkeypatch, capsys, tmp_path):
+    """issue #353 : sans --cve-db, la base minimale embarquee qualifie
+    Apache 2.4.49 vulnerable, et la CLI rappelle qu'une version absente de
+    cette selection n'est pas pour autant non vulnerable."""
     pcap = tmp_path / "legitime.pcap"
     _write_http_capture(pcap, LEGITIMATE_EXCHANGES, "Apache/2.4.49 (Unix)")
 
@@ -176,8 +176,39 @@ def test_pcap_legitime_sans_base_cve_ne_pretend_pas_avoir_verifie(monkeypatch, c
     cli.main()
     out = capsys.readouterr().out
 
-    assert "Aucune base CVE fournie (--cve-db)" in out
+    assert "Aucune base CVE fournie (--cve-db) : base minimale embarquee utilisee" in out
+    assert "n'est PAS pour autant non vulnerable" in out
+    assert "services detectes : 1 (dont 1 vulnerable(s))" in out
+    assert "CVE-2021-41773" in out
+    assert "CVE-2021-42013" in out
+
+
+def test_pcap_version_recente_sans_base_cve_reste_propre(monkeypatch, capsys, tmp_path):
+    pcap = tmp_path / "legitime.pcap"
+    _write_http_capture(pcap, LEGITIMATE_EXCHANGES, "Apache/2.4.62 (Unix)")
+
+    monkeypatch.setattr(sys, "argv", ["cross_capture_analyzer_cli.py", "--capture", f"LAN={pcap}", "--security-report"])
+    cli.main()
+    out = capsys.readouterr().out
+
+    assert "base minimale embarquee utilisee" in out
     assert "score de risque global : 0/100" in out
+    assert "CVE confirmees : 0" in out
+
+
+def test_pcap_base_embarquee_illisible_signalee(monkeypatch, capsys, tmp_path):
+    pcap = tmp_path / "legitime.pcap"
+    _write_http_capture(pcap, LEGITIMATE_EXCHANGES, "Apache/2.4.49 (Unix)")
+
+    def _broken():
+        raise ValueError("format inattendu")
+
+    monkeypatch.setattr(cli, "open_seed_db", _broken)
+    monkeypatch.setattr(sys, "argv", ["cross_capture_analyzer_cli.py", "--capture", f"LAN={pcap}", "--security-report"])
+    cli.main()
+    out = capsys.readouterr().out
+
+    assert "base embarquee illisible (format inattendu)" in out
     assert "CVE confirmees : 0" in out
 
 

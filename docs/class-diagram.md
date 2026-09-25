@@ -11,7 +11,7 @@
 > Il remplace l'ancienne section 3 de `docs/features-backlog.md`, tenue à la main, qui avait dérivé
 > (voir `docs/sessions/session-36.md`, issue #140).
 
-157 modules · 234 classes · 522 fonctions publiques de module.
+158 modules · 235 classes · 525 fonctions publiques de module.
 
 Conventions : `+` public, `-` privé (préfixe `_`) ; `int?` = `int | None` ; `list~str~` = `list[str]` ;
 `<<module>>` regroupe les fonctions publiques d'un module ; `A --> B : champ` = `A` a un champ annoté
@@ -34,7 +34,7 @@ flowchart TD
     pcap_parser["pcap_parser"]
     CLI -->|"17 imports"| netcross_report
     CLI -->|"8 imports"| netcross_ai
-    CLI -->|"38 imports"| netcross_core
+    CLI -->|"39 imports"| netcross_core
     CLI -->|"5 imports"| pcap_parser
     netcross_gtk4 -->|"10 imports"| netcross_report
     netcross_gtk4 -->|"48 imports"| netcross_core
@@ -60,6 +60,8 @@ flowchart LR
     CaptureInfo["pcap_parser.capinfos_source.CaptureInfo"]
     ClientReport["netcross_core.client_diff.ClientReport"]
     ContentExtraction["netcross_core.extract.contents.ContentExtraction"]
+    CveEntry["netcross_core.security.cve_db.CveEntry"]
+    CveSeed["netcross_core.security.cve_seed.CveSeed"]
     DemandeSauvegarde["netcross_gtk4.bpf_panel.DemandeSauvegarde"]
     Detector["netcross_core.plugins.api.Detector"]
     DiffFinding["netcross_core.baseline_diff.DiffFinding"]
@@ -85,6 +87,7 @@ flowchart LR
     CaptureInfo -->|interfaces| InterfaceRecord
     ClientReport -->|report| Report
     ContentExtraction -->|media| StreamQuality
+    CveSeed -->|entries| CveEntry
     DemandeSauvegarde -->|filtre| BPFFilter
     DiffFinding -->|evidence| EvidenceLink
     Finding -->|event| ExpertEvent
@@ -2354,6 +2357,7 @@ classDiagram
 | `netcross_core.security.beaconing` | issue #147 (SCENARIO-1, parent #141) : detection de beaconing C2 (communications periodiques d'un hote interne vers une destination externe : check-in regulier, petites requetes). |
 | `netcross_core.security.cpe_match` | conversion d'une banniere de service ("Apache/2.4.41") en identifiant CPE 2.3 et comparaison de versions avec les ranges NVD (versionStart/EndIncluding/Excluding). |
 | `netcross_core.security.cve_db` | base SQLite locale des CVE, peuplee par scripts/import_nvd.py depuis le flux NVD (voir ce script pour le format JSON attendu, API NVD 2.0). |
+| `netcross_core.security.cve_seed` | Base CVE minimale embarquee (issue #353). |
 | `netcross_core.security.dga` | issue #152 (SCENARIO-6, parent #141) : detection de domaines generes algorithmiquement (DGA). |
 | `netcross_core.security.dns_tunnel` | issue #144 (FLOW-3, parent #141) : detection de tunneling DNS (exfiltration, C2, VPN over DNS). |
 | `netcross_core.security.exfiltration` | issue #148 (SCENARIO-2, parent #141) : detection d'exfiltration de donnees (transferts sortants anormaux). |
@@ -2432,6 +2436,7 @@ classDiagram
     }
     class mod_netcross_core_security_cpe_match["netcross_core.security.cpe_match"] {
         <<module>>
+        +vendor_candidates(vendor, product) tuple~str, ...~
         +build_cpe23(vendor, product, version) str
         +parse_banner(banner) ParsedBanner?
         +parse_all_banners(banner) list~ParsedBanner~
@@ -2470,6 +2475,19 @@ classDiagram
         +get_cve(conn, cve_id) CveEntry?
         +query_by_product(conn, vendor, product) list~CveEntry~
         +count_cves(conn) int
+    }
+
+    %% ===== netcross_core.security.cve_seed =====
+    class CveSeed {
+        <<dataclass, frozen, slots>>
+        +tuple~CveEntry, ...~ entries
+        +str source
+        +str generated
+    }
+    class mod_netcross_core_security_cve_seed["netcross_core.security.cve_seed"] {
+        <<module>>
+        +load_seed(path) CveSeed
+        +open_seed_db(path) tuple~sqlite3.Connection, CveSeed~
     }
 
     %% ===== netcross_core.security.dga =====
@@ -2804,6 +2822,7 @@ classDiagram
 
     %% ===== relations =====
     CveEntry --> AffectedProduct : affected
+    CveSeed --> CveEntry : entries
     DgaResult --> DgaAlert : alerts
     FastFluxResult --> FastFluxAlert : alerts
     FlowStatsResult --> FlowStat : flows

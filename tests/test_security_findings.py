@@ -420,7 +420,7 @@ def test_cli_security_report_trafic_normal_rapport_vide(monkeypatch, capsys):
     cli.main()
     out = capsys.readouterr().out
     assert "RAPPORT DE SECURITE" in out
-    assert "Aucune base CVE fournie (--cve-db)" in out  # l'absence de correlation est signalee
+    assert "Aucune base CVE fournie (--cve-db) : base minimale embarquee" in out  # issue #353
     assert "aucun constat" in out
     assert "aucune tentative d'exploitation detectee" in out
     assert "aucune CVE confirmee" in out

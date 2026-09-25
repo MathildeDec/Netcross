@@ -374,15 +374,18 @@ Options utiles :
   (détection passive de vulnérabilités, issue #139) — services détectés
   (versions lues dans les bannières) classés par criticité, tentatives
   d'exploitation (signatures Log4Shell, Shellshock, Heartbleed,
-  EternalBlue… cherchées dans la charge utile brute des fichiers
+  EternalBlue, traversées Apache 2.4.49/2.4.50, injections SQL et de
+  commande, wrappers PHP, XSS… cherchées dans la charge utile brute des fichiers
   `--capture`, comme `--tls`), anomalies Expert Info corrélées
   (fuzzing/overflow/dos), CVE confirmées par corrélation version + CVE-ID +
   score CVSS, tableau de bord et score de risque global 0-100 (sévérités
   critique/élevée/moyenne/faible). `--cve-db` désigne la base SQLite
   produite par `scripts/import_nvd.py` (fichier existant exigé) ; sans elle,
-  les services sont listés sans corrélation CVE et la CLI le signale
-  (« aucune vulnérabilité connue » ne veut alors pas dire « non
-  vulnérable »). Aucune CVE n'est rattachée à un service sans
+  une base minimale embarquée (`netcross_core/data/cve_seed.json`, une
+  trentaine de CVE critiques extraites du NVD : Apache 2.4.49/2.4.50,
+  regreSSHion, Heartbleed, vsftpd 2.3.4…) est utilisée et la CLI le
+  signale (une version absente de cette sélection n'est pas pour autant
+  « non vulnérable »). Aucune CVE n'est rattachée à un service sans
   correspondance exacte de nom **et** de version, et une signature d'exploit
   est une *tentative* observée, jamais une compromission confirmée. Refusé
   avec `--live`, `--redact` (relecture des fichiers bruts, comme
@@ -876,7 +879,8 @@ netcross/
 │   └── sessions/             historique detaille session par session
 ├── scripts/
 │   ├── generate_class_diagram.py  genere docs/class-diagram.md depuis src/
-│   └── import_nvd.py        import periodique du flux NVD dans la base CVE locale
+│   ├── import_nvd.py        import periodique du flux NVD dans la base CVE locale
+│   └── build_cve_seed.py    regenere la base CVE minimale embarquee (NVD)
 ├── tests/                   suite de tests automatisés (pytest)
 ├── src/
 │   ├── cross_capture_analyzer_cli.py   CLI principale (argparse)

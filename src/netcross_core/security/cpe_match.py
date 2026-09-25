@@ -31,7 +31,7 @@ logger = get_logger(__name__)
 # necessaire pour reconnaitre un nouveau produit.
 PRODUCT_ALIASES: dict[str, tuple[str, str]] = {
     "apache": ("apache", "http_server"),
-    "nginx": ("nginx", "nginx"),
+    "nginx": ("f5", "nginx"),
     "openssh": ("openbsd", "openssh"),
     "openssl": ("openssl", "openssl"),
     "iis": ("microsoft", "internet_information_services"),
@@ -41,7 +41,7 @@ PRODUCT_ALIASES: dict[str, tuple[str, str]] = {
     "postfix": ("postfix", "postfix"),
     "exim": ("exim", "exim"),
     "proftpd": ("proftpd", "proftpd"),
-    "vsftpd": ("vsftpd", "vsftpd"),
+    "vsftpd": ("vsftpd_project", "vsftpd"),
     "pure-ftpd": ("pureftpd", "pure-ftpd"),
     "bind": ("isc", "bind"),
     "dnsmasq": ("thekelleys", "dnsmasq"),
@@ -51,6 +51,25 @@ PRODUCT_ALIASES: dict[str, tuple[str, str]] = {
     "squid": ("squid-cache", "squid"),
     "php": ("php", "php"),
 }
+
+# Vendeurs CPE historiques d'un meme produit (issue #353). Le NVD
+# renomme parfois le vendeur d'un produit ET republie ses anciennes CVE
+# sous le nouveau nom : nginx est passe de nginx:nginx a f5:nginx apres
+# le rachat par F5 (CVE-2013-2028 comprise), vsftpd de beasts:vsftpd a
+# vsftpd_project:vsftpd. PRODUCT_ALIASES porte le nom ACTUEL -- celui des
+# flux NVD d'aujourd'hui, donc du seed embarque -- et une base importee
+# avant le renommage garde les anciens : la correlation interroge les
+# deux, sans quoi aucune banniere nginx/vsftpd ne trouvait de CVE.
+LEGACY_VENDORS: dict[tuple[str, str], tuple[str, ...]] = {
+    ("f5", "nginx"): ("nginx", "igor_sysoev"),
+    ("vsftpd_project", "vsftpd"): ("beasts", "vsftpd"),
+}
+
+
+def vendor_candidates(vendor: str, product: str) -> tuple[str, ...]:
+    """Vendeur actuel puis vendeurs historiques du couple (vendor, product)."""
+    return (vendor, *LEGACY_VENDORS.get((vendor, product), ()))
+
 
 # Bannieres "Nom_version" ou "Nom-version" (ex: OpenSSH_8.2p1,
 # dropbear_2020.81) en plus de la forme "Nom/version" la plus courante
