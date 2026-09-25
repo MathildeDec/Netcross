@@ -40,7 +40,10 @@ ordre connu à l'avance), `netcross` :
   connaître le chemin physique à l'avance ;
 - détecte les **pertes de paquets**, en attribuant chaque perte au bon segment
   du réseau (et sait reconnaître un flux qui a légitimement pris une autre
-  branche plutôt que de le compter comme perdu) ;
+  branche plutôt que de le compter comme perdu ; le trafic qui n'emprunte pas
+  un segment — scan local au LAN, hôtes qui n'échangent jamais rien à ce
+  point — est compté à part comme « hors chemin », et le sens retour ne
+  fausse plus le nombre de sauts) ;
 - mesure la **latence et la gigue** par segment, avec estimation du décalage
   d'horloge entre points (formule NTP via les handshakes TCP) quand les
   machines de capture ne sont pas synchronisées ;

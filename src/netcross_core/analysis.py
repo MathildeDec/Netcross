@@ -130,9 +130,12 @@ def analyse(
     for point in points:
         r.seen_count[point] = 0
 
+    conversation_points = _conversation_points(flows)
+
     for key, per_point in flows.items():
         present_points = [p for p in points if p in per_point]
         is_tcp = key[0] == "TCP"
+        conversation_seen = conversation_points.get(_conversation_key(key))
 
         for p in present_points:
             r.seen_count[p] += 1
@@ -169,17 +172,20 @@ def analyse(
             first_seen_idx = points.index(present_points[0])
             for idx, p in enumerate(points):
                 if idx > first_seen_idx and p not in per_point and any(points[j] in per_point for j in range(idx)):
-                    # Issue #352 : ne pas confondre un flux hors chemin
-                    # (jamais vu en aval, ni aller ni retour) avec une perte
-                    # reelle. Un flux vu uniquement au point A (scan local LAN)
-                    # ne doit pas etre compte comme perdu a B et C : il n'a
-                    # jamais traverse ces points. On ne compte une perte que
-                    # si le flux etait vu au point IMMEDIATEMENT precedent dans
-                    # le chemin -- c'est le signal que le flux etait bien sur le
-                    # chemin et a disparu entre deux points consecutifs.
+                    # Issue #352 : ne pas confondre un flux hors chemin avec
+                    # une perte reelle. Si ce couple d'hotes n'echange JAMAIS
+                    # rien a ce point (ni aller ni retour, aucune connexion),
+                    # le flux n'emprunte pas ce segment (scan local au LAN,
+                    # trafic qui sort par un autre lien) : hors chemin.
+                    if conversation_seen is not None and p not in conversation_seen:
+                        r.off_path_count[p] += 1
+                        continue
+                    # Sur le chemin : une perte n'est comptee qu'au premier
+                    # point manquant (vu au point IMMEDIATEMENT precedent),
+                    # pas une seconde fois a chaque point plus en aval.
                     prev_point = points[idx - 1]
                     if prev_point not in per_point:
-                        continue  # flux hors chemin : pas vu au point precedent
+                        continue
                     r.loss_count[p] += 1
                     nearest_j = max(j for j in range(idx) if points[j] in per_point)
                     a_point = points[nearest_j]
@@ -200,7 +206,12 @@ def analyse(
                     r.qos_change[(a, b)] += 1
 
                 if pkt_a.ttl is not None and pkt_b.ttl is not None:
-                    delta = pkt_a.ttl - pkt_b.ttl
+                    # issue #352 : valeur absolue -- dans le sens retour (b ->
+                    # a) le TTL est plus haut en b, et le delta signe (-1)
+                    # faisait compter chaque reponse comme « nombre de sauts
+                    # different ». Le nombre de sauts du segment est |delta|
+                    # dans les deux sens.
+                    delta = abs(pkt_a.ttl - pkt_b.ttl)
                     r.hop_delta[(a, b)].append(delta)
                     if dscp_changed:
                         if delta == 0:
@@ -236,6 +247,9 @@ def analyse(
                 and b not in per_point
                 and (a, b) not in topo_low_coverage
             ):
+                if conversation_seen is not None and b not in conversation_seen:
+                    r.off_path_count[b] += 1  # issue #352 : hors chemin, pas une perte
+                    continue
                 # perte sur cet arc direct de la topologie deduite. On exclut
                 # les arcs a faible couverture (l'aval ne voit qu'une partie
                 # du trafic de l'amont -- branchement, ECMP, ou aller/retour
@@ -347,6 +361,35 @@ def analyse(
     r.exfiltration_alerts = detect_exfiltration(all_packets).alerts
 
     return r
+
+
+def _conversation_key(key) -> tuple | None:
+    """Couple d'hotes (non oriente, tous ports et sens confondus) d'une cle
+    de flux stricte `(proto, src, sport, dst, dport, key_id)` ; None en mode
+    --nat-tolerant (cle ("NAT", proto, payload_hash, bucket), adresses
+    reecrites entre points) : la distinction hors chemin / perte n'y est
+    pas faite.
+
+    Granularite choisie (issue #352) : si ces deux hotes echangent quoi que
+    ce soit a un point (autre connexion, sens retour), le chemin entre eux
+    passe par ce point et un paquet absent y est une PERTE -- y compris une
+    connexion entierement perdue (SYN jamais arrive). Seul un couple jamais
+    vu a ce point (scan local, trafic qui sort par un autre lien) est hors
+    chemin."""
+    if len(key) != 6 or key[0] == "NAT":
+        return None
+    _proto, src, _sport, dst, _dport, _key_id = key
+    return tuple(sorted((src, dst), key=repr))
+
+
+def _conversation_points(flows) -> dict[tuple, set[str]]:
+    """Points ou chaque couple d'hotes a ete vu, dans un sens ou l'autre (issue #352)."""
+    seen: dict[tuple, set[str]] = defaultdict(set)
+    for key, per_point in flows.items():
+        conversation = _conversation_key(key)
+        if conversation is not None:
+            seen[conversation].update(per_point)
+    return seen
 
 
 def _without_duplicates(flows):
