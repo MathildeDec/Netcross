@@ -120,6 +120,7 @@ class RunOutcome:
         a penser aux deux modes, ce qui est exactement l'oubli que ce
         module empeche.
         """
+        logger.debug("RunOutcome.etat: mode={}, {} champ(s) d'état", self.mode, len(self.CHAMPS_ETAT))
         return {f"last_{nom}": getattr(self, nom) for nom in self.CHAMPS_ETAT}
 
 
@@ -131,6 +132,7 @@ def _verifier_completude() -> None:
     `app.py`, donc une incoherence se manifeste au lancement de la GUI, y
     compris sur un poste ou les tests n'ont pas ete rejoues.
     """
+    logger.debug("_verifier_completude: {} champ(s) d'état déclarés", len(RunOutcome.CHAMPS_ETAT))
     textes = {"work_status", "status", "duplicate_indicator", "result_text"}
     declares = {f.name for f in fields(RunOutcome)} - textes
     if declares != set(RunOutcome.CHAMPS_ETAT):
@@ -163,6 +165,7 @@ def analysis_outcome(
     qui suit une comparaison ne doit pas heriter de la baseline
     precedente.
     """
+    logger.debug("analysis_outcome: mode={} texte={} caractère(s)", mode, len(text))
     return RunOutcome(
         mode=mode,
         report=report,
@@ -195,6 +198,7 @@ def diff_status_text(findings: Any) -> str:
     resultat.
     """
     regressions = sum(1 for f in findings if getattr(f, "severity", None) == "regression")
+    logger.debug("diff_status_text: {} régression(s)", regressions)
     if regressions:
         return ngettext(
             "Comparaison terminee -- {n} regression detectee.",
@@ -220,6 +224,7 @@ def diff_outcome(
     statistiques s'appuient dessus et doivent se desactiver en mode
     comparaison plutot que d'afficher les chiffres du run precedent.
     """
+    logger.debug("diff_outcome: {} constat(s)", len(findings or []))
     return RunOutcome(
         mode="diff",
         report=None,
