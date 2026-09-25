@@ -594,6 +594,7 @@ class MainWindow(Gtk.ApplicationWindow):
     def __init__(self, app):
         super().__init__(application=app, title="Analyse croisee de captures reseau")
         self.set_default_size(1080, 800)
+        logger.debug("MainWindow: construction de la fenêtre principale")
         self.last_report = None
         # etat du dernier run, pour les exports (varie selon le mode) :
         self.last_mode = None  # "single" ou "diff"
@@ -657,10 +658,12 @@ class MainWindow(Gtk.ApplicationWindow):
         self._build_results_page()
 
         self.stack.set_visible_child_name("config")
+        logger.debug("MainWindow: fenêtre prête (3 pages construites)")
 
     # ================= PAGE 1 : CONFIGURATION =================
 
     def _build_config_page(self):
+        logger.debug("_build_config_page: construction de la page Configuration")
         outer_scroller = _visible_scroller()
         page = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
         page.set_margin_top(16)
@@ -1069,11 +1072,13 @@ class MainWindow(Gtk.ApplicationWindow):
     # panneau unique : on la fait pointer vers single_panel.
 
     def add_capture_row(self, path, default_label=None):
+        logger.debug("add_capture_row: {} (API de compatibilité)", path)
         return self.single_panel.add_row(path, default_label)
 
     # ================= PAGE 2 : TRAVAIL / JOURNAL =================
 
     def _build_work_page(self):
+        logger.debug("_build_work_page: construction de la page Travail")
         page = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
         page.set_margin_top(16)
         page.set_margin_bottom(16)
@@ -1118,6 +1123,7 @@ class MainWindow(Gtk.ApplicationWindow):
         self.stack.add_titled(page, "log", "Travail")
 
     def _log(self, message):
+        logger.debug("journal: {}", message)
         buf = self.log_view.get_buffer()
         end = buf.get_end_iter()
         buf.insert(end, message + "\n")
@@ -1128,6 +1134,7 @@ class MainWindow(Gtk.ApplicationWindow):
     # ================= PAGE 3 : RESULTATS =================
 
     def _build_results_page(self):
+        logger.debug("_build_results_page: construction de la page Résultats")
         page = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
         page.set_margin_top(16)
         page.set_margin_bottom(16)
@@ -1762,7 +1769,7 @@ class MainWindow(Gtk.ApplicationWindow):
         try:
             result = run_analysis_pipeline(captures, options, on_progress=_on_progress)
         except Exception as e:  # noqa: BLE001 -- thread de fond
-            logger.exception(f"échec dans _on_progress: {e}")
+            logger.exception(f"échec du pipeline d'analyse dans _run_analysis_thread: {e}")
             GLib.idle_add(self._log, f"ERREUR : {e}")
             GLib.idle_add(self._on_analysis_error, str(e))
             return
@@ -1821,7 +1828,7 @@ class MainWindow(Gtk.ApplicationWindow):
         try:
             result = run_diff_pipeline(baseline_captures, current_captures, options, on_progress=_on_progress)
         except Exception as e:  # noqa: BLE001 -- thread de fond
-            logger.exception(f"échec dans _on_progress: {e}")
+            logger.exception(f"échec du pipeline de comparaison dans _run_diff_thread: {e}")
             GLib.idle_add(self._log, f"ERREUR : {e}")
             GLib.idle_add(self._on_analysis_error, str(e))
             return
@@ -2084,6 +2091,7 @@ class MainWindow(Gtk.ApplicationWindow):
 
     def _stats_clear_list(self):
         """Vide la ListBox des statistiques."""
+        logger.debug("_stats_clear_list: vidage de la liste des statistiques")
         box = self.stats_list_box
         child = box.get_first_child()
         while child is not None:
@@ -2263,6 +2271,7 @@ class MainWindow(Gtk.ApplicationWindow):
         for f in self.last_flows or []:
             if f.key == key:
                 return f
+        logger.debug("_flow_by_key: clé introuvable {}", key)
         return None
 
     def _dashboard_events(self):
@@ -2272,6 +2281,7 @@ class MainWindow(Gtk.ApplicationWindow):
         events.extend(self.last_tls_findings or [])
         events.extend(self.last_quic_findings or [])
         events.extend(self.last_wireshark_expert_events or [])
+        logger.debug("_dashboard_events: {} événement(s)", len(events))
         return events
 
     def _refresh_dashboard(self):
@@ -2306,6 +2316,7 @@ class MainWindow(Gtk.ApplicationWindow):
         """Retire toutes les sections du dashboard de l'arbre GTK. Utilise
         aussi bien avant un repeuplage qu'a la desactivation (mode sans
         flows) pour ne pas laisser de contenu stale."""
+        logger.debug("_dashboard_clear_sections: purge des sections du dashboard")
         box = self.dashboard_sections_box
         child = box.get_first_child()
         while child is not None:
@@ -2363,11 +2374,13 @@ class MainWindow(Gtk.ApplicationWindow):
                 model.get_n_items(),
                 model.get_string,
             )
-        return comm_map_filters(
+        filtres = comm_map_filters(
             protocole,
             self.comm_topn_spin.get_value(),
             self.comm_anomalies_check.get_active(),
         )
+        logger.debug("_comm_map_filters: {}", filtres)
+        return filtres
 
     def _refresh_comm_map(self):
         """Reconstruit la carte et son rendu PNG a partir des filtres
@@ -2605,14 +2618,17 @@ class NetcrossApp(Gtk.Application):
     def __init__(self):
         super().__init__(application_id="org.netcross.analyzer")
         self.main_window = None
+        logger.debug("NetcrossApp: application_id={}", self.get_application_id())
 
     def do_activate(self):
+        logger.debug("do_activate: fenêtre existante={}", self.main_window is not None)
         if not self.main_window:
             self.main_window = MainWindow(self)
         self.main_window.present()
 
 
 def main():
+    logger.debug("main: démarrage de la GUI GTK4, argv={}", sys.argv[1:])
     app = NetcrossApp()
     return app.run(sys.argv)
 
