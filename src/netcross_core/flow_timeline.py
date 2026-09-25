@@ -267,3 +267,46 @@ def _estimate_rtt(packets: list[Pkt]) -> float | None:
                 return (pk.ts - dns_req_ts) * 1000.0
 
     return None
+
+
+TIMELINES_FORMAT_VERSION = 1
+
+
+def _conversation(pk: Pkt) -> tuple:
+    """Cle de conversation BIDIRECTIONNELLE : les deux sens d'une meme
+    connexion forment une seule chronologie (le RTT SYN/SYN-ACK en a besoin)."""
+    a, b = (pk.src, pk.sport), (pk.dst, pk.dport)
+    lo, hi = sorted((a, b), key=lambda e: (e[0], -1 if e[1] is None else e[1]))
+    return (pk.proto, lo, hi)
+
+
+def build_flow_timelines(packets: list[Pkt], window_s: float = 1.0, min_packets: int = 2) -> dict:
+    """Chronologies de toutes les conversations, POINT PAR POINT (issue #359).
+
+    Un meme paquet vu a deux points de capture n'est pas un paquet de plus :
+    les melanger dans une seule chronologie fabriquerait des inter-arrivees
+    quasi nulles et un debit double. Une conversation de moins de
+    `min_packets` paquets a un point est omise (pas d'inter-arrivee).
+    Resultat JSON trie par point puis par debut de conversation."""
+    groups: dict[tuple, list[Pkt]] = {}
+    for pk in packets:
+        groups.setdefault((pk.point, _conversation(pk)), []).append(pk)
+    flows = []
+    for (point, (proto, lo, hi)), pkts in groups.items():
+        if len(pkts) < min_packets:
+            continue
+        timeline = build_flow_timeline(pkts, window_s=window_s)
+        flows.append(
+            {
+                "point": point,
+                "protocol": proto,
+                "endpoints": [{"address": lo[0], "port": lo[1]}, {"address": hi[0], "port": hi[1]}],
+                "packets": len(pkts),
+                "bytes": sum(p.length for p in pkts),
+                "start_ts": timeline.packet_timings[0].ts,
+                "end_ts": timeline.packet_timings[-1].ts,
+                **timeline.to_dict(),
+            }
+        )
+    flows.sort(key=lambda f: (f["point"], f["start_ts"], f["protocol"], repr(f["endpoints"])))
+    return {"version": TIMELINES_FORMAT_VERSION, "window_s": window_s, "flows": flows}
