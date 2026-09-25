@@ -11,7 +11,7 @@
 > Il remplace l'ancienne section 3 de `docs/features-backlog.md`, tenue à la main, qui avait dérivé
 > (voir `docs/sessions/session-36.md`, issue #140).
 
-160 modules · 237 classes · 530 fonctions publiques de module.
+160 modules · 237 classes · 531 fonctions publiques de module.
 
 Conventions : `+` public, `-` privé (préfixe `_`) ; `int?` = `int | None` ; `list~str~` = `list[str]` ;
 `<<module>>` regroupe les fonctions publiques d'un module ; `A --> B : champ` = `A` a un champ annoté
@@ -3720,7 +3720,8 @@ classDiagram
         <<module>>
         +health() HealthResponse
         +upload_capture(file, label, _auth) AnalysisSummary
-        +upload_multi_capture(files, labels, points_order) MultiAnalysisSummary
+        +segment_losses(report) list~SegmentLoss~
+        +upload_multi_capture(files, labels, points_order, _auth) MultiAnalysisSummary
         +get_analysis(analysis_id, _auth) JSONResponse
         +get_security_report(analysis_id, _auth) SecurityReport
         +list_analyses(_auth) dict
@@ -3761,10 +3762,17 @@ classDiagram
         <<BaseModel>>
         +str detail
     }
-    class MultiCaptureRequest {
+    class SegmentLoss {
         <<BaseModel>>
-        +list~str~ labels
-        +list~str~? points_order
+        +str segment
+        +str upstream
+        +str downstream
+        +int loss_count
+        +float? loss_pct
+        +int seen_downstream
+        +int off_path_count
+        +int latency_samples
+        +float? latency_avg_ms
     }
     class MultiAnalysisSummary {
         <<BaseModel>>
@@ -3774,6 +3782,8 @@ classDiagram
         +int packet_count
         +int security_finding_count
         +list~str~ points
+        +str order_source
+        +list~SegmentLoss~ segments
     }
 
     %% ===== netcross_api.store =====
@@ -3791,6 +3801,7 @@ classDiagram
 
     %% ===== relations =====
     netcross_api_models_SecurityReport --> SecurityFinding : findings
+    MultiAnalysisSummary --> SegmentLoss : segments
 ```
 
 ## `netcross_gtk4`
