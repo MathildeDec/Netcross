@@ -21,21 +21,34 @@ La bibliothèque standard Python (`ipaddress`) considère ces plages comme
 - **Mouvements latéraux** (`security.lateral_movement`) : les adresses
   TEST-NET sont considérées comme internes (RFC1918 / link-local).
 
-### Option `treat_test_net_as_external`
+### Option `treat_test_net_as_external` / `--test-net-external`
 
-Pour les démonstrations utilisant des adresses TEST-NET, le détecteur de
-beaconing accepte l'option `treat_test_net_as_external=True` dans
-`BeaconingThresholds` :
+Pour les démonstrations utilisant des adresses TEST-NET, le beaconing **et**
+l'exfiltration peuvent les traiter comme externes (issue #365) :
+
+```bash
+python3 src/cross_capture_analyzer_cli.py --capture A=demo.pcap \
+    --security-report --test-net-external
+```
+
+En Python, l'option existe sur les deux jeux de seuils, et
+`apply_security_findings(..., treat_test_net_as_external=True)` la transmet
+aux deux détecteurs :
 
 ```python
 from netcross_core.security.beaconing import BeaconingThresholds, detect_beaconing
+from netcross_core.security.exfiltration import ExfiltrationThresholds, detect_exfiltration
 
-thresholds = BeaconingThresholds(treat_test_net_as_external=True)
-result = detect_beaconing(packets, thresholds)
+detect_beaconing(packets, BeaconingThresholds(treat_test_net_as_external=True))
+detect_exfiltration(packets, ExfiltrationThresholds(treat_test_net_as_external=True))
 ```
 
-Avec cette option, les adresses TEST-NET sont traitées comme externes et
-le détecteur de beaconing peut les signaler.
+Seules les trois plages TEST-NET changent de statut : les autres adresses
+privées (RFC 1918, link-local…) restent internes. Les mouvements latéraux
+ne sont pas concernés : l'option ne s'y applique pas. La logique commune se
+trouve dans `netcross_core.security.address_scope`.
+
+Le comportement par défaut est figé par `tests/test_test_net_scope.py`.
 
 ## Voir aussi
 

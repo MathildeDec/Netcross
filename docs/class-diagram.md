@@ -11,7 +11,7 @@
 > Il remplace l'ancienne section 3 de `docs/features-backlog.md`, tenue à la main, qui avait dérivé
 > (voir `docs/sessions/session-36.md`, issue #140).
 
-155 modules · 234 classes · 518 fonctions publiques de module.
+156 modules · 234 classes · 519 fonctions publiques de module.
 
 Conventions : `+` public, `-` privé (préfixe `_`) ; `int?` = `int | None` ; `list~str~` = `list[str]` ;
 `<<module>>` regroupe les fonctions publiques d'un module ; `A --> B : champ` = `A` a un champ annoté
@@ -2340,6 +2340,7 @@ classDiagram
 | Module | Rôle |
 |---|---|
 | `netcross_core.security` | detection passive de vulnerabilites (CVE) sur traces reseau (issue #133, sous-tache CVE-4 / issue #138). |
+| `netcross_core.security.address_scope` | Portee d'une adresse (interne / externe) pour les detecteurs de securite. |
 | `netcross_core.security.beaconing` | issue #147 (SCENARIO-1, parent #141) : detection de beaconing C2 (communications periodiques d'un hote interne vers une destination externe : check-in regulier, petites requetes). |
 | `netcross_core.security.cpe_match` | conversion d'une banniere de service ("Apache/2.4.41") en identifiant CPE 2.3 et comparaison de versions avec les ranges NVD (versionStart/EndIncluding/Excluding). |
 | `netcross_core.security.cve_db` | base SQLite locale des CVE, peuplee par scripts/import_nvd.py depuis le flux NVD (voir ce script pour le format JSON attendu, API NVD 2.0). |
@@ -2376,6 +2377,13 @@ classDiagram
         +correlate_versions(conn, banners) dict~str, list~CveMatch~~
     }
 
+    %% ===== netcross_core.security.address_scope =====
+    class mod_netcross_core_security_address_scope["netcross_core.security.address_scope"] {
+        <<module>>
+        +is_test_net(address) bool
+        +is_external(address, treat_test_net_as_external) bool
+    }
+
     %% ===== netcross_core.security.beaconing =====
     class BeaconingThresholds {
         <<dataclass, frozen>>
@@ -2399,7 +2407,6 @@ classDiagram
     }
     class mod_netcross_core_security_beaconing["netcross_core.security.beaconing"] {
         <<module>>
-        +is_external(address, treat_test_net_as_external) bool
         +detect_beaconing(packets, thresholds) BeaconingResult
     }
 
@@ -2538,6 +2545,7 @@ classDiagram
         +int? min_upload_for_ratio
         +float off_hours_min_fraction
         +bool external_only
+        +bool treat_test_net_as_external
         +ratio_floor() int
     }
     class ExfiltrationAlert {
@@ -2655,7 +2663,7 @@ classDiagram
         +sequence_gap_findings(gaps) list~dict~str, Any~~
         +cross_capture_duplicate_findings(duplicate_count) list~dict~str, Any~~
         +extracted_file_findings(extraction) list~dict~str, Any~~
-        +apply_security_findings(report, all_packets, detections, cve_conn, tls_policy, known_destinations, known_hosts) None
+        +apply_security_findings(report, all_packets, detections, cve_conn, tls_policy, known_destinations, known_hosts, treat_test_net_as_external) None
     }
 
     %% ===== netcross_core.security.flow_stats =====

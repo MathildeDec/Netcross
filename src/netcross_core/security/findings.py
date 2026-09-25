@@ -54,10 +54,15 @@ from netcross_core.fingerprint.report import build_fingerprint_records
 from netcross_core.logging_config import get_logger
 from netcross_core.models import Pkt, Report
 from netcross_core.security import correlate_banner
-from netcross_core.security.beaconing import detect_beaconing
+from netcross_core.security.beaconing import BeaconingThresholds, detect_beaconing
 from netcross_core.security.dga import detect_dga
 from netcross_core.security.dns_tunnel import detect_dns_tunneling
-from netcross_core.security.exfiltration import correlate_exfiltration, detect_exfiltration, dns_tunnel_sources
+from netcross_core.security.exfiltration import (
+    ExfiltrationThresholds,
+    correlate_exfiltration,
+    detect_exfiltration,
+    dns_tunnel_sources,
+)
 from netcross_core.security.fast_flux import detect_fast_flux
 from netcross_core.security.flow_stats import analyze_flow_stats
 from netcross_core.security.lateral_movement import detect_lateral_movement
@@ -671,6 +676,7 @@ def apply_security_findings(
     tls_policy: TlsAuditPolicy | None = None,
     known_destinations: frozenset[str] | None = None,
     known_hosts: frozenset[str] | None = None,
+    treat_test_net_as_external: bool = False,
 ) -> None:
     """Remplit `report.service_fingerprints` et `report.security_findings`
     (remplacement, pas ajout : deux appels donnent le meme resultat).
@@ -690,6 +696,10 @@ def apply_security_findings(
     "TLS/JA4" ou "SSH/HASSH" plutot qu'un nom de logiciel), voir
     `netcross_core.fingerprint.report.build_fingerprint_records`."""
     all_packets = list(all_packets)
+    # Issue #365 : plages TEST-NET (RFC 5737) internes par defaut (comme
+    # ipaddress) ; externes sur demande (--test-net-external, demonstrations).
+    beacon_thresholds = BeaconingThresholds(treat_test_net_as_external=treat_test_net_as_external)
+    exfil_thresholds = ExfiltrationThresholds(treat_test_net_as_external=treat_test_net_as_external)
     report.service_fingerprints = build_service_fingerprints(all_packets) + build_fingerprint_records(all_packets)
     # FLOW-1 (#142) : mismatches de protocole/port (SSH sur 443, DNS sur
     # 443, tunneling ICMP...) -- detectes depuis les champs deja decodes de Pkt
@@ -700,7 +710,7 @@ def apply_security_findings(
     # SCENARIO-2 (#148) : exfiltration de donnees -- si analyse() ne l'a
     # pas deja fait (appel direct de apply_security_findings sans analyse()).
     if not report.exfiltration_alerts:
-        report.exfiltration_alerts = detect_exfiltration(all_packets).alerts
+        report.exfiltration_alerts = detect_exfiltration(all_packets, exfil_thresholds).alerts
     # Extraction de fichiers (HTTP, email, SMB, FTP) -- issue #329 : chaque
     # detection doit apparaitre dans le rapport.
     extraction = detect_extracted_files(all_packets)
@@ -765,7 +775,7 @@ def apply_security_findings(
     report.asset_baseline_size = inventory.baseline_size
 
     dns_suspicions = detect_dns_tunneling(all_packets).suspicions
-    beacon_suspicions = detect_beaconing(all_packets).suspicions
+    beacon_suspicions = detect_beaconing(all_packets, beacon_thresholds).suspicions
     findings = (
         exploit_findings(detections)
         + anomaly_findings(report.exploit_suspicion_flows)
@@ -777,7 +787,6 @@ def apply_security_findings(
         + lateral_movement_findings(report.lateral_movement_events)
         + flow_stats_findings(report.flow_anomalies)
         + tls_audit_findings(audit_tls_certificates(all_packets, tls_policy or DEFAULT_POLICY))
-        + exfiltration_findings(report.exfiltration_alerts)
         + sequence_gap_findings(report.sequence_gaps)
         + cross_capture_duplicate_findings(dict(report.duplicate_count))
         + extracted_file_findings(extraction)
@@ -788,10 +797,12 @@ def apply_security_findings(
     # SCENARIO-2 (#148) : exfiltration, correlee au beaconing (#147) et au
     # tunneling DNS (#144) deja calcules ci-dessus -- pas de second passage.
     report.exfiltration_alerts = correlate_exfiltration(
-        detect_exfiltration(all_packets, known_destinations=known_destinations).alerts,
+        detect_exfiltration(all_packets, exfil_thresholds, known_destinations=known_destinations).alerts,
         beacon_suspicions,
         dns_tunnel_sources(all_packets, dns_suspicions),
     )
+    # Ajoutes une seule fois, apres correlation : ils l'etaient aussi dans la
+    # liste ci-dessus (alertes non correlees), d'ou des constats en double.
     findings += exfiltration_findings(report.exfiltration_alerts)
     report.security_findings = findings
     # Le troisieme compteur annoncait "fingerprints" alors qu'il comptait
