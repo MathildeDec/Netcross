@@ -1983,15 +1983,27 @@ class MainWindow(Gtk.ApplicationWindow):
         self.stats_csv_btn.set_sensitive(False)
         self.stats_json_btn.set_sensitive(False)
         if not flows:
+            logger.debug("_refresh_stats: aucun flux, vue désactivée")
             self._stats_clear_list()
             return
+        group_by = self._stats_group_value()
+        sort_by = self._stats_sort_value()
+        top_n = int(self.stats_topn_spin.get_value())
         query = build_query(
-            group_by=self._stats_group_value(),
-            sort_by=self._stats_sort_value(),
-            top_n=int(self.stats_topn_spin.get_value()),
+            group_by=group_by,
+            sort_by=sort_by,
+            top_n=top_n,
         )
         events_by_seg = build_events_by_segment(self.last_findings, flows)
         rows = run_stats(flows, self.last_report, query, events_by_seg)
+        logger.debug(
+            "_refresh_stats: {} flux, group_by={} sort_by={} top_n={} -> {} ligne(s)",
+            len(flows),
+            group_by,
+            sort_by,
+            top_n,
+            len(rows),
+        )
         self.last_stats_rows = rows
         self._stats_repopulate(rows, flows)
         self.stats_csv_btn.set_sensitive(bool(rows))
@@ -2010,6 +2022,7 @@ class MainWindow(Gtk.ApplicationWindow):
     def _stats_repopulate(self, rows, flows):
         """Repeuple la ListBox avec une ligne par StatRow.
         Chaque ligne est un bouton cliquable qui declenche le drill-down."""
+        logger.debug("_stats_repopulate: {} ligne(s)", len(rows))
         self._stats_clear_list()
         box = self.stats_list_box
         if not rows:
@@ -2026,6 +2039,7 @@ class MainWindow(Gtk.ApplicationWindow):
         """Drill-down : affiche les flux d'une ligne statistique.
         Remplace temporairement le contenu de la ListBox par la liste
         des flux, avec un bouton de retour."""
+        logger.debug("_stats_select: {} ({} flux)", row.label, len(row.flow_keys))
         self._stats_clear_list()
         box = self.stats_list_box
 
@@ -2055,7 +2069,7 @@ class MainWindow(Gtk.ApplicationWindow):
         rows = getattr(self, "last_stats_rows", None)
         if not rows:
             return
-
+        logger.debug("_on_stats_export_csv: {} ligne(s)", len(rows))
         dialog = Gtk.FileDialog()
         dialog.set_title("Exporter les statistiques en CSV")
         dialog.set_initial_name("netcross_stats.csv")
@@ -2089,6 +2103,9 @@ class MainWindow(Gtk.ApplicationWindow):
 
     def _on_stats_export_json(self, _btn):
         """Exporte les statistiques courantes en JSON."""
+        rows = getattr(self, "last_stats_rows", None)
+        if rows:
+            logger.debug("_on_stats_export_json: {} ligne(s)", len(rows))
         dialog = Gtk.FileDialog()
         dialog.set_title("Exporter les statistiques en JSON")
         dialog.set_initial_name("netcross_stats.json")
@@ -2132,6 +2149,7 @@ class MainWindow(Gtk.ApplicationWindow):
         rapport affiche."""
         flows = self.last_flows
         protocoles = available_protocols(flows) if flows else []
+        logger.debug("_reset_comm_map_filters: {} protocole(s)", len(protocoles))
         self.comm_proto_drop.set_model(Gtk.StringList.new(["Tous", *protocoles]))
         self.comm_proto_drop.set_selected(0)
         self.comm_map_expander.set_sensitive(bool(flows))
@@ -2143,6 +2161,7 @@ class MainWindow(Gtk.ApplicationWindow):
     def _dashboard_clear(self):
         """Reinitialise le contexte de selection partage et rafraichit les
         six vues. Cablage GTK de netcross_gtk4.dashboard_context."""
+        logger.debug("_dashboard_clear: réinitialisation du contexte de sélection")
         self.dashboard_selection = DashboardSelection()
         self._refresh_dashboard()
 
@@ -2155,6 +2174,7 @@ class MainWindow(Gtk.ApplicationWindow):
         # traverser une cascade de elif sans rien faire : avant, un type mal
         # orthographie rendait les clics d'une vue entiere inoperants, sans
         # message ni trace (issue #285, lot 3).
+        logger.debug("_dashboard_select: kind={} key={}", kind, key)
         self.dashboard_selection = apply_dashboard_selection(
             kind,
             self.dashboard_selection,
@@ -2187,6 +2207,7 @@ class MainWindow(Gtk.ApplicationWindow):
         flows = self.last_flows
         self.dashboard_expander.set_sensitive(bool(flows))
         if not flows:
+            logger.debug("_refresh_dashboard: aucun flux, dashboard désactivé")
             # vide aussi les sections : sans cette purge, un run single suivi
             # d'un diff laisserait l'ancien dashboard dans l'arbre GTK (expander
             # desactive mais contenu non nettoye).
@@ -2203,6 +2224,7 @@ class MainWindow(Gtk.ApplicationWindow):
             selection=self.dashboard_selection,
         )
         self.dashboard_context_label.set_text(f"Contexte selectionne : {snap.selection_summary}")
+        logger.debug("_refresh_dashboard: {} flux, contexte={}", len(flows), snap.selection_summary)
         self._dashboard_repopulate(snap)
 
     def _dashboard_clear_sections(self):
@@ -2219,6 +2241,15 @@ class MainWindow(Gtk.ApplicationWindow):
     def _dashboard_repopulate(self, snap):
         """Vide la boite des sections et la repeuple avec une section par vue.
         Chaque ligne est un bouton cliquable qui appelle _dashboard_select."""
+        logger.debug(
+            "_dashboard_repopulate: timeline={} segments={} flows={} endpoints={} protocoles={} evenements={}",
+            len(snap.timeline_rows),
+            len(snap.segment_rows),
+            len(snap.flow_rows),
+            len(snap.endpoint_rows),
+            len(snap.protocol_rows),
+            len(snap.event_rows),
+        )
         self._dashboard_clear_sections()
         box = self.dashboard_sections_box
         sections = [
@@ -2279,6 +2310,7 @@ class MainWindow(Gtk.ApplicationWindow):
         rapport ni d'exporter.
         """
         if not self.last_flows:
+            logger.debug("_refresh_comm_map: aucun flux, carte désactivée")
             self.comm_map_picture.set_filename(None)
             self.comm_map_label.set_text("Cartographie disponible apres une analyse simple.")
             return False
@@ -2286,6 +2318,7 @@ class MainWindow(Gtk.ApplicationWindow):
             from netcross_report.charts import chart_comm_map
 
             cmap = build_comm_map(self.last_flows, **self._comm_map_filters())
+            logger.debug("_refresh_comm_map: {} flux dans la carte", len(self.last_flows))
             if self._comm_map_png is None:
                 fd, self._comm_map_png = tempfile.mkstemp(prefix="netcross_comm_map_", suffix=".png")
                 os.close(fd)
@@ -2311,6 +2344,7 @@ class MainWindow(Gtk.ApplicationWindow):
         Les signaux tshark, eux, ne sont jamais recalcules : ils viennent du
         thread d'analyse (les paquets bruts ne sont plus disponibles ici).
         """
+        logger.debug("_session_objects: construction des objets de session")
         from netcross_report import build_findings, build_session_objects
 
         findings = self.last_findings if self.last_findings is not None else build_findings(self.last_report)
@@ -2443,6 +2477,7 @@ class MainWindow(Gtk.ApplicationWindow):
         seulement quand un rapport existe (analyse simple, case cochee).
         `last_security_report` vient du RunOutcome (None apres un diff)."""
         security_report = self.last_security_report
+        logger.debug("_show_security_report: rapport={}", bool(security_report))
         buf = Gtk.TextBuffer()
         buf.set_text(security_view_text(security_report))
         self.security_view.set_buffer(buf)
@@ -2472,6 +2507,7 @@ class MainWindow(Gtk.ApplicationWindow):
     def export_security_to(self, path):
         """Separe du dialogue pour etre pilote directement (tests). Synchrone :
         le rendu part d'un SecurityReport deja calcule, sans relire de fichier."""
+        logger.debug("export_security_to: {}", path)
         try:
             written = export_security_report(self.last_security_report, path)
         except (OSError, ValueError) as e:
