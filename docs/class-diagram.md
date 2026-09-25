@@ -11,7 +11,7 @@
 > Il remplace l'ancienne section 3 de `docs/features-backlog.md`, tenue à la main, qui avait dérivé
 > (voir `docs/sessions/session-36.md`, issue #140).
 
-153 modules · 229 classes · 497 fonctions publiques de module.
+154 modules · 232 classes · 505 fonctions publiques de module.
 
 Conventions : `+` public, `-` privé (préfixe `_`) ; `int?` = `int | None` ; `list~str~` = `list[str]` ;
 `<<module>>` regroupe les fonctions publiques d'un module ; `A --> B : champ` = `A` a un champ annoté
@@ -434,6 +434,7 @@ classDiagram
 | `netcross_core.live_diff` | Capture en continu + diff en direct (Job 33, issue #33). |
 | `netcross_core.live_report` | issue #274 : export / rapport temps reel du mode ``--live``. |
 | `netcross_core.logging_config` | configuration centrale du logging (issue #245). |
+| `netcross_core.lua_doc` | banque SQLite locale de l'API Lua Wireshark (issue #387, rattachee a #331). |
 | `netcross_core.models` | structures de donnees partagees : un paquet normalise (Pkt) et le resultat d'analyse consolide (Report). |
 | `netcross_core.naming` | table locale de correspondance adresse/MAC -> nom logique, type, contexte (Job 18 / issue #16-bis, section 6.15 de FEATURES.md). |
 | `netcross_core.parsing` | adaptateur entre pcap_parser (decodage via tshark -T ek) et le modele Pkt de netcross_core. |
@@ -1143,6 +1144,45 @@ classDiagram
         +get_logger(name)
     }
 
+    %% ===== netcross_core.lua_doc =====
+    class Parametre {
+        <<dataclass, frozen, slots>>
+        +str nom
+        +str type
+        +bool optionnel
+        +str description
+    }
+    class Methode {
+        <<dataclass, frozen, slots>>
+        +str classe
+        +str nom
+        +str signature
+        +str description
+        +str depuis_version
+        +list~Parametre~ parametres
+        +list~str~ retours
+        +list~str~ exemples
+    }
+    class ResultatRecherche {
+        <<dataclass, frozen, slots>>
+        +str classe
+        +str nom
+        +str signature
+        +str description
+        +int methode_id
+    }
+    class mod_netcross_core_lua_doc["netcross_core.lua_doc"] {
+        <<module>>
+        +connect(db_path) sqlite3.Connection
+        +load_json(conn, data) dict~str, int~
+        +load_json_file(conn, json_path) dict~str, int~
+        +get_meta(conn) dict~str, str~
+        +list_classes(conn) list~str~
+        +search(conn, terme, limit) list~ResultatRecherche~
+        +get_class(conn, nom) list~Methode~?
+        +get_methode(conn, methode_id) Methode?
+    }
+
     %% ===== netcross_core.models =====
     class Banner {
         <<dataclass, frozen, slots>>
@@ -1655,6 +1695,7 @@ classDiagram
     FlowView --> Transaction : transactions
     LiveDiffState --> Pkt : packets_in_window
     LiveAggregator --> _Point : points
+    Methode --> Parametre : parametres
     Pkt --> Banner : service_banners
     Report --> ChecksumError : checksum_errors
     Report --> SequenceGap : sequence_gaps
