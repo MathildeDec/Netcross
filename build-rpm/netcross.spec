@@ -37,7 +37,8 @@ CAPWAP), DHCP, SIP, RTP/MOS, et decomposition reseau vs serveur.
 
 Fournit un CLI (netcross), un CLI de comparaison avant/apres
 (netcross-diff), un CLI d'interrogation de l'historique --history-db
-(netcross-history), un generateur de rapport PDF, et une interface
+(netcross-history), une documentation hors ligne de l'API Lua
+Wireshark (netcross-lua-doc), un generateur de rapport PDF, et une interface
 graphique GTK4 optionnelle (netcross-gui, necessite les paquets
 Recommends python3-gobject et gtk4 -- disponibilite variable selon la
 version de RHEL/Rocky, voir le README du depot).
@@ -64,6 +65,9 @@ cp cross_capture_diff_cli.py %{buildroot}%{_datadir}/netcross/
 cp cross_history_cli.py %{buildroot}%{_datadir}/netcross/
 cp cross_capture_batch_cli.py %{buildroot}%{_datadir}/netcross/
 cp netcross_ai_models_cli.py %{buildroot}%{_datadir}/netcross/
+cp netcross_lua_doc_cli.py %{buildroot}%{_datadir}/netcross/
+mkdir -p %{buildroot}%{_datadir}/netcross/data
+cp data/lua_api.json %{buildroot}%{_datadir}/netcross/data/
 mkdir -p %{buildroot}%{_datadir}/locale
 cp -r locale/* %{buildroot}%{_datadir}/locale/
 
@@ -73,6 +77,7 @@ install -m 755 netcross-diff-wrapper %{buildroot}%{_bindir}/netcross-diff
 install -m 755 netcross-history-wrapper %{buildroot}%{_bindir}/netcross-history
 install -m 755 netcross-batch-wrapper %{buildroot}%{_bindir}/netcross-batch
 install -m 755 netcross-ai-models-wrapper %{buildroot}%{_bindir}/netcross-ai-models
+install -m 755 netcross-lua-doc-wrapper %{buildroot}%{_bindir}/netcross-lua-doc
 
 %files
 %{_datadir}/netcross/
@@ -82,6 +87,7 @@ install -m 755 netcross-ai-models-wrapper %{buildroot}%{_bindir}/netcross-ai-mod
 %{_bindir}/netcross-history
 %{_bindir}/netcross-batch
 %{_bindir}/netcross-ai-models
+%{_bindir}/netcross-lua-doc
 %{_datadir}/locale/*/LC_MESSAGES/netcross.mo
 
 %changelog

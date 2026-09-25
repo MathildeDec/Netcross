@@ -37,9 +37,13 @@ from netcross_core.security.findings import (
     MAX_CVE_DETAIL_CHARS,
     anomaly_findings,
     apply_security_findings,
+    cross_capture_duplicate_findings,
     cve_findings,
+    exfiltration_findings,
     exploit_findings,
+    extracted_file_findings,
     scan_capture_exploits,
+    sequence_gap_findings,
 )
 from netcross_report.security_report import build_security_report, format_security_report
 from scripts.import_nvd import import_from_file
@@ -416,7 +420,7 @@ def test_cli_security_report_trafic_normal_rapport_vide(monkeypatch, capsys):
     cli.main()
     out = capsys.readouterr().out
     assert "RAPPORT DE SECURITE" in out
-    assert "Aucune base CVE fournie (--cve-db)" in out  # l'absence de correlation est signalee
+    assert "Aucune base CVE fournie (--cve-db) : base minimale embarquee" in out  # issue #353
     assert "aucun constat" in out
     assert "aucune tentative d'exploitation detectee" in out
     assert "aucune CVE confirmee" in out
@@ -483,3 +487,189 @@ def test_cli_security_report_close_db_appele_en_cas_de_succes(monkeypatch, tmp_p
     cli.main()
 
     assert len(closed) == 1
+
+
+# -- issue #329 : chaque détection doit apparaître dans le rapport -------------------
+
+
+def test_exfiltration_findings_produit_un_constat():
+    """Une alerte d'exfiltration avec un signal fort produit un constat
+    de sévérité élevée dans security_findings."""
+    alerts = [
+        {
+            "point": "A",
+            "src": "10.0.0.5",
+            "dst": "198.51.100.1",
+            "signals": ["high_volume", "off_hours"],
+            "upload_bytes": 15_000_000,
+            "download_bytes": 1000,
+            "score": 0.9,
+            "reason": "volume sortant anormal",
+        }
+    ]
+    findings = exfiltration_findings(alerts)
+    assert len(findings) == 1
+    f = findings[0]
+    assert f["category"] == "anomalie"
+    assert f["severity"] == "elevee"
+    assert "exfiltration" in f["detail"].lower()
+    assert "10.0.0.5" in f["detail"]
+    assert "198.51.100.1" in f["detail"]
+    assert f["point"] == "A"
+
+
+def test_exfiltration_findings_signal_faible_severite_moyenne():
+    """Une alerte sans signal fort reste en sévérité moyenne."""
+    alerts = [
+        {
+            "point": "A",
+            "src": "10.0.0.5",
+            "dst": "198.51.100.1",
+            "signals": ["off_hours"],
+            "upload_bytes": 5000,
+            "download_bytes": 100,
+            "score": 0.3,
+        }
+    ]
+    findings = exfiltration_findings(alerts)
+    assert len(findings) == 1
+    assert findings[0]["severity"] == "moyenne"
+
+
+def test_sequence_gap_findings_produit_un_constat():
+    """Un trou de séquence TCP produit un constat d'anomalie."""
+    from netcross_core.models import SequenceGap
+
+    gaps = [
+        SequenceGap(
+            point="A",
+            src="10.0.0.1",
+            sport=1234,
+            dst="10.0.0.2",
+            dport=443,
+            start_seq=1000,
+            end_seq=2000,
+            missing_bytes=1000,
+            ts=1.5,
+            frame_number=42,
+            cause="SEQ_GAP_CAPTURE_DROP",
+            evidence="octets acquittés mais absents de la capture",
+        )
+    ]
+    findings = sequence_gap_findings(gaps)
+    assert len(findings) == 1
+    f = findings[0]
+    assert f["category"] == "anomalie"
+    assert f["severity"] == "moyenne"
+    assert "1000 octets" in f["detail"]
+    assert "SEQ_GAP_CAPTURE_DROP" in f["detail"]
+    assert "trame 42" in f["detail"]
+    assert f["point"] == "A"
+
+
+def test_sequence_gap_findings_liste_vide_aucun_constat():
+    """Sans trou de séquence, aucun constat."""
+    assert sequence_gap_findings([]) == []
+
+
+def test_cross_capture_duplicate_findings_produit_un_constat():
+    """Des paquets en double entre deux points produisent un constat."""
+    dup_count = {("A", "B"): 5, ("A", "C"): 0}
+    findings = cross_capture_duplicate_findings(dup_count)
+    assert len(findings) == 1  # seulement (A,B) avec count > 0
+    f = findings[0]
+    assert f["category"] == "anomalie"
+    assert f["severity"] == "faible"
+    assert "5 paquet" in f["detail"]
+    assert "A" in f["detail"]
+    assert "B" in f["detail"]
+    assert f["point"] == "A"
+
+
+def test_cross_capture_duplicate_findings_aucun_doublon():
+    """Sans doublon, aucun constat."""
+    assert cross_capture_duplicate_findings({("A", "B"): 0}) == []
+
+
+def test_extracted_file_findings_produit_un_constat():
+    """Un fichier extrait produit un constat d'anomalie."""
+    from netcross_core.extract.carver import ExtractedFile, ExtractionResult
+
+    extraction = ExtractionResult(
+        files=[
+            ExtractedFile(
+                point="A",
+                proto_source="http",
+                src="10.0.0.5",
+                dst="93.184.216.34",
+                ts=1.0,
+                uri="/download.exe",
+                content_type="application/octet-stream",
+                size=2048,
+                type_detected="exe",
+                frame_number=10,
+            )
+        ]
+    )
+    findings = extracted_file_findings(extraction)
+    assert len(findings) == 1
+    f = findings[0]
+    assert f["category"] == "anomalie"
+    assert f["severity"] == "faible"
+    assert "download.exe" in f["detail"]
+    assert f["point"] == "A"
+
+
+def test_extracted_file_findings_aucun_fichier():
+    """Sans fichier extrait, aucun constat."""
+    from netcross_core.extract.carver import ExtractionResult
+
+    extraction = ExtractionResult(files=[])
+    assert extracted_file_findings(extraction) == []
+
+
+def test_apply_security_findings_inclut_exfiltration_et_forensic():
+    """Vérifie que apply_security_findings câble bien les 4 nouvelles
+    catégories (exfiltration, sequence gaps, doublons, fichiers extraits)
+    dans security_findings quand les données sont présentes sur le Report."""
+    from netcross_core.models import SequenceGap
+
+    pkts = [
+        make_pkt(point="A", sport=40000, dport=80, ts=0.0, flags="S", seq=1),
+        make_pkt(point="B", sport=40000, dport=80, ts=0.01, flags="S", seq=1),
+    ]
+    r = analyse(correlate(pkts), points_order=["A", "B"], all_packets=pkts)
+
+    # Injecter des données de détection directement sur le Report
+    r.sequence_gaps = [
+        SequenceGap(
+            point="A",
+            src="10.0.0.1",
+            sport=1234,
+            dst="10.0.0.2",
+            dport=443,
+            start_seq=1000,
+            end_seq=2000,
+            missing_bytes=1000,
+            ts=1.0,
+            frame_number=5,
+            cause="SEQ_GAP_CAPTURE_DROP",
+            evidence="test",
+        )
+    ]
+    r.duplicate_count = {("A", "B"): 3}
+    # Exfiltration : recalculee depuis les paquets par apply_security_findings
+    # (des alertes injectees sur le Report seraient remplacees) -- 11 Mo
+    # envoyes vers une adresse globale, sans retour.
+    upload = [
+        make_pkt(point="A", src="10.0.0.5", dst="93.184.216.34", length=1400, ts=43200.0 + i, sport=50000)
+        for i in range(8000)
+    ]
+
+    apply_security_findings(r, pkts + upload, detections=[], cve_conn=None)
+
+    # Les 3 catégories injectées doivent apparaître dans security_findings
+    details = "\n".join(f["detail"] for f in r.security_findings)
+    assert "exfiltration" in details.lower()
+    assert "trou de sequence" in details.lower()
+    assert "paquet" in details.lower() and "double" in details.lower()

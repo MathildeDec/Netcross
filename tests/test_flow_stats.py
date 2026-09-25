@@ -6,6 +6,9 @@ regularite temporelle, classification.
 
 from __future__ import annotations
 
+import gzip
+import random
+
 from conftest import make_pkt
 
 from netcross_core.security.flow_stats import (
@@ -16,6 +19,7 @@ from netcross_core.security.flow_stats import (
     FlowStatsThresholds,
     analyze_flow_stats,
 )
+from pcap_parser.packet import _byte_entropy
 
 # -- Helpers -------------------------------------------------------------------
 
@@ -86,15 +90,102 @@ def test_classification_transfer():
 # -- Tests: classification obfusque --------------------------------------------
 
 
-def test_classification_obfuscated():
-    """Entropie elevee sur les tailles -> obfusque."""
-    # Tailles tres variees (distribution aleatoire)
-    sizes = [50, 200, 800, 30, 500, 120, 900, 70, 400, 150, 600, 250, 10, 700, 350]
-    pkts = _make_flows([(CLIENT, SERVER, sizes[i], float(i)) for i in range(len(sizes))])
-    result = analyze_flow_stats(pkts)
-    flow = result.flows[0]
+def _payload_pkts(payloads, src=CLIENT, dst=SERVER):
+    """Paquets portant l'entropie/longueur de payload calculees comme au
+    parsing (pcap_parser.packet._byte_entropy + len)."""
+    return [
+        make_pkt(
+            src=src,
+            dst=dst,
+            length=len(p) + 54,
+            ts=float(i),
+            payload_entropy=_byte_entropy(p),
+            payload_len=len(p),
+        )
+        for i, p in enumerate(payloads)
+    ]
+
+
+_HTTP_REQUEST = (
+    b"GET /index.html?q=reseau HTTP/1.1\r\nHost: www.example.org\r\n"
+    b"User-Agent: Mozilla/5.0 (X11; Linux x86_64) Firefox/128.0\r\n"
+    b"Accept: text/html,application/xhtml+xml\r\nAccept-Language: fr-FR,fr;q=0.9\r\n"
+    b"Cookie: session=abc123def456\r\n\r\n"
+)
+_HTML = (
+    b"<html><head><title>Accueil</title></head><body><h1>Bienvenue</h1>"
+    b"<p>Le serveur de supervision du reseau est disponible. Consultez la "
+    b"documentation pour la configuration des points de capture.</p></body></html>\n"
+) * 10
+
+
+def test_classification_obfuscated_encrypted_payload():
+    """#351 : flux chiffre (octets uniformes) -> obfusque, meme a tailles
+    constantes (entropie des tailles nulle : l'ancien critere le ratait)."""
+    rng = random.Random(351)
+    payloads = [bytes(rng.randrange(256) for _ in range(1400)) for _ in range(20)]
+    flow = analyze_flow_stats(_payload_pkts(payloads)).flows[0]
+    assert flow.entropy == 0.0
+    assert flow.byte_entropy > 7.8
+    assert flow.byte_entropy_ratio > 0.95
+    assert flow.payload_bytes == 20 * 1400
     assert flow.classification == CLASSIFICATION_OBFUSCATED
+
+
+def test_classification_obfuscated_small_encrypted_records():
+    """Normalisation par log2(min(n, 256)) : des enregistrements chiffres
+    de 160 octets (entropie brute ~6,6 bits) restent detectes."""
+    rng = random.Random(7)
+    payloads = [bytes(rng.randrange(256) for _ in range(160)) for _ in range(10)]
+    flow = analyze_flow_stats(_payload_pkts(payloads)).flows[0]
+    assert flow.byte_entropy < 7.5
+    assert flow.classification == CLASSIFICATION_OBFUSCATED
+
+
+def test_http_text_is_normal_despite_varied_sizes():
+    """#351 : du HTTP texte aux tailles variees -> normal (l'entropie des
+    tailles, > 3 bits ici, ne suffit plus a classer obfusque)."""
+    payloads = [_HTTP_REQUEST] + [_HTML[: 150 + 45 * i] for i in range(14)]
+    flow = analyze_flow_stats(_payload_pkts(payloads)).flows[0]
     assert flow.entropy > 3.5
+    assert flow.byte_entropy_ratio < 0.8
+    assert flow.classification == CLASSIFICATION_NORMAL
+
+
+def test_single_compressed_packet_does_not_flip_text_flow():
+    """Moyenne ponderee et non maximum : un paquet gzip isole dans un flux
+    texte ne suffit pas a le classer obfusque."""
+    payloads = [_HTML[:1400]] * 9 + [gzip.compress(_HTML * 5)[:300]]
+    flow = analyze_flow_stats(_payload_pkts(payloads)).flows[0]
+    assert flow.classification != CLASSIFICATION_OBFUSCATED
+
+
+def test_tiny_payloads_are_ignored_for_byte_entropy():
+    """En dessous de 128 octets par paquet, l'entropie n'est pas
+    significative (texte et alea se confondent) : pas prise en compte."""
+    rng = random.Random(1)
+    payloads = [bytes(rng.randrange(256) for _ in range(40)) for _ in range(50)]
+    flow = analyze_flow_stats(_payload_pkts(payloads)).flows[0]
+    assert flow.payload_bytes == 0
+    assert flow.byte_entropy == 0.0
+    assert flow.classification != CLASSIFICATION_OBFUSCATED
+
+
+def test_byte_entropy_fields_exported():
+    rng = random.Random(3)
+    payloads = [bytes(rng.randrange(256) for _ in range(500)) for _ in range(3)]
+    d = analyze_flow_stats(_payload_pkts(payloads)).flows[0].to_dict()
+    assert d["payload_bytes"] == 1500
+    assert 0.9 < d["byte_entropy_ratio"] <= 1.0
+    assert d["byte_entropy"] > 7.0
+
+
+def test_custom_byte_entropy_threshold():
+    payloads = [_HTML[:1400]] * 3
+    strict = FlowStatsThresholds(high_byte_entropy_ratio=0.3)
+    assert analyze_flow_stats(_payload_pkts(payloads), thresholds=strict).flows[0].classification == (
+        CLASSIFICATION_OBFUSCATED
+    )
 
 
 # -- Tests: classification normal ----------------------------------------------

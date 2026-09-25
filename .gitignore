@@ -30,3 +30,6 @@ build-deb/*.changes
 build-deb/*.deb
 build-rpm/_build/
 build-rpm/dist/
+
+# Banque Lua generee (#387) -- regenerable via scripts/build_lua_db.py
+data/lua_api.db

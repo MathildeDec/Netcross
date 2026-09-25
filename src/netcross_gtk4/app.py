@@ -68,6 +68,7 @@ from netcross_core.bpf_filters import PREDEFINED_BPF_FILTERS, available_bpf_filt
 from netcross_core.forensic import DEFAULT_DUPLICATE_THRESHOLD_MS, detect_cross_capture_duplicates  # noqa: E402
 from netcross_core.logging_config import get_logger  # noqa: E402
 from netcross_gtk4 import capture_list, row_labels  # noqa: E402
+from netcross_gtk4.annotations_panel import AnnotationsPanel  # noqa: E402
 from netcross_gtk4.bpf_panel import (  # noqa: E402
     doit_desolidariser_le_menu,
     indice_du_filtre_nomme,
@@ -89,6 +90,7 @@ from netcross_gtk4.panel_state import (  # noqa: E402
     selected_protocol,
 )
 from netcross_gtk4.run_outcome import analysis_outcome, diff_outcome  # noqa: E402
+from netcross_gtk4.security_view import export_security_report, security_view_text  # noqa: E402
 from netcross_gtk4.stats_view import (  # noqa: E402
     build_events_by_segment,
     build_query,
@@ -363,7 +365,7 @@ class LiveCaptureRow(Gtk.Box):
         try:
             self._on_save_filter(demande.filtre)
         except (OSError, ValueError) as exc:
-            logger.exception("erreur: exc")
+            logger.exception(f"échec dans _on_save_filter_clicked: {exc}")
             self._save_status.set_text(str(exc))
             return
         self._save_status.set_text("")
@@ -445,7 +447,7 @@ class CaptureListPanel(Gtk.Box):
         try:
             files = dialog.open_multiple_finish(result)
         except GLib.Error:
-            logger.exception("erreur inattendue")
+            logger.exception("échec dans _on_files_chosen")
             return
         for i in range(files.get_n_items()):
             gfile = files.get_item(i)
@@ -537,7 +539,7 @@ class LiveCaptureListPanel(Gtk.Box):
             # Fichier sidecar illisible : le catalogue predefini reste
             # utilisable et le fichier n'est PAS touche (upsert_bpf_filter
             # refuse d'ecraser un fichier qu'il ne sait pas relire).
-            logger.exception("erreur: exc")
+            logger.exception(f"échec dans _initial_filters: {exc}")
             print(f"netcross: filtres BPF sauvegardes ignores ({exc})", file=sys.stderr)
             return list(PREDEFINED_BPF_FILTERS)
 
@@ -580,6 +582,8 @@ class MainWindow(Gtk.ApplicationWindow):
         # mode single : ExpertEvent de source "tshark", pour le JSON et le PDF
         # (issue #14). None = non calcule, [] = calcule et aucun signal.
         self.last_wireshark_expert_events = None
+        # Issue #357 : SecurityReport du dernier run simple (None sinon)
+        self.last_security_report = None
         self.last_diff_findings = None  # mode diff : DiffFinding
         self.last_baseline_report = None
         self.last_current_report = None
@@ -593,6 +597,11 @@ class MainWindow(Gtk.ApplicationWindow):
         # (voir dashboard_context.py), testable sans display. Les widgets
         # GTK ci-dessous ne font que le cabler.
         self.dashboard_selection = DashboardSelection()
+
+        # Issue #363 : captures (label, chemin) de la derniere analyse de
+        # fichiers -- leurs sidecars d'annotations sont charges a la fin
+        # de l'analyse (None : diff ou capture en direct, rien a annoter)
+        self._annotation_captures: list | None = None
 
         # etat propre a la capture en direct (mode live, voir _begin_live_capture)
         self._live_capturing = False
@@ -920,7 +929,9 @@ class MainWindow(Gtk.ApplicationWindow):
         modes (simple et comparaison), verifiee aussi a l'execution dans
         on_run_analysis (au cas ou l'ordre de coches inverse ait ete utilise)."""
         redact = self.redact_check.get_active()
-        for check in (self.tls_check, self.quic_check, self.diff_tls_check, self.diff_quic_check):
+        # issue #357 : le rapport de securite aussi (charge utile brute,
+        # meme refus que --security-report --redact)
+        for check in (self.tls_check, self.quic_check, self.diff_tls_check, self.diff_quic_check, self.security_check):
             check.set_sensitive(not redact)
             if redact:
                 check.set_active(False)
@@ -1138,6 +1149,13 @@ class MainWindow(Gtk.ApplicationWindow):
         self.comm_map_expander.set_child(map_box)
         page.append(self.comm_map_expander)
 
+        # Issue #363 : annotations (#160) -- sidecar JSON par capture,
+        # menu contextuel et filtre par etiquette (voir annotations_panel)
+        self.annotations_expander = Gtk.Expander(label="Annotations / signets")
+        self.annotations_panel = AnnotationsPanel()
+        self.annotations_expander.set_child(self.annotations_panel)
+        page.append(self.annotations_expander)
+
         # -- dashboard analytique interactif (issue #18, §6.17) --
         # Six vues (timeline, segments, flows, endpoints, protocoles,
         # evenements) alimentees par les memes objets que le rapport, avec
@@ -1235,6 +1253,17 @@ class MainWindow(Gtk.ApplicationWindow):
         sec_scroller.set_vexpand(False)
         sec_scroller.set_max_content_height(300)
         sec_box.append(sec_scroller)
+        # export du rapport de securite (HTML = --security-html, JSON = cle
+        # security_report de --json-report) ; le JSON et le PDF generaux
+        # de la GUI portent aussi ce rapport
+        sec_export_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        self.security_html_btn = Gtk.Button(label="Exporter le rapport de securite (HTML)")
+        self.security_html_btn.connect("clicked", lambda _b: self.on_export_security(".html"))
+        sec_export_row.append(self.security_html_btn)
+        self.security_json_btn = Gtk.Button(label="Exporter le rapport de securite (JSON)")
+        self.security_json_btn.connect("clicked", lambda _b: self.on_export_security(".json"))
+        sec_export_row.append(self.security_json_btn)
+        sec_box.append(sec_export_row)
         self.security_expander.set_child(sec_box)
         page.append(self.security_expander)
 
@@ -1268,10 +1297,13 @@ class MainWindow(Gtk.ApplicationWindow):
     # ================= lancement de l'analyse =================
 
     def on_run_analysis(self, _btn):
+        self._annotation_captures = None
         if self.live_check.get_active():
             if self._live_capturing:
+                logger.debug("on_run_analysis: arrêt de la capture en direct")
                 self._end_live_capture()
             else:
+                logger.debug("on_run_analysis: démarrage de la capture en direct")
                 self._begin_live_capture()
             return
 
@@ -1313,6 +1345,11 @@ class MainWindow(Gtk.ApplicationWindow):
             latency_min_ms = self.latency_threshold_spin.get_value()
             diff_tls = self.diff_tls_check.get_active()
             diff_quic = self.diff_quic_check.get_active()
+            logger.debug(
+                "on_run_analysis: mode diff, {} capture(s) baseline, {} capture(s) courant",
+                len(baseline_captures),
+                len(current_captures),
+            )
             threading.Thread(
                 target=self._run_diff_thread,
                 args=(
@@ -1333,6 +1370,7 @@ class MainWindow(Gtk.ApplicationWindow):
             ).start()
         else:
             captures = self.single_panel.captures()
+            self._annotation_captures = list(captures)
             triage = self.triage_check.get_active()
             triage_topn = int(self.triage_topn_spin.get_value())
             tls = self.tls_check.get_active()
@@ -1342,6 +1380,7 @@ class MainWindow(Gtk.ApplicationWindow):
             detect_duplicates = self.detect_duplicates_check.get_active()
             exclude_duplicates = self.exclude_duplicates_check.get_active()
             duplicate_threshold_ms = self.duplicate_threshold_spin.get_value()
+            logger.debug("on_run_analysis: mode simple, {} capture(s)", len(captures))
             threading.Thread(
                 target=self._run_analysis_thread,
                 args=(
@@ -1377,6 +1416,7 @@ class MainWindow(Gtk.ApplicationWindow):
         # point par interface -- la suite (un thread par point, points_order,
         # compteurs du journal) n'a ainsi rien a savoir du multi-interfaces.
         rows_data = expand_live_points(self.live_panel.captures())  # [(label, interface, bpf_filter), ...]
+        logger.debug("_begin_live_capture: {} point(s) de capture", len(rows_data))
         missing = [label for label, iface, _ in rows_data if not iface]
         if missing:
             self.stack.set_visible_child_name("log")
@@ -1456,6 +1496,7 @@ class MainWindow(Gtk.ApplicationWindow):
         return False  # ne pas repeter le timeout (GLib.timeout_add_seconds)
 
     def _live_capture_worker(self, label, interface, bpf_filter):
+        logger.debug("_live_capture_worker: label={} interface={}", label, interface)
         GLib.idle_add(
             self._log,
             f"[{label}] capture demarree sur {interface}"
@@ -1481,7 +1522,7 @@ class MainWindow(Gtk.ApplicationWindow):
         except Exception as e:  # noqa: BLE001 -- thread de fond : toute erreur
             # (tshark, interface, permission...) doit remonter au journal GUI
             # plutot que de tuer le thread silencieusement.
-            logger.exception("erreur: e")
+            logger.exception(f"échec dans _live_capture_worker: {e}")
             GLib.idle_add(self._log, f"[{label}] ERREUR : {e}")
         GLib.idle_add(self._log, f"[{label}] capture arretee -- {count} paquet(s) au total.")
 
@@ -1490,6 +1531,7 @@ class MainWindow(Gtk.ApplicationWindow):
             return  # deja arrete/en cours d'arret -- evite un double-clic
             # (bouton config + bouton page Travail) qui lancerait
             # deux threads d'analyse en parallele sur les memes paquets
+        logger.debug("_end_live_capture: arrêt de {} thread(s) de capture", len(self._live_threads))
         self.run_btn.set_sensitive(False)
         self.work_stop_btn.set_sensitive(False)
         self.run_btn.set_label("Arret de la capture...")
@@ -1502,6 +1544,7 @@ class MainWindow(Gtk.ApplicationWindow):
             t.join()
         with self._live_lock:
             all_packets = list(self._live_packets)
+        logger.debug("_join_live_and_analyze: {} paquet(s) capturé(s)", len(all_packets))
         GLib.idle_add(
             self._log,
             f"Capture terminee -- {len(all_packets)} paquet(s) au total. Analyse...",
@@ -1562,7 +1605,7 @@ class MainWindow(Gtk.ApplicationWindow):
 
             text = buf.getvalue()
         except Exception as e:  # noqa: BLE001 -- thread de fond (analyse live) : toute erreur doit remonter au journal GUI.
-            logger.exception("erreur: e")
+            logger.exception(f"échec dans _join_live_and_analyze: {e}")
             GLib.idle_add(self._log, f"ERREUR : {e}")
             GLib.idle_add(self._on_analysis_error, str(e))
             GLib.idle_add(self._reset_live_ui)
@@ -1595,6 +1638,7 @@ class MainWindow(Gtk.ApplicationWindow):
     def _load_packets(self, captures, parallel):
         """Commun aux deux modes : lecture sequentielle ou parallele, avec
         journalisation -- equivalent de _load_packets() des deux CLIs."""
+        logger.debug("_load_packets: {} capture(s), parallel={}", len(captures), parallel)
         all_packets = []
         if parallel:
             all_packets, per_file_stats = parse_captures_parallel(captures)
@@ -1636,6 +1680,14 @@ class MainWindow(Gtk.ApplicationWindow):
         exclude_duplicates,
         duplicate_threshold_ms,
     ):
+        logger.debug(
+            "_run_analysis_thread: {} capture(s), triage={} tls={} quic={} security={}",
+            len(captures),
+            triage,
+            tls,
+            quic,
+            security,
+        )
         from netcross_gtk4.analysis_pipeline import AnalysisOptions, run_analysis_pipeline
 
         options = AnalysisOptions(
@@ -1662,7 +1714,7 @@ class MainWindow(Gtk.ApplicationWindow):
         try:
             result = run_analysis_pipeline(captures, options, on_progress=_on_progress)
         except Exception as e:  # noqa: BLE001 -- thread de fond
-            logger.exception("erreur: e")
+            logger.exception(f"échec dans _on_progress: {e}")
             GLib.idle_add(self._log, f"ERREUR : {e}")
             GLib.idle_add(self._on_analysis_error, str(e))
             return
@@ -1677,6 +1729,7 @@ class MainWindow(Gtk.ApplicationWindow):
             result.tls_findings,
             result.quic_findings,
             result.wireshark_expert_events,
+            result.security_report,
         )
 
     def _run_diff_thread(
@@ -1694,6 +1747,11 @@ class MainWindow(Gtk.ApplicationWindow):
         tls,
         quic,
     ):
+        logger.debug(
+            "_run_diff_thread: {} capture(s) baseline, {} capture(s) courant",
+            len(baseline_captures),
+            len(current_captures),
+        )
         from netcross_gtk4.diff_pipeline import DiffOptions, run_diff_pipeline
 
         options = DiffOptions(
@@ -1715,7 +1773,7 @@ class MainWindow(Gtk.ApplicationWindow):
         try:
             result = run_diff_pipeline(baseline_captures, current_captures, options, on_progress=_on_progress)
         except Exception as e:  # noqa: BLE001 -- thread de fond
-            logger.exception("erreur: e")
+            logger.exception(f"échec dans _on_progress: {e}")
             GLib.idle_add(self._log, f"ERREUR : {e}")
             GLib.idle_add(self._on_analysis_error, str(e))
             return
@@ -1741,7 +1799,7 @@ class MainWindow(Gtk.ApplicationWindow):
     def _appliquer_outcome(self, outcome):
         """Recopie un RunOutcome dans la fenetre (issue #285, lot 2).
 
-        Les quatorze champs d'etat sont recopies EN BOUCLE depuis
+        Les quinze champs d'etat sont recopies EN BOUCLE depuis
         `outcome.etat()`, pas un par un : un champ ajoute a `RunOutcome`
         arrive ainsi automatiquement dans les deux modes. C'est le point de
         l'extraction -- avant, analyse et comparaison reecrivaient chacune
@@ -1766,6 +1824,7 @@ class MainWindow(Gtk.ApplicationWindow):
         tls_findings=None,
         quic_findings=None,
         wireshark_expert_events=None,
+        security_report=None,
     ):
         # Signaux tshark bruts : calcules dans le thread d'analyse, ou les
         # paquets sont encore disponibles (issue #14). On garde le RESULTAT
@@ -1782,6 +1841,7 @@ class MainWindow(Gtk.ApplicationWindow):
                 tls_findings=tls_findings,
                 quic_findings=quic_findings,
                 wireshark_expert_events=wireshark_expert_events,
+                security_report=security_report,
             )
         )
         self.run_btn.set_sensitive(True)
@@ -1797,20 +1857,13 @@ class MainWindow(Gtk.ApplicationWindow):
         # exploration statistique (issue #22) : peuple la vue stats
         # depuis les memes flows/report que le dashboard.
         self._refresh_stats()
-        # Issue #357 : peupler la section securite si des constats existent
-        if hasattr(report, "security_findings") and report.security_findings:
-            sec_buf = Gtk.TextBuffer()
-            lines = []
-            for f in report.security_findings:
-                sev = f.get("severity", "?")
-                cat = f.get("category", "?")
-                detail = f.get("detail", "?")
-                lines.append(f"[{sev}] ({cat}) {detail}")
-            sec_buf.set_text("\n".join(lines))
-            self.security_view.set_buffer(sec_buf)
-            self.security_expander.set_sensitive(True)
+        # Issue #363 : annotations des captures analysees (sidecars JSON)
+        if self._annotation_captures:
+            self.annotations_panel.load(self._annotation_captures)
         else:
-            self.security_expander.set_sensitive(False)
+            self.annotations_panel.clear()
+        # Issue #357 : section Securite -- meme rendu que --security-report
+        self._show_security_report()
         self.stack.set_visible_child_name("results")
         return False
 
@@ -1848,6 +1901,8 @@ class MainWindow(Gtk.ApplicationWindow):
         self.dashboard_selection = DashboardSelection()
         self._refresh_dashboard()
         self._refresh_stats()
+        self.annotations_panel.clear()  # issue #363 : pas de sidecar en mode diff
+        self._show_security_report()  # issue #357 : None apres un diff (RunOutcome)
         self.stack.set_visible_child_name("results")
         return False
 
@@ -1864,7 +1919,7 @@ class MainWindow(Gtk.ApplicationWindow):
         try:
             gfile = dialog.save_finish(result)
         except GLib.Error:
-            logger.exception("erreur inattendue")
+            logger.exception("échec dans _on_csv_path_chosen")
             return
         path = gfile.get_path()
         try:
@@ -1873,7 +1928,7 @@ class MainWindow(Gtk.ApplicationWindow):
             else:
                 write_diff_csv(self.last_diff_findings, path)
         except Exception as e:  # noqa: BLE001 -- callback GUI (export CSV) : erreur affichee dans la barre de statut plutot que de faire planter l'appli.
-            logger.exception("erreur: e")
+            logger.exception(f"échec dans _on_csv_path_chosen: {e}")
             self.status_label.set_text(f"Erreur CSV : {e}")
             return
         self.status_label.set_text(f"CSV ecrit : {path}")
@@ -1891,12 +1946,13 @@ class MainWindow(Gtk.ApplicationWindow):
         try:
             gfile = dialog.save_finish(result)
         except GLib.Error:
-            logger.exception("erreur inattendue")
+            logger.exception("échec dans _on_pdf_path_chosen")
             return
         self.export_pdf_to(gfile.get_path())
 
     def export_pdf_to(self, path):
         """Separe de la callback du dialogue pour pouvoir etre pilote directement (tests)."""
+        logger.debug("export_pdf_to: {}", path)
         self.status_label.set_text("Generation du PDF...")
         threading.Thread(target=self._generate_pdf_thread, args=(path,), daemon=True).start()
 
@@ -2013,7 +2069,7 @@ class MainWindow(Gtk.ApplicationWindow):
         try:
             file_obj = dialog.save_finish(result)
         except Exception:
-            logger.exception("erreur: Exception")
+            logger.exception("échec dans _on_stats_csv_saved")
             return
         if file_obj is None:
             return
@@ -2028,7 +2084,7 @@ class MainWindow(Gtk.ApplicationWindow):
                 fh.write(export_csv(rows))
             self.status_label.set_text(f"Statistiques exportees : {path}")
         except OSError as exc:
-            logger.exception("erreur: exc")
+            logger.exception(f"échec dans _on_stats_csv_saved: {exc}")
             self.status_label.set_text(f"Erreur export CSV : {exc}")
 
     def _on_stats_export_json(self, _btn):
@@ -2046,7 +2102,7 @@ class MainWindow(Gtk.ApplicationWindow):
         try:
             file_obj = dialog.save_finish(result)
         except Exception:
-            logger.exception("erreur: Exception")
+            logger.exception("échec dans _on_stats_json_saved")
             return
         if file_obj is None:
             return
@@ -2063,7 +2119,7 @@ class MainWindow(Gtk.ApplicationWindow):
                 json.dump(export_json(rows), fh, indent=2, ensure_ascii=False)
             self.status_label.set_text(f"Statistiques exportees : {path}")
         except OSError as exc:
-            logger.exception("erreur: exc")
+            logger.exception(f"échec dans _on_stats_json_saved: {exc}")
             self.status_label.set_text(f"Erreur export JSON : {exc}")
 
     # ================= cartographie des communications (issue #15) =================
@@ -2237,7 +2293,7 @@ class MainWindow(Gtk.ApplicationWindow):
             self.comm_map_picture.set_filename(rendu)
             self.comm_map_label.set_text(format_comm_map(cmap))
         except Exception as e:  # noqa: BLE001 -- dependances de rendu optionnelles, voir docstring
-            logger.exception("erreur: e")
+            logger.exception(f"échec dans _refresh_comm_map: {e}")
             self.comm_map_picture.set_filename(None)
             self.comm_map_label.set_text(f"Cartographie indisponible : {e}")
         return False
@@ -2266,6 +2322,7 @@ class MainWindow(Gtk.ApplicationWindow):
         )
 
     def _generate_pdf_thread(self, path):
+        logger.debug("_generate_pdf_thread: mode={} path={}", self.last_mode, path)
         try:
             if self.last_mode == "single":
                 from netcross_report import generate_pdf
@@ -2279,6 +2336,7 @@ class MainWindow(Gtk.ApplicationWindow):
                     tls_findings=self.last_tls_findings,
                     quic_findings=self.last_quic_findings,
                     session_objects=self._session_objects(),
+                    security_report=self.last_security_report,
                 )
             else:
                 from netcross_report import generate_diff_pdf
@@ -2296,7 +2354,7 @@ class MainWindow(Gtk.ApplicationWindow):
                     quic_findings_current=self.last_diff_quic_findings_current,
                 )
         except Exception as e:  # noqa: BLE001 -- thread de fond (export PDF) : idem, erreur affichee via GLib.idle_add.
-            logger.exception("erreur: e")
+            logger.exception(f"échec dans _generate_pdf_thread: {e}")
             GLib.idle_add(self._on_pdf_error, str(e))
             return
         GLib.idle_add(self._on_pdf_done, path)
@@ -2326,16 +2384,18 @@ class MainWindow(Gtk.ApplicationWindow):
         try:
             gfile = dialog.save_finish(result)
         except GLib.Error:
-            logger.exception("erreur inattendue")
+            logger.exception("échec dans _on_json_path_chosen")
             return
         self.export_json_to(gfile.get_path())
 
     def export_json_to(self, path):
         """Separe de la callback du dialogue pour pouvoir etre pilote directement (tests)."""
+        logger.debug("export_json_to: {}", path)
         self.status_label.set_text("Generation du JSON...")
         threading.Thread(target=self._generate_json_thread, args=(path,), daemon=True).start()
 
     def _generate_json_thread(self, path):
+        logger.debug("_generate_json_thread: mode={} path={}", self.last_mode, path)
         try:
             if self.last_mode == "single":
                 from netcross_report import generate_json_report
@@ -2346,6 +2406,7 @@ class MainWindow(Gtk.ApplicationWindow):
                     findings=self.last_findings,
                     tls_findings=self.last_tls_findings,
                     quic_findings=self.last_quic_findings,
+                    security_report=self.last_security_report,
                     **self._session_objects().json_kwargs(),
                 )
             else:
@@ -2362,7 +2423,7 @@ class MainWindow(Gtk.ApplicationWindow):
                     quic_findings_current=self.last_diff_quic_findings_current,
                 )
         except Exception as e:  # noqa: BLE001 -- thread de fond (export JSON) : idem, erreur affichee via GLib.idle_add.
-            logger.exception("erreur: e")
+            logger.exception(f"échec dans _generate_json_thread: {e}")
             GLib.idle_add(self._on_json_error, str(e))
             return
         GLib.idle_add(self._on_json_done, path)
@@ -2374,6 +2435,51 @@ class MainWindow(Gtk.ApplicationWindow):
     def _on_json_done(self, path):
         self.status_label.set_text(f"JSON ecrit : {path}")
         return False
+
+    # ================= securite (issue #357) =================
+
+    def _show_security_report(self):
+        """Section Securite : rendu de --security-report, exports actifs
+        seulement quand un rapport existe (analyse simple, case cochee).
+        `last_security_report` vient du RunOutcome (None apres un diff)."""
+        security_report = self.last_security_report
+        buf = Gtk.TextBuffer()
+        buf.set_text(security_view_text(security_report))
+        self.security_view.set_buffer(buf)
+        self.security_expander.set_sensitive(security_report is not None)
+        self.security_expander.set_expanded(
+            security_report is not None
+            and bool(security_report.exploits or security_report.anomalies or security_report.cves)
+        )
+        self.security_html_btn.set_sensitive(security_report is not None)
+        self.security_json_btn.set_sensitive(security_report is not None)
+
+    def on_export_security(self, suffix):
+        if self.last_security_report is None:
+            return
+        dialog = Gtk.FileDialog()
+        dialog.set_initial_name(f"rapport_securite{suffix}")
+        dialog.save(self, None, lambda d, r: self._on_security_path_chosen(d, r))
+
+    def _on_security_path_chosen(self, dialog, result):
+        try:
+            gfile = dialog.save_finish(result)
+        except GLib.Error:
+            logger.exception("échec dans _on_security_path_chosen")
+            return
+        self.export_security_to(gfile.get_path())
+
+    def export_security_to(self, path):
+        """Separe du dialogue pour etre pilote directement (tests). Synchrone :
+        le rendu part d'un SecurityReport deja calcule, sans relire de fichier."""
+        try:
+            written = export_security_report(self.last_security_report, path)
+        except (OSError, ValueError) as e:
+            logger.exception(f"échec dans export_security_to: {e}")
+            self.status_label.set_text(f"Erreur rapport de securite : {e}")
+            return None
+        self.status_label.set_text(f"Rapport de securite ecrit : {written}")
+        return written
 
 
 class NetcrossApp(Gtk.Application):

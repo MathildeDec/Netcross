@@ -41,7 +41,6 @@ def detect_encapsulation(layers: dict) -> tuple[str, ...]:
     MPLS[100,200], GRE, VXLAN(vni=...), GTP-U(teid=...), ERSPAN,
     CAPWAP(...)) pour rester compatible avec les rapports/baselines
     existants qui comparent ces chaines."""
-    logger.debug("detect_encapsulation(layers={layers})")
     tags = []
 
     for vlan in all_occurrences(layers, "vlan"):
@@ -150,7 +149,6 @@ def select_innermost_layers(layers: dict) -> dict:
 
     Miroir direct de la logique if is_tunnel(...): innermost_layer(...)
     else p[IP] de l'ancien parse_capture()."""
-    logger.debug("select_innermost_layers(layers={layers})")
     tunnel = is_tunnel(layers)
     picker = innermost if tunnel else layer
     return {

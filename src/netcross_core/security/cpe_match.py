@@ -31,7 +31,7 @@ logger = get_logger(__name__)
 # necessaire pour reconnaitre un nouveau produit.
 PRODUCT_ALIASES: dict[str, tuple[str, str]] = {
     "apache": ("apache", "http_server"),
-    "nginx": ("nginx", "nginx"),
+    "nginx": ("f5", "nginx"),
     "openssh": ("openbsd", "openssh"),
     "openssl": ("openssl", "openssl"),
     "iis": ("microsoft", "internet_information_services"),
@@ -41,7 +41,7 @@ PRODUCT_ALIASES: dict[str, tuple[str, str]] = {
     "postfix": ("postfix", "postfix"),
     "exim": ("exim", "exim"),
     "proftpd": ("proftpd", "proftpd"),
-    "vsftpd": ("vsftpd", "vsftpd"),
+    "vsftpd": ("vsftpd_project", "vsftpd"),
     "pure-ftpd": ("pureftpd", "pure-ftpd"),
     "bind": ("isc", "bind"),
     "dnsmasq": ("thekelleys", "dnsmasq"),
@@ -51,6 +51,25 @@ PRODUCT_ALIASES: dict[str, tuple[str, str]] = {
     "squid": ("squid-cache", "squid"),
     "php": ("php", "php"),
 }
+
+# Vendeurs CPE historiques d'un meme produit (issue #353). Le NVD
+# renomme parfois le vendeur d'un produit ET republie ses anciennes CVE
+# sous le nouveau nom : nginx est passe de nginx:nginx a f5:nginx apres
+# le rachat par F5 (CVE-2013-2028 comprise), vsftpd de beasts:vsftpd a
+# vsftpd_project:vsftpd. PRODUCT_ALIASES porte le nom ACTUEL -- celui des
+# flux NVD d'aujourd'hui, donc du seed embarque -- et une base importee
+# avant le renommage garde les anciens : la correlation interroge les
+# deux, sans quoi aucune banniere nginx/vsftpd ne trouvait de CVE.
+LEGACY_VENDORS: dict[tuple[str, str], tuple[str, ...]] = {
+    ("f5", "nginx"): ("nginx", "igor_sysoev"),
+    ("vsftpd_project", "vsftpd"): ("beasts", "vsftpd"),
+}
+
+
+def vendor_candidates(vendor: str, product: str) -> tuple[str, ...]:
+    """Vendeur actuel puis vendeurs historiques du couple (vendor, product)."""
+    return (vendor, *LEGACY_VENDORS.get((vendor, product), ()))
+
 
 # Bannieres "Nom_version" ou "Nom-version" (ex: OpenSSH_8.2p1,
 # dropbear_2020.81) en plus de la forme "Nom/version" la plus courante
@@ -80,7 +99,6 @@ class ParsedBanner:
 
 def build_cpe23(vendor: str, product: str, version: str) -> str:
     """Construit un identifiant CPE 2.3 (partie applicative 'a')."""
-    logger.debug("build_cpe23(vendor={vendor}, product={product}, version={version})")
     return f"cpe:2.3:a:{vendor}:{product}:{version}:*:*:*:*:*:*:*"
 
 
@@ -94,7 +112,6 @@ def parse_banner(banner: str) -> ParsedBanner | None:
     pas une erreur, juste un service que ce module ne sait pas encore
     situer dans le referentiel CPE).
     """
-    logger.debug("parse_banner(banner={banner})")
     for token in banner.split():
         parsed = _parse_token(token)
         if parsed is not None:
@@ -104,7 +121,6 @@ def parse_banner(banner: str) -> ParsedBanner | None:
 
 def parse_all_banners(banner: str) -> list[ParsedBanner]:
     """Comme parse_banner(), mais renvoie tous les tokens reconnus (pas seulement le premier)."""
-    logger.debug("parse_all_banners(banner={banner})")
     parsed = []
     for token in banner.split():
         result = _parse_token(token)
@@ -140,7 +156,6 @@ def _version_key(version: str) -> tuple:
 
 def compare_versions(a: str, b: str) -> int:
     """-1 si a < b, 0 si a == b, 1 si a > b (comparaison lexicographique par groupe, voir _version_key)."""
-    logger.debug("compare_versions(a={a}, b={b})")
     ka, kb = _version_key(a), _version_key(b)
     if ka == kb:
         return 0
@@ -165,7 +180,6 @@ def version_in_range(
     Sans aucune borne ni `exact`, le produit entier est considere
     concerne (CPE "cpe:...:*" sans precision de version) : renvoie True.
     """
-    logger.debug("version_in_range(version={version})")
     has_range = any(b is not None for b in (start_including, start_excluding, end_including, end_excluding))
 
     if not has_range:

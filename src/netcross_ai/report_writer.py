@@ -67,7 +67,6 @@ def _sev(f: dict) -> str:
 
 def collect_facts(report: Any, ai: dict | None = None) -> dict:
     """Dictionnaire compact et JSON-serialisable des faits du rapport."""
-    logger.debug("collect_facts(report={report}, ai={ai})")
     findings = sorted(getattr(report, "security_findings", []) or [], key=lambda f: SEVERITY_ORDER.index(_sev(f)))
     flows = getattr(report, "flow_anomalies", []) or []
     ai = ai or {}
@@ -142,7 +141,10 @@ def _recommendations(report: Any, ai: dict | None) -> list[str]:
             add(f"Isoler et examiner{where or ' la machine ciblee'} : signature d'exploitation observee.")
     classes = Counter(str(f.get("classification")) for f in getattr(report, "flow_anomalies", []) or [])
     if classes.get("obfusque"):
-        add(f"Inspecter les {classes['obfusque']} flux a tailles aleatoires (obfuscation ou tunnel chiffre possible).")
+        add(
+            f"Inspecter les {classes['obfusque']} flux a charge utile de forte entropie "
+            "(chiffrement, obfuscation ou tunnel possible)."
+        )
     for p in (ai or {}).get("classification", []):
         if p.get("label") in ("tunnel", "c2", "exfiltration") and p.get("confidence", 0) >= 0.6:
             add(f"Verifier le flux {p['flow']} classe « {p['label']} » (confiance {p['confidence']:.0%}).")
@@ -156,7 +158,6 @@ def _recommendations(report: Any, ai: dict | None) -> list[str]:
 
 
 def template_summary(report: Any, ai: dict | None = None) -> Summary:
-    logger.debug("template_summary(report={report}, ai={ai})")
     facts = collect_facts(report, ai)
     sev = facts["constats_par_severite"]
     total = sum(sev.values())
@@ -185,7 +186,6 @@ def template_summary(report: Any, ai: dict | None = None) -> Summary:
 
 def parse_engine(spec: str, endpoint: str | None = None) -> tuple[str, str, str]:
     """``template`` | ``ollama:MODELE`` | ``llamacpp`` -> (moteur, modele, url)."""
-    logger.debug("parse_engine(spec={spec}, endpoint={endpoint})")
     kind, _, model = spec.partition(":")
     if kind == "template":
         return "template", "", ""
@@ -206,7 +206,7 @@ def check_local_endpoint(url: str) -> None:
     try:
         local = host == "localhost" or ipaddress.ip_address(host).is_loopback
     except ValueError:
-        logger.exception("erreur: ValueError")
+        logger.exception("échec dans check_local_endpoint")
         local = False
     if not local:
         raise WriterConfigError(
@@ -236,7 +236,6 @@ def _post_json(url: str, payload: dict, timeout: float) -> dict:
 
 
 def llm_generate(kind: str, model: str, url: str, prompt: str, timeout: float = LLM_TIMEOUT_S) -> str:
-    logger.debug("llm_generate(kind={kind}, model={model}, url={url}, ...)")
     check_local_endpoint(url)
     if kind == "ollama":
         payload = {"model": model, "prompt": prompt, "stream": False, "options": {"temperature": 0.2}}
@@ -260,7 +259,7 @@ def write_summary(
     try:
         text = llm_generate(kind, model, url, build_prompt(collect_facts(report, ai)))
     except (OSError, urllib.error.URLError, RuntimeError, ValueError) as exc:
-        logger.exception("erreur: exc")
+        logger.exception(f"échec dans write_summary: {exc}")
         base.fallback_reason = f"modele local indisponible ({exc}) : resume par gabarit"
         return base
     # Le texte libre du modele ; correlations/recommandations deterministes

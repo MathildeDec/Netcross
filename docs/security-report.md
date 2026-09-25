@@ -6,12 +6,13 @@ qui consolide les modules de détection passive de vulnérabilités (parent #133
 | Section | Source | Module |
 |---|---|---|
 | Services détectés (version, criticité) | bannières lues sur le fil (CVE-1, #135) | `netcross_core.application.banners` |
-| Tentatives d'exploitation | signatures Log4Shell, Shellshock, Heartbleed, EternalBlue, compression TLS (CVE-2, #136) | `netcross_core.exploit_signatures` |
+| Tentatives d'exploitation | signatures Log4Shell, Shellshock, Heartbleed, EternalBlue, compression TLS (CVE-2, #136), traversée Apache 2.4.49/2.4.50, ProxyLogon, BlueKeep, HTTP/2 Rapid Reset, Spring4Shell (#379), traversée générique, injections SQL et de commande, wrappers PHP, XSS dans l'URI (#353) | `netcross_core.exploit_signatures` |
 | Anomalies | alertes Expert Info corrélées : fuzzing, overflow, dos (CVE-3, #137) | `netcross_core.security.expert_correlation` |
 | Anomalies | tunneling DNS : sous-domaines à haute entropie, labels/noms trop longs, volume DNS anormal (FLOW-3, #144) | `netcross_core.security.dns_tunnel` |
 | Anomalies | exfiltration : transferts sortants volumineux/asymétriques vers l'extérieur, corrélés au beaconing et au tunneling DNS, score de risque 0-100 (SCENARIO-2, #148) | `netcross_core.security.exfiltration` |
 | Anomalies | audit des certificats TLS : expirés, auto-signés, MD5/SHA-1, clés faibles, validité excessive, chaîne incomplète, noms suspects, avec un score de risque TLS par serveur (SCENARIO-7, #153) | `netcross_core.security.tls_audit` |
-| CVE confirmées | version exacte + CVE-ID + score CVSS (CVE-4, #138) | `netcross_core.security` (base SQLite locale) |
+| CVE confirmées | version exacte + CVE-ID + score CVSS (CVE-4, #138) | `netcross_core.security` (base SQLite `--cve-db`, sinon base minimale embarquée `cve_seed`, #353) |
+| Inventaire d'actifs | hôtes vus (IP, MAC, OS déduit du TTL et des options TCP, ports exposés confirmés, points), nouveaux hôtes par rapport à la baseline `--known-hosts` (SCENARIO-5, #151, #350) | `netcross_core.discovery.assets` |
 
 Le tout est classé par sévérité (critique / élevée / moyenne / faible) et résumé par un
 tableau de bord (nombre de services vulnérables, d'exploits, d'anomalies, de CVE, score de
@@ -28,12 +29,40 @@ python3 src/cross_capture_analyzer_cli.py \\
     --security-report --cve-db data/cve.db
 ```
 
-- Sans `--cve-db`, les services sont listés sans corrélation CVE ; le CLI le signale
-  (« aucune vulnérabilité connue » ne veut alors pas dire « non vulnérable »).
+- Sans `--cve-db`, une **base minimale embarquée** est chargée en mémoire
+  (`src/netcross_core/data/cve_seed.json`, issue #353) : une trentaine de CVE critiques et très
+  exploitées (Apache 2.4.49/2.4.50, regreSSHion, Heartbleed, vsftpd 2.3.4, ProFTPD mod_copy,
+  Exim, SambaCry, PHP-CGI…) sur les produits reconnus dans les bannières. Scores, descriptions et
+  plages de versions viennent de l'API NVD 2.0, jamais saisis à la main. Le CLI le signale : une
+  version absente de cette sélection n'est **pas** pour autant non vulnérable.
+- Régénérer la base embarquée (réseau requis, environ 6 s par CVE) :
+  `python3 scripts/build_cve_seed.py` ; la liste des CVE est `SEED_CVE_IDS` dans ce script.
+  Le NVD limite le débit en renvoyant une page vide avec un HTTP 200 : `import_nvd.py` et
+  `build_cve_seed.py` réessaient avec une pause croissante, puis échouent explicitement au lieu
+  de tronquer l'import en silence. Chaque réponse est mise en cache
+  (`$TMPDIR/netcross-nvd-cache`, `--cache-dir`, `--no-cache`) : une génération interrompue
+  reprend là où elle s'est arrêtée.
+- Le NVD renomme parfois le vendeur d'un produit et republie ses anciennes CVE sous le nouveau
+  nom (`nginx:nginx` → `f5:nginx`, `beasts:vsftpd` → `vsftpd_project:vsftpd`). Le catalogue
+  de bannières (`cpe_match.PRODUCT_ALIASES`) suit le nom actuel, et `LEGACY_VENDORS` fait
+  aussi interroger les anciens noms, pour qu'une base `--cve-db` importée avant le renommage
+  reste utilisable. Avant #353, aucune bannière nginx ne trouvait de CVE dans un import récent.
 - `--cve-db` doit désigner un fichier existant (refusé sinon, pour ne pas créer une base vide).
 - Refusé avec `--live` et `--redact` : les signatures d'exploits sont cherchées dans la
   charge utile brute, relue depuis les fichiers `--capture` (comme `--tls`), donc jamais
   depuis des paquets anonymisés ou capturés en direct. Refusé aussi avec `--merge`/`--replay`.
+- `--known-hosts hotes.json` (avec `--security-report`) : baseline des hôtes connus, liste JSON
+  d'IP (`["10.0.0.1", "10.0.0.2"]`) ou objet `{"hosts": [...]}`. Chaque hôte de la capture absent
+  de la liste est marqué `[NOUVEAU]` dans la section « Inventaire d'actifs » et produit un constat
+  de sévérité moyenne (détecteur `asset_inventory`), donc aussi un événement dans l'export SIEM
+  (`--siem-export cef|leef|stix`). Sans baseline, aucun hôte n'est signalé nouveau ; un fichier
+  absent, illisible ou vide est refusé (sinon tous les hôtes passeraient pour nouveaux).
+  L'inventaire complet est dans la clé `security_report.assets` du JSON et dans le HTML.
+- `--test-net-external` (avec `--security-report`) : traite les plages de documentation TEST-NET
+  (RFC 5737 : 192.0.2.0/24, 198.51.100.0/24, 203.0.113.0/24) comme externes pour le beaconing et
+  l'exfiltration. Par défaut elles sont internes, comme pour `ipaddress` : une capture de
+  démonstration qui les utilise ne lève alors aucune alerte (issue #365, voir
+  [Détecteurs](detectors.md)).
 
 ## Architecture
 
@@ -199,3 +228,16 @@ de la sévérité accompagne toujours la couleur.
 - Une bannière peut être masquée ou falsifiée (`ServerTokens Prod`) : l'absence de service
   détecté n'est pas une information.
 - Rendu texte uniquement ; le `SecurityReport` est prêt à alimenter une sortie HTML/PDF.
+
+## Interface graphique
+
+La case « Rapport de securite » de la GUI (mode simple, fichiers de capture)
+lance la même chaîne que `--security-report` : `scan_capture_exploits` sur
+chaque fichier, `apply_security_findings` avec la base CVE minimale embarquée,
+puis `build_security_report`. La section Sécurité de la page Résultats affiche
+`format_security_report` et exporte le rapport en HTML (`generate_security_html`)
+ou en JSON (`security_report_to_dict`) ; le JSON et le PDF généraux de la GUI
+reçoivent le même objet (`security_report=`). Non disponible : `--cve-db`,
+baselines `--known-destinations`/`--known-hosts`, plugins, notifications et
+export SIEM (CLI uniquement).
+

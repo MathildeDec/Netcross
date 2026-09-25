@@ -153,11 +153,40 @@ def import_from_file(path, db_path) -> int:
     return count
 
 
-def _fetch_page(params: dict[str, Any]) -> dict:
+def _fetch_page_once(params: dict[str, Any]) -> dict:
     url = f"{NVD_API_URL}?{urllib.parse.urlencode(params)}"
     request = urllib.request.Request(url, headers={"User-Agent": "netcross-cve-import/1.0"})
     with urllib.request.urlopen(request, timeout=30) as response:  # noqa: S310 -- URL fixe, hote NVD officiel
         return json.load(response)
+
+
+def _is_throttled(payload: dict) -> bool:
+    """Le NVD limite le debit SANS code d'erreur : HTTP 200, `totalResults`
+    renseigne mais `resultsPerPage` a 0 et aucune vulnerabilite (constate
+    en 2026, issue #353). Une telle page n'est pas une fin de resultats."""
+    start = payload.get("startIndex", 0)
+    return not payload.get("vulnerabilities") and payload.get("totalResults", 0) > start
+
+
+def _fetch_page(params: dict[str, Any], *, retries: int = 4, backoff: float = 10.0) -> dict:
+    """Une page de l'API, en reessayant (pause `backoff` croissante) tant
+    que le NVD renvoie une page vide de limitation de debit. Leve
+    RuntimeError si la limitation persiste, plutot que tronquer l'import
+    en silence."""
+    page_size = int(params.get("resultsPerPage", 2000))
+    for attempt in range(retries + 1):
+        # une page vide de limitation semble mise en cache par URL : faire
+        # varier resultsPerPage (sans effet sur le contenu, l'appelant avance
+        # de la taille reellement recue) change la cle de cache.
+        payload = _fetch_page_once({**params, "resultsPerPage": max(1, page_size - attempt)} if attempt else params)
+        if not _is_throttled(payload):
+            return payload
+        if attempt < retries:
+            time.sleep(backoff * (attempt + 1))
+    raise RuntimeError(
+        f"Le NVD limite le debit (page vide malgre totalResults={payload.get('totalResults')}, "
+        f"parametres {params}) : relancer plus tard ou augmenter --delay."
+    )
 
 
 def import_from_api(db_path, *, keyword: str | None, results_per_page: int, delay: float) -> int:

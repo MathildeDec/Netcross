@@ -1,0 +1,6 @@
+#!/bin/sh
+# Wrapper installe dans /usr/bin/netcross-lua-doc par le paquet Debian/RPM.
+# Documentation hors ligne de l'API Lua Wireshark (issue #388) ; la banque
+# SQLite est construite dans ~/.cache/netcross depuis /usr/share/netcross/data/lua_api.json.
+export PYTHONPATH="/usr/share/netcross:${PYTHONPATH:-}"
+exec /usr/bin/python3 /usr/share/netcross/netcross_lua_doc_cli.py "$@"

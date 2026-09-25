@@ -179,7 +179,7 @@ def _iter_ndjson_records(stream: IO[str]) -> Iterator[dict]:
         except json.JSONDecodeError:
             # une ligne tronquee/corrompue ne doit pas faire tomber tout
             # le flux -- on la saute et on continue sur la suivante
-            logger.exception("erreur inattendue")
+            logger.exception("échec dans _iter_ndjson_records")
             continue
         if "layers" in obj:
             yield obj
@@ -271,7 +271,7 @@ def iter_ek_records(
                 try:
                     ts = int(float(obj.get("timestamp", 0))) / 1000.0
                 except (TypeError, ValueError):
-                    logger.exception("erreur: e")
+                    logger.exception("échec dans iter_ek_records")
                     ts = 0.0
             yield EkRecord(ts=ts, layers=obj["layers"])
     finally:
@@ -280,7 +280,7 @@ def iter_ek_records(
             try:
                 proc.wait(timeout=3)
             except subprocess.TimeoutExpired:
-                logger.exception("erreur inattendue")
+                logger.exception("échec dans iter_ek_records")
                 proc.kill()
                 proc.wait()
         stderr_text = ""

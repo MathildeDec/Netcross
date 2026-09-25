@@ -9,10 +9,22 @@ Metriques calculees PAR FLUX (groupe par paire source->destination) :
   Un flux SSH interactif a des petits paquets reguliers (< 100 octets),
   un transfert a de gros paquets unidirectionnels, un flux obfusque a
   une distribution aleatoire des tailles.
-- **Distribution des octets** : histogramme 0-255 des octets de la charge
-  utile (payload_hash est un hash, pas le payload -- on utilise la taille
-  des paquets comme proxy de la distribution).
-- **Entropie de Shannon** sur la distribution des tailles de paquets.
+- **Entropie des octets de la charge utile** (issue #351, critere
+  « flux chiffre, entropie ~8,0 » de #145) : l'histogramme 0-255 des
+  octets de chaque payload est calcule au parsing (``Pkt.payload_entropy``,
+  ``Pkt.payload_len`` : Pkt ne garde pas les octets). Par flux :
+  ``byte_entropy`` = moyenne, ponderee par la taille du payload, de
+  l'entropie de chaque paquet (bits/octet, 0-8) ; ``byte_entropy_ratio`` =
+  meme moyenne de l'entropie NORMALISEE par son maximum atteignable
+  log2(min(n, 256)) -- n octets ne peuvent pas depasser log2(n) bits, un
+  payload chiffre de 100 octets plafonne donc vers 6,2 bits et serait
+  rate par un seuil absolu. Seuls les payloads d'au moins
+  ``_MIN_PAYLOAD_FOR_ENTROPY`` octets entrent dans le calcul (en dessous
+  l'entropie n'est pas significative).
+- **Entropie de Shannon des tailles de paquets** (``entropy``) : conservee
+  comme metrique descriptive (profil SPLT) mais PAS utilisee pour la
+  classification -- un flux chiffre de 12 Mo en paquets MTU sort a 0,00,
+  un trafic HTTP texte aux tailles variees depasse 3 bits.
 - **Ratio up/down** : volume envoye vs recu par flux.
 - **Regularite temporelle** : ecart-type des intervalles entre paquets
   (un flux de beaconing a une regularite elevee).
@@ -20,7 +32,10 @@ Metriques calculees PAR FLUX (groupe par paire source->destination) :
 Classification produite :
 - **interactif** : petits paquets (< 100 octets en mediane), reguliers
 - **transfert** : gros paquets (> 500 octets en mediane), unidirectionnel
-- **obfusque** : entropie elevee sur les tailles (> 4.0 bits)
+- **obfusque** : charge utile a forte entropie -- ``byte_entropy_ratio``
+  >= 0,85 sur au moins ``_MIN_FLOW_PAYLOAD_BYTES`` octets de payload
+  (chiffre, compresse ou aleatoire ; du texte HTTP/SMTP est vers 0,55-0,7).
+  Prioritaire sur les autres classes.
 - **normal** : aucun des criteres ci-dessus
 
 Comme dns_tunnel et beaconing, ce module ne fait que produire des
@@ -49,7 +64,10 @@ _SPLT_MAX_PACKETS = 20
 # Seuils de classification (voir docstring du module).
 _SMALL_PACKET_THRESHOLD = 100  # octets
 _LARGE_PACKET_THRESHOLD = 500  # octets
-_HIGH_ENTROPY_THRESHOLD = 3.5  # bits/caractere sur la distribution des tailles
+# Issue #351 : entropie des octets de la charge utile.
+_HIGH_BYTE_ENTROPY_RATIO = 0.85  # entropie / log2(min(n, 256))
+_MIN_PAYLOAD_FOR_ENTROPY = 128  # octets, par paquet (en dessous, texte et alea se confondent)
+_MIN_FLOW_PAYLOAD_BYTES = 256  # octets de payload cumules par flux
 
 CLASSIFICATION_INTERACTIVE = "interactif"
 CLASSIFICATION_TRANSFER = "transfert"
@@ -63,7 +81,9 @@ class FlowStatsThresholds:
 
     small_packet_threshold: int = _SMALL_PACKET_THRESHOLD
     large_packet_threshold: int = _LARGE_PACKET_THRESHOLD
-    high_entropy_threshold: float = _HIGH_ENTROPY_THRESHOLD
+    high_byte_entropy_ratio: float = _HIGH_BYTE_ENTROPY_RATIO
+    min_payload_for_entropy: int = _MIN_PAYLOAD_FOR_ENTROPY
+    min_flow_payload_bytes: int = _MIN_FLOW_PAYLOAD_BYTES
     splt_max_packets: int = _SPLT_MAX_PACKETS
 
 
@@ -91,6 +111,13 @@ class FlowStat:
     classification: str = CLASSIFICATION_NORMAL
     # Metriques derivees
     entropy: float = 0.0
+    # Issue #351 : entropie des octets de la charge utile (voir la
+    # docstring du module) -- moyenne ponderee par la taille du payload,
+    # brute (bits/octet) et normalisee (0-1), et nombre d'octets de payload
+    # pris en compte.
+    byte_entropy: float = 0.0
+    byte_entropy_ratio: float = 0.0
+    payload_bytes: int = 0
     median_size: float = 0.0
     upload_ratio: float = 0.0
     regularity_cv: float = 0.0  # coefficient de variation des intervalles
@@ -110,6 +137,9 @@ class FlowStat:
             "inter_arrivals": list(self.inter_arrivals),
             "classification": self.classification,
             "entropy": self.entropy,
+            "byte_entropy": self.byte_entropy,
+            "byte_entropy_ratio": self.byte_entropy_ratio,
+            "payload_bytes": self.payload_bytes,
             "median_size": self.median_size,
             "upload_ratio": self.upload_ratio,
             "regularity_cv": self.regularity_cv,
@@ -154,8 +184,12 @@ def _classify_flow(flow: FlowStat, thresholds: FlowStatsThresholds) -> str:
             sd = pstdev(flow.inter_arrivals)
             flow.regularity_cv = sd / m
 
-    # Classification
-    if flow.entropy > thresholds.high_entropy_threshold:
+    # Issue #351 : seule l'entropie des octets de la charge utile signale
+    # un flux chiffre/obfusque ; l'entropie des tailles reste descriptive.
+    if (
+        flow.payload_bytes >= thresholds.min_flow_payload_bytes
+        and flow.byte_entropy_ratio >= thresholds.high_byte_entropy_ratio
+    ):
         return CLASSIFICATION_OBFUSCATED
     if flow.median_size < thresholds.small_packet_threshold and flow.regularity_cv < 0.5:
         return CLASSIFICATION_INTERACTIVE
@@ -172,10 +206,10 @@ def analyze_flow_stats(
     Calcule les statistiques de flux par paire (source, destination).
 
     Groupe les paquets par (src, dst), calcule SPLT, distribution des
-    tailles, entropie, ratio up/down, regularite temporelle, et
+    tailles, entropie (tailles et octets de la charge utile), ratio
+    up/down, regularite temporelle, et
     classifie chaque flux.
     """
-    logger.debug("analyze_flow_stats(packets={packets}, thresholds={thresholds})")
     # Issue #346 : un flux est identifie PAR POINT de capture. Sans le point
     # dans la cle, un meme paquet vu sur N points etait compte N fois et les
     # horodatages de points differents s'entremelaient (inter-arrivees et
@@ -183,6 +217,9 @@ def analyze_flow_stats(
     flows: dict[tuple[str, str, str], FlowStat] = {}
     # Garder les timestamps par flux pour calculer les inter-arrivees
     flow_timestamps: dict[tuple[str, str, str], list[float]] = defaultdict(list)
+    # Issue #351 : sommes ponderees (entropie brute, entropie normalisee)
+    # par flux, divisees par payload_bytes en fin de parcours.
+    entropy_sums: dict[tuple[str, str, str], list[float]] = defaultdict(lambda: [0.0, 0.0])
 
     for pk in packets:
         key = (pk.point, pk.src, pk.dst)
@@ -202,7 +239,14 @@ def analyze_flow_stats(
 
         # Upload/download
         flow.upload_bytes += pk.length
-
+        # Issue #351 : entropie des octets du payload, ponderee par sa
+        # taille (un paquet isole compresse ne fait pas basculer le flux).
+        n = pk.payload_len
+        if n >= thresholds.min_payload_for_entropy:
+            sums = entropy_sums[key]
+            sums[0] += pk.payload_entropy * n
+            sums[1] += pk.payload_entropy / math.log2(min(n, 256)) * n
+            flow.payload_bytes += n
         # Timestamps pour inter-arrivees
         flow_timestamps[key].append(pk.ts)
 
@@ -223,6 +267,10 @@ def analyze_flow_stats(
         timestamps = flow_timestamps[key]
         if len(timestamps) >= 2:
             flow.inter_arrivals = [timestamps[i + 1] - timestamps[i] for i in range(len(timestamps) - 1)]
+        if flow.payload_bytes:
+            raw_sum, ratio_sum = entropy_sums[key]
+            flow.byte_entropy = raw_sum / flow.payload_bytes
+            flow.byte_entropy_ratio = min(1.0, ratio_sum / flow.payload_bytes)
         flow.classification = _classify_flow(flow, thresholds)
 
     return FlowStatsResult(flows=list(flows.values()))

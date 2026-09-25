@@ -1,142 +1,203 @@
 """
-netcross_api.store -- store des analyses avec statut et persistance optionnelle.
+netcross_api.store -- analyses de l'API : statut, document JSON, persistance.
 
-Issue #356 : ajout du suivi de statut (pending -> completed/failed) et
-d'une persistance SQLite optionnelle (env NETCROSS_DB_PATH).
+Issue #356 : chaque analyse passe par ``pending`` puis ``completed`` ou
+``failed``. Le store ne garde pas l'objet ``Report`` mais son **document
+JSON** (``report_document``), qui est ce que servent les routes GET. Ce
+document peut donc être relu tel quel depuis SQLite après un redémarrage.
 
-Conserve les rapports d'analyse en mémoire (dict ID → Report) par défaut.
-Si NETCROSS_DB_PATH est défini, les analyses sont aussi persistées en SQLite.
+Sans ``NETCROSS_DB_PATH``, tout reste en mémoire (mode MVP, perdu au
+redémarrage). Avec ``NETCROSS_DB_PATH=/chemin/netcross-api.db``, chaque
+changement d'état est écrit dans SQLite et les analyses sont rechargées au
+démarrage. Une analyse encore ``pending`` au rechargement a été interrompue
+avec le service : elle passe en ``failed`` plutôt que de rester en attente
+pour toujours.
 """
 
 from __future__ import annotations
 
-import contextlib
 import json
 import os
 import sqlite3
 import threading
 import uuid
+from contextlib import closing
+from dataclasses import fields, is_dataclass
 from typing import Any
 
 from netcross_core.logging_config import get_logger
-from netcross_core.models import Report
 
 logger = get_logger(__name__)
 
+PENDING = "pending"
+COMPLETED = "completed"
+FAILED = "failed"
+STATUTS = (PENDING, COMPLETED, FAILED)
+
+ERREUR_INTERROMPUE = "analyse interrompue par un redemarrage du service"
+
+
+def jsonable(value: Any) -> Any:
+    """Rend une valeur de ``Report`` sérialisable en JSON.
+
+    Les dictionnaires par segment (``latency``, ``qos_change``...) ont des
+    clés tuple (amont, aval), refusées par JSON : elles deviennent
+    « amont -> aval », le libellé des constats et des segments (#354).
+    """
+    if hasattr(value, "items"):
+        return {(" -> ".join(map(str, k)) if isinstance(k, tuple) else str(k)): jsonable(v) for k, v in value.items()}
+    if isinstance(value, (list, tuple, set, frozenset)):
+        return [jsonable(v) for v in value]
+    if is_dataclass(value) and not isinstance(value, type):
+        return {f.name: jsonable(getattr(value, f.name)) for f in fields(value)}
+    if value is None or isinstance(value, (str, int, float, bool)):
+        return value
+    return str(value)
+
+
+def report_document(report: Any) -> dict[str, Any]:
+    """Document JSON complet d'un ``Report`` (servi par GET /analyses/{id})."""
+    return {f.name: jsonable(getattr(report, f.name)) for f in fields(report)}
+
+
+_COLONNES = {
+    "status": "TEXT NOT NULL DEFAULT 'completed'",
+    "metadata": "TEXT NOT NULL DEFAULT '{}'",
+    "document_json": "TEXT",
+    "summary_json": "TEXT",
+    "error": "TEXT",
+    "created_at": "TEXT NOT NULL DEFAULT (datetime('now'))",
+}
+
 
 class AnalysesStore:
-    """Store des analyses : ID → (Report, metadata, status)."""
+    """Analyses indexées par ID : statut, métadonnées, résumé, document."""
 
     def __init__(self, db_path: str | None = None) -> None:
         self._store: dict[str, dict[str, Any]] = {}
         self._lock = threading.Lock()
-        self._db_path = db_path or os.environ.get("NETCROSS_DB_PATH")
+        self._db_path = db_path if db_path is not None else os.environ.get("NETCROSS_DB_PATH")
         if self._db_path:
             self._init_db()
+            self._load()
 
-    def _init_db(self) -> None:
-        assert self._db_path is not None
-        with sqlite3.connect(self._db_path) as conn:
-            conn.execute(
-                """
-                CREATE TABLE IF NOT EXISTS analyses (
-                    id TEXT PRIMARY KEY,
-                    status TEXT NOT NULL DEFAULT 'completed',
-                    metadata TEXT NOT NULL DEFAULT '{}',
-                    report_json TEXT,
-                    created_at TEXT NOT NULL DEFAULT (datetime('now'))
-                )
-                """
-            )
-            conn.commit()
+    @property
+    def persistent(self) -> bool:
+        return bool(self._db_path)
 
-    def add(self, report: Report, metadata: dict | None = None, status: str = "completed") -> str:
-        """Enregistre un rapport, retourne l'ID généré."""
-        logger.debug("add(self={self}, report={report}, metadata={metadata})")
+    # -- cycle de vie ------------------------------------------------------
+
+    def create_pending(self, metadata: dict | None = None) -> str:
+        """Crée une analyse ``pending`` et retourne son ID."""
         analysis_id = uuid.uuid4().hex[:12]
-        entry = {
-            "report": report,
-            "metadata": metadata or {},
-            "status": status,
-        }
+        entry = {"status": PENDING, "metadata": dict(metadata or {}), "document": None, "summary": None, "error": None}
         with self._lock:
             self._store[analysis_id] = entry
-            if self._db_path:
-                self._persist(analysis_id, entry)
+            self._persist(analysis_id, entry)
         return analysis_id
 
-    def add_pending(self, metadata: dict | None = None) -> str:
-        """Crée une analyse en statut 'pending' (issue #356)."""
-        analysis_id = uuid.uuid4().hex[:12]
-        entry = {
-            "report": None,
-            "metadata": metadata or {},
-            "status": "pending",
-        }
-        with self._lock:
-            self._store[analysis_id] = entry
-            if self._db_path:
-                self._persist(analysis_id, entry)
-        return analysis_id
-
-    def complete(self, analysis_id: str, report: Report) -> None:
-        """Marque une analyse comme terminée avec son rapport."""
-        with self._lock:
-            if analysis_id in self._store:
-                self._store[analysis_id]["report"] = report
-                self._store[analysis_id]["status"] = "completed"
-                if self._db_path:
-                    self._persist(analysis_id, self._store[analysis_id])
+    def complete(self, analysis_id: str, document: dict, summary: dict) -> None:
+        """Passe l'analyse en ``completed`` avec son document et son résumé."""
+        self._update(analysis_id, status=COMPLETED, document=document, summary=summary, error=None)
 
     def fail(self, analysis_id: str, error: str) -> None:
-        """Marque une analyse comme échouée."""
-        with self._lock:
-            if analysis_id in self._store:
-                self._store[analysis_id]["status"] = "failed"
-                self._store[analysis_id]["error"] = error
-                if self._db_path:
-                    self._persist(analysis_id, self._store[analysis_id])
+        """Passe l'analyse en ``failed`` ; ``error`` est rendu au client."""
+        self._update(analysis_id, status=FAILED, error=error)
 
-    def get(self, analysis_id: str) -> dict | None:
-        """Retourne l'analyse ou None si introuvable."""
-        with self._lock:
-            return self._store.get(analysis_id)
-
-    def get_report(self, analysis_id: str) -> Report | None:
+    def _update(self, analysis_id: str, **changes: Any) -> None:
         with self._lock:
             entry = self._store.get(analysis_id)
-            return entry["report"] if entry else None
+            if entry is None:
+                logger.warning("analyse {} inconnue, mise a jour ignoree", analysis_id)
+                return
+            entry.update(changes)
+            self._persist(analysis_id, entry)
+
+    # -- lecture -----------------------------------------------------------
+
+    def get(self, analysis_id: str) -> dict | None:
+        """Copie de l'entrée (status, metadata, summary, document, error)."""
+        with self._lock:
+            entry = self._store.get(analysis_id)
+            return dict(entry) if entry else None
 
     def get_status(self, analysis_id: str) -> str | None:
         with self._lock:
             entry = self._store.get(analysis_id)
-            return entry.get("status") if entry else None
-
-    def exists(self, analysis_id: str) -> bool:
-        with self._lock:
-            return analysis_id in self._store
+            return entry["status"] if entry else None
 
     def list_ids(self) -> list[str]:
         with self._lock:
             return list(self._store.keys())
 
-    def _persist(self, analysis_id: str, entry: dict) -> None:
+    def clear(self) -> None:
+        """Vide la mémoire (tests) ; la base SQLite n'est pas touchée."""
+        with self._lock:
+            self._store.clear()
+
+    # -- SQLite ------------------------------------------------------------
+
+    def _connect(self) -> sqlite3.Connection:
         assert self._db_path is not None
-        report_json = None
-        if entry.get("report"):
-            with contextlib.suppress(TypeError, ValueError):
-                report_json = json.dumps(entry["report"], default=str, ensure_ascii=False)
-        metadata = json.dumps(entry.get("metadata", {}), default=str, ensure_ascii=False)
-        status = entry.get("status", "completed")
-        with sqlite3.connect(self._db_path) as conn:
+        return sqlite3.connect(self._db_path)
+
+    def _init_db(self) -> None:
+        with closing(self._connect()) as conn, conn:
+            conn.execute("CREATE TABLE IF NOT EXISTS analyses (id TEXT PRIMARY KEY)")
+            existantes = {row[1] for row in conn.execute("PRAGMA table_info(analyses)")}
+            # Migration douce : la première version (#381) n'avait ni
+            # document_json ni summary_json ni error.
+            for nom, definition in _COLONNES.items():
+                if nom not in existantes:
+                    conn.execute(f"ALTER TABLE analyses ADD COLUMN {nom} {definition}")
+
+    def _load(self) -> None:
+        interrompues = []
+        with closing(self._connect()) as conn, conn:
+            rows = conn.execute(
+                "SELECT id, status, metadata, document_json, summary_json, error FROM analyses ORDER BY created_at"
+            ).fetchall()
+        for analysis_id, status, metadata, document_json, summary_json, error in rows:
+            entry = {
+                "status": status if status in STATUTS else FAILED,
+                "metadata": json.loads(metadata or "{}"),
+                "document": json.loads(document_json) if document_json else None,
+                "summary": json.loads(summary_json) if summary_json else None,
+                "error": error,
+            }
+            if entry["status"] == PENDING:
+                entry.update(status=FAILED, error=ERREUR_INTERROMPUE)
+                interrompues.append(analysis_id)
+            elif entry["status"] == COMPLETED and entry["document"] is None:
+                # ligne de l'ancien format (rapport str(), non relisible)
+                entry.update(status=FAILED, error="rapport enregistre dans un ancien format, non relisible")
+            self._store[analysis_id] = entry
+        for analysis_id in interrompues:
+            self._persist(analysis_id, self._store[analysis_id])
+        logger.info("{} analyse(s) rechargee(s) depuis {}", len(rows), self._db_path)
+
+    def _persist(self, analysis_id: str, entry: dict) -> None:
+        """Écrit l'entrée si la persistance est active (appelé sous verrou)."""
+        if not self._db_path:
+            return
+        with closing(self._connect()) as conn, conn:
             conn.execute(
                 """
-                INSERT OR REPLACE INTO analyses (id, status, metadata, report_json)
-                VALUES (?, ?, ?, ?)
+                INSERT INTO analyses (id, status, metadata, document_json, summary_json, error)
+                VALUES (?, ?, ?, ?, ?, ?)
+                ON CONFLICT(id) DO UPDATE SET status = excluded.status, metadata = excluded.metadata,
+                    document_json = excluded.document_json, summary_json = excluded.summary_json,
+                    error = excluded.error
                 """,
-                (analysis_id, status, metadata, report_json),
+                (
+                    analysis_id,
+                    entry["status"],
+                    json.dumps(entry["metadata"], ensure_ascii=False, default=str),
+                    json.dumps(entry["document"], ensure_ascii=False) if entry["document"] is not None else None,
+                    json.dumps(entry["summary"], ensure_ascii=False) if entry["summary"] is not None else None,
+                    entry["error"],
+                ),
             )
-            conn.commit()
 
 
 # Singleton global partagé entre les endpoints.

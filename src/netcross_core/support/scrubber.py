@@ -213,7 +213,6 @@ class ScrubReport:
         de resultat : il affirme que la passe a bien eu lieu et n'a rien
         trouve a rediger.
         """
-        logger.debug("statut(self={self})")
         return "redige" if self.total else "aucune_donnee_sensible_detectee"
 
     def to_dict(self) -> dict:
@@ -276,7 +275,6 @@ class TextScrubber:
         Destine a un fichier conserve PAR L'OPERATEUR, jamais joint au
         ticket -- il annulerait l'anonymisation.
         """
-        logger.debug("mapping_csv_rows(self={self})")
         return sorted((real, pseudo, self._kind[real]) for real, pseudo in self._map.items())
 
     # -- scrubbing --------------------------------------------------------
@@ -289,7 +287,6 @@ class TextScrubber:
         passe a eu lieu sur une entree vide, ce qui n'est pas la meme
         chose que de ne pas avoir tente de rediger.
         """
-        logger.debug("scrub(self={self}, text={text})")
         report = ScrubReport()
         if not text:
             return text, report
@@ -360,7 +357,6 @@ class TextScrubber:
 
     def scrub_lines(self, lines) -> tuple[list[str], ScrubReport]:
         """``scrub`` applique a une sequence de lignes, rapport agrege."""
-        logger.debug("scrub_lines(self={self}, lines={lines})")
         out: list[str] = []
         agg = ScrubReport()
         for line in lines:

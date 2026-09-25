@@ -62,7 +62,6 @@ class LoadedPlugins:
 
 def forbidden_imports(source: str) -> list[str]:
     """Modules interdits importes par `source` (import et from ... import)."""
-    logger.debug("forbidden_imports(source={source})")
     found = []
     for node in ast.walk(ast.parse(source)):
         names: list[str] = []
@@ -85,7 +84,7 @@ def _check_source(path: str | None, label: str) -> None:
     try:
         bad = forbidden_imports(source)
     except SyntaxError as exc:
-        logger.exception("erreur: exc")
+        logger.exception(f"échec dans _check_source: {exc}")
         raise PluginLoadError(f"{label} : erreur de syntaxe ({exc.msg}, ligne {exc.lineno})") from exc
     if bad:
         raise PluginLoadError(
@@ -136,7 +135,7 @@ def load_path_module(path: str) -> dict[str, list[Any]]:
     try:
         spec.loader.exec_module(module)
     except Exception as exc:
-        logger.exception("erreur: exc")
+        logger.exception(f"échec dans load_path_module: {exc}")
         sys.modules.pop(mod_name, None)
         raise PluginLoadError(f"--plugin-path {path} : import en erreur ({exc.__class__.__name__}: {exc})") from exc
     out: dict[str, list[Any]] = {"detector": [], "exporter": []}
@@ -155,13 +154,13 @@ def _load_entry_point(ep: metadata.EntryPoint, kind: str) -> Any:
     try:
         spec = importlib.util.find_spec(module_name)
     except (ImportError, ValueError) as exc:
-        logger.exception("erreur: exc")
+        logger.exception(f"échec dans _load_entry_point: {exc}")
         raise PluginLoadError(f"{label} : module {module_name} introuvable ({exc})") from exc
     _check_source(spec.origin if spec else None, label)
     try:
         obj = ep.load()
     except Exception as exc:
-        logger.exception("erreur: exc")
+        logger.exception(f"échec dans _load_entry_point: {exc}")
         raise PluginLoadError(f"{label} : import en erreur ({exc.__class__.__name__}: {exc})") from exc
     return _check_kind(_instantiate(obj), kind, label)
 
@@ -179,7 +178,7 @@ def load_plugins(authorized: list[str], plugin_paths: list[str] | None = None) -
         try:
             objs = load_path_module(path)
         except PluginLoadError as exc:
-            logger.exception("erreur: exc")
+            logger.exception(f"échec dans load_plugins: {exc}")
             loaded.errors.append({"plugin": path, "reason": str(exc)})
             continue
         for det in objs["detector"]:
@@ -199,7 +198,7 @@ def load_plugins(authorized: list[str], plugin_paths: list[str] | None = None) -
             try:
                 obj = _load_entry_point(ep, kind)
             except PluginLoadError as exc:
-                logger.exception("erreur: exc")
+                logger.exception(f"échec dans load_plugins: {exc}")
                 loaded.errors.append({"plugin": ep.name, "reason": str(exc)})
                 continue
             if kind == "detector":
@@ -226,7 +225,7 @@ def list_plugins(authorized: list[str], plugin_paths: list[str] | None = None) -
         try:
             objs = load_path_module(path)
         except PluginLoadError as exc:
-            logger.exception("erreur: exc")
+            logger.exception(f"échec dans list_plugins: {exc}")
             origin = f"fichier:{path}"
             rows.append({"name": path, "kind": "?", "origin": origin, "authorized": False, "error": str(exc)})
             continue

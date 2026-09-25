@@ -11,7 +11,7 @@
 > Il remplace l'ancienne section 3 de `docs/features-backlog.md`, tenue à la main, qui avait dérivé
 > (voir `docs/sessions/session-36.md`, issue #140).
 
-153 modules · 227 classes · 493 fonctions publiques de module.
+160 modules · 240 classes · 533 fonctions publiques de module.
 
 Conventions : `+` public, `-` privé (préfixe `_`) ; `int?` = `int | None` ; `list~str~` = `list[str]` ;
 `<<module>>` regroupe les fonctions publiques d'un module ; `A --> B : champ` = `A` a un champ annoté
@@ -34,12 +34,12 @@ flowchart TD
     pcap_parser["pcap_parser"]
     CLI -->|"17 imports"| netcross_report
     CLI -->|"8 imports"| netcross_ai
-    CLI -->|"32 imports"| netcross_core
+    CLI -->|"39 imports"| netcross_core
     CLI -->|"5 imports"| pcap_parser
-    netcross_gtk4 -->|"10 imports"| netcross_report
-    netcross_gtk4 -->|"48 imports"| netcross_core
+    netcross_gtk4 -->|"13 imports"| netcross_report
+    netcross_gtk4 -->|"51 imports"| netcross_core
     netcross_gtk4 -->|"2 imports"| pcap_parser
-    netcross_api -->|"7 imports"| netcross_core
+    netcross_api -->|"6 imports"| netcross_core
     netcross_report -->|"32 imports"| netcross_core
     netcross_ai -->|"10 imports"| netcross_core
     netcross_core -->|"17 imports"| pcap_parser
@@ -55,11 +55,14 @@ du graphe de dépendances ci-dessus (qui ne compte que des `import`).
 ```mermaid
 flowchart LR
     AnalysisResult["netcross_gtk4.analysis_pipeline.AnalysisResult"]
+    AnnotationStore["netcross_gtk4.annotations_view.AnnotationStore"]
     BPFFilter["netcross_core.models.BPFFilter"]
     Baseline["netcross_ai.anomaly.Baseline"]
     CaptureInfo["pcap_parser.capinfos_source.CaptureInfo"]
     ClientReport["netcross_core.client_diff.ClientReport"]
     ContentExtraction["netcross_core.extract.contents.ContentExtraction"]
+    CveEntry["netcross_core.security.cve_db.CveEntry"]
+    CveSeed["netcross_core.security.cve_seed.CveSeed"]
     DemandeSauvegarde["netcross_gtk4.bpf_panel.DemandeSauvegarde"]
     Detector["netcross_core.plugins.api.Detector"]
     DiffFinding["netcross_core.baseline_diff.DiffFinding"]
@@ -75,6 +78,7 @@ flowchart LR
     LoadedPlugins["netcross_core.plugins.loader.LoadedPlugins"]
     ModelPack["netcross_ai.model_pack.ModelPack"]
     OsGuess["netcross_core.discovery.os_detect.OsGuess"]
+    PacketAnnotation["netcross_core.models.PacketAnnotation"]
     Pkt["netcross_core.models.Pkt"]
     Report["netcross_core.models.Report"]
     SegmentScore["netcross_report.triage.SegmentScore"]
@@ -82,9 +86,11 @@ flowchart LR
     _Detector["netcross_core.exploit_signatures._Detector"]
     netcross_core_security_expert_correlation__FlowState["netcross_core.security.expert_correlation._FlowState"]
     AnalysisResult -->|report| Report
+    AnnotationStore -->|by_label| PacketAnnotation
     CaptureInfo -->|interfaces| InterfaceRecord
     ClientReport -->|report| Report
     ContentExtraction -->|media| StreamQuality
+    CveSeed -->|entries| CveEntry
     DemandeSauvegarde -->|filtre| BPFFilter
     DiffFinding -->|evidence| EvidenceLink
     Finding -->|event| ExpertEvent
@@ -341,6 +347,7 @@ classDiagram
         +float? http_response_time_ms
         +tuple~str, ...~ expert_flags
         +tuple~tuple~str, str?, str?, str?~, ...~ expert_details
+        +float payload_entropy
         +str? http_content_type
         +int? http_content_length
         +int? tcp_len
@@ -433,6 +440,7 @@ classDiagram
 | `netcross_core.live_diff` | Capture en continu + diff en direct (Job 33, issue #33). |
 | `netcross_core.live_report` | issue #274 : export / rapport temps reel du mode ``--live``. |
 | `netcross_core.logging_config` | configuration centrale du logging (issue #245). |
+| `netcross_core.lua_doc` | banque SQLite locale de l'API Lua Wireshark (issue #387, rattachee a #331). |
 | `netcross_core.models` | structures de donnees partagees : un paquet normalise (Pkt) et le resultat d'analyse consolide (Report). |
 | `netcross_core.naming` | table locale de correspondance adresse/MAC -> nom logique, type, contexte (Job 18 / issue #16-bis, section 6.15 de FEATURES.md). |
 | `netcross_core.parsing` | adaptateur entre pcap_parser (decodage via tshark -T ek) et le modele Pkt de netcross_core. |
@@ -890,6 +898,7 @@ classDiagram
         <<dataclass, slots>>
         +bool tls_ccs_seen
         +bool smb_mid64_tree_connect
+        +int http2_rst_count
     }
     class _Detector {
         <<dataclass, frozen>>
@@ -940,10 +949,12 @@ classDiagram
         +dict~str, float~ inter_arrival_stats
         +list~str~ phases
         +float? rtt_estimate_ms
+        +to_dict() dict
     }
     class mod_netcross_core_flow_timeline["netcross_core.flow_timeline"] {
         <<module>>
         +build_flow_timeline(packets, window_s) FlowTimeline
+        +build_flow_timelines(packets, window_s, min_packets) dict
     }
 
     %% ===== netcross_core.flow_view =====
@@ -1140,6 +1151,71 @@ classDiagram
         +get_logger(name)
     }
 
+    %% ===== netcross_core.lua_doc =====
+    class Parametre {
+        <<dataclass, frozen, slots>>
+        +str nom
+        +str type
+        +bool optionnel
+        +str description
+    }
+    class Methode {
+        <<dataclass, frozen, slots>>
+        +str classe
+        +str nom
+        +str genre
+        +str signature
+        +str description
+        +str depuis_version
+        +list~Parametre~ parametres
+        +list~str~ retours
+        +list~str~ erreurs
+        +list~str~ exemples
+    }
+    class Attribut {
+        <<dataclass, frozen, slots>>
+        +str classe
+        +str nom
+        +str nom_complet
+        +str mode
+        +str description
+        +str depuis_version
+    }
+    class FicheClasse {
+        <<dataclass, frozen, slots>>
+        +str nom
+        +str module
+        +str description
+        +list~str~ exemples
+        +list~Methode~ methodes
+        +list~Attribut~ attributs
+    }
+    class ResultatRecherche {
+        <<dataclass, frozen, slots>>
+        +str classe
+        +str nom
+        +str signature
+        +str description
+        +str genre
+        +int ref_id
+        +est_attribut() bool
+    }
+    class mod_netcross_core_lua_doc["netcross_core.lua_doc"] {
+        <<module>>
+        +connect(db_path) sqlite3.Connection
+        +load_json(conn, data) dict~str, int~
+        +load_json_file(conn, json_path) dict~str, int~
+        +json_candidates() list~Path~
+        +find_json() Path?
+        +ensure_db(db_path, json_path) sqlite3.Connection
+        +get_meta(conn) dict~str, str~
+        +list_classes(conn) list~str~
+        +search(conn, terme, limit) list~ResultatRecherche~
+        +get_class(conn, nom) FicheClasse?
+        +get_methode(conn, methode_id) Methode?
+        +get_attribut(conn, attribut_id) Attribut?
+    }
+
     %% ===== netcross_core.models =====
     class Banner {
         <<dataclass, frozen, slots>>
@@ -1234,6 +1310,8 @@ classDiagram
         +str? http_content_type
         +int? http_content_length
         +bool is_duplicate
+        +float payload_entropy
+        +int payload_len
         +str? comment
         +tuple~Banner, ...~ service_banners
         +int? tcp_len
@@ -1280,6 +1358,7 @@ classDiagram
         +int rtp_clock_rate
         +dict~str, int~ seen_count
         +dict~str, int~ loss_count
+        +dict~str, int~ off_path_count
         +dict~tuple~str, str~, list~float~~ latency
         +dict~tuple~str, str~, int~ qos_change
         +dict~str, int~ retrans
@@ -1405,6 +1484,8 @@ classDiagram
         +list~dict~ lateral_movement_events
         +list~dict~ plugin_runs
         +list~dict~ flow_anomalies
+        +list~dict~ asset_inventory
+        +int asset_baseline_size
         +list~tuple~str, str, dict~~ topology_edges
         +list~tuple~str, str, str~~ topology_ambiguous
         +list~str~ topology_isolated
@@ -1650,6 +1731,9 @@ classDiagram
     FlowView --> Transaction : transactions
     LiveDiffState --> Pkt : packets_in_window
     LiveAggregator --> _Point : points
+    Methode --> Parametre : parametres
+    FicheClasse --> Attribut : attributs
+    FicheClasse --> Methode : methodes
     Pkt --> Banner : service_banners
     Report --> ChecksumError : checksum_errors
     Report --> SequenceGap : sequence_gaps
@@ -2010,6 +2094,7 @@ classDiagram
 | `netcross_core.netflow.adapter` | conversion FlowRecord -> Pkt. |
 | `netcross_core.netflow.models` | structure de donnees partagee pour un flux agrege NetFlow/sFlow (FlowRecord), distincte de Pkt. |
 | `netcross_core.netflow.netflow_v5` | parseur NetFlow v5 (RFC 1568 / format Cisco historique, le plus repandu et le plus simple des protocoles vises par cet ADR -- voir docs/adr/netflow-sflow-architecture.md, Phase 1 du plan… |
+| `netcross_core.netflow.summary` | Resume d'un export NetFlow (issue #362) : volumes, protocoles, principaux emetteurs, conversations et ports de destination. |
 
 ### Diagramme
 
@@ -2061,6 +2146,14 @@ classDiagram
         <<module>>
         +parse_netflow_v5_packet(data, exporter) list~FlowRecord~
         +iter_netflow_v5_file(path, exporter) Iterator~FlowRecord~
+    }
+
+    %% ===== netcross_core.netflow.summary =====
+    class mod_netcross_core_netflow_summary["netcross_core.netflow.summary"] {
+        <<module>>
+        +protocol_name(number) str
+        +summarize_flow_records(records, top) dict
+        +format_flow_summary(summary) list~str~
     }
 ```
 
@@ -2264,9 +2357,11 @@ classDiagram
 | Module | Rôle |
 |---|---|
 | `netcross_core.security` | detection passive de vulnerabilites (CVE) sur traces reseau (issue #133, sous-tache CVE-4 / issue #138). |
+| `netcross_core.security.address_scope` | Portee d'une adresse (interne / externe) pour les detecteurs de securite. |
 | `netcross_core.security.beaconing` | issue #147 (SCENARIO-1, parent #141) : detection de beaconing C2 (communications periodiques d'un hote interne vers une destination externe : check-in regulier, petites requetes). |
 | `netcross_core.security.cpe_match` | conversion d'une banniere de service ("Apache/2.4.41") en identifiant CPE 2.3 et comparaison de versions avec les ranges NVD (versionStart/EndIncluding/Excluding). |
 | `netcross_core.security.cve_db` | base SQLite locale des CVE, peuplee par scripts/import_nvd.py depuis le flux NVD (voir ce script pour le format JSON attendu, API NVD 2.0). |
+| `netcross_core.security.cve_seed` | Base CVE minimale embarquee (issue #353). |
 | `netcross_core.security.dga` | issue #152 (SCENARIO-6, parent #141) : detection de domaines generes algorithmiquement (DGA). |
 | `netcross_core.security.dns_tunnel` | issue #144 (FLOW-3, parent #141) : detection de tunneling DNS (exfiltration, C2, VPN over DNS). |
 | `netcross_core.security.exfiltration` | issue #148 (SCENARIO-2, parent #141) : detection d'exfiltration de donnees (transferts sortants anormaux). |
@@ -2300,6 +2395,13 @@ classDiagram
         +correlate_versions(conn, banners) dict~str, list~CveMatch~~
     }
 
+    %% ===== netcross_core.security.address_scope =====
+    class mod_netcross_core_security_address_scope["netcross_core.security.address_scope"] {
+        <<module>>
+        +is_test_net(address) bool
+        +is_external(address, treat_test_net_as_external) bool
+    }
+
     %% ===== netcross_core.security.beaconing =====
     class BeaconingThresholds {
         <<dataclass, frozen>>
@@ -2323,7 +2425,6 @@ classDiagram
     }
     class mod_netcross_core_security_beaconing["netcross_core.security.beaconing"] {
         <<module>>
-        +is_external(address, treat_test_net_as_external) bool
         +detect_beaconing(packets, thresholds) BeaconingResult
     }
 
@@ -2339,6 +2440,7 @@ classDiagram
     }
     class mod_netcross_core_security_cpe_match["netcross_core.security.cpe_match"] {
         <<module>>
+        +vendor_candidates(vendor, product) tuple~str, ...~
         +build_cpe23(vendor, product, version) str
         +parse_banner(banner) ParsedBanner?
         +parse_all_banners(banner) list~ParsedBanner~
@@ -2377,6 +2479,19 @@ classDiagram
         +get_cve(conn, cve_id) CveEntry?
         +query_by_product(conn, vendor, product) list~CveEntry~
         +count_cves(conn) int
+    }
+
+    %% ===== netcross_core.security.cve_seed =====
+    class CveSeed {
+        <<dataclass, frozen, slots>>
+        +tuple~CveEntry, ...~ entries
+        +str source
+        +str generated
+    }
+    class mod_netcross_core_security_cve_seed["netcross_core.security.cve_seed"] {
+        <<module>>
+        +load_seed(path) CveSeed
+        +open_seed_db(path) tuple~sqlite3.Connection, CveSeed~
     }
 
     %% ===== netcross_core.security.dga =====
@@ -2462,6 +2577,7 @@ classDiagram
         +int? min_upload_for_ratio
         +float off_hours_min_fraction
         +bool external_only
+        +bool treat_test_net_as_external
         +ratio_floor() int
     }
     class ExfiltrationAlert {
@@ -2572,10 +2688,14 @@ classDiagram
         +tls_audit_findings(audit) list~dict~str, Any~~
         +lateral_movement_findings(events) list~dict~str, Any~~
         +flow_stats_findings(flows) list~dict~str, Any~~
+        +new_host_findings(assets) list~dict~str, Any~~
         +cve_findings(fingerprints, conn) list~dict~str, Any~~
         +dga_findings(alerts) list~dict~str, Any~~
         +fast_flux_findings(alerts) list~dict~str, Any~~
-        +apply_security_findings(report, all_packets, detections, cve_conn, tls_policy, known_destinations) None
+        +sequence_gap_findings(gaps) list~dict~str, Any~~
+        +cross_capture_duplicate_findings(duplicate_count) list~dict~str, Any~~
+        +extracted_file_findings(extraction) list~dict~str, Any~~
+        +apply_security_findings(report, all_packets, detections, cve_conn, tls_policy, known_destinations, known_hosts, treat_test_net_as_external) None
     }
 
     %% ===== netcross_core.security.flow_stats =====
@@ -2583,7 +2703,9 @@ classDiagram
         <<dataclass, frozen>>
         +int small_packet_threshold
         +int large_packet_threshold
-        +float high_entropy_threshold
+        +float high_byte_entropy_ratio
+        +int min_payload_for_entropy
+        +int min_flow_payload_bytes
         +int splt_max_packets
     }
     class FlowStat {
@@ -2599,6 +2721,9 @@ classDiagram
         +list~float~ inter_arrivals
         +str classification
         +float entropy
+        +float byte_entropy
+        +float byte_entropy_ratio
+        +int payload_bytes
         +float median_size
         +float upload_ratio
         +float regularity_cv
@@ -2701,6 +2826,7 @@ classDiagram
 
     %% ===== relations =====
     CveEntry --> AffectedProduct : affected
+    CveSeed --> CveEntry : entries
     DgaResult --> DgaAlert : alerts
     FastFluxResult --> FastFluxAlert : alerts
     FlowStatsResult --> FlowStat : flows
@@ -3401,6 +3527,9 @@ classDiagram
         +int anomalies_netcross
         +int anomalies_expert_info
         +int cves
+        +int assets_total
+        +int assets_new
+        +int assets_baseline_size
         +dict~str, int~ by_severity
         +int score
         +str? level
@@ -3414,6 +3543,7 @@ classDiagram
         +SecurityDashboard dashboard
         +list~dict~ notifications
         +list~dict~ plugins
+        +list~dict~ assets
     }
     class mod_netcross_report_security_report["netcross_report.security_report"] {
         <<module>>
@@ -3422,6 +3552,8 @@ classDiagram
         +group_by_detector(items) list~DetectorGroup~
         +severity_from_cvss(cvss) str
         +build_security_report(report) SecurityReport
+        +asset_os_label(asset) str
+        +asset_ports_label(asset) str
         +format_security_report(sr) list~str~
         +print_security_report(sr) None
         +security_report_to_dict(sr) dict
@@ -3573,9 +3705,9 @@ classDiagram
 | Module | Rôle |
 |---|---|
 | `netcross_api` | service REST FastAPI pour exposer les analyses Netcross (issue #209). |
-| `netcross_api.app` | application FastAPI pour exposer les analyses Netcross (issue #209). |
+| `netcross_api.app` | application FastAPI pour exposer les analyses Netcross (issues #209, #354, #356). |
 | `netcross_api.models` | modèles Pydantic pour les requêtes/réponses API (issue #209). |
-| `netcross_api.store` | store des analyses avec statut et persistance optionnelle. |
+| `netcross_api.store` | analyses de l'API : statut, document JSON, persistance. |
 
 ### Diagramme
 
@@ -3584,14 +3716,19 @@ classDiagram
     direction LR
 
     %% ===== netcross_api.app =====
+    class AnalysisError {
+        <<Exception>>
+    }
     class mod_netcross_api_app["netcross_api.app"] {
         <<module>>
         +health() HealthResponse
-        +upload_capture(file, label, _auth) AnalysisSummary
+        +upload_capture(file, label, wait, _auth) JSONResponse
+        +segment_losses(report) list~SegmentLoss~
+        +upload_multi_capture(files, labels, points_order, wait, _auth) JSONResponse
         +get_analysis(analysis_id, _auth) JSONResponse
         +get_security_report(analysis_id, _auth) SecurityReport
         +list_analyses(_auth) dict
-        +get_analysis_status(analysis_id, _auth) dict
+        +get_analysis_status(analysis_id, _auth) AnalysisStatus
     }
 
     %% ===== netcross_api.models =====
@@ -3607,6 +3744,19 @@ classDiagram
         +int point_count
         +int packet_count
         +int security_finding_count
+    }
+    class AnalysisAccepted {
+        <<BaseModel>>
+        +str analysis_id
+        +str status
+        +str status_url
+    }
+    class AnalysisStatus {
+        <<BaseModel>>
+        +str analysis_id
+        +str status
+        +str? error
+        +dict? summary
     }
     class SecurityFinding {
         <<BaseModel>>
@@ -3628,22 +3778,50 @@ classDiagram
         <<BaseModel>>
         +str detail
     }
+    class SegmentLoss {
+        <<BaseModel>>
+        +str segment
+        +str upstream
+        +str downstream
+        +int loss_count
+        +float? loss_pct
+        +int seen_downstream
+        +int off_path_count
+        +int latency_samples
+        +float? latency_avg_ms
+    }
+    class MultiAnalysisSummary {
+        <<BaseModel>>
+        +str analysis_id
+        +str status
+        +int point_count
+        +int packet_count
+        +int security_finding_count
+        +list~str~ points
+        +str order_source
+        +list~SegmentLoss~ segments
+    }
 
     %% ===== netcross_api.store =====
     class AnalysesStore {
-        +add(report, metadata, status) str
-        +add_pending(metadata) str
-        +complete(analysis_id, report) None
+        +persistent() bool
+        +create_pending(metadata) str
+        +complete(analysis_id, document, summary) None
         +fail(analysis_id, error) None
         +get(analysis_id) dict?
-        +get_report(analysis_id) Report?
         +get_status(analysis_id) str?
-        +exists(analysis_id) bool
         +list_ids() list~str~
+        +clear() None
+    }
+    class mod_netcross_api_store["netcross_api.store"] {
+        <<module>>
+        +jsonable(value) Any
+        +report_document(report) dict~str, Any~
     }
 
     %% ===== relations =====
     netcross_api_models_SecurityReport --> SecurityFinding : findings
+    MultiAnalysisSummary --> SegmentLoss : segments
 ```
 
 ## `netcross_gtk4`
@@ -3652,6 +3830,7 @@ classDiagram
 |---|---|
 | `netcross_gtk4` | — |
 | `netcross_gtk4.analysis_pipeline` | pipeline d'analyse extrait de MainWindow (issue #246, #285 -- lot supplémentaire). |
+| `netcross_gtk4.annotations_panel` | panneau GTK des annotations (issue #363). |
 | `netcross_gtk4.annotations_view` | logique de presentation pour l'etiquetage/signets sur paquets (Job 40 / issue #160, section "Metadonnees et annotation"). |
 | `netcross_gtk4.app` | interface GTK4 pour netcross_core / netcross_report. |
 | `netcross_gtk4.bpf_panel` | Decisions du panneau de filtres BPF de la capture live, sorties de ``netcross_gtk4/app.py`` (issue #285, quatrieme lot). |
@@ -3663,6 +3842,7 @@ classDiagram
 | `netcross_gtk4.panel_state` | decisions de visibilite, de sensibilite et de selection des panneaux de la GUI (issue #285, troisieme lot). |
 | `netcross_gtk4.row_labels` | libelles et cles de tri des lignes affichees par la GUI (issue #285, premier lot d'extraction de `app.py`). |
 | `netcross_gtk4.run_outcome` | etat de resultat et decisions d'affichage a la fin d'une analyse ou d'une comparaison (issue #285, deuxieme lot). |
+| `netcross_gtk4.security_view` | section Securite de la GUI (issue #357). |
 | `netcross_gtk4.stats_view` | logique de presentation pour la vue d'exploration statistique (Job 27 / issue #22, section 6.8). |
 
 ### Diagramme
@@ -3700,14 +3880,44 @@ classDiagram
         +list? tls_findings
         +list? quic_findings
         +list wireshark_expert_events
+        +Any security_report
     }
     class mod_netcross_gtk4_analysis_pipeline["netcross_gtk4.analysis_pipeline"] {
         <<module>>
         +load_packets(captures, parallel, on_progress) list
         +run_analysis_pipeline(captures, options, on_progress) AnalysisResult
+        +run_security_analysis(report, all_packets, captures, log)
+    }
+
+    %% ===== netcross_gtk4.annotations_panel =====
+    class AnnotationsPanel {
+        <<Gtk.Box>>
+        +load(captures) None
+        +clear() None
+        +selected_point() str?
+        +prefill(point, frame_number) None
+        +submit() bool
+        +remove(point, frame_number, tag) None
+        +toggle_tag(tag, active) None
+        +refresh() None
+        +visible_rows()
+        +context_actions(target) list~tuple~str, Callable~(), None~~~
     }
 
     %% ===== netcross_gtk4.annotations_view =====
+    class AnnotationStore {
+        <<dataclass>>
+        +list~tuple~str, str~~ captures
+        +dict~str, list~PacketAnnotation~~ by_label
+        +dict~str, str~ errors
+        +load(captures)$ AnnotationStore
+        +labels() list~str~
+        +writable_labels() list~str~
+        +add(label, frame_number, tag, comment) None
+        +remove(label, frame_number, tag) None
+        +tags() list~str~
+        +rows(selected_tags) list~tuple~str, PacketAnnotation~~
+    }
     class mod_netcross_gtk4_annotations_view["netcross_gtk4.annotations_view"] {
         <<module>>
         +available_tags(annotations) list~str~
@@ -3715,6 +3925,7 @@ classDiagram
         +format_annotation_row(annotation) str
         +add_annotation(annotations, frame_number, tag, comment, color) list~PacketAnnotation~
         +remove_annotation(annotations, frame_number, tag) list~PacketAnnotation~
+        +parse_frame_number(text) int
     }
 
     %% ===== netcross_gtk4.app =====
@@ -3750,6 +3961,8 @@ classDiagram
         +export_pdf_to(path)
         +on_export_json(_btn)
         +export_json_to(path)
+        +on_export_security(suffix)
+        +export_security_to(path)
     }
     class NetcrossApp {
         <<Gtk.Application>>
@@ -3941,6 +4154,7 @@ classDiagram
         +Any tls_findings
         +Any quic_findings
         +Any wireshark_expert_events
+        +Any security_report
         +Any diff_findings
         +Any baseline_report
         +Any current_report
@@ -3956,9 +4170,16 @@ classDiagram
     }
     class mod_netcross_gtk4_run_outcome["netcross_gtk4.run_outcome"] {
         <<module>>
-        +analysis_outcome(mode, report, flows, findings, text, tls_findings, quic_findings, wireshark_expert_events) RunOutcome
+        +analysis_outcome(mode, report, flows, findings, text, tls_findings, quic_findings, wireshark_expert_events, security_report) RunOutcome
         +diff_status_text(findings) str
         +diff_outcome(findings, baseline_report, current_report, text, tls_findings_baseline, tls_findings_current, quic_findings_baseline, quic_findings_current) RunOutcome
+    }
+
+    %% ===== netcross_gtk4.security_view =====
+    class mod_netcross_gtk4_security_view["netcross_gtk4.security_view"] {
+        <<module>>
+        +security_view_text(sr) str
+        +export_security_report(sr, path) str
     }
 
     %% ===== netcross_gtk4.stats_view =====
@@ -3987,6 +4208,7 @@ classDiagram
 | `cross_capture_diff_cli` | cross_capture_diff_cli.py -- compare deux jeux de captures (avant/apres un correctif, site A / site B...) et remonte les regressions et ameliorations entre les deux runs. |
 | `cross_history_cli` | cross_history_cli.py -- interroge une base d'historique SQLite deja alimentee par cross_capture_analyzer_cli.py/cross_capture_diff_cli.py (--history-db), sans relancer d'analyse ni de comparaison. |
 | `netcross_ai_models_cli` | paquets de modeles IA partageables et boite d'envoi hors connexion (issue #271). |
+| `netcross_lua_doc_cli` | consultation hors ligne de l'API Lua Wireshark (issue #388, rattachee a #331). |
 
 ### Diagramme
 
@@ -4030,6 +4252,17 @@ classDiagram
     %% ===== netcross_ai_models_cli =====
     class mod_netcross_ai_models_cli["netcross_ai_models_cli"] {
         <<module>>
+        +build_parser() argparse.ArgumentParser
+        +main(argv) int
+    }
+
+    %% ===== netcross_lua_doc_cli =====
+    class mod_netcross_lua_doc_cli["netcross_lua_doc_cli"] {
+        <<module>>
+        +render_methode(m, indent) list~str~
+        +render_attribut(a, indent) list~str~
+        +render_fiche(f, version) list~str~
+        +render_resultats(conn, terme, res, full) list~str~
         +build_parser() argparse.ArgumentParser
         +main(argv) int
     }

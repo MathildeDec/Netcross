@@ -30,7 +30,7 @@ from __future__ import annotations
 from dataclasses import dataclass
 
 from netcross_core.logging_config import get_logger
-from netcross_core.security.cpe_match import ParsedBanner, parse_all_banners, parse_banner
+from netcross_core.security.cpe_match import ParsedBanner, parse_all_banners, parse_banner, vendor_candidates
 from netcross_core.security.cve_db import (
     AffectedProduct,
     CveEntry,
@@ -94,7 +94,11 @@ def correlate_banner(conn, banner: str) -> list[CveMatch]:
         return []
 
     matches: list[CveMatch] = []
-    for entry in query_by_product(conn, parsed.vendor, parsed.product):
+    entries: dict[str, CveEntry] = {}
+    for vendor in vendor_candidates(parsed.vendor, parsed.product):
+        for entry in query_by_product(conn, vendor, parsed.product):
+            entries.setdefault(entry.cve_id, entry)  # une CVE listee sous deux vendeurs
+    for entry in entries.values():
         matched = entry.matching_cpe(parsed.version)
         if matched is None:
             continue

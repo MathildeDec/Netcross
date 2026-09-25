@@ -95,7 +95,6 @@ def build_flow_view(
     flux. Si None, `FlowView.events` reste vide -- l'integration avec
     l'index forensic se fera apres merge de la PR correspondante.
     """
-    logger.debug("build_flow_view(flow={flow}, packets_by_point={packets_by_point}, events={events})")
     view = FlowView(flow=flow)
 
     all_pkts: list[Pkt] = []

@@ -72,7 +72,7 @@ def parse_capture(path: str, raise_on_error: bool = False) -> list[RawPacket]:
             if pkt is not None:
                 packets.append(pkt)
     except (TsharkNotFoundError, TsharkError) as e:
-        logger.exception("erreur: e")
+        logger.exception(f"échec dans parse_capture: {e}")
         if raise_on_error:
             raise
         print(f"impossible de lire {path} : {e}", file=sys.stderr)
@@ -135,7 +135,7 @@ def parse_captures_parallel(
             except Exception as e:  # noqa: BLE001 -- catch-all volontaire : un
                 # fichier en echec (tshark absent, pcap corrompu, permission...)
                 # ne doit jamais interrompre le traitement parallele des autres.
-                logger.exception("erreur: e")
+                logger.exception(f"échec dans parse_captures_parallel: {e}")
                 per_file_stats.append(
                     {
                         "label": label,
@@ -467,7 +467,7 @@ def replay_capture(path: str, interface: str, speed: float | str = 1.0, loop: in
         try:
             speed = float(speed)
         except (TypeError, ValueError):
-            logger.exception("erreur: e")
+            logger.exception("échec dans replay_capture")
             raise ValueError(
                 f"speed doit etre un nombre strictement positif ou la chaine 'topspeed' (recu {speed!r})"
             ) from None
@@ -685,7 +685,7 @@ def _live_source_worker(
                 close()  # termine tshark proprement, meme si la boucle a ete interrompue
     except Exception as e:  # noqa: BLE001 -- thread de fond : toute erreur (tshark absent,
         # interface inconnue, permission...) doit etre relayee a l'appelant, pas perdue.
-        logger.exception("erreur: e")
+        logger.exception(f"échec dans _live_source_worker: {e}")
         out.put(_SourceFailed(label, e))
     else:
         out.put(_SourceDone(label))

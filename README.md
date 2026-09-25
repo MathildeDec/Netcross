@@ -40,7 +40,10 @@ ordre connu à l'avance), `netcross` :
   connaître le chemin physique à l'avance ;
 - détecte les **pertes de paquets**, en attribuant chaque perte au bon segment
   du réseau (et sait reconnaître un flux qui a légitimement pris une autre
-  branche plutôt que de le compter comme perdu) ;
+  branche plutôt que de le compter comme perdu ; le trafic qui n'emprunte pas
+  un segment — scan local au LAN, hôtes qui n'échangent jamais rien à ce
+  point — est compté à part comme « hors chemin », et le sens retour ne
+  fausse plus le nombre de sauts) ;
 - mesure la **latence et la gigue** par segment, avec estimation du décalage
   d'horloge entre points (formule NTP via les handshakes TCP) quand les
   machines de capture ne sont pas synchronisées ;
@@ -292,8 +295,9 @@ cd netcross
 ### Paquet système (.deb / .rpm)
 
 Voir [Construire les paquets .deb / .rpm](#construire-les-paquets-deb--rpm).
-Installe les commandes `netcross`, `netcross-diff`, `netcross-history`
-et `netcross-gui` directement dans `/usr/bin`.
+Installe les commandes `netcross`, `netcross-diff`, `netcross-history`,
+`netcross-batch`, `netcross-ai-models`, `netcross-lua-doc` et
+`netcross-gui` directement dans `/usr/bin`.
 
 ### Manuelle (pip)
 
@@ -370,15 +374,18 @@ Options utiles :
   (détection passive de vulnérabilités, issue #139) — services détectés
   (versions lues dans les bannières) classés par criticité, tentatives
   d'exploitation (signatures Log4Shell, Shellshock, Heartbleed,
-  EternalBlue… cherchées dans la charge utile brute des fichiers
+  EternalBlue, traversées Apache 2.4.49/2.4.50, injections SQL et de
+  commande, wrappers PHP, XSS… cherchées dans la charge utile brute des fichiers
   `--capture`, comme `--tls`), anomalies Expert Info corrélées
   (fuzzing/overflow/dos), CVE confirmées par corrélation version + CVE-ID +
   score CVSS, tableau de bord et score de risque global 0-100 (sévérités
   critique/élevée/moyenne/faible). `--cve-db` désigne la base SQLite
   produite par `scripts/import_nvd.py` (fichier existant exigé) ; sans elle,
-  les services sont listés sans corrélation CVE et la CLI le signale
-  (« aucune vulnérabilité connue » ne veut alors pas dire « non
-  vulnérable »). Aucune CVE n'est rattachée à un service sans
+  une base minimale embarquée (`netcross_core/data/cve_seed.json`, une
+  trentaine de CVE critiques extraites du NVD : Apache 2.4.49/2.4.50,
+  regreSSHion, Heartbleed, vsftpd 2.3.4…) est utilisée et la CLI le
+  signale (une version absente de cette sélection n'est pas pour autant
+  « non vulnérable »). Aucune CVE n'est rattachée à un service sans
   correspondance exacte de nom **et** de version, et une signature d'exploit
   est une *tentative* observée, jamais une compromission confirmée. Refusé
   avec `--live`, `--redact` (relecture des fichiers bruts, comme
@@ -410,6 +417,37 @@ Options utiles :
   (défaut 1). Incompatible avec `--live`/`--merge`/`--split` et avec les
   options d'analyse/de rapport (comme `--merge`, plusieurs fichiers
   segmentés doivent d'abord être fusionnés en un seul).
+- `--flow-timeline chronologie.json` : chronologie de chaque conversation,
+  point par point (les copies d'un même paquet vues à plusieurs points ne
+  sont pas mélangées) et dans les deux sens : inter-arrivées (min, max,
+  moyenne, médiane), débit par fenêtre de `--flow-timeline-window`
+  secondes (défaut 1), phases (slow-start, régime établi, rafale,
+  inactivité), RTT estimé sur la poignée de main. Les conversations d'un
+  seul paquet sont omises.
+- `--forensic-search resultats.json` : recherche dans les paquets et les
+  flux décodés. Les critères sont combinés par ET : `--search-text`
+  (texte libre, insensible à la casse), `--search-address`,
+  `--search-point`, `--search-protocol`, `--search-port`, et
+  `--search-field` (`sni`, `uri`, `http_status`, `call_id`, `dns_name`,
+  `method`, `content_type`, `message`) avec `--search-value`. Le JSON
+  rappelle la requête et le nombre de résultats ; sans critère, tout est
+  listé. Par exemple :
+  `--forensic-search r.json --search-field uri --search-value admin`.
+- `--tshark-stats stats.json` : statistiques `tshark -z` de chaque fichier
+  `--capture` (conversations et endpoints TCP/UDP, hiérarchie de
+  protocoles, io_stat). Une capture en échec, par exemple sans tshark,
+  porte une clé `error` et un message sur stderr, sans faire perdre les
+  autres. Refusé en `--live` seul.
+- `--netflow [EXPORTATEUR=]FICHIER` (répétable) : résumé d'un export
+  NetFlow v5 (datagrammes concatenés, par exemple la charge utile UDP
+  collectée sur le port du collecteur) — volumes totaux et période, par
+  exportateur, par protocole, principaux émetteurs, conversations et ports
+  de destination (`--netflow-top N`, défaut 10). Avec `--json-report`, le
+  même résumé est écrit sous la clé `netflow`. Mode autonome : incompatible
+  avec `--capture`/`--live`, car un flux agrégé vu par un seul routeur ne
+  se corrèle pas entre points de capture (voir
+  `docs/adr/netflow-sflow-architecture.md`). NetFlow v9 et sFlow ne sont
+  pas encore lus.
 - `--json-report chemin.json` : export JSON structuré (points, constats,
   triage, diagnostics TLS/QUIC si `--tls`/`--quic` sont fournis) pour
   l'intégration externe (dashboard, ticketing, script d'analyse). Aucune
@@ -675,6 +713,48 @@ netcross-history --db suivi_partage.db --run-type diff
 - `--limit N` : nombre maximum de runs affichés (défaut : tous), les
   plus récents en premier.
 
+### Documentation de l'API Lua Wireshark hors ligne
+
+`netcross-lua-doc` (`netcross_lua_doc_cli.py`, aussi accessible par
+`netcross lua-doc`) consulte l'API Lua de Wireshark sans connexion :
+classes, méthodes, fonctions globales et attributs, avec arguments,
+valeurs de retour, erreurs, version d'apparition et exemples.
+
+```bash
+# recherche libre (plein texte) : signature + résumé de chaque résultat
+netcross lua-doc tvb range
+netcross-lua-doc "source port"
+
+# fiche complète d'une classe (méthodes, arguments, retours, exemples, attributs)
+netcross-lua-doc --class Tvb
+
+# détail complet de chaque résultat, liste des classes
+netcross-lua-doc --full ProtoField.uint32
+netcross-lua-doc --classes
+
+# sortie JSON pour les scripts
+netcross-lua-doc --json --class Pinfo | jq -r '.classe.attributs[].nom_complet'
+```
+
+- Codes de retour : `0` résultat affiché, `1` aucun résultat, classe
+  inconnue ou JSON introuvable, `2` erreur d'usage.
+- `--limit N` (défaut 20), `--full`, `--json`, `--class NOM` (insensible
+  à la casse), `--classes`.
+- La banque SQLite est construite au premier appel dans
+  `~/.cache/netcross/lua_api.db` depuis `data/lua_api.json` (dépôt) ou
+  `/usr/share/netcross/data/lua_api.json` (paquet), puis reconstruite
+  automatiquement quand ce JSON change. `--source` ou
+  `NETCROSS_LUA_API_JSON` désignent un autre JSON, `--db` une autre base.
+
+Chaîne de régénération pour une nouvelle version de Wireshark :
+
+```bash
+# 1. JSON depuis la doc AsciiDoc officielle (tools/make-wsluarm.py de Wireshark)
+python3 tools/extract_lua_api.py --tag v4.6.9          # ou --wireshark-src DIR
+# 2. (facultatif) base SQLite explicite ; sinon construite à la volée
+python3 scripts/build_lua_db.py --input data/lua_api.json --db data/lua_api.db
+```
+
 ### Interface graphique
 
 ```bash
@@ -732,6 +812,34 @@ pas pour un graphe complet. Le calcul vit dans
 interface graphique (29 tests) ; le rendu est `charts.chart_comm_map()`. La
 vue se désactive après une comparaison baseline/courant, qui ne conserve
 pas les flux.
+
+**Annotations / signets** (section repliable de la page Résultats) :
+étiquette et commentaire libres posés sur un numéro de trame (celui
+qu'affiche Wireshark ou un constat), pour un point de capture choisi dans
+la liste. Chaque annotation est écrite **immédiatement** dans le sidecar
+JSON de sa capture, `<capture>.annotations.json`, puis relue à l'analyse
+suivante des mêmes fichiers. Un clic droit sur une annotation propose
+« Ajouter une étiquette sur cette trame » (formulaire prérempli) ou
+« Supprimer cette étiquette » ; sur la liste vide, « Ajouter une
+étiquette ». Une case par étiquette présente filtre la vue (aucune cochée
+= tout afficher). Une saisie invalide (trame non numérique, étiquette vide)
+affiche un message plutôt que d'être ignorée. Un sidecar illisible passe
+son point en **lecture seule** : il n'est jamais écrasé, les autres points
+restent annotables. La section est vide après une comparaison ou une
+capture en direct, qui n'ont pas de fichier de capture à annoter. La
+logique est dans `netcross_gtk4/annotations_view.py` (`AnnotationStore`,
+testée sans GTK) et le widget dans `netcross_gtk4/annotations_panel.py`.
+
+**Sécurité** (case « Rapport de securite », mode simple sur fichiers ;
+section repliable de la page Résultats) : même analyse que
+`--security-report`. Elle relit les signatures d'exploits dans les fichiers,
+corrèle les CVE avec la base minimale embarquée (la GUI n'a pas d'équivalent
+de `--cve-db`) et affiche le même rendu texte que la CLI. Deux boutons
+exportent ce rapport en HTML (équivalent `--security-html`) ou en JSON
+(clé `security_report` de `--json-report`). Les exports JSON et PDF
+généraux de la GUI portent aussi ce rapport. Comme en CLI, la case est
+désactivée avec l'anonymisation des adresses, et la section l'est après
+une comparaison.
 
 **Parité restante avec le CLI** : la capture en direct est désormais
 disponible sur les deux CLI — `--live` sur `cross_capture_analyzer_cli.py`
@@ -820,17 +928,32 @@ netcross/
 │   └── sessions/             historique detaille session par session
 ├── scripts/
 │   ├── generate_class_diagram.py  genere docs/class-diagram.md depuis src/
-│   └── import_nvd.py        import periodique du flux NVD dans la base CVE locale
+│   ├── import_nvd.py        import periodique du flux NVD dans la base CVE locale
+│   └── build_cve_seed.py    regenere la base CVE minimale embarquee (NVD)
 ├── tests/                   suite de tests automatisés (pytest)
 ├── src/
-│   ├── cross_capture_analyzer_cli.py   CLI (argparse)
+│   ├── cross_capture_analyzer_cli.py   CLI principale (argparse)
+│   ├── cross_capture_batch_cli.py      analyse par lots d'un repertoire de captures
+│   ├── cross_capture_diff_cli.py       comparaison de deux rapports JSON
+│   ├── cross_history_cli.py            historique des analyses
+│   ├── netcross_ai_models_cli.py       gestion des modeles IA locaux
+│   ├── netcross_lua_doc_cli.py         documentation de l'API Lua Wireshark
 │   ├── pcap_parser/         parsing tshark -T ek -> RawPacket/Pkt (DNS, HTTP, TLS, RTP, SIP...)
 │   ├── netcross_core/       moteur d'analyse (aucune dependance a une UI)
-│   │   ├── security/        detecteurs (beaconing, exfiltration, DGA, fast flux, lateral movement, flow_stats, DNS tunnel, TLS audit)
-│   │   ├── discovery/       inventaire d'actifs, empreintes (JA4/HASSH)
-│   │   ├── exploit_signatures/  signatures d'exploits (CVE)
-│   │   └── data/            signatures CVE (JSON), fingerprint known
+│   │   ├── security/        detecteurs (beaconing, exfiltration, DGA, fast flux, lateral movement, flow_stats, DNS tunnel, TLS audit, CVE)
+│   │   ├── discovery/       inventaire d'actifs, detection d'OS
+│   │   ├── fingerprint/     base d'empreintes connues (JA4/HASSH)
+│   │   ├── extract/         extraction de fichiers (HTTP, email, SMB, FTP)
+│   │   ├── netflow/         ingestion NetFlow v5 (CLI --netflow, #362)
+│   │   ├── tshark_stats/    adaptateurs de statistiques tshark -z
+│   │   ├── plugins/         detecteurs et sorties tierces (#284)
+│   │   ├── notify/          notifications sortantes (webhook, Slack, courriel)
+│   │   ├── support/         tickets de support anonymises (#269)
+│   │   ├── application/     transactions applicatives HTTP/DNS (requete -> reponse)
+│   │   ├── data/            signatures CVE (JSON), empreintes connues
+│   │   └── exploit_signatures.py  signatures d'exploits (CVE)
 │   ├── netcross_report/     generation du rapport (PDF, JSON, HTML, SIEM, STIX)
+│   ├── netcross_ai/         module IA (modeles locaux)
 │   ├── netcross_api/        API REST (FastAPI)
 │   └── netcross_gtk4/       interface graphique GTK4
 ├── build-deb/               packaging Debian/Ubuntu (.deb)

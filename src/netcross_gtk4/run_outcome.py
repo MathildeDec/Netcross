@@ -4,7 +4,7 @@ fin d'une analyse ou d'une comparaison (issue #285, deuxieme lot).
 
 ## Le probleme que ce module resout
 
-`MainWindow` conserve quatorze attributs `last_*` decrivant le dernier
+`MainWindow` conserve quinze attributs `last_*` decrivant le dernier
 run : le rapport, les flux, les constats, les diagnostics TLS/QUIC, les
 evenements Expert Info, et leurs equivalents en mode comparaison. Deux
 methodes les reecrivaient chacune de son cote : `_on_analysis_done` et
@@ -74,6 +74,8 @@ class RunOutcome:
     tls_findings: Any
     quic_findings: Any
     wireshark_expert_events: Any
+    # issue #357 : SecurityReport du run simple (None : non demande ou diff)
+    security_report: Any
     diff_findings: Any
     baseline_report: Any
     current_report: Any
@@ -89,7 +91,7 @@ class RunOutcome:
     result_text: str
 
     #: Champs d'etat, par opposition aux textes d'affichage. Utilise par
-    #: `app.py` pour recopier l'etat sans enumerer quatorze noms, et par
+    #: `app.py` pour recopier l'etat sans enumerer quinze noms, et par
     #: les tests pour verifier qu'aucun `last_*` de `MainWindow` n'est
     #: oublie.
     CHAMPS_ETAT = (
@@ -100,6 +102,7 @@ class RunOutcome:
         "tls_findings",
         "quic_findings",
         "wireshark_expert_events",
+        "security_report",
         "diff_findings",
         "baseline_report",
         "current_report",
@@ -152,6 +155,7 @@ def analysis_outcome(
     tls_findings: Any = None,
     quic_findings: Any = None,
     wireshark_expert_events: Any = None,
+    security_report: Any = None,
 ) -> RunOutcome:
     """Etat retenu apres une analyse simple.
 
@@ -167,6 +171,7 @@ def analysis_outcome(
         tls_findings=tls_findings,
         quic_findings=quic_findings,
         wireshark_expert_events=wireshark_expert_events,
+        security_report=security_report,
         diff_findings=None,
         baseline_report=None,
         current_report=None,
@@ -223,6 +228,7 @@ def diff_outcome(
         tls_findings=None,
         quic_findings=None,
         wireshark_expert_events=None,
+        security_report=None,
         diff_findings=findings,
         baseline_report=baseline_report,
         current_report=current_report,

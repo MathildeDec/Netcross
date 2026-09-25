@@ -101,7 +101,7 @@ def parse_client_hello(payload: bytes) -> dict | None:
     try:
         return _parse_client_hello(payload)
     except (IndexError, struct.error, UnicodeError):
-        logger.exception("erreur: e")
+        logger.exception("échec dans parse_client_hello")
         return None
 
 
@@ -274,7 +274,6 @@ def compute_ja4(client_hello: dict, *, transport: str = "t") -> str:
     de test officiels FoxIO) sur 13 ClientHello synthetiques couvrant
     ces cas limites -- resultats identiques.
     """
-    logger.debug("compute_ja4(client_hello={client_hello})")
     ciphers = [c for c in client_hello["cipher_suites"] if not _is_grease(c)]
     extensions = [e for e in client_hello["extensions"] if not _is_grease(e)]
     ext_for_hash = [e for e in extensions if e not in (_EXT_SERVER_NAME, _EXT_ALPN)]
@@ -302,7 +301,6 @@ def readable_client_hello(client_hello: dict) -> str:
     """Chaine lisible pour un analyste (ciphers/extensions en clair,
     complement du hash JA4 opaque) -- pas une norme, format propre a ce
     projet."""
-    logger.debug("readable_client_hello(client_hello={client_hello})")
     ciphers = ",".join(f"{c:#06x}" for c in client_hello["cipher_suites"])
     extensions = ",".join(f"{e:#06x}" for e in client_hello["extensions"])
     alpn = ",".join(client_hello["alpn"]) or "-"
@@ -312,7 +310,6 @@ def readable_client_hello(client_hello: dict) -> str:
 def identify(payload: bytes) -> tuple[str, str] | None:
     """Point d'entree pour `netcross_core.parsing` : (JA4, forme lisible)
     si `payload` porte un ClientHello TLS decodable, None sinon."""
-    logger.debug("identify(payload={payload})")
     client_hello = parse_client_hello(payload)
     if client_hello is None:
         return None

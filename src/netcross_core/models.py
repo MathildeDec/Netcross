@@ -163,6 +163,16 @@ class Pkt:
     # `threshold_ms` (port miroir qui renvoie le trafic, par exemple).
     # False par defaut : aucun constructeur existant n'a a le passer.
     is_duplicate: bool = False
+    # Issue #351 : entropie de Shannon sur les octets de la charge utile,
+    # calculee pendant le parsing (Pkt ne garde pas le payload brut).
+    # 0.0 = pas de payload, 8.0 = octets uniformement distribues (chiffre/
+    # compresse). Plus fiable que l'entropie sur les tailles de paquets.
+    payload_entropy: float = 0.0
+    # Issue #351 : nombre d'octets de charge utile sur lesquels
+    # payload_entropy a ete calculee (0 = pas de payload). Sert a ponderer
+    # et normaliser l'entropie par flux (security.flow_stats) : l'entropie
+    # de n octets est bornee par log2(min(n, 256)).
+    payload_len: int = 0
     # Commentaire de paquet pcapng (Enhanced Packet Block, option
     # opt_comment -- Job 39, issue #159). Reporte a l'identique depuis
     # pcap_parser.packet.RawPacket.comment (voir sa docstring pour
@@ -281,6 +291,10 @@ class Report:
     rtp_clock_rate: int = 8000
     seen_count: dict[str, int] = field(default_factory=lambda: defaultdict(int))
     loss_count: dict[str, int] = field(default_factory=lambda: defaultdict(int))
+    # issue #352 : paquets vus en amont dont le couple d'hotes n'echange
+    # jamais rien a ce point (ni aller ni retour) -- trafic hors chemin
+    # (scan local, flux qui sort ailleurs), a ne pas confondre avec une perte.
+    off_path_count: dict[str, int] = field(default_factory=lambda: defaultdict(int))
     latency: dict[tuple[str, str], list[float]] = field(default_factory=lambda: defaultdict(list))
     qos_change: dict[tuple[str, str], int] = field(default_factory=lambda: defaultdict(int))
     retrans: dict[str, int] = field(default_factory=lambda: defaultdict(int))
@@ -654,6 +668,15 @@ class Report:
     # `security.findings.apply_security_findings` via
     # `security.flow_stats.analyze_flow_stats`.
     flow_anomalies: list[dict] = field(default_factory=list)
+    # -- inventaire d'actifs (issue #350) : un dict par hote detecte,
+    # cles `ip`, `mac`, `ports`, `os_guess`, `is_new`... Rempli par
+    # `security.findings.apply_security_findings` via
+    # `discovery.assets.build_asset_inventory`.
+    asset_inventory: list[dict] = field(default_factory=list)
+    # Issue #350 : taille de la baseline d'hotes connus passee a
+    # l'inventaire (--known-hosts) ; 0 = pas de baseline, donc aucun hote
+    # n'est marque nouveau (`is_new` toujours False).
+    asset_baseline_size: int = 0
     # -- topologie deduite (ordre + chemins multiples) --
     topology_edges: list[tuple[str, str, dict]] = field(default_factory=list)
     topology_ambiguous: list[tuple[str, str, str]] = field(default_factory=list)

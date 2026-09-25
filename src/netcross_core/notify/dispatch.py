@@ -63,7 +63,6 @@ class DeliveryResult:
     reason: str | None = None
 
     def line(self) -> str:
-        logger.debug("line(self={self})")
         text = f"notification {self.channel} : {_STATUS_LABELS.get(self.status, self.status)}"
         return f"{text}, {self.reason}" if self.reason else text
 
@@ -78,7 +77,7 @@ def _load_state(path: Path) -> dict[str, float]:
     try:
         data = json.loads(path.read_text(encoding="utf-8"))
     except FileNotFoundError:
-        logger.exception("erreur: FileNotFoundError")
+        logger.exception("échec dans _load_state")
         return {}
     except (OSError, ValueError) as exc:
         logger.warning("notification : etat anti-repetition illisible ({}), ignore : {}", path, exc)
@@ -103,9 +102,6 @@ def _save_state(path: Path, state: dict[str, float]) -> None:
 def is_silenced(fingerprint: str, state_path: Path, silence_seconds: float, now: float) -> float | None:
     """Age (s) de la derniere notification du meme lot si elle est dans la
     fenetre de silence, sinon None."""
-    logger.debug(
-        "is_silenced(fingerprint={fingerprint}, state_path={state_path}, silence_seconds={silence_seconds}, ...)"
-    )
     if silence_seconds <= 0:
         return None
     last = _load_state(state_path).get(fingerprint)
@@ -184,7 +180,7 @@ def notifiers_from_config(
         try:
             notifiers.append(factory())
         except ValueError as exc:
-            logger.exception("erreur: exc")
+            logger.exception(f"échec dans _try: {exc}")
             lines.append(DeliveryResult(channel, STATUS_FAILED, f"configuration invalide : {exc}"))
 
     if webhook_url:
@@ -231,7 +227,6 @@ def run_notifications(
     resume -- il n'est meme pas construit sans seuil.
 
     Sans seuil : liste vide, AUCUN canal construit, aucun appel reseau."""
-    logger.debug("run_notifications(summary_factory={summary_factory})")
     if not threshold:
         return []
     notifiers, lines = notifiers_from_config(cfg, webhook=webhook, slack=slack, email_to=email_to, env=env)

@@ -28,7 +28,7 @@ PKG="${2:?usage: $0 deb|rpm <paquet>}"
 # minimale. Leur import est donc exclu de l'etape 3.
 OPTIONAL_RE='^(netcross_api|netcross_ai|netcross_gtk4)(\.|$)'
 PACKAGES=(pcap_parser netcross_core netcross_report netcross_gtk4 netcross_api netcross_ai)
-CLIS=(netcross netcross-diff netcross-history netcross-batch netcross-ai-models)
+CLIS=(netcross netcross-diff netcross-history netcross-batch netcross-ai-models netcross-lua-doc)
 LAUNCHERS=("${CLIS[@]}" netcross-gui)
 
 fail() { echo "ECHEC : $*" >&2; exit 1; }
@@ -41,6 +41,9 @@ check_rpm() {
     done
     grep -q "/usr/share/netcross/netcross_core/data/cve_signatures.json$" <<<"$listing" \
         || fail "rpm : cve_signatures.json absent"
+    grep -q "/usr/share/netcross/netcross_core/data/cve_seed.json$" <<<"$listing" \
+        || fail "rpm : cve_seed.json absent"
+    grep -q "/usr/share/netcross/data/lua_api.json$" <<<"$listing" || fail "rpm : lua_api.json absent"
     for l in "${LAUNCHERS[@]}"; do
         grep -q "^/usr/bin/$l$" <<<"$listing" || fail "rpm : lanceur /usr/bin/$l absent"
     done
@@ -128,6 +131,10 @@ if errors:
 print(f"imports : {len(mods)} modules OK")
 PY
     [ -f /usr/share/netcross/netcross_core/data/cve_signatures.json ] || fail "cve_signatures.json absent"
+    [ -f /usr/share/netcross/netcross_core/data/cve_seed.json ] || fail "cve_seed.json absent"
+    HOME="$(mktemp -d)" /usr/bin/netcross-lua-doc --class Tvb | grep -q "tvb:range" \
+        || fail "netcross-lua-doc --class Tvb depuis le paquet installe"
+    echo "netcross-lua-doc : fiche Tvb servie depuis /usr/share/netcross/data/lua_api.json"
 
     local tmp
     tmp="$(mktemp -d)"

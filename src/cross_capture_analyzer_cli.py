@@ -140,10 +140,12 @@ from netcross_core import (
     write_redaction_map_csv,
 )
 from netcross_core.discovery import load_baseline_hosts
+from netcross_core.flow_timeline import build_flow_timelines
 from netcross_core.forensic import DEFAULT_DUPLICATE_THRESHOLD_MS, detect_cross_capture_duplicates
 from netcross_core.logging_config import get_logger
 from netcross_core.security import close_db, connect_cve_db
 from netcross_core.security import findings as security_findings
+from netcross_core.security.cve_seed import open_seed_db
 from netcross_core.support import (
     SCOPES as SUPPORT_SCOPES,
 )
@@ -180,7 +182,7 @@ def _parse_live_spec(spec):
     try:
         parse_source(iface)
     except CaptureSourceError as exc:
-        logger.exception("erreur: exc")
+        logger.exception(f"échec dans _parse_live_spec: {exc}")
         print(f"Source invalide pour --live {label} : {exc}", file=sys.stderr)
         sys.exit(1)
     return label, iface, bpf or None
@@ -217,6 +219,165 @@ def _parse_client_group_spec(spec):
         )
         sys.exit(1)
     return name, ip_set
+
+
+_SEARCH_FIELDS = ("sni", "uri", "http_status", "call_id", "dns_name", "method", "content_type", "message")
+
+
+def _advanced_options_error(args) -> str | None:
+    """Validation de --flow-timeline/--tshark-stats/--forensic-search et des
+    --search-* AVANT l'analyse : une erreur detectee apres des minutes de
+    parsing ferait perdre le run."""
+    search = {
+        "--search-text": args.search_text,
+        "--search-address": args.search_address,
+        "--search-point": args.search_point,
+        "--search-protocol": args.search_protocol,
+        "--search-port": args.search_port,
+        "--search-field": args.search_field,
+        "--search-value": args.search_value,
+    }
+    orphans = [flag for flag, value in search.items() if value is not None]
+    if orphans and not args.forensic_search:
+        return f"{', '.join(orphans)} necessite --forensic-search."
+    if args.search_field is not None and args.search_field not in _SEARCH_FIELDS:
+        return f"--search-field : champ inconnu {args.search_field!r} (attendu : {', '.join(_SEARCH_FIELDS)})."
+    if args.search_port is not None and not 0 <= args.search_port <= 65535:
+        return "--search-port doit etre compris entre 0 et 65535."
+    if args.flow_timeline_window <= 0:
+        return "--flow-timeline-window doit etre > 0."
+    if args.tshark_stats and not args.capture:
+        return "--tshark-stats relit les fichiers --capture avec tshark : sans objet en --live seul."
+    return None
+
+
+def _write_json_output(path, payload, label) -> None:
+    import json
+
+    with open(path, "w", encoding="utf-8") as fh:
+        json.dump(payload, fh, ensure_ascii=False, indent=2)
+    print(f"{label} ecrite(s) dans {path}")
+
+
+def _collect_tshark_stats(captures) -> dict:
+    """Statistiques tshark -z par fichier (issue #361). Une capture en echec
+    porte une cle `error` explicite (et un message stderr) au lieu de faire
+    perdre les autres ; tshark absent est une erreur par capture elle aussi."""
+    import subprocess
+    from dataclasses import asdict
+
+    from netcross_core.tshark_stats import (
+        TsharkUnavailableError,
+        collect_conversations,
+        collect_endpoints,
+        collect_io_stat,
+        collect_protocol_hierarchy,
+    )
+
+    result: dict = {"version": 1, "captures": []}
+    for label, path in captures:
+        entry: dict = {"label": label, "path": path}
+        try:
+            entry["conversations"] = {
+                proto: [asdict(c) for c in collect_conversations(path, proto)] for proto in ("tcp", "udp")
+            }
+            entry["endpoints"] = {
+                proto: [asdict(e) for e in collect_endpoints(path, proto)] for proto in ("tcp", "udp")
+            }
+            entry["protocol_hierarchy"] = [asdict(p) for p in collect_protocol_hierarchy(path)]
+            entry["io_stat"] = asdict(collect_io_stat(path))
+        except (TsharkUnavailableError, subprocess.SubprocessError, OSError) as exc:
+            entry = {"label": label, "path": path, "error": str(exc)}
+            print(f"--tshark-stats {label} ({path}) : {exc}", file=sys.stderr)
+        result["captures"].append(entry)
+    return result
+
+
+def _run_forensic_search(args, all_packets, flows) -> None:
+    """Recherche forensique (issue #360) : la requete est rappelee dans le
+    JSON pour qu'un resultat vide reste interpretable."""
+    from dataclasses import asdict
+
+    from netcross_core.forensic_search import ForensicSearchIndex, ForensicSearchQuery
+
+    query = ForensicSearchQuery(
+        text=args.search_text,
+        point=args.search_point,
+        protocol=args.search_protocol,
+        address=args.search_address,
+        port=args.search_port,
+        field=args.search_field,
+        field_value=args.search_value,
+    )
+    results = ForensicSearchIndex(all_packets, flows=flows).search(query)
+    payload = {
+        "version": 1,
+        "query": {k: v for k, v in asdict(query).items() if v is not None},
+        "count": len(results),
+        "results": [asdict(r) for r in results],
+    }
+    _write_json_output(args.forensic_search, payload, f"Recherche forensique ({len(results)} resultat(s))")
+
+
+def _run_netflow(args) -> int:
+    """Mode --netflow (issue #362) : resume d'exports NetFlow v5, sans analyse
+    multi-points. Code de retour : 0, ou 1 (options incompatibles, fichier
+    illisible ou tronque)."""
+    import json
+
+    from netcross_core.netflow import (
+        FlowRecord,
+        NetflowV5Error,
+        format_flow_summary,
+        iter_netflow_v5_file,
+        summarize_flow_records,
+    )
+
+    incompatible = [
+        flag
+        for flag, given in (
+            ("--capture", args.capture),
+            ("--live", args.live),
+            ("--merge", args.merge),
+            ("--pdf-report", args.pdf_report),
+            ("--security-report", args.security_report),
+            ("--triage", args.triage),
+            ("--flow-timeline", args.flow_timeline),
+            ("--tshark-stats", args.tshark_stats),
+            ("--forensic-search", args.forensic_search),
+        )
+        if given
+    ]
+    if incompatible:
+        print(
+            f"--netflow resume des flux agreges, sans analyse de captures : incompatible avec "
+            f"{', '.join(incompatible)}.",
+            file=sys.stderr,
+        )
+        return 1
+    if args.netflow_top < 1:
+        print("--netflow-top doit etre >= 1.", file=sys.stderr)
+        return 1
+    records: list[FlowRecord] = []
+    for spec in args.netflow:
+        exporter, sep, path = spec.partition("=")
+        if not sep:
+            exporter, path = None, spec
+        elif not exporter or not path:
+            print(f"Format invalide pour --netflow: {spec} (attendu [EXPORTATEUR=]FICHIER)", file=sys.stderr)
+            return 1
+        try:
+            records.extend(iter_netflow_v5_file(path, exporter=exporter))
+        except (OSError, NetflowV5Error) as exc:
+            print(f"--netflow {path} : {exc}", file=sys.stderr)
+            return 1
+    summary = summarize_flow_records(records, top=args.netflow_top)
+    print("\n".join(format_flow_summary(summary)))
+    if args.json_report:
+        with open(args.json_report, "w", encoding="utf-8") as fh:
+            json.dump({"netflow": summary}, fh, ensure_ascii=False, indent=2)
+        print(f"\nRapport JSON ecrit : {args.json_report}")
+    return 0
 
 
 def _parse_capture_spec(spec, flag_name):
@@ -273,7 +434,7 @@ def _run_merge(capture_specs, output_path, dedup):
         # RuntimeError : parent de TsharkNotFoundError/TsharkError (outil
         # absent du PATH ou en echec) -- meme sortie propre que les autres
         # erreurs d'arguments de cette CLI plutot qu'une trace Python.
-        logger.exception("erreur: e")
+        logger.exception(f"échec dans _run_merge: {e}")
         print(f"--merge : {e}", file=sys.stderr)
         sys.exit(1)
     print(
@@ -311,7 +472,7 @@ def _run_convert(capture_specs, output_path, fmt):
         else:
             convert_capture(path_in, output_path, fmt=fmt)
     except (OSError, ValueError, RuntimeError) as e:
-        logger.exception("erreur: e")
+        logger.exception(f"échec dans _run_convert: {e}")
         print(f"--convert : {e}", file=sys.stderr)
         sys.exit(1)
     print(f"Converti {path_in} -> {output_path} (format: {fmt}).")
@@ -352,7 +513,7 @@ def _run_export(capture_specs, output_path, bpf_filter, time_start, time_end, en
             endpoints=endpoints,
         )
     except (TsharkNotFoundError, TsharkError, FileNotFoundError, ValueError) as e:
-        logger.exception("erreur: e")
+        logger.exception(f"échec dans _run_export: {e}")
         print(f"--export-pcap : {e}", file=sys.stderr)
         sys.exit(1)
     print(f"{output_path} cree ({label}).")
@@ -396,7 +557,7 @@ def _parse_split_spec(spec):
         else:
             value = _parse_size(raw)
     except ValueError:
-        logger.exception("erreur: ValueError")
+        logger.exception("échec dans _parse_split_spec")
         value = None
     if value is None or value <= 0:
         hint = " (unites decimales k/M/G, ex: 100M ; MiB/Mio non supportes)" if mode == "size" else ""
@@ -426,7 +587,7 @@ def _run_split(capture_specs, split_spec, output_dir):
             for path in paths:
                 segments.extend(split_capture(path, label_dir, mode, value))
         except (ValueError, OSError, RuntimeError) as e:
-            logger.exception("erreur: e")
+            logger.exception(f"échec dans _run_split: {e}")
             print(f"[{label}] ECHEC du decoupage : {e}", file=sys.stderr)
             status = 1
             continue
@@ -473,7 +634,7 @@ def _run_adjust_time(capture_specs, output_path, offset, normalize, align_to):
             align_to=align_to,
         )
     except (TsharkNotFoundError, TsharkError, FileNotFoundError, ValueError) as e:
-        logger.exception("erreur: e")
+        logger.exception(f"échec dans _run_adjust_time: {e}")
         print(f"--adjust-time : {e}", file=sys.stderr)
         sys.exit(1)
     print(f"{output_path} cree ({label}).")
@@ -507,7 +668,7 @@ def _run_replay(capture_specs, interface, speed, loop):
         # RuntimeError : parent de TcpreplayNotFoundError/TcpreplayError
         # (tcpreplay absent du PATH ou en echec) -- meme sortie propre que
         # --merge/--split plutot qu'une trace Python.
-        logger.exception("erreur: e")
+        logger.exception(f"échec dans _run_replay: {e}")
         print(f"--replay : {e}", file=sys.stderr)
         sys.exit(1)
     print(f"{paths[0]} rejoue sur {interface} (speed={speed}, loop={loop}).")
@@ -547,7 +708,7 @@ def _run_live_captures(live_specs, duration, reporter=None):
                     last_log = now
         except Exception as e:  # noqa: BLE001 -- thread de fond : une erreur sur
             # ce point doit etre rapportee sans arreter les autres points en cours.
-            logger.exception("erreur: e")
+            logger.exception(f"échec dans _worker: {e}")
             print(f"[{label}] ERREUR : {e}", file=sys.stderr)
             if reporter is not None:
                 reporter.aggregator.set_status(label, "erreur", str(e))
@@ -724,7 +885,7 @@ def _available_memory_bytes() -> int | None:
                     if len(parts) >= 2:
                         return int(parts[1]) * 1024
     except (OSError, ValueError):
-        logger.exception("erreur: e")
+        logger.exception("échec dans _available_memory_bytes")
         return None
     return None
 
@@ -921,7 +1082,7 @@ def _check_extraction_args(args) -> tuple[str, ...]:
     try:
         kinds = parse_kinds(args.extract_kinds)
     except ValueError as exc:
-        logger.exception("erreur: exc")
+        logger.exception(f"échec dans _check_extraction_args: {exc}")
         print(f"--extract-kinds : {exc}", file=sys.stderr)
         sys.exit(1)
     if args.extract_contents:
@@ -994,7 +1155,7 @@ def _start_live_report(args):
         try:
             server = ThreadingHTTPServer(("127.0.0.1", args.live_report_serve), handler)
         except OSError as exc:
-            logger.exception("erreur: exc")
+            logger.exception(f"échec dans log_message: {exc}")
             print(
                 f"--live-report-serve : impossible d'ecouter sur le port {args.live_report_serve} ({exc}).",
                 file=sys.stderr,
@@ -1041,7 +1202,7 @@ def _check_ai_args(args):
         if args.ai_summary:
             parse_engine(args.ai_summary, args.ai_endpoint)
     except (AIUnavailableError, WriterConfigError) as exc:
-        logger.exception("erreur: exc")
+        logger.exception(f"échec dans _check_ai_args: {exc}")
         print(f"Module IA : {exc}", file=sys.stderr)
         sys.exit(1)
     return AIOptions(
@@ -1068,7 +1229,7 @@ def _run_ai(args, ai_options, report, all_packets) -> None:
     try:
         result = run_ai(report, flows, ai_options)
     except (RuntimeError, ValueError, OSError) as exc:
-        logger.exception("erreur: exc")
+        logger.exception(f"échec dans _run_ai: {exc}")
         print(f"Module IA : {exc}", file=sys.stderr)
         sys.exit(1)
     print(format_ai(result))
@@ -1079,7 +1240,15 @@ def _run_ai(args, ai_options, report, all_packets) -> None:
 
 
 def main():
-    ap = argparse.ArgumentParser(description="Analyse croisee de captures Wireshark multi-points")
+    # `netcross lua-doc ...` : documentation hors ligne de l'API Lua Wireshark (issue #388)
+    if sys.argv[1:2] == ["lua-doc"]:
+        from netcross_lua_doc_cli import main as lua_doc_main
+
+        sys.exit(lua_doc_main(sys.argv[2:]))
+    ap = argparse.ArgumentParser(
+        description="Analyse croisee de captures Wireshark multi-points",
+        epilog="Documentation de l'API Lua Wireshark : netcross lua-doc --help (ou netcross-lua-doc).",
+    )
     ap.add_argument(
         "--capture",
         action="append",
@@ -1364,7 +1533,8 @@ def main():
         "--cve-db",
         help="Avec --security-report : base CVE SQLite locale (construite par "
         "scripts/import_nvd.py) pour la correlation version -> CVE. Doit "
-        "designer un fichier existant (aucune base vide n'est creee).",
+        "designer un fichier existant (aucune base vide n'est creee). Sans cette "
+        "option, une base minimale embarquee (quelques CVE critiques) est utilisee.",
     )
     notify = ap.add_argument_group(
         "notifications (issue #280)",
@@ -1411,6 +1581,22 @@ def main():
         "d'exfiltration (issue #148) -- liste JSON d'IP, ou objet avec une cle `hosts`. "
         "Un transfert suspect vers une IP absente de la liste est aggrave (signal "
         "`new_destination`) ; sans baseline, ce signal n'est jamais emis.",
+    )
+    ap.add_argument(
+        "--known-hosts",
+        metavar="FICHIER.json",
+        help="Avec --security-report : baseline des hotes connus pour l'inventaire d'actifs "
+        "(issue #350) -- liste JSON d'IP, ou objet avec une cle `hosts`. Chaque hote vu dans "
+        "la capture et absent de la liste est marque NOUVEAU et devient un constat (rapport, "
+        "JSON, export SIEM) ; sans baseline, aucun hote n'est signale nouveau.",
+    )
+    ap.add_argument(
+        "--test-net-external",
+        action="store_true",
+        help="Avec --security-report : traiter les plages de documentation TEST-NET (RFC 5737 : "
+        "192.0.2.0/24, 198.51.100.0/24, 203.0.113.0/24) comme EXTERNES pour le beaconing et "
+        "l'exfiltration (issue #365). Par defaut elles sont internes (comme pour ipaddress) : "
+        "une capture de demonstration qui les utilise ne leve alors aucune alerte.",
     )
     ap.add_argument(
         "--siem-export",
@@ -1598,6 +1784,23 @@ def main():
         "Incompatible avec --live et avec les options d'analyse/de rapport.",
     )
     ap.add_argument(
+        "--netflow",
+        action="append",
+        metavar="[EXPORTATEUR=]FICHIER",
+        help="Resume d'un export NetFlow v5 (datagrammes concatenes, issue #362) : volumes, "
+        "protocoles, principaux emetteurs, conversations et ports -- texte, et JSON avec "
+        "--json-report. Repetable (un fichier par exportateur ; EXPORTATEUR= etiquette la "
+        "source, defaut : le chemin). Mode autonome : incompatible avec --capture/--live, "
+        "les flux agreges ne se correlent pas entre points de capture.",
+    )
+    ap.add_argument(
+        "--netflow-top",
+        type=int,
+        default=10,
+        metavar="N",
+        help="Avec --netflow : taille des classements (defaut 10).",
+    )
+    ap.add_argument(
         "--merge-dedup",
         action="store_true",
         help="Avec --merge : supprime les paquets de contenu ET de timestamp "
@@ -1780,14 +1983,67 @@ def main():
         metavar="TYPE[,TYPE]",
         help="Avec --extract-contents : restreint l'extraction a audio, video et/ou documents (defaut : tous).",
     )
+    # Issues #359, #360, #361 : modules d'analyse avancee exposes au CLI
+    adv = ap.add_argument_group(
+        "analyse avancee",
+        "Chronologie des flux (#359), recherche forensique (#360) et statistiques tshark (#361), "
+        "chacune ecrite en JSON. S'ajoutent a l'analyse --capture/--live habituelle.",
+    )
+    adv.add_argument(
+        "--flow-timeline",
+        metavar="FICHIER.json",
+        help="Chronologie de chaque conversation, point par point : inter-arrivees, debit par "
+        "fenetre, phases (slow-start, rafale, inactivite...), RTT estime.",
+    )
+    adv.add_argument(
+        "--flow-timeline-window",
+        type=float,
+        default=1.0,
+        metavar="SECONDES",
+        help="Avec --flow-timeline : duree des fenetres de debit (defaut 1.0).",
+    )
+    adv.add_argument(
+        "--tshark-stats",
+        metavar="FICHIER.json",
+        help="Statistiques tshark -z de chaque fichier --capture : conversations et endpoints TCP/UDP, "
+        "hierarchie de protocoles, io_stat. Necessite tshark ; refuse avec --live.",
+    )
+    adv.add_argument(
+        "--forensic-search",
+        metavar="FICHIER.json",
+        help="Recherche forensique dans les paquets et flux decodes ; criteres --search-* combines "
+        "par ET (aucun critere : tout est liste).",
+    )
+    adv.add_argument("--search-text", metavar="TEXTE", help="Texte libre (insensible a la casse).")
+    adv.add_argument("--search-address", metavar="IP", help="Adresse source ou destination.")
+    adv.add_argument("--search-point", metavar="POINT", help="Point de capture.")
+    adv.add_argument("--search-protocol", metavar="PROTO", help="Protocole (TCP, UDP, DNS, HTTP...).")
+    adv.add_argument("--search-port", type=int, metavar="PORT", help="Port source ou destination.")
+    adv.add_argument(
+        "--search-field",
+        metavar="CHAMP",
+        help="Champ decode : sni, uri, http_status, call_id, dns_name, method, content_type, message.",
+    )
+    adv.add_argument(
+        "--search-value",
+        metavar="VALEUR",
+        help="Valeur cherchee dans --search-field (sans --search-field : dans tous les champs).",
+    )
     args = ap.parse_args()
 
     plugin_names = [n.strip() for n in (args.plugins or "").split(",") if n.strip()]
     if args.list_plugins:
         sys.exit(_list_plugins(plugin_names, args.plugin_path))
 
+    if args.netflow:
+        sys.exit(_run_netflow(args))
+
     if not args.capture and not args.live:
         print("Il faut fournir au moins un --capture ou un --live.", file=sys.stderr)
+        sys.exit(1)
+    advanced_error = _advanced_options_error(args)
+    if advanced_error:
+        print(advanced_error, file=sys.stderr)
         sys.exit(1)
     if args.capture and args.live:
         print(
@@ -1822,6 +2078,24 @@ def main():
             )
             sys.exit(1)
         known_destinations = frozenset(hosts)
+    known_hosts = None
+    if args.known_hosts:
+        if not args.security_report:
+            print("--known-hosts necessite --security-report.", file=sys.stderr)
+            sys.exit(1)
+        if not os.path.isfile(args.known_hosts):
+            print(f"--known-hosts : fichier introuvable : {args.known_hosts}", file=sys.stderr)
+            sys.exit(1)
+        baseline = load_baseline_hosts(args.known_hosts)
+        if not baseline:
+            # Meme regle que --known-destinations : une baseline vide ferait
+            # passer TOUS les hotes pour nouveaux.
+            print(
+                f"--known-hosts : aucune IP lue dans {args.known_hosts} (JSON invalide ou liste vide).",
+                file=sys.stderr,
+            )
+            sys.exit(1)
+        known_hosts = frozenset(baseline)
     # Meme discipline que --cve-db : echouer tot et clairement plutot que
     # de produire un fichier HTML vide, ou de ne rien ecrire en silence --
     # l'utilisateur croirait avoir un rapport (issue #218).
@@ -1967,6 +2241,9 @@ def main():
             for flag, given in (
                 ("--pdf-report", args.pdf_report),
                 ("--json-report", args.json_report),
+                ("--flow-timeline", args.flow_timeline),
+                ("--tshark-stats", args.tshark_stats),
+                ("--forensic-search", args.forensic_search),
                 ("--detail-csv", args.detail_csv),
                 ("--history-db", args.history_db),
                 ("--client-group", args.client_group),
@@ -2007,6 +2284,9 @@ def main():
             for flag, given in (
                 ("--pdf-report", args.pdf_report),
                 ("--json-report", args.json_report),
+                ("--flow-timeline", args.flow_timeline),
+                ("--tshark-stats", args.tshark_stats),
+                ("--forensic-search", args.forensic_search),
                 ("--detail-csv", args.detail_csv),
                 ("--history-db", args.history_db),
                 ("--client-group", args.client_group),
@@ -2110,6 +2390,9 @@ def main():
             for flag, given in (
                 ("--pdf-report", args.pdf_report),
                 ("--json-report", args.json_report),
+                ("--flow-timeline", args.flow_timeline),
+                ("--tshark-stats", args.tshark_stats),
+                ("--forensic-search", args.forensic_search),
                 ("--detail-csv", args.detail_csv),
                 ("--history-db", args.history_db),
                 ("--client-group", args.client_group),
@@ -2355,7 +2638,7 @@ def main():
             try:
                 pkts = parse_capture(label, path, raise_on_error=True)
             except (TsharkNotFoundError, TsharkError) as exc:
-                logger.exception("erreur: exc")
+                logger.exception(f"échec dans main: {exc}")
                 any_error = True
                 print(f"[{label}] ECHEC sur {path} : {exc}", file=sys.stderr)
                 continue
@@ -2458,7 +2741,8 @@ def main():
 
     # --security-report (issue #139) : consolidation des quatre detecteurs
     # (CVE-1 a CVE-4) sur le rapport deja rempli par analyse(), puis rendu
-    # dedie -- voir docs/security-report.md. cve_conn reste None sans --cve-db :
+    # dedie -- voir docs/security-report.md. Sans --cve-db, base minimale
+    # embarquee (issue #353) ; cve_conn ne reste None que si elle est illisible :
     # les services sont listes sans correlation CVE, et l'absence de base est
     # signalee pour ne pas laisser croire a une absence de vulnerabilite.
     # Reste None si --security-report n'est pas demande, ou si l'analyse de
@@ -2469,7 +2753,22 @@ def main():
     if args.security_report:
         cve_conn = connect_cve_db(args.cve_db) if args.cve_db else None
         if cve_conn is None:
-            print("Aucune base CVE fournie (--cve-db) : services listes sans correlation CVE.")
+            # issue #353 : filet de securite sans configuration -- quelques CVE
+            # critiques (NVD) sur les produits catalogues, chargees en memoire.
+            try:
+                cve_conn, cve_seed = open_seed_db()
+            except (OSError, ValueError) as exc:
+                print(
+                    f"Aucune base CVE fournie (--cve-db) et base embarquee illisible ({exc}) : "
+                    "services listes sans correlation CVE."
+                )
+            else:
+                print(
+                    f"Aucune base CVE fournie (--cve-db) : base minimale embarquee utilisee "
+                    f"({len(cve_seed.entries)} CVE critiques, NVD {cve_seed.generated}). "
+                    "Une version absente de cette selection n'est PAS pour autant non vulnerable : "
+                    "construire une base complete avec scripts/import_nvd.py."
+                )
         try:
             security_findings.apply_security_findings(
                 r,
@@ -2477,6 +2776,8 @@ def main():
                 detections=security_detections,
                 cve_conn=cve_conn,
                 known_destinations=known_destinations,
+                known_hosts=known_hosts,
+                treat_test_net_as_external=args.test_net_external,
             )
             # Conserve pour les sorties PDF/JSON/HTML (issue #218) :
             # jusqu'ici l'objet etait construit, imprime, puis perdu -- les
@@ -2720,6 +3021,18 @@ def main():
         )
         print(f"Rapport JSON ecrit dans {args.json_report}")
 
+    # Issues #359/#360/#361 : sorties JSON d'analyse avancee
+    if args.flow_timeline:
+        _write_json_output(
+            args.flow_timeline,
+            build_flow_timelines(all_packets, window_s=args.flow_timeline_window),
+            "Chronologie des flux",
+        )
+    if args.tshark_stats:
+        _write_json_output(args.tshark_stats, _collect_tshark_stats(captures), "Statistiques tshark")
+    if args.forensic_search:
+        _run_forensic_search(args, all_packets, flows)
+
     if args.history_db:
         from netcross_report import HistoryDatabaseError, list_history, print_history, record_run
 
@@ -2745,7 +3058,7 @@ def main():
                 entries = list_history(args.history_db, limit=args.history_show, label=args.history_label)
                 print_history(entries)
         except HistoryDatabaseError as exc:
-            logger.exception("erreur: exc")
+            logger.exception(f"échec dans main: {exc}")
             print(exc, file=sys.stderr)
             sys.exit(1)
 
