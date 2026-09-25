@@ -1304,6 +1304,7 @@ classDiagram
         +int? http_content_length
         +bool is_duplicate
         +float payload_entropy
+        +int payload_len
         +str? comment
         +tuple~Banner, ...~ service_banners
         +int? tcp_len
@@ -2660,7 +2661,9 @@ classDiagram
         <<dataclass, frozen>>
         +int small_packet_threshold
         +int large_packet_threshold
-        +float high_entropy_threshold
+        +float high_byte_entropy_ratio
+        +int min_payload_for_entropy
+        +int min_flow_payload_bytes
         +int splt_max_packets
     }
     class FlowStat {
@@ -2677,6 +2680,8 @@ classDiagram
         +str classification
         +float entropy
         +float byte_entropy
+        +float byte_entropy_ratio
+        +int payload_bytes
         +float median_size
         +float upload_ratio
         +float regularity_cv

@@ -431,8 +431,9 @@ def flow_stats_findings(flows: list[dict]) -> list[dict[str, Any]]:
                 "detail": (
                     f"flux {f.get('src', '?')} -> {f.get('dst', '?')} "
                     f"classifie '{cls}' ({f.get('packet_count', 0)} paquets, "
-                    f"entropie {f.get('entropy', 0.0):.2f}, "
-                    f"entropie octets {f.get('byte_entropy', 0.0):.2f}, "
+                    f"entropie tailles {f.get('entropy', 0.0):.2f}, "
+                    f"entropie octets {f.get('byte_entropy', 0.0):.2f} bits "
+                    f"({f.get('byte_entropy_ratio', 0.0):.0%} du max), "
                     f"ratio upload {f.get('upload_ratio', 0.0):.2f})"
                 ),
                 "points": points,

@@ -324,3 +324,13 @@ def test_parse_live_yield_un_pkt_par_raw(monkeypatch):
     pkts = list(parsing_mod.parse_live("LAN", "eth0"))
     assert [p.src for p in pkts] == ["10.0.0.1", "10.0.0.2"]
     assert all(p.point == "LAN" for p in pkts)
+
+
+def test_to_pkt_conserve_entropie_et_longueur_du_payload():
+    """#351 : payload_len = taille du payload brut (Pkt ne garde pas les
+    octets) -- sert a ponderer l'entropie par flux dans flow_stats."""
+    raw = _raw(payload=b"x" * 300, payload_entropy=0.0)
+    pkt = parsing_mod._to_pkt("LAN", raw)
+    assert pkt.payload_len == 300
+    assert pkt.payload_entropy == 0.0
+    assert parsing_mod._to_pkt("LAN", _raw(payload=b"")).payload_len == 0
