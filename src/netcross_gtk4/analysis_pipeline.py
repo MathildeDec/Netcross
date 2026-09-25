@@ -20,7 +20,7 @@ import io
 import os
 from collections.abc import Sequence
 from dataclasses import dataclass, field
-from typing import Callable
+from typing import Any, Callable
 
 from netcross_core.correlate import correlate
 from netcross_core.logging_config import get_logger
@@ -28,6 +28,7 @@ from netcross_core.models import Report
 from netcross_core.parsing import parse_capture
 from netcross_core.report_text import print_report
 from netcross_core.wireshark_expert import build_wireshark_expert_events
+from netcross_report.security_report import build_security_report, print_security_report
 
 logger = get_logger(__name__)
 
@@ -66,6 +67,10 @@ class AnalysisResult:
     tls_findings: list | None = None
     quic_findings: list | None = None
     wireshark_expert_events: list = field(default_factory=list)
+    # Issue #357 : rapport de securite structure (SecurityReport), None si
+    # l'analyse de securite n'a pas ete demandee -- meme objet que celui de
+    # --security-report, pour les exports JSON/PDF/HTML de la GUI
+    security_report: Any = None
 
 
 def load_packets(
@@ -133,6 +138,12 @@ def run_analysis_pipeline(
     -------
     AnalysisResult
     """
+    if options.security and options.redact:
+        # meme refus que --security-report --redact (CLI) : les signatures
+        # d'exploits lisent la charge utile brute des fichiers, jamais les
+        # paquets anonymises -- le rapport melangerait adresses reelles et
+        # pseudonymes
+        raise ValueError("le rapport de securite n'est pas disponible avec l'anonymisation des adresses")
 
     def _log(msg: str) -> None:
         if on_progress:
@@ -268,36 +279,12 @@ def run_analysis_pipeline(
                 print("=" * 70)
                 print_quic_diagnostics(quic_findings)
 
+    security_report = None
     if options.security:
-        # Issue #357 (#385) : analyse de securite, portee depuis
-        # MainWindow._run_analysis_thread lors de l'extraction du pipeline.
-        _log(
-            "Analyse de securite (beaconing, exfiltration, DGA, fast flux, mouvements lateraux, "
-            "flow_stats, DNS tunnel, TLS audit, CVE)..."
-        )
-        from netcross_core.security.findings import apply_security_findings, scan_capture_exploits
-
-        detections = []
-        for label, path in captures:
-            detections.extend(scan_capture_exploits(label, path))
-        apply_security_findings(report, all_packets, detections=detections)
-        _log(f"  -> {len(report.security_findings)} constat(s) de securite")
+        security_report = run_security_analysis(report, all_packets, captures, _log)
         with contextlib.redirect_stdout(buf):
-            print("\n" + "=" * 70)
-            print("SECURITE")
-            print("=" * 70)
-            for f in report.security_findings:
-                print(f"  [{f.get('severity', '?')}] ({f.get('category', '?')}) {f.get('detail', '?')}")
-            if not report.security_findings:
-                print("  Aucun constat de securite.")
-            if report.asset_inventory:
-                print(f"\n  Inventaire d'actifs : {len(report.asset_inventory)} hote(s)")
-            if report.lateral_movement_events:
-                print(f"  Mouvements lateraux : {len(report.lateral_movement_events)} evenement(s)")
-            if report.dga_alerts:
-                print(f"  DGA : {len(report.dga_alerts)} alerte(s)")
-            if report.fast_flux_alerts:
-                print(f"  Fast flux : {len(report.fast_flux_alerts)} alerte(s)")
+            print()
+            print_security_report(security_report)
 
     text = buf.getvalue()
     _log("Analyse terminée.")
@@ -311,4 +298,41 @@ def run_analysis_pipeline(
         tls_findings=tls_findings,
         quic_findings=quic_findings,
         wireshark_expert_events=wireshark_expert_events,
+        security_report=security_report,
     )
+
+
+def run_security_analysis(report, all_packets, captures, log: Callable[[str], None]):
+    """Analyse de securite de la GUI (issue #357), alignee sur
+    --security-report : signatures d'exploits relues sur les fichiers,
+    correlation CVE sur la base minimale embarquee (la GUI n'a pas de
+    --cve-db), puis `build_security_report`. Retourne le SecurityReport."""
+    from netcross_core.security.cve_db import close_db
+    from netcross_core.security.cve_seed import open_seed_db
+    from netcross_core.security.findings import apply_security_findings, scan_capture_exploits
+
+    log(
+        "Analyse de securite (beaconing, exfiltration, DGA, fast flux, mouvements lateraux, "
+        "flow_stats, DNS tunnel, TLS audit, CVE)..."
+    )
+    detections = []
+    for label, path in captures:
+        found = scan_capture_exploits(label, path)
+        log(f"  [{label}] {len(found)} signature(s) d'exploit")
+        detections.extend(found)
+    cve_conn = None
+    try:
+        cve_conn, seed = open_seed_db()
+        log(
+            f"  Base CVE minimale embarquee ({len(seed.entries)} CVE critiques, NVD {seed.generated}) : "
+            "une version absente de cette selection n'est pas pour autant non vulnerable."
+        )
+    except (OSError, ValueError) as exc:
+        log(f"  Base CVE embarquee illisible ({exc}) : services listes sans correlation CVE.")
+    try:
+        apply_security_findings(report, all_packets, detections=detections, cve_conn=cve_conn)
+    finally:
+        if cve_conn is not None:
+            close_db(cve_conn)
+    log(f"  -> {len(report.security_findings)} constat(s) de securite")
+    return build_security_report(report)

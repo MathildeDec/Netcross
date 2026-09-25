@@ -194,7 +194,7 @@ def test_lanalyse_calcule_les_signaux_tshark_avant_de_liberer_les_paquets():
     La seconde verification portait sur la ligne litterale
     `self.last_wireshark_expert_events = wireshark_expert_events`. Elle est
     devenue fausse avec l'extraction de #285 (lot 2) alors que le
-    comportement est intact : la fenetre recopie desormais les quatorze
+    comportement est intact : la fenetre recopie desormais les quinze
     champs d'etat en boucle depuis `RunOutcome.etat()`, ce qui est
     precisement ce qui empeche qu'un champ soit oublie d'un cote.
 
