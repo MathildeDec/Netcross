@@ -219,6 +219,64 @@ def _parse_client_group_spec(spec):
     return name, ip_set
 
 
+def _run_netflow(args) -> int:
+    """Mode --netflow (issue #362) : resume d'exports NetFlow v5, sans analyse
+    multi-points. Code de retour : 0, ou 1 (options incompatibles, fichier
+    illisible ou tronque)."""
+    import json
+
+    from netcross_core.netflow import (
+        FlowRecord,
+        NetflowV5Error,
+        format_flow_summary,
+        iter_netflow_v5_file,
+        summarize_flow_records,
+    )
+
+    incompatible = [
+        flag
+        for flag, given in (
+            ("--capture", args.capture),
+            ("--live", args.live),
+            ("--merge", args.merge),
+            ("--pdf-report", args.pdf_report),
+            ("--security-report", args.security_report),
+            ("--triage", args.triage),
+        )
+        if given
+    ]
+    if incompatible:
+        print(
+            f"--netflow resume des flux agreges, sans analyse de captures : incompatible avec "
+            f"{', '.join(incompatible)}.",
+            file=sys.stderr,
+        )
+        return 1
+    if args.netflow_top < 1:
+        print("--netflow-top doit etre >= 1.", file=sys.stderr)
+        return 1
+    records: list[FlowRecord] = []
+    for spec in args.netflow:
+        exporter, sep, path = spec.partition("=")
+        if not sep:
+            exporter, path = None, spec
+        elif not exporter or not path:
+            print(f"Format invalide pour --netflow: {spec} (attendu [EXPORTATEUR=]FICHIER)", file=sys.stderr)
+            return 1
+        try:
+            records.extend(iter_netflow_v5_file(path, exporter=exporter))
+        except (OSError, NetflowV5Error) as exc:
+            print(f"--netflow {path} : {exc}", file=sys.stderr)
+            return 1
+    summary = summarize_flow_records(records, top=args.netflow_top)
+    print("\n".join(format_flow_summary(summary)))
+    if args.json_report:
+        with open(args.json_report, "w", encoding="utf-8") as fh:
+            json.dump({"netflow": summary}, fh, ensure_ascii=False, indent=2)
+        print(f"\nRapport JSON ecrit : {args.json_report}")
+    return 0
+
+
 def _parse_capture_spec(spec, flag_name):
     """NOM=chemin1[,chemin2,...] -> (label, [chemin1, chemin2, ...]).
 
@@ -1622,6 +1680,23 @@ def main():
         "Incompatible avec --live et avec les options d'analyse/de rapport.",
     )
     ap.add_argument(
+        "--netflow",
+        action="append",
+        metavar="[EXPORTATEUR=]FICHIER",
+        help="Resume d'un export NetFlow v5 (datagrammes concatenes, issue #362) : volumes, "
+        "protocoles, principaux emetteurs, conversations et ports -- texte, et JSON avec "
+        "--json-report. Repetable (un fichier par exportateur ; EXPORTATEUR= etiquette la "
+        "source, defaut : le chemin). Mode autonome : incompatible avec --capture/--live, "
+        "les flux agreges ne se correlent pas entre points de capture.",
+    )
+    ap.add_argument(
+        "--netflow-top",
+        type=int,
+        default=10,
+        metavar="N",
+        help="Avec --netflow : taille des classements (defaut 10).",
+    )
+    ap.add_argument(
         "--merge-dedup",
         action="store_true",
         help="Avec --merge : supprime les paquets de contenu ET de timestamp "
@@ -1837,17 +1912,14 @@ def main():
         metavar="IP",
         help="Avec --forensic-search : filtrer par adresse IP.",
     )
-    adv.add_argument(
-        "--netflow",
-        metavar="FICHIER",
-        help="Ingestion NetFlow v5 (#32) : lit un fichier .netflow5 et "
-        "l'ajoute aux paquets a analyser (alternative a --capture).",
-    )
     args = ap.parse_args()
 
     plugin_names = [n.strip() for n in (args.plugins or "").split(",") if n.strip()]
     if args.list_plugins:
         sys.exit(_list_plugins(plugin_names, args.plugin_path))
+
+    if args.netflow:
+        sys.exit(_run_netflow(args))
 
     if not args.capture and not args.live:
         print("Il faut fournir au moins un --capture ou un --live.", file=sys.stderr)
@@ -2449,18 +2521,6 @@ def main():
                 "resultat est incomplet.",
                 file=sys.stderr,
             )
-
-    # Issue #362 : ingestion NetFlow v5 -- code present mais non raccorde
-    if args.netflow:
-        from netcross_core.netflow import flow_records_to_pkts, iter_netflow_v5_file
-
-        try:
-            flow_records = list(iter_netflow_v5_file(args.netflow))
-            nf_pkts = flow_records_to_pkts(flow_records, point="netflow")
-            all_packets.extend(nf_pkts)
-            print(f"[netflow] {len(nf_pkts)} paquet(s) NetFlow v5 charges depuis {args.netflow}")
-        except Exception as exc:
-            print(f"[netflow] ECHEC sur {args.netflow} : {exc}", file=sys.stderr)
 
     # CVE-2 (issue #136, pour --security-report) : les signatures d'exploits
     # cherchent la charge utile BRUTE, que Pkt ne garde pas -- relecture de

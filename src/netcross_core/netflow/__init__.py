@@ -20,6 +20,9 @@ Utilisation typique (mode fichier, rejeu) ::
 
     flows = list(iter_netflow_v5_file("export.netflow5", exporter="10.0.0.1"))
     pkts = flow_records_to_pkts(flows)  # reutilisable par correlate()/analyse()
+
+Depuis le CLI (issue #362) : `--netflow [EXPORTATEUR=]FICHIER`, resume
+texte et `--json-report` (voir netcross_core.netflow.summary).
 """
 
 from netcross_core.logging_config import get_logger
@@ -30,6 +33,7 @@ from netcross_core.netflow.netflow_v5 import (
     iter_netflow_v5_file,
     parse_netflow_v5_packet,
 )
+from netcross_core.netflow.summary import format_flow_summary, summarize_flow_records
 
 logger = get_logger(__name__)
 
@@ -38,6 +42,8 @@ __all__ = [
     "NetflowV5Error",
     "flow_record_to_pkt",
     "flow_records_to_pkts",
+    "format_flow_summary",
     "iter_netflow_v5_file",
     "parse_netflow_v5_packet",
+    "summarize_flow_records",
 ]

@@ -414,6 +414,16 @@ Options utiles :
   (défaut 1). Incompatible avec `--live`/`--merge`/`--split` et avec les
   options d'analyse/de rapport (comme `--merge`, plusieurs fichiers
   segmentés doivent d'abord être fusionnés en un seul).
+- `--netflow [EXPORTATEUR=]FICHIER` (répétable) : résumé d'un export
+  NetFlow v5 (datagrammes concatenés, par exemple la charge utile UDP
+  collectée sur le port du collecteur) — volumes totaux et période, par
+  exportateur, par protocole, principaux émetteurs, conversations et ports
+  de destination (`--netflow-top N`, défaut 10). Avec `--json-report`, le
+  même résumé est écrit sous la clé `netflow`. Mode autonome : incompatible
+  avec `--capture`/`--live`, car un flux agrégé vu par un seul routeur ne
+  se corrèle pas entre points de capture (voir
+  `docs/adr/netflow-sflow-architecture.md`). NetFlow v9 et sFlow ne sont
+  pas encore lus.
 - `--json-report chemin.json` : export JSON structuré (points, constats,
   triage, diagnostics TLS/QUIC si `--tls`/`--quic` sont fournis) pour
   l'intégration externe (dashboard, ticketing, script d'analyse). Aucune
@@ -881,7 +891,7 @@ netcross/
 │   │   ├── discovery/       inventaire d'actifs, detection d'OS
 │   │   ├── fingerprint/     base d'empreintes connues (JA4/HASSH)
 │   │   ├── extract/         extraction de fichiers (HTTP, email, SMB, FTP)
-│   │   ├── netflow/         ingestion NetFlow/sFlow (non raccordee, #362)
+│   │   ├── netflow/         ingestion NetFlow v5 (CLI --netflow, #362)
 │   │   ├── tshark_stats/    adaptateurs de statistiques tshark -z
 │   │   ├── plugins/         detecteurs et sorties tierces (#284)
 │   │   ├── notify/          notifications sortantes (webhook, Slack, courriel)

@@ -12,6 +12,13 @@ FlowRecord -> Pkt. Phases 3-5 (collecteur UDP live, NetFlow v9
 templates, sFlow v5) restent a faire, voir "Plan d'implementation"
 ci-dessous pour le detail phase par phase.
 
+**Point d'entree (issue #362)** : `--netflow [EXPORTATEUR=]FICHIER` du CLI
+principal, mode autonome (incompatible avec `--capture`/`--live`) qui
+affiche le resume de `netcross_core.netflow.summary` et l'ecrit sous la
+cle `netflow` de `--json-report`. Les flux ne sont PAS injectes dans
+l'analyse multi-points comme un faux point de capture (premiere version
+de #381, retiree) : voir « Correlation multi-points ne s'applique pas ».
+
 ## Decision
 
 ### Placement : `src/netcross_core/netflow/`
