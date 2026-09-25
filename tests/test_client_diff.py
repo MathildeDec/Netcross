@@ -95,6 +95,13 @@ def test_compare_clients_result_contains_one_report_per_client():
     assert result.clients["PosteA"].ips == ("10.0.0.5",)
 
 
+def _posteb_ok():
+    """Autre echange de PosteB vu aux deux points : le chemin de PosteB passe
+    bien par B, l'absence du flux 200 y est donc une perte et non du trafic
+    hors chemin (issue #352)."""
+    return [make_pkt(point=p, src="10.0.0.12", dst="10.0.0.1", sport=3, key_id=300) for p in ("A", "B")]
+
+
 def test_compare_clients_detects_regression_on_lossy_client():
     # PosteA (reference) : meme flux vu aux 2 points -> pas de perte
     ref_a = make_pkt(point="A", src="10.0.0.5", dst="10.0.0.1", sport=1, key_id=100)
@@ -103,7 +110,7 @@ def test_compare_clients_detects_regression_on_lossy_client():
     other_a = make_pkt(point="A", src="10.0.0.12", dst="10.0.0.1", sport=2, key_id=200)
 
     result = compare_clients(
-        [ref_a, ref_b, other_a],
+        [ref_a, ref_b, other_a, *_posteb_ok()],
         _client_group(),
         reference="PosteA",
         points_order=["A", "B"],
@@ -150,7 +157,7 @@ def test_print_client_comparison_outputs_reference_and_regression(capsys):
     other_a = make_pkt(point="A", src="10.0.0.12", dst="10.0.0.1", sport=2, key_id=200)
 
     result = compare_clients(
-        [ref_a, ref_b, other_a],
+        [ref_a, ref_b, other_a, *_posteb_ok()],
         _client_group(),
         reference="PosteA",
         points_order=["A", "B"],
@@ -186,7 +193,7 @@ def test_write_client_diff_csv(tmp_path):
     other_a = make_pkt(point="A", src="10.0.0.12", dst="10.0.0.1", sport=2, key_id=200)
 
     result = compare_clients(
-        [ref_a, ref_b, other_a],
+        [ref_a, ref_b, other_a, *_posteb_ok()],
         _client_group(),
         reference="PosteA",
         points_order=["A", "B"],

@@ -1351,6 +1351,7 @@ classDiagram
         +int rtp_clock_rate
         +dict~str, int~ seen_count
         +dict~str, int~ loss_count
+        +dict~str, int~ off_path_count
         +dict~tuple~str, str~, list~float~~ latency
         +dict~tuple~str, str~, int~ qos_change
         +dict~str, int~ retrans

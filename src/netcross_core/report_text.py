@@ -225,6 +225,14 @@ def print_report(r: Report):
     else:
         print("\n-- Pertes : aucune detectee (ou aucun ordre/topologie exploitable) --")
 
+    off_path = {p: n for p, n in r.off_path_count.items() if n}
+    if off_path:
+        # issue #352 : ni perte ni anomalie -- trafic qui n'emprunte pas ce segment
+        print("\n-- Trafic hors chemin (hotes n'echangeant jamais rien a ce point) --")
+        for p in r.points:
+            if off_path.get(p):
+                print(f"  {p:15s} : {off_path[p]} paquets hors chemin (non comptes comme pertes)")
+
     print("\n-- Latence / gigue entre points (necessite horloges synchronisees) --")
     for a, b in r.pairs:
         vals = r.latency.get((a, b), [])

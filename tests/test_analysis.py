@@ -17,10 +17,21 @@ def _analyse(pkts, points_order=("A", "B"), **kwargs):
 
 
 def test_perte_simple_vu_en_a_pas_en_b():
-    pkts = [make_pkt(point="A", sport=1)]
+    """Les deux hotes echangent aussi en B (autre paquet) : le chemin passe
+    par B, le paquet absent y est une perte."""
+    pkts = [make_pkt(point="A", sport=1), make_pkt(point="A", sport=2), make_pkt(point="B", sport=2)]
     r = _analyse(pkts)
     assert r.loss_count["B"] == 1
     assert r.loss_count["A"] == 0
+    assert r.off_path_count.get("B", 0) == 0
+
+
+def test_hotes_jamais_vus_en_b_hors_chemin_pas_perte():
+    """issue #352 : couple d'hotes jamais vu en B (ni aller ni retour)."""
+    pkts = [make_pkt(point="A", sport=1)]
+    r = _analyse(pkts)
+    assert r.loss_count["B"] == 0
+    assert r.off_path_count["B"] == 1
 
 
 def test_pas_de_perte_si_vu_aux_deux_points():

@@ -291,6 +291,10 @@ class Report:
     rtp_clock_rate: int = 8000
     seen_count: dict[str, int] = field(default_factory=lambda: defaultdict(int))
     loss_count: dict[str, int] = field(default_factory=lambda: defaultdict(int))
+    # issue #352 : paquets vus en amont dont le couple d'hotes n'echange
+    # jamais rien a ce point (ni aller ni retour) -- trafic hors chemin
+    # (scan local, flux qui sort ailleurs), a ne pas confondre avec une perte.
+    off_path_count: dict[str, int] = field(default_factory=lambda: defaultdict(int))
     latency: dict[tuple[str, str], list[float]] = field(default_factory=lambda: defaultdict(list))
     qos_change: dict[tuple[str, str], int] = field(default_factory=lambda: defaultdict(int))
     retrans: dict[str, int] = field(default_factory=lambda: defaultdict(int))
