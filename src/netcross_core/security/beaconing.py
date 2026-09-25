@@ -70,7 +70,6 @@ Sortie pure (`detect_beaconing`) : `suspicions` (une par flux).
 
 from __future__ import annotations
 
-import ipaddress
 from collections import defaultdict
 from collections.abc import Iterable
 from dataclasses import dataclass, field
@@ -78,6 +77,7 @@ from statistics import mean, median, pstdev
 
 from netcross_core.logging_config import get_logger
 from netcross_core.models import Pkt
+from netcross_core.security.address_scope import is_external
 
 logger = get_logger(__name__)
 
@@ -121,7 +121,7 @@ class BeaconingThresholds:
     off_hours_ratio: float = 0.8
     external_only: bool = True
     # Issue #365 : traiter les plages TEST-NET (RFC 5737) comme externes
-    # pour les demonstrations. ipaddress.is_private les considere privees.
+    # pour les demonstrations (voir security.address_scope).
     treat_test_net_as_external: bool = False
     ignored_ports: frozenset[int] = frozenset({53, 67, 68, 123, 137, 138, 1900, 5353})
 
@@ -134,47 +134,6 @@ class BeaconingResult:
     """Sortie de `detect_beaconing`, meme forme de dicts que les autres detecteurs de securite."""
 
     suspicions: list[dict] = field(default_factory=list)
-
-
-def _is_external(address: str) -> bool:
-    try:
-        return ipaddress.ip_address(address).is_global
-    except ValueError:
-        logger.exception("échec dans _is_external")
-        return False
-
-
-# Issue #365 : plages TEST-NET (RFC 5737) utilisees en demonstration.
-# ipaddress.is_private les considere comme privees et is_global comme
-# non-globales, donc beaconing/exfiltration restent muets dessus.
-_TEST_NET_RANGES = [
-    ipaddress.ip_network("192.0.2.0/24"),
-    ipaddress.ip_network("198.51.100.0/24"),
-    ipaddress.ip_network("203.0.113.0/24"),
-]
-
-
-def _is_test_net(address: str) -> bool:
-    """Vrai pour une adresse dans une plage TEST-NET (RFC 5737)."""
-    try:
-        addr = ipaddress.ip_address(address)
-    except ValueError:
-        return False
-    return any(addr in net for net in _TEST_NET_RANGES)
-
-
-def is_external(address: str, *, treat_test_net_as_external: bool = False) -> bool:
-    """Determine si une adresse est externe.
-
-    Issue #365 : les plages TEST-NET (192.0.2.0/24, 198.51.100.0/24,
-    203.0.113.0/24) sont considerees comme privees par la bibliotheque
-    standard, donc beaconing/exfiltration restent muets dessus. L'option
-    ``treat_test_net_as_external=True`` les traite comme externes pour
-    les demonstrations.
-    """
-    if treat_test_net_as_external and _is_test_net(address):
-        return True
-    return _is_external(address)
 
 
 def _payload(pk: Pkt) -> int | None:

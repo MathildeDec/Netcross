@@ -658,20 +658,15 @@ def test_apply_security_findings_inclut_exfiltration_et_forensic():
         )
     ]
     r.duplicate_count = {("A", "B"): 3}
-    r.exfiltration_alerts = [
-        {
-            "point": "A",
-            "src": "10.0.0.5",
-            "dst": "198.51.100.1",
-            "signals": ["high_volume"],
-            "upload_bytes": 15_000_000,
-            "download_bytes": 0,
-            "score": 0.9,
-            "reason": "test",
-        }
+    # Exfiltration : recalculee depuis les paquets par apply_security_findings
+    # (des alertes injectees sur le Report seraient remplacees) -- 11 Mo
+    # envoyes vers une adresse globale, sans retour.
+    upload = [
+        make_pkt(point="A", src="10.0.0.5", dst="93.184.216.34", length=1400, ts=43200.0 + i, sport=50000)
+        for i in range(8000)
     ]
 
-    apply_security_findings(r, pkts, detections=[], cve_conn=None)
+    apply_security_findings(r, pkts + upload, detections=[], cve_conn=None)
 
     # Les 3 catégories injectées doivent apparaître dans security_findings
     details = "\n".join(f["detail"] for f in r.security_findings)

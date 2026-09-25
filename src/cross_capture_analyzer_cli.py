@@ -1429,6 +1429,14 @@ def main():
         "JSON, export SIEM) ; sans baseline, aucun hote n'est signale nouveau.",
     )
     ap.add_argument(
+        "--test-net-external",
+        action="store_true",
+        help="Avec --security-report : traiter les plages de documentation TEST-NET (RFC 5737 : "
+        "192.0.2.0/24, 198.51.100.0/24, 203.0.113.0/24) comme EXTERNES pour le beaconing et "
+        "l'exfiltration (issue #365). Par defaut elles sont internes (comme pour ipaddress) : "
+        "une capture de demonstration qui les utilise ne leve alors aucune alerte.",
+    )
+    ap.add_argument(
         "--siem-export",
         choices=("cef", "leef", "stix"),
         help="Avec --security-report et --siem-output : exporte les constats pour un SIEM -- "
@@ -2563,6 +2571,7 @@ def main():
                 cve_conn=cve_conn,
                 known_destinations=known_destinations,
                 known_hosts=known_hosts,
+                treat_test_net_as_external=args.test_net_external,
             )
             # Conserve pour les sorties PDF/JSON/HTML (issue #218) :
             # jusqu'ici l'objet etait construit, imprime, puis perdu -- les

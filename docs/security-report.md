@@ -42,6 +42,11 @@ python3 src/cross_capture_analyzer_cli.py \\
   (`--siem-export cef|leef|stix`). Sans baseline, aucun hôte n'est signalé nouveau ; un fichier
   absent, illisible ou vide est refusé (sinon tous les hôtes passeraient pour nouveaux).
   L'inventaire complet est dans la clé `security_report.assets` du JSON et dans le HTML.
+- `--test-net-external` (avec `--security-report`) : traite les plages de documentation TEST-NET
+  (RFC 5737 : 192.0.2.0/24, 198.51.100.0/24, 203.0.113.0/24) comme externes pour le beaconing et
+  l'exfiltration. Par défaut elles sont internes, comme pour `ipaddress` : une capture de
+  démonstration qui les utilise ne lève alors aucune alerte (issue #365, voir
+  [Détecteurs](detectors.md)).
 
 ## Architecture
 

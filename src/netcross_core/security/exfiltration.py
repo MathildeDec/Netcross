@@ -55,7 +55,6 @@ Limites assumees :
 
 from __future__ import annotations
 
-import ipaddress
 from collections import defaultdict
 from collections.abc import Iterable
 from dataclasses import dataclass, field
@@ -63,6 +62,7 @@ from datetime import datetime, timezone
 
 from netcross_core.logging_config import get_logger
 from netcross_core.models import Pkt
+from netcross_core.security.address_scope import is_external
 
 logger = get_logger(__name__)
 
@@ -116,6 +116,9 @@ class ExfiltrationThresholds:
     min_upload_for_ratio: int | None = None
     off_hours_min_fraction: float = 0.5
     external_only: bool = True
+    # Issue #365 : plages TEST-NET (RFC 5737) traitees comme externes
+    # (demonstrations) ; par defaut internes, comme pour ipaddress.
+    treat_test_net_as_external: bool = False
 
     @property
     def ratio_floor(self) -> int:
@@ -199,16 +202,9 @@ def _is_off_hours(ts: float, thresholds: ExfiltrationThresholds) -> bool:
     return hour < thresholds.business_hours_start or hour >= thresholds.business_hours_end
 
 
-def _is_global(addr: str) -> bool:
-    try:
-        return ipaddress.ip_address(addr).is_global
-    except ValueError:
-        logger.exception("échec dans _is_global")
-        return False
-
-
-def _is_outbound(src: str, dst: str) -> bool:
-    return not _is_global(src) and _is_global(dst)
+def _is_outbound(src: str, dst: str, thresholds: ExfiltrationThresholds = DEFAULT_THRESHOLDS) -> bool:
+    treat = thresholds.treat_test_net_as_external
+    return not is_external(src, treat_test_net_as_external=treat) and is_external(dst, treat_test_net_as_external=treat)
 
 
 def _proto_family(pk: Pkt) -> str:
@@ -286,11 +282,11 @@ def detect_exfiltration(
                 "ratio": None if ratio == float("inf") else round(ratio, 2),
                 "packet_count": packet_count,
                 "protocols": sorted(data["protocols"]),
-                "outbound": _is_outbound(src, dst),
+                "outbound": _is_outbound(src, dst, thresholds),
             }
         )
 
-        if thresholds.external_only and not _is_outbound(src, dst):
+        if thresholds.external_only and not _is_outbound(src, dst, thresholds):
             continue
 
         signals: list[str] = []
