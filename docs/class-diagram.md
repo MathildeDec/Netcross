@@ -11,7 +11,7 @@
 > Il remplace l'ancienne section 3 de `docs/features-backlog.md`, tenue à la main, qui avait dérivé
 > (voir `docs/sessions/session-36.md`, issue #140).
 
-154 modules · 232 classes · 505 fonctions publiques de module.
+154 modules · 234 classes · 506 fonctions publiques de module.
 
 Conventions : `+` public, `-` privé (préfixe `_`) ; `int?` = `int | None` ; `list~str~` = `list[str]` ;
 `<<module>>` regroupe les fonctions publiques d'un module ; `A --> B : champ` = `A` a un champ annoté
@@ -1156,12 +1156,32 @@ classDiagram
         <<dataclass, frozen, slots>>
         +str classe
         +str nom
+        +str genre
         +str signature
         +str description
         +str depuis_version
         +list~Parametre~ parametres
         +list~str~ retours
+        +list~str~ erreurs
         +list~str~ exemples
+    }
+    class Attribut {
+        <<dataclass, frozen, slots>>
+        +str classe
+        +str nom
+        +str nom_complet
+        +str mode
+        +str description
+        +str depuis_version
+    }
+    class FicheClasse {
+        <<dataclass, frozen, slots>>
+        +str nom
+        +str module
+        +str description
+        +list~str~ exemples
+        +list~Methode~ methodes
+        +list~Attribut~ attributs
     }
     class ResultatRecherche {
         <<dataclass, frozen, slots>>
@@ -1169,7 +1189,9 @@ classDiagram
         +str nom
         +str signature
         +str description
-        +int methode_id
+        +str genre
+        +int ref_id
+        +est_attribut() bool
     }
     class mod_netcross_core_lua_doc["netcross_core.lua_doc"] {
         <<module>>
@@ -1179,8 +1201,9 @@ classDiagram
         +get_meta(conn) dict~str, str~
         +list_classes(conn) list~str~
         +search(conn, terme, limit) list~ResultatRecherche~
-        +get_class(conn, nom) list~Methode~?
+        +get_class(conn, nom) FicheClasse?
         +get_methode(conn, methode_id) Methode?
+        +get_attribut(conn, attribut_id) Attribut?
     }
 
     %% ===== netcross_core.models =====
@@ -1696,6 +1719,8 @@ classDiagram
     LiveDiffState --> Pkt : packets_in_window
     LiveAggregator --> _Point : points
     Methode --> Parametre : parametres
+    FicheClasse --> Attribut : attributs
+    FicheClasse --> Methode : methodes
     Pkt --> Banner : service_banners
     Report --> ChecksumError : checksum_errors
     Report --> SequenceGap : sequence_gaps
