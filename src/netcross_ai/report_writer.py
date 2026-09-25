@@ -141,7 +141,10 @@ def _recommendations(report: Any, ai: dict | None) -> list[str]:
             add(f"Isoler et examiner{where or ' la machine ciblee'} : signature d'exploitation observee.")
     classes = Counter(str(f.get("classification")) for f in getattr(report, "flow_anomalies", []) or [])
     if classes.get("obfusque"):
-        add(f"Inspecter les {classes['obfusque']} flux a tailles aleatoires (obfuscation ou tunnel chiffre possible).")
+        add(
+            f"Inspecter les {classes['obfusque']} flux a charge utile de forte entropie "
+            "(chiffrement, obfuscation ou tunnel possible)."
+        )
     for p in (ai or {}).get("classification", []):
         if p.get("label") in ("tunnel", "c2", "exfiltration") and p.get("confidence", 0) >= 0.6:
             add(f"Verifier le flux {p['flow']} classe « {p['label']} » (confiance {p['confidence']:.0%}).")

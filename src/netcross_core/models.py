@@ -168,6 +168,11 @@ class Pkt:
     # 0.0 = pas de payload, 8.0 = octets uniformement distribues (chiffre/
     # compresse). Plus fiable que l'entropie sur les tailles de paquets.
     payload_entropy: float = 0.0
+    # Issue #351 : nombre d'octets de charge utile sur lesquels
+    # payload_entropy a ete calculee (0 = pas de payload). Sert a ponderer
+    # et normaliser l'entropie par flux (security.flow_stats) : l'entropie
+    # de n octets est bornee par log2(min(n, 256)).
+    payload_len: int = 0
     # Commentaire de paquet pcapng (Enhanced Packet Block, option
     # opt_comment -- Job 39, issue #159). Reporte a l'identique depuis
     # pcap_parser.packet.RawPacket.comment (voir sa docstring pour
