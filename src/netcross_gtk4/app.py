@@ -899,12 +899,14 @@ class MainWindow(Gtk.ApplicationWindow):
         if self.diff_check.get_active() and self.live_check.get_active():
             self.live_check.set_active(False)  # declenche _on_live_toggled -> resynchronise tout
         self.live_check.set_sensitive(not self.diff_check.get_active())
+        logger.debug("_on_diff_toggled: diff={}", self.diff_check.get_active())
         self._sync_panel_visibility()
         self._update_run_sensitivity()
         self._update_run_button_label()
 
     def _on_duplicate_detection_toggled(self, _btn):
         active = self.detect_duplicates_check.get_active()
+        logger.debug("_on_duplicate_detection_toggled: detection={}", active)
         self.duplicate_threshold_spin.set_sensitive(active and not self.diff_check.get_active())
         self.exclude_duplicates_check.set_sensitive(active and not self.diff_check.get_active())
         if not active:
@@ -913,11 +915,16 @@ class MainWindow(Gtk.ApplicationWindow):
     def _on_duplicate_exclusion_toggled(self, _btn):
         if self.exclude_duplicates_check.get_active() and not self.detect_duplicates_check.get_active():
             self.detect_duplicates_check.set_active(True)
+        logger.debug(
+            "_on_duplicate_exclusion_toggled: exclusion={}",
+            self.exclude_duplicates_check.get_active(),
+        )
 
     def _on_live_toggled(self, _btn):
         if self.live_check.get_active() and self.diff_check.get_active():
             self.diff_check.set_active(False)  # declenche _on_diff_toggled -> resynchronise tout
         self.diff_check.set_sensitive(not self.live_check.get_active())
+        logger.debug("_on_live_toggled: live={}", self.live_check.get_active())
         self._sync_panel_visibility()
         self._update_run_sensitivity()
         self._update_run_button_label()
@@ -929,6 +936,7 @@ class MainWindow(Gtk.ApplicationWindow):
         modes (simple et comparaison), verifiee aussi a l'execution dans
         on_run_analysis (au cas ou l'ordre de coches inverse ait ete utilise)."""
         redact = self.redact_check.get_active()
+        logger.debug("_on_redact_toggled: redact={}", redact)
         # issue #357 : le rapport de securite aussi (charge utile brute,
         # meme refus que --security-report --redact)
         for check in (self.tls_check, self.quic_check, self.diff_tls_check, self.diff_quic_check, self.security_check):
@@ -943,6 +951,7 @@ class MainWindow(Gtk.ApplicationWindow):
         controle reglable alors que la fonctionnalite n'est pas activee
         est une invitation a perdre du temps."""
         active = self.ring_buffer_check.get_active()
+        logger.debug("_on_ring_buffer_toggled: ring_buffer={}", active)
         self.ring_max_files_spin.set_sensitive(active)
         self.ring_max_duration_spin.set_sensitive(active)
 
@@ -966,6 +975,12 @@ class MainWindow(Gtk.ApplicationWindow):
         self.diff_panels_box.set_visible(vue.diff_panels)
         self.single_options_box.set_visible(vue.single_options)
         self.diff_options_box.set_visible(vue.diff_options)
+        logger.debug(
+            "_sync_panel_visibility: single={} live={} diff={}",
+            vue.single_panel,
+            vue.live_panel,
+            vue.diff_panels,
+        )
         self.tls_check.set_sensitive(vue.tls_sensitive)
         self.quic_check.set_sensitive(vue.quic_sensitive)
         self.parallel_check.set_sensitive(vue.parallel_sensitive)
@@ -1003,12 +1018,15 @@ class MainWindow(Gtk.ApplicationWindow):
     def _update_run_button_label(self):
         if self._live_capturing:
             return  # deja gere par _begin_live_capture/_end_live_capture
-        self.run_btn.set_label(self._run_button_state().label)
+        etat = self._run_button_state()
+        logger.debug("_update_run_button_label: label={}", etat.label)
+        self.run_btn.set_label(etat.label)
 
     def _update_run_sensitivity(self):
         if self._live_capturing:
             return  # bouton deja dans le bon etat pendant une capture en cours
         etat = self._run_button_state()
+        logger.debug("_update_run_sensitivity: enabled={} raison={}", etat.enabled, etat.raison)
         self.run_btn.set_sensitive(etat.enabled)
         # La raison du refus est affichee en infobulle plutot que gardee pour
         # nous : elle est connue au moment de la decision, et un bouton grise
@@ -1791,6 +1809,7 @@ class MainWindow(Gtk.ApplicationWindow):
         )
 
     def _on_analysis_error(self, message):
+        logger.debug("_on_analysis_error: {}", message)
         self.spinner.stop()
         self.work_status_label.set_text(f"Erreur : {message}")
         self.run_btn.set_sensitive(True)
@@ -1806,6 +1825,7 @@ class MainWindow(Gtk.ApplicationWindow):
         sa liste, et un oubli d'un seul cote faisait afficher au run
         suivant des donnees restees du precedent, sans aucun message.
         """
+        logger.debug("_appliquer_outcome: {}", outcome.status)
         for nom, valeur in outcome.etat().items():
             setattr(self, nom, valeur)
         self.duplicate_indicator.set_text(outcome.duplicate_indicator)
@@ -1826,6 +1846,16 @@ class MainWindow(Gtk.ApplicationWindow):
         wireshark_expert_events=None,
         security_report=None,
     ):
+        logger.debug(
+            "_on_analysis_done: mode={} flux={} findings={} tls={} quic={} tshark={} securite={}",
+            mode,
+            len(flows or []),
+            len(findings or []),
+            len(tls_findings or []),
+            len(quic_findings or []),
+            len(wireshark_expert_events or []),
+            bool(security_report),
+        )
         # Signaux tshark bruts : calcules dans le thread d'analyse, ou les
         # paquets sont encore disponibles (issue #14). On garde le RESULTAT
         # plutot que les paquets : conserver `all_packets` dans la fenetre
@@ -1878,6 +1908,14 @@ class MainWindow(Gtk.ApplicationWindow):
         quic_findings_baseline=None,
         quic_findings_current=None,
     ):
+        logger.debug(
+            "_on_diff_done: findings={} tls_base={} tls_courant={} quic_base={} quic_courant={}",
+            len(findings or []),
+            len(tls_findings_baseline or []),
+            len(tls_findings_current or []),
+            len(quic_findings_baseline or []),
+            len(quic_findings_current or []),
+        )
         self._appliquer_outcome(
             diff_outcome(
                 findings,
