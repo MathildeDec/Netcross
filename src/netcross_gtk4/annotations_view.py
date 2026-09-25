@@ -4,9 +4,9 @@ l'etiquetage/signets sur paquets (Job 40 / issue #160, section
 
 Etat de PRESENTATION / interaction UI, mais pur Python (aucun import
 Gtk) : testable sans display, meme discipline que stats_view.py et
-dashboard_context.py. Le cablage des widgets GTK reels (clic droit sur
-une ligne de paquet -> menu contextuel "ajouter une etiquette", vue
-filtrable par tag) reste a faire dans app.py -- ce module fournit les
+dashboard_context.py. Le cablage des widgets GTK reels (clic droit ->
+menu contextuel "ajouter une etiquette", vue filtrable par tag) est
+dans annotations_panel.py (issue #363) -- ce module fournit les
 fonctions pures necessaires (ajout/suppression d'annotation, filtrage
 par tag, liste des tags disponibles pour peupler les toggles) pour que
 ce cablage n'ait aucune logique metier a porter lui-meme.
@@ -19,7 +19,9 @@ ligne affichable, ajout/suppression avant ecriture du sidecar).
 
 from __future__ import annotations
 
-from netcross_core.forensic import annotations_by_tag
+from dataclasses import dataclass, field
+
+from netcross_core.forensic import annotations_by_tag, annotations_sidecar_path, read_annotations, write_annotations
 from netcross_core.logging_config import get_logger
 from netcross_core.models import PacketAnnotation
 
@@ -81,3 +83,97 @@ def remove_annotation(annotations: list[PacketAnnotation], frame_number: int, ta
             del result[i]
             break
     return result
+
+
+def parse_frame_number(text: str) -> int:
+    """Numero de trame saisi par l'analyste (>= 1, comme dans Wireshark).
+    `ValueError` avec un message affichable sinon."""
+    text = text.strip().lstrip("#")
+    try:
+        number = int(text)
+    except ValueError:
+        raise ValueError(f"numero de trame invalide : {text!r}") from None
+    if number < 1:
+        raise ValueError("le numero de trame commence a 1")
+    return number
+
+
+@dataclass
+class AnnotationStore:
+    """Annotations des captures d'une analyse, une liste par point, chacune
+    persistee dans le sidecar JSON de SA capture (issue #363).
+
+    Chaque modification reecrit immediatement le sidecar concerne : pas
+    d'etat en attente perdu a la fermeture de la fenetre. Un sidecar
+    illisible n'empeche pas d'ouvrir les autres : l'erreur est gardee dans
+    `errors` et ce point est en lecture seule (le reecrire effacerait les
+    annotations que l'analyste voudra peut-etre recuperer a la main)."""
+
+    captures: list[tuple[str, str]]
+    by_label: dict[str, list[PacketAnnotation]] = field(default_factory=dict)
+    errors: dict[str, str] = field(default_factory=dict)
+
+    @classmethod
+    def load(cls, captures) -> AnnotationStore:
+        store = cls(captures=[(label, path) for label, path in captures])
+        for label, path in store.captures:
+            store._load_one(label, path)
+        return store
+
+    def _load_one(self, label: str, path: str) -> None:
+        try:
+            self.by_label[label] = read_annotations(path)
+        except (OSError, ValueError, KeyError, TypeError) as exc:
+            # ValueError couvre json.JSONDecodeError ; KeyError/TypeError :
+            # JSON valide mais pas une liste d'annotations
+            self.errors[label] = f"{annotations_sidecar_path(path)} illisible : {exc}"
+            logger.warning(f"annotations {label} : {self.errors[label]}")
+
+    def labels(self) -> list[str]:
+        return [label for label, _path in self.captures]
+
+    def writable_labels(self) -> list[str]:
+        return [label for label in self.labels() if label not in self.errors]
+
+    def _path(self, label: str) -> str:
+        for known, path in self.captures:
+            if known == label:
+                return path
+        raise KeyError(f"point inconnu : {label}")
+
+    def _save(self, label: str, annotations: list[PacketAnnotation]) -> None:
+        if label in self.errors:
+            raise ValueError(f"point {label} en lecture seule : {self.errors[label]}")
+        write_annotations(self._path(label), annotations)  # OSError remonte : l'appelant l'affiche
+        self.by_label[label] = annotations
+
+    def add(self, label: str, frame_number: int, tag: str, comment: str = "") -> None:
+        """Ajoute puis persiste. Un doublon exact (trame, tag) n'est pas
+        ajoute une deuxieme fois : son commentaire est mis a jour."""
+        current = self.by_label.get(label, [])
+        updated = add_annotation(
+            [a for a in current if not (a.frame_number == frame_number and a.tag == tag.strip())],
+            frame_number,
+            tag,
+            comment.strip(),
+        )
+        self._save(label, updated)
+
+    def remove(self, label: str, frame_number: int, tag: str) -> None:
+        self._save(label, remove_annotation(self.by_label.get(label, []), frame_number, tag))
+
+    def tags(self) -> list[str]:
+        return available_tags([a for anns in self.by_label.values() for a in anns])
+
+    def rows(self, selected_tags: set[str] | None = None) -> list[tuple[str, PacketAnnotation]]:
+        """(point, annotation) filtrees par tag (aucun tag coche : tout),
+        dans l'ordre des points puis des trames."""
+        return [
+            (label, ann)
+            for label in self.labels()
+            for ann in sorted(filter_by_tags(self.by_label.get(label, []), selected_tags or set()), key=_ann_key)
+        ]
+
+
+def _ann_key(ann: PacketAnnotation) -> tuple[int, str]:
+    return (ann.frame_number, ann.tag)
