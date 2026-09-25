@@ -1358,8 +1358,10 @@ class MainWindow(Gtk.ApplicationWindow):
     def on_run_analysis(self, _btn):
         if self.live_check.get_active():
             if self._live_capturing:
+                logger.debug("on_run_analysis: arrêt de la capture en direct")
                 self._end_live_capture()
             else:
+                logger.debug("on_run_analysis: démarrage de la capture en direct")
                 self._begin_live_capture()
             return
 
@@ -1401,6 +1403,11 @@ class MainWindow(Gtk.ApplicationWindow):
             latency_min_ms = self.latency_threshold_spin.get_value()
             diff_tls = self.diff_tls_check.get_active()
             diff_quic = self.diff_quic_check.get_active()
+            logger.debug(
+                "on_run_analysis: mode diff, {} capture(s) baseline, {} capture(s) courant",
+                len(baseline_captures),
+                len(current_captures),
+            )
             threading.Thread(
                 target=self._run_diff_thread,
                 args=(
@@ -1430,6 +1437,7 @@ class MainWindow(Gtk.ApplicationWindow):
             detect_duplicates = self.detect_duplicates_check.get_active()
             exclude_duplicates = self.exclude_duplicates_check.get_active()
             duplicate_threshold_ms = self.duplicate_threshold_spin.get_value()
+            logger.debug("on_run_analysis: mode simple, {} capture(s)", len(captures))
             threading.Thread(
                 target=self._run_analysis_thread,
                 args=(
@@ -1465,6 +1473,7 @@ class MainWindow(Gtk.ApplicationWindow):
         # point par interface -- la suite (un thread par point, points_order,
         # compteurs du journal) n'a ainsi rien a savoir du multi-interfaces.
         rows_data = expand_live_points(self.live_panel.captures())  # [(label, interface, bpf_filter), ...]
+        logger.debug("_begin_live_capture: {} point(s) de capture", len(rows_data))
         missing = [label for label, iface, _ in rows_data if not iface]
         if missing:
             self.stack.set_visible_child_name("log")
@@ -1544,6 +1553,7 @@ class MainWindow(Gtk.ApplicationWindow):
         return False  # ne pas repeter le timeout (GLib.timeout_add_seconds)
 
     def _live_capture_worker(self, label, interface, bpf_filter):
+        logger.debug("_live_capture_worker: label={} interface={}", label, interface)
         GLib.idle_add(
             self._log,
             f"[{label}] capture demarree sur {interface}"
@@ -1578,6 +1588,7 @@ class MainWindow(Gtk.ApplicationWindow):
             return  # deja arrete/en cours d'arret -- evite un double-clic
             # (bouton config + bouton page Travail) qui lancerait
             # deux threads d'analyse en parallele sur les memes paquets
+        logger.debug("_end_live_capture: arrêt de {} thread(s) de capture", len(self._live_threads))
         self.run_btn.set_sensitive(False)
         self.work_stop_btn.set_sensitive(False)
         self.run_btn.set_label("Arret de la capture...")
@@ -1590,6 +1601,7 @@ class MainWindow(Gtk.ApplicationWindow):
             t.join()
         with self._live_lock:
             all_packets = list(self._live_packets)
+        logger.debug("_join_live_and_analyze: {} paquet(s) capturé(s)", len(all_packets))
         GLib.idle_add(
             self._log,
             f"Capture terminee -- {len(all_packets)} paquet(s) au total. Analyse...",
@@ -1683,6 +1695,7 @@ class MainWindow(Gtk.ApplicationWindow):
     def _load_packets(self, captures, parallel):
         """Commun aux deux modes : lecture sequentielle ou parallele, avec
         journalisation -- equivalent de _load_packets() des deux CLIs."""
+        logger.debug("_load_packets: {} capture(s), parallel={}", len(captures), parallel)
         all_packets = []
         if parallel:
             all_packets, per_file_stats = parse_captures_parallel(captures)
@@ -1724,6 +1737,14 @@ class MainWindow(Gtk.ApplicationWindow):
         exclude_duplicates,
         duplicate_threshold_ms,
     ):
+        logger.debug(
+            "_run_analysis_thread: {} capture(s), triage={} tls={} quic={} security={}",
+            len(captures),
+            triage,
+            tls,
+            quic,
+            security,
+        )
         from netcross_gtk4.analysis_pipeline import AnalysisOptions, run_analysis_pipeline
 
         options = AnalysisOptions(
@@ -1782,6 +1803,11 @@ class MainWindow(Gtk.ApplicationWindow):
         tls,
         quic,
     ):
+        logger.debug(
+            "_run_diff_thread: {} capture(s) baseline, {} capture(s) courant",
+            len(baseline_captures),
+            len(current_captures),
+        )
         from netcross_gtk4.diff_pipeline import DiffOptions, run_diff_pipeline
 
         options = DiffOptions(
@@ -1985,6 +2011,7 @@ class MainWindow(Gtk.ApplicationWindow):
 
     def export_pdf_to(self, path):
         """Separe de la callback du dialogue pour pouvoir etre pilote directement (tests)."""
+        logger.debug("export_pdf_to: {}", path)
         self.status_label.set_text("Generation du PDF...")
         threading.Thread(target=self._generate_pdf_thread, args=(path,), daemon=True).start()
 
@@ -2354,6 +2381,7 @@ class MainWindow(Gtk.ApplicationWindow):
         )
 
     def _generate_pdf_thread(self, path):
+        logger.debug("_generate_pdf_thread: mode={} path={}", self.last_mode, path)
         try:
             if self.last_mode == "single":
                 from netcross_report import generate_pdf
@@ -2420,10 +2448,12 @@ class MainWindow(Gtk.ApplicationWindow):
 
     def export_json_to(self, path):
         """Separe de la callback du dialogue pour pouvoir etre pilote directement (tests)."""
+        logger.debug("export_json_to: {}", path)
         self.status_label.set_text("Generation du JSON...")
         threading.Thread(target=self._generate_json_thread, args=(path,), daemon=True).start()
 
     def _generate_json_thread(self, path):
+        logger.debug("_generate_json_thread: mode={} path={}", self.last_mode, path)
         try:
             if self.last_mode == "single":
                 from netcross_report import generate_json_report
