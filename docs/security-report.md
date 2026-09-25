@@ -12,6 +12,7 @@ qui consolide les modules de détection passive de vulnérabilités (parent #133
 | Anomalies | exfiltration : transferts sortants volumineux/asymétriques vers l'extérieur, corrélés au beaconing et au tunneling DNS, score de risque 0-100 (SCENARIO-2, #148) | `netcross_core.security.exfiltration` |
 | Anomalies | audit des certificats TLS : expirés, auto-signés, MD5/SHA-1, clés faibles, validité excessive, chaîne incomplète, noms suspects, avec un score de risque TLS par serveur (SCENARIO-7, #153) | `netcross_core.security.tls_audit` |
 | CVE confirmées | version exacte + CVE-ID + score CVSS (CVE-4, #138) | `netcross_core.security` (base SQLite locale) |
+| Inventaire d'actifs | hôtes vus (IP, MAC, OS déduit du TTL et des options TCP, ports exposés confirmés, points), nouveaux hôtes par rapport à la baseline `--known-hosts` (SCENARIO-5, #151, #350) | `netcross_core.discovery.assets` |
 
 Le tout est classé par sévérité (critique / élevée / moyenne / faible) et résumé par un
 tableau de bord (nombre de services vulnérables, d'exploits, d'anomalies, de CVE, score de
@@ -34,6 +35,13 @@ python3 src/cross_capture_analyzer_cli.py \\
 - Refusé avec `--live` et `--redact` : les signatures d'exploits sont cherchées dans la
   charge utile brute, relue depuis les fichiers `--capture` (comme `--tls`), donc jamais
   depuis des paquets anonymisés ou capturés en direct. Refusé aussi avec `--merge`/`--replay`.
+- `--known-hosts hotes.json` (avec `--security-report`) : baseline des hôtes connus, liste JSON
+  d'IP (`["10.0.0.1", "10.0.0.2"]`) ou objet `{"hosts": [...]}`. Chaque hôte de la capture absent
+  de la liste est marqué `[NOUVEAU]` dans la section « Inventaire d'actifs » et produit un constat
+  de sévérité moyenne (détecteur `asset_inventory`), donc aussi un événement dans l'export SIEM
+  (`--siem-export cef|leef|stix`). Sans baseline, aucun hôte n'est signalé nouveau ; un fichier
+  absent, illisible ou vide est refusé (sinon tous les hôtes passeraient pour nouveaux).
+  L'inventaire complet est dans la clé `security_report.assets` du JSON et dans le HTML.
 
 ## Architecture
 

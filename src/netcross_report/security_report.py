@@ -71,6 +71,7 @@ DETECTOR_LABELS: dict[str, str] = {
     "dga": "Domaines generes (DGA)",
     "tls_audit": "Audit des certificats TLS",
     "flow_stats": "Statistiques de flux",
+    "asset_inventory": "Inventaire d'actifs (nouveaux hotes)",
     DETECTOR_EXPERT_INFO: "Alertes Expert Info correlees (Wireshark)",
 }
 _DETECTOR_PRIORITY = list(DETECTOR_LABELS)
@@ -233,6 +234,11 @@ class SecurityDashboard:
     anomalies_netcross: int = 0
     anomalies_expert_info: int = 0
     cves: int = 0
+    # Issue #350 : inventaire d'actifs passif (hotes vus, dont nouveaux vs
+    # la baseline --known-hosts ; baseline_size = 0 si aucune baseline).
+    assets_total: int = 0
+    assets_new: int = 0
+    assets_baseline_size: int = 0
     by_severity: dict[str, int] = field(default_factory=lambda: dict.fromkeys(SEVERITIES, 0))
     score: int = 0
     level: str | None = None
@@ -252,6 +258,9 @@ class SecurityReport:
     # tracabilite des plugins (issue #284) : une ligne par plugin demande
     # (« detecteur x : erreur, constats absents »). Vide = aucun plugin.
     plugins: list[dict] = field(default_factory=list)
+    # Issue #350 : Report.asset_inventory tel quel (un dict par hote, voir
+    # discovery.assets.AssetInventory.to_records), trie par IP.
+    assets: list[dict] = field(default_factory=list)
 
 
 # -- normalisation -------------------------------------------------------
@@ -421,6 +430,10 @@ def build_security_report(report) -> SecurityReport:
         anomalies_expert_info=sum(1 for i in anomalies if is_expert_info(i)),
         cves=len(cves),
     )
+    assets = [dict(a) for a in (getattr(report, "asset_inventory", None) or []) if isinstance(a, dict)]
+    dash.assets_total = len(assets)
+    dash.assets_new = sum(1 for a in assets if a.get("is_new"))
+    dash.assets_baseline_size = int(getattr(report, "asset_baseline_size", 0) or 0)
     for item in items:
         dash.by_severity[item.severity] += 1
     dash.score = min(100, sum(SEVERITY_WEIGHTS[sev] * n for sev, n in dash.by_severity.items()))
@@ -432,6 +445,7 @@ def build_security_report(report) -> SecurityReport:
         cves=cves,
         dashboard=dash,
         plugins=[dict(r) for r in (getattr(report, "plugin_runs", None) or [])],
+        assets=assets,
     )
 
 
@@ -523,6 +537,38 @@ def _format_service(entry: ServiceEntry) -> str:
     return line
 
 
+def asset_os_label(asset: dict) -> str:
+    """OS deduit d'un hote de l'inventaire (TTL, options TCP), ou
+    « OS inconnu » -- toujours une hypothese, jamais un diagnostic."""
+    os_guess = asset.get("os_guess") or {}
+    if not os_guess:
+        return "OS inconnu"
+    return f"{os_guess.get('family', '?')} (confiance {os_guess.get('confidence', '?')})"
+
+
+def asset_ports_label(asset: dict) -> str:
+    """Ports exposes confirmes (SYN-ACK ou banniere), ex. « tcp/22 ssh »."""
+    parts = []
+    for p in asset.get("ports") or []:
+        label = f"{p.get('transport')}/{p.get('port')}"
+        service = " ".join(x for x in (p.get("service"), p.get("version")) if x)
+        parts.append(f"{label} {service}" if service else label)
+    return ", ".join(parts)
+
+
+def _format_asset(asset: dict) -> str:
+    tag = " [NOUVEAU]" if asset.get("is_new") else ""
+    line = f"  {asset.get('ip', '?')}{tag} -- {asset_os_label(asset)}"
+    if asset.get("mac"):
+        line += f", MAC {asset['mac']}"
+    ports = asset_ports_label(asset)
+    line += f", ports exposes : {ports}" if ports else ", aucun port expose observe"
+    line += f", {asset.get('packet_count', 0)} paquets"
+    if asset.get("points"):
+        line += f" (point(s) {', '.join(asset['points'])})"
+    return line
+
+
 def _section(title: str, rows: list[str], empty_msg: str) -> list[str]:
     lines = ["", f"-- {title} --"]
     if not rows:
@@ -567,6 +613,8 @@ def format_security_report(sr: SecurityReport) -> list[str]:
     lines.append(f"  constats des detecteurs Netcross : {d.anomalies_netcross}")
     lines.append(f"  alertes Expert Info correlees : {d.anomalies_expert_info}")
     lines.append(f"  CVE confirmees : {d.cves}")
+    baseline = f"baseline de {d.assets_baseline_size} hote(s)" if d.assets_baseline_size else "sans baseline"
+    lines.append(f"  hotes inventories : {d.assets_total} (dont {d.assets_new} nouveau(x), {baseline})")
     lines.append("  repartition par severite : " + ", ".join(f"{sev}={d.by_severity[sev]}" for sev in SEVERITIES))
 
     lines += _section(
@@ -600,6 +648,12 @@ def format_security_report(sr: SecurityReport) -> list[str]:
         "CVE confirmees (version + CVE-ID + score CVSS)",
         [_format_item(i) for i in sr.cves],
         "aucune CVE confirmee",
+    )
+    # Issue #350 : inventaire passif -- les nouveaux hotes d'abord.
+    lines += _section(
+        "Inventaire d'actifs (decouverte passive)",
+        [_format_asset(a) for a in sorted(sr.assets, key=lambda a: (not a.get("is_new"), a.get("ip", "")))],
+        "aucun hote observe",
     )
     if sr.notifications:
         lines += _section("Notifications", [f"  {n.get('line', '')}" for n in sr.notifications], "")
@@ -642,6 +696,9 @@ def security_report_to_dict(sr: SecurityReport) -> dict:
             "anomalies_netcross": sr.dashboard.anomalies_netcross,
             "anomalies_expert_info": sr.dashboard.anomalies_expert_info,
             "cves": sr.dashboard.cves,
+            "assets_total": sr.dashboard.assets_total,
+            "assets_new": sr.dashboard.assets_new,
+            "assets_baseline_size": sr.dashboard.assets_baseline_size,
             "by_severity": dict(sr.dashboard.by_severity),
         },
         "services": [
@@ -688,4 +745,5 @@ def security_report_to_dict(sr: SecurityReport) -> dict:
         },
         "notifications": [dict(n) for n in sr.notifications],
         "plugins": [dict(p) for p in sr.plugins],
+        "assets": [dict(a) for a in sr.assets],
     }

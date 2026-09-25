@@ -33,6 +33,8 @@ from netcross_core.logging_config import get_logger
 from netcross_report.security_report import (
     SEVERITIES,
     SecurityReport,
+    asset_os_label,
+    asset_ports_label,
     group_by_detector,
     is_expert_info,
     security_report_to_dict,
@@ -244,6 +246,8 @@ def _cartes(d: dict) -> str:
         f'<div class="carte"><div class="valeur">{d["anomalies_expert_info"]}</div>'
         '<div class="etiquette">alertes Expert Info correlees</div></div>',
         f'<div class="carte"><div class="valeur">{d["cves"]}</div><div class="etiquette">CVE confirmees</div></div>',
+        f'<div class="carte"><div class="valeur">{d.get("assets_total", 0)}</div>'
+        f'<div class="etiquette">hotes inventories, dont {d.get("assets_new", 0)} nouveau(x)</div></div>',
     ]
     repartition = " &middot; ".join(f"{_e(sev)} <strong>{d['by_severity'].get(sev, 0)}</strong>" for sev in SEVERITIES)
     cartes.append(
@@ -251,6 +255,21 @@ def _cartes(d: dict) -> str:
         f"repartition par severite</div><div>{repartition}</div></div>"
     )
     return f'<div class="cartes">{"".join(cartes)}</div>'
+
+
+def _ligne_actif(a: dict) -> str:
+    avant, fond = _SEVERITY_COLORS.get("moyenne", _NEUTRAL)
+    nouveau = f'<span class="badge" style="color:{avant};background:{fond}">nouveau</span>' if a.get("is_new") else ""
+    return (
+        "<tr>"
+        f'<td class="mono">{_e(a.get("ip"))} {nouveau}</td>'
+        f'<td class="mono">{_e(a.get("mac"))}</td>'
+        f"<td>{_e(asset_os_label(a))}</td>"
+        f'<td class="mono">{_e(asset_ports_label(a) or None)}</td>'
+        f"<td>{_e(a.get('packet_count', 0))}</td>"
+        f"<td>{_e(', '.join(a.get('points') or []) or None)}</td>"
+        "</tr>"
+    )
 
 
 def render_security_html(
@@ -321,6 +340,17 @@ def render_security_html(
             ["Severite", "CVE", "CVSS", "Detail", "Service", "Cible", "Point"],
             [_ligne_constat(i, avec_cve=True) for i in data["cves"]],
             "aucune CVE confirmee",
+        ),
+        # Issue #350 : inventaire d'actifs passif, nouveaux hotes en tete.
+        "<h2>Inventaire d'actifs (decouverte passive)</h2>",
+        _table(
+            "t-actifs",
+            ["Hote", "MAC", "OS deduit", "Ports exposes", "Paquets", "Points"],
+            [
+                _ligne_actif(a)
+                for a in sorted(data.get("assets") or [], key=lambda a: (not a.get("is_new"), a.get("ip", "")))
+            ],
+            "aucun hote observe dans cette capture",
         ),
         _notifications(data.get("notifications") or []),
         _plugins(data.get("plugins") or []),
