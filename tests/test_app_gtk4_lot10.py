@@ -111,3 +111,33 @@ def test_do_activate_cree_et_presente_la_mainwindow(monkeypatch):
 
     assert app.main_window is fenetre_existante
     assert presentees == [fenetre_existante, fenetre_existante]
+
+
+def test_main_construit_lapplication_et_lance_run(monkeypatch):
+    """`main()` -- hors du perimetre demande (methodes concernees :
+    _on_security_path_chosen, NetcrossApp.__init__/do_activate) mais compte
+    dans les 17 instructions de la ligne 2594-2637 : autant clore le lot
+    completement. `NetcrossApp` est remplacee : `app.run(argv)` entre dans
+    la vraie boucle d'evenements GTK, qui ne se termine jamais toute
+    seule -- rien a voir avec do_activate(), deja teste ci-dessus."""
+    import sys as sys_module
+
+    from netcross_gtk4 import app as app_module
+
+    appels = []
+
+    class _ApplicationFactice:
+        def __init__(self):
+            appels.append("construite")
+
+        def run(self, argv):
+            appels.append(("run", list(argv)))
+            return 0
+
+    monkeypatch.setattr(app_module, "NetcrossApp", _ApplicationFactice)
+    monkeypatch.setattr(sys_module, "argv", ["netcross-gtk4", "--exemple"])
+
+    resultat = app_module.main()
+
+    assert resultat == 0
+    assert appels == ["construite", ("run", ["netcross-gtk4", "--exemple"])]
