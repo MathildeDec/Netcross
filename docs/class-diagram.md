@@ -11,7 +11,7 @@
 > Il remplace l'ancienne section 3 de `docs/features-backlog.md`, tenue à la main, qui avait dérivé
 > (voir `docs/sessions/session-36.md`, issue #140).
 
-159 modules · 237 classes · 527 fonctions publiques de module.
+160 modules · 237 classes · 530 fonctions publiques de module.
 
 Conventions : `+` public, `-` privé (préfixe `_`) ; `int?` = `int | None` ; `list~str~` = `list[str]` ;
 `<<module>>` regroupe les fonctions publiques d'un module ; `A --> B : champ` = `A` a un champ annoté
@@ -36,8 +36,8 @@ flowchart TD
     CLI -->|"8 imports"| netcross_ai
     CLI -->|"39 imports"| netcross_core
     CLI -->|"5 imports"| pcap_parser
-    netcross_gtk4 -->|"10 imports"| netcross_report
-    netcross_gtk4 -->|"49 imports"| netcross_core
+    netcross_gtk4 -->|"13 imports"| netcross_report
+    netcross_gtk4 -->|"51 imports"| netcross_core
     netcross_gtk4 -->|"2 imports"| pcap_parser
     netcross_api -->|"7 imports"| netcross_core
     netcross_report -->|"32 imports"| netcross_core
@@ -3811,6 +3811,7 @@ classDiagram
 | `netcross_gtk4.panel_state` | decisions de visibilite, de sensibilite et de selection des panneaux de la GUI (issue #285, troisieme lot). |
 | `netcross_gtk4.row_labels` | libelles et cles de tri des lignes affichees par la GUI (issue #285, premier lot d'extraction de `app.py`). |
 | `netcross_gtk4.run_outcome` | etat de resultat et decisions d'affichage a la fin d'une analyse ou d'une comparaison (issue #285, deuxieme lot). |
+| `netcross_gtk4.security_view` | section Securite de la GUI (issue #357). |
 | `netcross_gtk4.stats_view` | logique de presentation pour la vue d'exploration statistique (Job 27 / issue #22, section 6.8). |
 
 ### Diagramme
@@ -3848,11 +3849,13 @@ classDiagram
         +list? tls_findings
         +list? quic_findings
         +list wireshark_expert_events
+        +Any security_report
     }
     class mod_netcross_gtk4_analysis_pipeline["netcross_gtk4.analysis_pipeline"] {
         <<module>>
         +load_packets(captures, parallel, on_progress) list
         +run_analysis_pipeline(captures, options, on_progress) AnalysisResult
+        +run_security_analysis(report, all_packets, captures, log)
     }
 
     %% ===== netcross_gtk4.annotations_panel =====
@@ -3927,6 +3930,8 @@ classDiagram
         +export_pdf_to(path)
         +on_export_json(_btn)
         +export_json_to(path)
+        +on_export_security(suffix)
+        +export_security_to(path)
     }
     class NetcrossApp {
         <<Gtk.Application>>
@@ -4118,6 +4123,7 @@ classDiagram
         +Any tls_findings
         +Any quic_findings
         +Any wireshark_expert_events
+        +Any security_report
         +Any diff_findings
         +Any baseline_report
         +Any current_report
@@ -4133,9 +4139,16 @@ classDiagram
     }
     class mod_netcross_gtk4_run_outcome["netcross_gtk4.run_outcome"] {
         <<module>>
-        +analysis_outcome(mode, report, flows, findings, text, tls_findings, quic_findings, wireshark_expert_events) RunOutcome
+        +analysis_outcome(mode, report, flows, findings, text, tls_findings, quic_findings, wireshark_expert_events, security_report) RunOutcome
         +diff_status_text(findings) str
         +diff_outcome(findings, baseline_report, current_report, text, tls_findings_baseline, tls_findings_current, quic_findings_baseline, quic_findings_current) RunOutcome
+    }
+
+    %% ===== netcross_gtk4.security_view =====
+    class mod_netcross_gtk4_security_view["netcross_gtk4.security_view"] {
+        <<module>>
+        +security_view_text(sr) str
+        +export_security_report(sr, path) str
     }
 
     %% ===== netcross_gtk4.stats_view =====

@@ -228,3 +228,16 @@ de la sévérité accompagne toujours la couleur.
 - Une bannière peut être masquée ou falsifiée (`ServerTokens Prod`) : l'absence de service
   détecté n'est pas une information.
 - Rendu texte uniquement ; le `SecurityReport` est prêt à alimenter une sortie HTML/PDF.
+
+## Interface graphique
+
+La case « Rapport de securite » de la GUI (mode simple, fichiers de capture)
+lance la même chaîne que `--security-report` : `scan_capture_exploits` sur
+chaque fichier, `apply_security_findings` avec la base CVE minimale embarquée,
+puis `build_security_report`. La section Sécurité de la page Résultats affiche
+`format_security_report` et exporte le rapport en HTML (`generate_security_html`)
+ou en JSON (`security_report_to_dict`) ; le JSON et le PDF généraux de la GUI
+reçoivent le même objet (`security_report=`). Non disponible : `--cve-db`,
+baselines `--known-destinations`/`--known-hosts`, plugins, notifications et
+export SIEM (CLI uniquement).
+

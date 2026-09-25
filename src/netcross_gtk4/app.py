@@ -90,6 +90,7 @@ from netcross_gtk4.panel_state import (  # noqa: E402
     selected_protocol,
 )
 from netcross_gtk4.run_outcome import analysis_outcome, diff_outcome  # noqa: E402
+from netcross_gtk4.security_view import export_security_report, security_view_text  # noqa: E402
 from netcross_gtk4.stats_view import (  # noqa: E402
     build_events_by_segment,
     build_query,
@@ -581,6 +582,8 @@ class MainWindow(Gtk.ApplicationWindow):
         # mode single : ExpertEvent de source "tshark", pour le JSON et le PDF
         # (issue #14). None = non calcule, [] = calcule et aucun signal.
         self.last_wireshark_expert_events = None
+        # Issue #357 : SecurityReport du dernier run simple (None sinon)
+        self.last_security_report = None
         self.last_diff_findings = None  # mode diff : DiffFinding
         self.last_baseline_report = None
         self.last_current_report = None
@@ -926,7 +929,9 @@ class MainWindow(Gtk.ApplicationWindow):
         modes (simple et comparaison), verifiee aussi a l'execution dans
         on_run_analysis (au cas ou l'ordre de coches inverse ait ete utilise)."""
         redact = self.redact_check.get_active()
-        for check in (self.tls_check, self.quic_check, self.diff_tls_check, self.diff_quic_check):
+        # issue #357 : le rapport de securite aussi (charge utile brute,
+        # meme refus que --security-report --redact)
+        for check in (self.tls_check, self.quic_check, self.diff_tls_check, self.diff_quic_check, self.security_check):
             check.set_sensitive(not redact)
             if redact:
                 check.set_active(False)
@@ -1248,6 +1253,17 @@ class MainWindow(Gtk.ApplicationWindow):
         sec_scroller.set_vexpand(False)
         sec_scroller.set_max_content_height(300)
         sec_box.append(sec_scroller)
+        # export du rapport de securite (HTML = --security-html, JSON = cle
+        # security_report de --json-report) ; le JSON et le PDF generaux
+        # de la GUI portent aussi ce rapport
+        sec_export_row = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
+        self.security_html_btn = Gtk.Button(label="Exporter le rapport de securite (HTML)")
+        self.security_html_btn.connect("clicked", lambda _b: self.on_export_security(".html"))
+        sec_export_row.append(self.security_html_btn)
+        self.security_json_btn = Gtk.Button(label="Exporter le rapport de securite (JSON)")
+        self.security_json_btn.connect("clicked", lambda _b: self.on_export_security(".json"))
+        sec_export_row.append(self.security_json_btn)
+        sec_box.append(sec_export_row)
         self.security_expander.set_child(sec_box)
         page.append(self.security_expander)
 
@@ -1713,6 +1729,7 @@ class MainWindow(Gtk.ApplicationWindow):
             result.tls_findings,
             result.quic_findings,
             result.wireshark_expert_events,
+            result.security_report,
         )
 
     def _run_diff_thread(
@@ -1782,7 +1799,7 @@ class MainWindow(Gtk.ApplicationWindow):
     def _appliquer_outcome(self, outcome):
         """Recopie un RunOutcome dans la fenetre (issue #285, lot 2).
 
-        Les quatorze champs d'etat sont recopies EN BOUCLE depuis
+        Les quinze champs d'etat sont recopies EN BOUCLE depuis
         `outcome.etat()`, pas un par un : un champ ajoute a `RunOutcome`
         arrive ainsi automatiquement dans les deux modes. C'est le point de
         l'extraction -- avant, analyse et comparaison reecrivaient chacune
@@ -1807,6 +1824,7 @@ class MainWindow(Gtk.ApplicationWindow):
         tls_findings=None,
         quic_findings=None,
         wireshark_expert_events=None,
+        security_report=None,
     ):
         # Signaux tshark bruts : calcules dans le thread d'analyse, ou les
         # paquets sont encore disponibles (issue #14). On garde le RESULTAT
@@ -1823,6 +1841,7 @@ class MainWindow(Gtk.ApplicationWindow):
                 tls_findings=tls_findings,
                 quic_findings=quic_findings,
                 wireshark_expert_events=wireshark_expert_events,
+                security_report=security_report,
             )
         )
         self.run_btn.set_sensitive(True)
@@ -1843,20 +1862,8 @@ class MainWindow(Gtk.ApplicationWindow):
             self.annotations_panel.load(self._annotation_captures)
         else:
             self.annotations_panel.clear()
-        # Issue #357 : peupler la section securite si des constats existent
-        if hasattr(report, "security_findings") and report.security_findings:
-            sec_buf = Gtk.TextBuffer()
-            lines = []
-            for f in report.security_findings:
-                sev = f.get("severity", "?")
-                cat = f.get("category", "?")
-                detail = f.get("detail", "?")
-                lines.append(f"[{sev}] ({cat}) {detail}")
-            sec_buf.set_text("\n".join(lines))
-            self.security_view.set_buffer(sec_buf)
-            self.security_expander.set_sensitive(True)
-        else:
-            self.security_expander.set_sensitive(False)
+        # Issue #357 : section Securite -- meme rendu que --security-report
+        self._show_security_report()
         self.stack.set_visible_child_name("results")
         return False
 
@@ -1895,6 +1902,7 @@ class MainWindow(Gtk.ApplicationWindow):
         self._refresh_dashboard()
         self._refresh_stats()
         self.annotations_panel.clear()  # issue #363 : pas de sidecar en mode diff
+        self._show_security_report()  # issue #357 : None apres un diff (RunOutcome)
         self.stack.set_visible_child_name("results")
         return False
 
@@ -2328,6 +2336,7 @@ class MainWindow(Gtk.ApplicationWindow):
                     tls_findings=self.last_tls_findings,
                     quic_findings=self.last_quic_findings,
                     session_objects=self._session_objects(),
+                    security_report=self.last_security_report,
                 )
             else:
                 from netcross_report import generate_diff_pdf
@@ -2397,6 +2406,7 @@ class MainWindow(Gtk.ApplicationWindow):
                     findings=self.last_findings,
                     tls_findings=self.last_tls_findings,
                     quic_findings=self.last_quic_findings,
+                    security_report=self.last_security_report,
                     **self._session_objects().json_kwargs(),
                 )
             else:
@@ -2425,6 +2435,51 @@ class MainWindow(Gtk.ApplicationWindow):
     def _on_json_done(self, path):
         self.status_label.set_text(f"JSON ecrit : {path}")
         return False
+
+    # ================= securite (issue #357) =================
+
+    def _show_security_report(self):
+        """Section Securite : rendu de --security-report, exports actifs
+        seulement quand un rapport existe (analyse simple, case cochee).
+        `last_security_report` vient du RunOutcome (None apres un diff)."""
+        security_report = self.last_security_report
+        buf = Gtk.TextBuffer()
+        buf.set_text(security_view_text(security_report))
+        self.security_view.set_buffer(buf)
+        self.security_expander.set_sensitive(security_report is not None)
+        self.security_expander.set_expanded(
+            security_report is not None
+            and bool(security_report.exploits or security_report.anomalies or security_report.cves)
+        )
+        self.security_html_btn.set_sensitive(security_report is not None)
+        self.security_json_btn.set_sensitive(security_report is not None)
+
+    def on_export_security(self, suffix):
+        if self.last_security_report is None:
+            return
+        dialog = Gtk.FileDialog()
+        dialog.set_initial_name(f"rapport_securite{suffix}")
+        dialog.save(self, None, lambda d, r: self._on_security_path_chosen(d, r))
+
+    def _on_security_path_chosen(self, dialog, result):
+        try:
+            gfile = dialog.save_finish(result)
+        except GLib.Error:
+            logger.exception("échec dans _on_security_path_chosen")
+            return
+        self.export_security_to(gfile.get_path())
+
+    def export_security_to(self, path):
+        """Separe du dialogue pour etre pilote directement (tests). Synchrone :
+        le rendu part d'un SecurityReport deja calcule, sans relire de fichier."""
+        try:
+            written = export_security_report(self.last_security_report, path)
+        except (OSError, ValueError) as e:
+            logger.exception(f"échec dans export_security_to: {e}")
+            self.status_label.set_text(f"Erreur rapport de securite : {e}")
+            return None
+        self.status_label.set_text(f"Rapport de securite ecrit : {written}")
+        return written
 
 
 class NetcrossApp(Gtk.Application):

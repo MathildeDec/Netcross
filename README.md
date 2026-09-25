@@ -830,6 +830,17 @@ capture en direct, qui n'ont pas de fichier de capture à annoter. La
 logique est dans `netcross_gtk4/annotations_view.py` (`AnnotationStore`,
 testée sans GTK) et le widget dans `netcross_gtk4/annotations_panel.py`.
 
+**Sécurité** (case « Rapport de securite », mode simple sur fichiers ;
+section repliable de la page Résultats) : même analyse que
+`--security-report`. Elle relit les signatures d'exploits dans les fichiers,
+corrèle les CVE avec la base minimale embarquée (la GUI n'a pas d'équivalent
+de `--cve-db`) et affiche le même rendu texte que la CLI. Deux boutons
+exportent ce rapport en HTML (équivalent `--security-html`) ou en JSON
+(clé `security_report` de `--json-report`). Les exports JSON et PDF
+généraux de la GUI portent aussi ce rapport. Comme en CLI, la case est
+désactivée avec l'anonymisation des adresses, et la section l'est après
+une comparaison.
+
 **Parité restante avec le CLI** : la capture en direct est désormais
 disponible sur les deux CLI — `--live` sur `cross_capture_analyzer_cli.py`
 et `--live-current` sur `cross_capture_diff_cli.py` (voir ci-dessus, le
