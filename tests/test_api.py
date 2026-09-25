@@ -68,7 +68,7 @@ def test_upload_capture_success():
     """POST /captures avec un pcap mocké doit retourner 201."""
     with patch("netcross_api.app.parse_capture", side_effect=_mock_parse_capture):
         response = client.post(
-            "/captures",
+            "/captures?wait=true",
             files={"file": ("test.pcap", _fake_capture_file(), "application/octet-stream")},
             data={"label": "point-A"},
         )
@@ -83,7 +83,7 @@ def test_upload_capture_success():
 def test_upload_capture_no_filename():
     """POST /captures sans nom de fichier doit retourner une erreur (422 FastAPI)."""
     response = client.post(
-        "/captures",
+        "/captures?wait=true",
         files={"file": ("", _fake_capture_file(), "application/octet-stream")},
         data={"label": "test"},
     )
@@ -94,7 +94,7 @@ def test_upload_capture_empty_file():
     """POST /captures avec un fichier vide doit retourner 400."""
     with patch("netcross_api.app.parse_capture", return_value=[]):
         response = client.post(
-            "/captures",
+            "/captures?wait=true",
             files={"file": ("empty.pcap", b"", "application/octet-stream")},
             data={"label": "test"},
         )
@@ -105,7 +105,7 @@ def test_upload_capture_parse_error():
     """POST /captures avec une erreur de parsing doit retourner 400."""
     with patch("netcross_api.app.parse_capture", side_effect=Exception("tshark not found")):
         response = client.post(
-            "/captures",
+            "/captures?wait=true",
             files={"file": ("bad.pcap", b"garbage", "application/octet-stream")},
             data={"label": "test"},
         )
@@ -120,7 +120,7 @@ def test_get_analysis_success():
     """GET /analyses/{id} doit retourner le rapport JSON."""
     with patch("netcross_api.app.parse_capture", side_effect=_mock_parse_capture):
         upload = client.post(
-            "/captures",
+            "/captures?wait=true",
             files={"file": ("test.pcap", _fake_capture_file(), "application/octet-stream")},
             data={"label": "point-A"},
         )
@@ -147,7 +147,7 @@ def test_get_security_report_success():
     """GET /analyses/{id}/security doit retourner les constats."""
     with patch("netcross_api.app.parse_capture", side_effect=_mock_parse_capture):
         upload = client.post(
-            "/captures",
+            "/captures?wait=true",
             files={"file": ("test.pcap", _fake_capture_file(), "application/octet-stream")},
             data={"label": "point-A"},
         )
@@ -180,7 +180,7 @@ def test_list_analyses():
     # Ajouter une analyse
     with patch("netcross_api.app.parse_capture", side_effect=_mock_parse_capture):
         upload = client.post(
-            "/captures",
+            "/captures?wait=true",
             files={"file": ("test.pcap", _fake_capture_file(), "application/octet-stream")},
             data={"label": "point-A"},
         )

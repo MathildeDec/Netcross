@@ -23,42 +23,72 @@ paths:
       tags:
       - captures
       summary: Upload Capture
-      description: 'Upload d''un fichier pcap, lancement de l''analyse.
+      description: 'Upload d''un fichier pcap, analyse en tâche de fond.
 
 
-        Le fichier est temporairement écrit sur disque pour que tshark puisse
+        Réponse 202 ``{"status": "pending"}`` : suivre ``status_url`` jusqu''à
 
-        le lire, puis supprimé. L''analyse complète (correlation + sécurité) est
+        ``completed`` (ou ``failed`` avec ``error``). ``?wait=true`` attend la
 
-        exécutée et le rapport est stocké en mémoire.'
+        fin et retourne directement le résumé (201).'
       operationId: upload_capture_captures_post
+      security:
+      - APIKeyHeader: []
+      parameters:
+      - name: wait
+        in: query
+        required: false
+        schema:
+          type: boolean
+          description: 'true : attendre la fin de l''analyse (201 + résumé) au lieu
+            de 202 + statut pending'
+          default: false
+          title: Wait
+        description: 'true : attendre la fin de l''analyse (201 + résumé) au lieu
+          de 202 + statut pending'
       requestBody:
+        required: true
         content:
           multipart/form-data:
             schema:
               $ref: '#/components/schemas/Body_upload_capture_captures_post'
-        required: true
       responses:
-        '201':
+        '202':
           description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnalysisAccepted'
+        '201':
+          description: Analyse terminée (?wait=true)
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/AnalysisSummary'
         '400':
-          description: Bad Request
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+          description: Bad Request
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Unauthorized
+        '413':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Content Too Large
         '422':
           description: Validation Error
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
-      security:
-      - APIKeyHeader: []
   /captures/multi:
     post:
       tags:
@@ -74,56 +104,76 @@ paths:
 
         l''ordre des fichiers) ; ``points_order`` (facultatif) fixe l''ordre
 
-        amont -> aval, sinon il est déduit du trafic. La réponse détaille les
+        amont -> aval, sinon il est déduit du trafic. Le résumé (``?wait=true``
 
-        pertes et le délai de chaque segment.'
+        ou ``/status``) détaille les pertes et le délai de chaque segment.'
       operationId: upload_multi_capture_captures_multi_post
+      security:
+      - APIKeyHeader: []
+      parameters:
+      - name: wait
+        in: query
+        required: false
+        schema:
+          type: boolean
+          description: 'true : attendre la fin de l''analyse (201 + résumé) au lieu
+            de 202 + statut pending'
+          default: false
+          title: Wait
+        description: 'true : attendre la fin de l''analyse (201 + résumé) au lieu
+          de 202 + statut pending'
       requestBody:
+        required: true
         content:
           multipart/form-data:
             schema:
               $ref: '#/components/schemas/Body_upload_multi_capture_captures_multi_post'
-        required: true
       responses:
-        '201':
+        '202':
           description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnalysisAccepted'
+        '201':
+          description: Analyse terminée (?wait=true)
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/MultiAnalysisSummary'
         '400':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
           description: Bad Request
+        '401':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+          description: Unauthorized
         '413':
-          description: Content Too Large
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
+          description: Content Too Large
         '422':
           description: Validation Error
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
-      security:
-      - APIKeyHeader: []
   /analyses/{analysis_id}:
     get:
       tags:
       - analyses
       summary: Get Analysis
-      description: 'Récupère le rapport complet d''une analyse (JSON).
+      description: 'Récupère le rapport complet d''une analyse terminée (JSON).
 
 
-        Le rapport est sérialisé en dict JSON directement (sans passer par
-
-        generate_json_report qui écrit sur disque) ; les clés par segment
-
-        deviennent « amont -> aval » (voir ``_jsonable``).'
+        Les clés par segment sont « amont -> aval » (voir ``store.jsonable``).'
       operationId: get_analysis_analyses__analysis_id__get
       security:
       - APIKeyHeader: []
@@ -140,12 +190,24 @@ paths:
           content:
             application/json:
               schema: {}
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Unauthorized
         '404':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
           description: Not Found
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Conflict
         '422':
           description: Validation Error
           content:
@@ -157,7 +219,7 @@ paths:
       tags:
       - analyses
       summary: Get Security Report
-      description: Récupère les constats de sécurité d'une analyse.
+      description: Récupère les constats de sécurité d'une analyse terminée.
       operationId: get_security_report_analyses__analysis_id__security_get
       security:
       - APIKeyHeader: []
@@ -175,12 +237,24 @@ paths:
             application/json:
               schema:
                 $ref: '#/components/schemas/SecurityReport'
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Unauthorized
         '404':
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/ErrorResponse'
           description: Not Found
+        '409':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Conflict
         '422':
           description: Validation Error
           content:
@@ -192,7 +266,7 @@ paths:
       tags:
       - analyses
       summary: List Analyses
-      description: Liste les IDs d'analyses disponibles.
+      description: Liste les IDs d'analyses disponibles (tous statuts).
       operationId: list_analyses_analyses_get
       responses:
         '200':
@@ -203,6 +277,12 @@ paths:
                 additionalProperties: true
                 type: object
                 title: Response List Analyses Analyses Get
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
       security:
       - APIKeyHeader: []
   /analyses/{analysis_id}/status:
@@ -210,10 +290,10 @@ paths:
       tags:
       - analyses
       summary: Get Analysis Status
-      description: 'Retourne le statut d''une analyse (issue #356).
+      description: 'Statut d''une analyse (issue #356) : ``pending``, ``completed``
+        (avec
 
-
-        Statuts possibles : ``pending``, ``completed``, ``failed``.'
+        le résumé, segments compris en multi-points) ou ``failed`` (``error``).'
       operationId: get_analysis_status_analyses__analysis_id__status_get
       security:
       - APIKeyHeader: []
@@ -230,10 +310,13 @@ paths:
           content:
             application/json:
               schema:
-                type: object
-                additionalProperties: true
-                title: Response Get Analysis Status Analyses  Analysis Id  Status
-                  Get
+                $ref: '#/components/schemas/AnalysisStatus'
+        '401':
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ErrorResponse'
+          description: Unauthorized
         '404':
           content:
             application/json:
@@ -248,6 +331,55 @@ paths:
                 $ref: '#/components/schemas/HTTPValidationError'
 components:
   schemas:
+    AnalysisAccepted:
+      properties:
+        analysis_id:
+          type: string
+          title: Analysis Id
+        status:
+          type: string
+          title: Status
+          default: pending
+        status_url:
+          type: string
+          title: Status Url
+          description: Route à interroger jusqu'à completed/failed
+      type: object
+      required:
+      - analysis_id
+      - status_url
+      title: AnalysisAccepted
+      description: 'Réponse 202 des uploads : analyse enregistrée, en tâche de fond
+        (#356).'
+    AnalysisStatus:
+      properties:
+        analysis_id:
+          type: string
+          title: Analysis Id
+        status:
+          type: string
+          title: Status
+          description: pending, completed ou failed
+        error:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Error
+          description: Cause de l'échec (status failed)
+        summary:
+          anyOf:
+          - additionalProperties: true
+            type: object
+          - type: 'null'
+          title: Summary
+          description: Résumé (compteurs, et points/segments en multi-points) une
+            fois completed
+      type: object
+      required:
+      - analysis_id
+      - status
+      title: AnalysisStatus
+      description: 'Statut d''une analyse pour GET /analyses/{id}/status (issue #356).'
     AnalysisSummary:
       properties:
         analysis_id:

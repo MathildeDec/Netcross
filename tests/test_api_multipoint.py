@@ -41,7 +41,7 @@ def _post(labels="LAN,DC", points_order="LAN,DC", noms=("lan.pcap", "dc.pcap")):
     data = {"labels": labels}
     if points_order is not None:
         data["points_order"] = points_order
-    return client.post("/captures/multi", files=files, data=data)
+    return client.post("/captures/multi?wait=true", files=files, data=data)
 
 
 def test_deux_captures_lan_dc_pertes_par_segment():
@@ -129,7 +129,9 @@ def test_jeton_exige_comme_les_autres_routes(monkeypatch):
     monkeypatch.setattr(api_module, "_API_TOKEN", "secret")
     assert _post().status_code == 401
     files = [("files", (n, b"x" * 8, "application/octet-stream")) for n in ("a.pcap", "b.pcap")]
-    ok = client.post("/captures/multi", files=files, data={"labels": "LAN,DC"}, headers={"X-API-Key": "secret"})
+    ok = client.post(
+        "/captures/multi?wait=true", files=files, data={"labels": "LAN,DC"}, headers={"X-API-Key": "secret"}
+    )
     assert ok.status_code == 201, ok.text
 
 
@@ -146,7 +148,7 @@ def test_segment_losses_sans_paquet_aval():
 def test_captures_simple_lit_l_etiquette_du_formulaire():
     """Le -F label=... documente etait ignore (parametre de requete)."""
     response = client.post(
-        "/captures",
+        "/captures?wait=true",
         files={"file": ("lan.pcap", b"x" * 8, "application/octet-stream")},
         data={"label": "LAN"},
     )
