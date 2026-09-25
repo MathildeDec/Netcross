@@ -38,6 +38,9 @@ cp "$REPO_ROOT/src/cross_capture_diff_cli.py" "$STAGE_DIR/"
 cp "$REPO_ROOT/src/cross_history_cli.py" "$STAGE_DIR/"
 cp "$REPO_ROOT/src/cross_capture_batch_cli.py" "$STAGE_DIR/"
 cp "$REPO_ROOT/src/netcross_ai_models_cli.py" "$STAGE_DIR/"
+cp "$REPO_ROOT/src/netcross_lua_doc_cli.py" "$STAGE_DIR/"
+mkdir -p "$STAGE_DIR/data"
+cp "$REPO_ROOT/data/lua_api.json" "$STAGE_DIR/data/"
 # catalogues de traduction (issue #299), toutes les locales de lang/LINGUAS
 "$REPO_ROOT/scripts/i18n-update.sh" --compile "$STAGE_DIR/locale"
 cp "$SCRIPT_DIR/wrappers/netcross-wrapper" "$STAGE_DIR/"
@@ -46,6 +49,7 @@ cp "$SCRIPT_DIR/wrappers/netcross-diff-wrapper" "$STAGE_DIR/"
 cp "$SCRIPT_DIR/wrappers/netcross-history-wrapper" "$STAGE_DIR/"
 cp "$SCRIPT_DIR/wrappers/netcross-batch-wrapper" "$STAGE_DIR/"
 cp "$SCRIPT_DIR/wrappers/netcross-ai-models-wrapper" "$STAGE_DIR/"
+cp "$SCRIPT_DIR/wrappers/netcross-lua-doc-wrapper" "$STAGE_DIR/"
 
 find "$STAGE_DIR" -name "__pycache__" -exec rm -rf {} + 2>/dev/null || true
 

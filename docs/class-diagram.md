@@ -11,7 +11,7 @@
 > Il remplace l'ancienne section 3 de `docs/features-backlog.md`, tenue à la main, qui avait dérivé
 > (voir `docs/sessions/session-36.md`, issue #140).
 
-154 modules · 234 classes · 506 fonctions publiques de module.
+155 modules · 234 classes · 515 fonctions publiques de module.
 
 Conventions : `+` public, `-` privé (préfixe `_`) ; `int?` = `int | None` ; `list~str~` = `list[str]` ;
 `<<module>>` regroupe les fonctions publiques d'un module ; `A --> B : champ` = `A` a un champ annoté
@@ -34,7 +34,7 @@ flowchart TD
     pcap_parser["pcap_parser"]
     CLI -->|"17 imports"| netcross_report
     CLI -->|"8 imports"| netcross_ai
-    CLI -->|"36 imports"| netcross_core
+    CLI -->|"38 imports"| netcross_core
     CLI -->|"5 imports"| pcap_parser
     netcross_gtk4 -->|"10 imports"| netcross_report
     netcross_gtk4 -->|"48 imports"| netcross_core
@@ -1198,6 +1198,9 @@ classDiagram
         +connect(db_path) sqlite3.Connection
         +load_json(conn, data) dict~str, int~
         +load_json_file(conn, json_path) dict~str, int~
+        +json_candidates() list~Path~
+        +find_json() Path?
+        +ensure_db(db_path, json_path) sqlite3.Connection
         +get_meta(conn) dict~str, str~
         +list_classes(conn) list~str~
         +search(conn, terme, limit) list~ResultatRecherche~
@@ -4077,6 +4080,7 @@ classDiagram
 | `cross_capture_diff_cli` | cross_capture_diff_cli.py -- compare deux jeux de captures (avant/apres un correctif, site A / site B...) et remonte les regressions et ameliorations entre les deux runs. |
 | `cross_history_cli` | cross_history_cli.py -- interroge une base d'historique SQLite deja alimentee par cross_capture_analyzer_cli.py/cross_capture_diff_cli.py (--history-db), sans relancer d'analyse ni de comparaison. |
 | `netcross_ai_models_cli` | paquets de modeles IA partageables et boite d'envoi hors connexion (issue #271). |
+| `netcross_lua_doc_cli` | consultation hors ligne de l'API Lua Wireshark (issue #388, rattachee a #331). |
 
 ### Diagramme
 
@@ -4120,6 +4124,17 @@ classDiagram
     %% ===== netcross_ai_models_cli =====
     class mod_netcross_ai_models_cli["netcross_ai_models_cli"] {
         <<module>>
+        +build_parser() argparse.ArgumentParser
+        +main(argv) int
+    }
+
+    %% ===== netcross_lua_doc_cli =====
+    class mod_netcross_lua_doc_cli["netcross_lua_doc_cli"] {
+        <<module>>
+        +render_methode(m, indent) list~str~
+        +render_attribut(a, indent) list~str~
+        +render_fiche(f, version) list~str~
+        +render_resultats(conn, terme, res, full) list~str~
         +build_parser() argparse.ArgumentParser
         +main(argv) int
     }

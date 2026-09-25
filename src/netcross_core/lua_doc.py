@@ -28,7 +28,9 @@ permet de la regenerer proprement a chaque nouvelle version de Wireshark.
 
 from __future__ import annotations
 
+import hashlib
 import json
+import os
 import sqlite3
 from dataclasses import dataclass, field
 from pathlib import Path
@@ -39,6 +41,12 @@ from netcross_core.logging_config import get_logger
 logger = get_logger(__name__)
 
 SCHEMA_VERSION = 2
+
+#: base par defaut, reconstruite a la volee depuis le JSON (voir ensure_db)
+DEFAULT_DB_PATH = Path.home() / ".cache" / "netcross" / "lua_api.db"
+
+#: variable d'environnement pour pointer un autre JSON que ceux de json_candidates()
+ENV_JSON = "NETCROSS_LUA_API_JSON"
 
 _SCHEMA = """
 CREATE TABLE IF NOT EXISTS meta (
@@ -328,9 +336,51 @@ def load_json(conn: sqlite3.Connection, data: dict[str, Any]) -> dict[str, int]:
 
 
 def load_json_file(conn: sqlite3.Connection, json_path: str | Path) -> dict[str, int]:
-    """Charge un fichier JSON produit par tools/extract_lua_api.py."""
-    data = json.loads(Path(json_path).read_text(encoding="utf-8"))
-    return load_json(conn, data)
+    """Charge un fichier JSON produit par tools/extract_lua_api.py.
+
+    L'empreinte sha256 du fichier est gardee dans ``meta.json_sha256``
+    pour que :func:`ensure_db` sache quand reconstruire la base.
+    """
+    raw = Path(json_path).read_bytes()
+    counts = load_json(conn, json.loads(raw))
+    with conn:
+        conn.execute(
+            "INSERT OR REPLACE INTO meta(cle, valeur) VALUES ('json_sha256', ?)", (hashlib.sha256(raw).hexdigest(),)
+        )
+    return counts
+
+
+def json_candidates() -> list[Path]:
+    """Emplacements du JSON, par priorite : $NETCROSS_LUA_API_JSON, depot, paquet deb/rpm."""
+    here = Path(__file__).resolve()
+    candidats = [
+        here.parents[2] / "data" / "lua_api.json",  # depot : src/netcross_core/lua_doc.py -> data/
+        here.parents[1] / "data" / "lua_api.json",  # paquet : /usr/share/netcross/data/
+    ]
+    env = os.environ.get(ENV_JSON)
+    return [Path(env).expanduser(), *candidats] if env else candidats
+
+
+def find_json() -> Path | None:
+    """Premier JSON existant parmi :func:`json_candidates`, ou None."""
+    return next((p for p in json_candidates() if p.is_file()), None)
+
+
+def ensure_db(db_path: str | Path, json_path: str | Path) -> sqlite3.Connection:
+    """Ouvre la banque, en la (re)construisant si le JSON a change.
+
+    La comparaison porte sur l'empreinte sha256 du JSON : regenerer
+    ``data/lua_api.json`` pour une nouvelle version de Wireshark suffit,
+    la base suit au prochain appel.
+    """
+    db_path, json_path = Path(db_path), Path(json_path)
+    db_path.parent.mkdir(parents=True, exist_ok=True)
+    conn = connect(db_path)
+    attendu = hashlib.sha256(json_path.read_bytes()).hexdigest()
+    if get_meta(conn).get("json_sha256") != attendu:
+        logger.debug("Construction de la banque Lua {} depuis {}", db_path, json_path)
+        load_json_file(conn, json_path)
+    return conn
 
 
 def get_meta(conn: sqlite3.Connection) -> dict[str, str]:

@@ -1079,7 +1079,15 @@ def _run_ai(args, ai_options, report, all_packets) -> None:
 
 
 def main():
-    ap = argparse.ArgumentParser(description="Analyse croisee de captures Wireshark multi-points")
+    # `netcross lua-doc ...` : documentation hors ligne de l'API Lua Wireshark (issue #388)
+    if sys.argv[1:2] == ["lua-doc"]:
+        from netcross_lua_doc_cli import main as lua_doc_main
+
+        sys.exit(lua_doc_main(sys.argv[2:]))
+    ap = argparse.ArgumentParser(
+        description="Analyse croisee de captures Wireshark multi-points",
+        epilog="Documentation de l'API Lua Wireshark : netcross lua-doc --help (ou netcross-lua-doc).",
+    )
     ap.add_argument(
         "--capture",
         action="append",
