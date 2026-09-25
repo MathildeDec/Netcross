@@ -10,6 +10,7 @@ dependre de l'ordre des tests ni polluer les autres.
 from __future__ import annotations
 
 import os
+import re
 import subprocess
 import sys
 import textwrap
@@ -19,6 +20,7 @@ import pytest
 
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "src"
+_ANSI = re.compile(r"\x1b\[[0-9;]*m")
 
 
 def _run(
@@ -38,7 +40,7 @@ def _run(
         cible = [str(script)]
     else:
         cible = ["-c", textwrap.dedent(code)]
-    return subprocess.run(
+    r = subprocess.run(
         [sys.executable, *cible, *(args or [])],
         capture_output=True,
         text=True,
@@ -46,6 +48,10 @@ def _run(
         timeout=60,
         check=False,
     )
+    # La CI GitHub force la couleur (codes ANSI entre « └ » et la valeur) :
+    # on compare le texte, pas la mise en forme.
+    r.stderr = _ANSI.sub("", r.stderr)
+    return r
 
 
 _EMIT = """
