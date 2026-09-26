@@ -57,6 +57,7 @@ Pour éviter ce bruit, `pcap_parser/__init__.py` désactive loguru pour son prop
 
 ```python
 from loguru import logger
+
 logger.enable("pcap_parser")
 
 from pcap_parser import parse_capture
@@ -67,6 +68,7 @@ Ou en appelant `configure_logging()` de `netcross_core` (qui active aussi le for
 
 ```python
 from netcross_core.logging_config import configure_logging
+
 configure_logging("DEBUG")  # active pcap_parser + tous les modules netcross
 
 from pcap_parser import parse_capture

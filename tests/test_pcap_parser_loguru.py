@@ -17,8 +17,6 @@ from __future__ import annotations
 import subprocess
 import sys
 
-import pytest
-
 PYTHONPATH = "src"
 
 # Snippet qui declenche un logger.debug dans pcap_parser (sans tshark) :
@@ -52,7 +50,7 @@ def test_pcap_parser_seul_n_ecrit_rien_sur_stderr():
     (loguru desactive pour le package dans __init__.py)."""
     result = _run_snippet(_TRIGGERS)
     stderr = result.stderr.strip()
-    debug_lines = [l for l in stderr.splitlines() if "DEBUG" in l and "pcap_parser" in l]
+    debug_lines = [ligne for ligne in stderr.splitlines() if "DEBUG" in ligne and "pcap_parser" in ligne]
     assert not debug_lines, (
         f"pcap_parser a ecrit {len(debug_lines)} ligne(s) DEBUG sur stderr sans configure_logging() :\n"
         + "\n".join(debug_lines[:5])
@@ -70,12 +68,11 @@ def test_configure_logging_force_puis_pcap_parser_affiche_les_logs():
     """
     code = (
         "from netcross_core.logging_config import configure_logging\n"
-        'configure_logging("DEBUG", force=True)\n'
-        + _TRIGGERS
+        'configure_logging("DEBUG", force=True)\n' + _TRIGGERS
     )
     result = _run_snippet(code)
     stderr = result.stderr
-    debug_lines = [l for l in stderr.splitlines() if "DEBUG" in l and "pcap_parser" in l]
+    debug_lines = [ligne for ligne in stderr.splitlines() if "DEBUG" in ligne and "pcap_parser" in ligne]
     assert len(debug_lines) > 0, (
         "Aucun log DEBUG de pcap_parser trouve apres configure_logging('DEBUG', force=True) "
         "+ import de pcap_parser. stderr :\n" + stderr[:500]
@@ -89,12 +86,11 @@ def test_pcap_parser_puis_configure_logging_force_affiche_les_logs():
     code = (
         "import pcap_parser\n"
         "from netcross_core.logging_config import configure_logging\n"
-        'configure_logging("DEBUG", force=True)\n'
-        + _TRIGGERS
+        'configure_logging("DEBUG", force=True)\n' + _TRIGGERS
     )
     result = _run_snippet(code)
     stderr = result.stderr
-    debug_lines = [l for l in stderr.splitlines() if "DEBUG" in l and "pcap_parser" in l]
+    debug_lines = [ligne for ligne in stderr.splitlines() if "DEBUG" in ligne and "pcap_parser" in ligne]
     assert len(debug_lines) > 0, (
         "Aucun log DEBUG de pcap_parser trouve apres import pcap_parser "
         "+ configure_logging('DEBUG', force=True). stderr :\n" + stderr[:500]
@@ -106,15 +102,10 @@ def test_pcap_parser_seul_avec_logger_enable_manuel():
     via logger.enable('pcap_parser') sans configure_logging().
     Doit importer pcap_parser en premier (son __init__ desactive le
     package), puis appeler enable."""
-    code = (
-        "import pcap_parser\n"
-        "from loguru import logger\n"
-        'logger.enable("pcap_parser")\n'
-        + _TRIGGERS
-    )
+    code = 'import pcap_parser\nfrom loguru import logger\nlogger.enable("pcap_parser")\n' + _TRIGGERS
     result = _run_snippet(code)
     stderr = result.stderr
-    debug_lines = [l for l in stderr.splitlines() if "DEBUG" in l and "pcap_parser" in l]
+    debug_lines = [ligne for ligne in stderr.splitlines() if "DEBUG" in ligne and "pcap_parser" in ligne]
     assert len(debug_lines) > 0, (
         "Aucun log DEBUG de pcap_parser trouve apres logger.enable('pcap_parser') "
         "sans configure_logging(). stderr :\n" + stderr[:500]
@@ -125,14 +116,10 @@ def test_netcross_log_level_debug_active_pcap_parser():
     """NETCROSS_LOG_LEVEL=DEBUG doit activer les logs de pcap_parser,
     meme si configure_logging est appele pendant l'import de netcross_core
     (avant l'import explicite de pcap_parser)."""
-    code = (
-        "import netcross_core.logging_config\n"
-        + _TRIGGERS
-    )
+    code = "import netcross_core.logging_config\n" + _TRIGGERS
     result = _run_snippet(code, env_extra={"NETCROSS_LOG_LEVEL": "DEBUG"})
     stderr = result.stderr
-    debug_lines = [l for l in stderr.splitlines() if "DEBUG" in l and "pcap_parser" in l]
+    debug_lines = [ligne for ligne in stderr.splitlines() if "DEBUG" in ligne and "pcap_parser" in ligne]
     assert len(debug_lines) > 0, (
-        "Aucun log DEBUG de pcap_parser trouve avec NETCROSS_LOG_LEVEL=DEBUG. "
-        "stderr :\n" + stderr[:500]
+        "Aucun log DEBUG de pcap_parser trouve avec NETCROSS_LOG_LEVEL=DEBUG. stderr :\n" + stderr[:500]
     )
