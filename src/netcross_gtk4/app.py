@@ -177,8 +177,8 @@ class CaptureRow(Gtk.Box):
 
     def _deplacer(self, *, vers_le_haut):
         """Deplace la ligne d'un cran, ou ne fait rien si elle est au bord
-        logger.debug("CaptureRow._deplacer: vers_le_haut={} path={}", vers_le_haut, self.path)
         (voir `capture_list.deplacer_ligne`)."""
+        logger.debug("CaptureRow._deplacer: vers_le_haut={} path={}", vers_le_haut, self.path)
         capture_list.deplacer_ligne(self.get_parent(), vers_le_haut=vers_le_haut)
 
     def _on_remove(self, _btn):
@@ -310,6 +310,7 @@ class LiveCaptureRow(Gtk.Box):
     def _select_filter_index(self, index):
         """Positionne le menu (0 = titre, i = i-eme filtre) SANS recharger le
         champ filtre, et aligne l'infobulle sur la description du filtre."""
+        logger.debug("_select_filter_index: index={}", index)
         self._syncing_dropdown = True
         try:
             self.filter_dropdown.set_selected(index)
