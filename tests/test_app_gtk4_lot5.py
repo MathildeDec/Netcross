@@ -218,9 +218,7 @@ def test_live_capture_worker_capture_l_erreur_sans_tuer_le_thread(window, monkey
     window._live_packets = []
     window._live_lock = threading.Lock()
 
-    worker = threading.Thread(
-        target=window._live_capture_worker, args=("A", "lo", "tcp port 80"), daemon=True
-    )
+    worker = threading.Thread(target=window._live_capture_worker, args=("A", "lo", "tcp port 80"), daemon=True)
     worker.start()
     worker.join(timeout=5)
 
