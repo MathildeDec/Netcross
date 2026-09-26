@@ -45,6 +45,7 @@ from netcross_gtk4.dashboard_context import (  # noqa: E402
     select_protocol,
 )
 from netcross_gtk4.panel_state import UnknownViewTypeError  # noqa: E402
+from netcross_gtk4.run_outcome import analysis_outcome  # noqa: E402
 from netcross_report.comm_map import DEFAULT_TOP_N as COMM_MAP_DEFAULT_TOP_N  # noqa: E402
 
 
@@ -55,10 +56,10 @@ def window():
     return MainWindow(app)
 
 
-def _scenario():
+def _scenario_brut():
     """Deux points A/B, un flux TCP 10.0.0.1:1234 -> 10.0.0.2:80 vu aux deux
     points, plus un flux UDP -- meme scenario que test_dashboard_context.py.
-    Retourne (report, flows_list)."""
+    Retourne (report, dict brut de correlate())."""
     pkts = [
         make_pkt(
             point="A",
@@ -118,8 +119,28 @@ def _scenario():
     ]
     flows_dict = correlate(pkts)
     report = analyse(flows_dict, points_order=["A", "B"], all_packets=pkts)
-    flows_list = build_flows(flows_dict)
-    return report, flows_list
+    return report, flows_dict
+
+
+def _scenario():
+    """(report, list[Flow]) du scenario de `_scenario_brut`, pour les tests
+    qui appellent directement des fonctions prenant des Flow."""
+    report, flows_dict = _scenario_brut()
+    return report, build_flows(flows_dict)
+
+
+def _poser_run(window):
+    """Pose l'etat du dernier run exactement comme `_on_analysis_done` :
+    `analysis_outcome(...)` puis recopie de `etat()` (voir
+    `MainWindow._appliquer_outcome`). `last_flows` recoit donc le dict brut
+    de correlate() et `last_flow_objects` la liste de Flow (issue #453) --
+    injecter une liste de Flow dans `last_flows` decrirait un etat que
+    l'application ne produit jamais. Retourne (report, list[Flow])."""
+    report, flows_dict = _scenario_brut()
+    outcome = analysis_outcome("single", report, flows_dict, None, "")
+    for nom, valeur in outcome.etat().items():
+        setattr(window, nom, valeur)
+    return report, outcome.flow_objects
 
 
 def _flow_proto(flow):
@@ -151,6 +172,7 @@ def _clear_run_state(window):
     chaque test parte d'un etat connu (fixture `window` partagee)."""
     window.last_report = None
     window.last_flows = None
+    window.last_flow_objects = None
     window.last_stats_rows = None
     window.last_findings = None
     window.last_tls_findings = None
@@ -322,8 +344,7 @@ def test_reset_comm_map_filters_avec_flows_liste_les_protocoles(window):
 
 def test_flow_by_key_retrouve_le_flux(window):
     _clear_run_state(window)
-    _, flows = _scenario()
-    window.last_flows = flows
+    _, flows = _poser_run(window)
     cible = flows[0]
 
     assert window._flow_by_key(cible.key) is cible
@@ -331,15 +352,13 @@ def test_flow_by_key_retrouve_le_flux(window):
 
 def test_flow_by_key_cle_introuvable_retourne_none(window):
     _clear_run_state(window)
-    _, flows = _scenario()
-    window.last_flows = flows
+    _, _ = _poser_run(window)
 
     assert window._flow_by_key(("TCP", "0.0.0.0", 0, "0.0.0.0", 0, 0)) is None
 
 
 def test_flow_by_key_sans_flux_retourne_none(window):
-    _clear_run_state(window)
-    window.last_flows = None
+    _clear_run_state(window)  # last_flows et last_flow_objects a None
 
     assert window._flow_by_key(("peu importe",)) is None
 
@@ -368,9 +387,7 @@ def test_dashboard_events_vide_si_aucune_source(window):
 
 def test_dashboard_select_protocol_filtre_et_rafraichit(window):
     _clear_run_state(window)
-    report, flows = _scenario()
-    window.last_report = report
-    window.last_flows = flows
+    _poser_run(window)
 
     window._dashboard_select("protocol", "UDP")
 
@@ -383,9 +400,7 @@ def test_dashboard_select_protocol_filtre_et_rafraichit(window):
 
 def test_dashboard_select_flow_resout_la_cle_via_flow_by_key(window):
     _clear_run_state(window)
-    report, flows = _scenario()
-    window.last_report = report
-    window.last_flows = flows
+    _, flows = _poser_run(window)
     tcp_flow = next(f for f in flows if _flow_proto(f) == "TCP")
 
     window._dashboard_select("flow", tcp_flow.key)
@@ -398,9 +413,7 @@ def test_dashboard_select_flow_resout_la_cle_via_flow_by_key(window):
 
 def test_dashboard_select_flow_cle_introuvable_laisse_la_selection_inchangee(window):
     _clear_run_state(window)
-    report, flows = _scenario()
-    window.last_report = report
-    window.last_flows = flows
+    _poser_run(window)
 
     window._dashboard_select("flow", ("TCP", "0.0.0.0", 0, "0.0.0.0", 0, 0))
 
@@ -409,9 +422,7 @@ def test_dashboard_select_flow_cle_introuvable_laisse_la_selection_inchangee(win
 
 def test_dashboard_select_event_propage_point_et_protocole(window):
     _clear_run_state(window)
-    report, flows = _scenario()
-    window.last_report = report
-    window.last_flows = flows
+    _poser_run(window)
 
     class FakeEvent:
         protocol = "TCP"
@@ -454,9 +465,7 @@ def test_dashboard_clear_sections_vide_la_boite(window):
 
 def test_dashboard_clear_reinitialise_la_selection_et_rafraichit(window):
     _clear_run_state(window)
-    report, flows = _scenario()
-    window.last_report = report
-    window.last_flows = flows
+    _poser_run(window)
     window.dashboard_selection = select_protocol(DashboardSelection(), "TCP")
     window._refresh_dashboard()
     assert window.dashboard_selection.protocol == "TCP"
@@ -477,13 +486,12 @@ def test_dashboard_clear_reinitialise_la_selection_et_rafraichit(window):
 def test_refresh_dashboard_sans_flux_desactive_et_vide_les_sections(window):
     _clear_run_state(window)
     # peuple d'abord, pour verifier que le passage a vide purge bien le residu
-    report, flows = _scenario()
-    window.last_report = report
-    window.last_flows = flows
+    _poser_run(window)
     window._refresh_dashboard()
     assert window.dashboard_sections_box.get_first_child() is not None
 
     window.last_flows = None
+    window.last_flow_objects = None
     window._refresh_dashboard()
 
     assert window.dashboard_expander.get_sensitive() is False
@@ -493,9 +501,7 @@ def test_refresh_dashboard_sans_flux_desactive_et_vide_les_sections(window):
 
 def test_refresh_dashboard_avec_flux_peuple_les_six_vues(window):
     _clear_run_state(window)
-    report, flows = _scenario()
-    window.last_report = report
-    window.last_flows = flows
+    _poser_run(window)
 
     window._refresh_dashboard()
 
