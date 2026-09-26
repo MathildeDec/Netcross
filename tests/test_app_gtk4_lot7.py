@@ -28,6 +28,7 @@ from netcross_core.correlate import build_flows, correlate  # noqa: E402
 from netcross_core.stats import StatRow, export_csv  # noqa: E402
 from netcross_gtk4 import app as app_module  # noqa: E402
 from netcross_gtk4.app import MainWindow  # noqa: E402
+from netcross_gtk4.run_outcome import analysis_outcome  # noqa: E402
 from netcross_gtk4.stats_view import (  # noqa: E402
     build_events_by_segment,
     build_query,
@@ -46,11 +47,11 @@ def _make_window():
     return MainWindow(app)
 
 
-def _scenario():
+def _scenario_brut():
     """Deux flux : un TCP 10.0.0.1:1234 -> 10.0.0.2:80 (2 paquets, vu aux
     points A et B), un UDP 10.0.0.3:5000 -> 10.0.0.4:53 (1 paquet, point
-    A). Retourne (report, flows_list) construits via le meme chemin que
-    la production (correlate -> analyse / build_flows)."""
+    A). Retourne (report, dict brut de correlate()) construits via le meme chemin que
+    la production (correlate -> analyse)."""
     pkts = [
         make_pkt(
             point="A",
@@ -88,7 +89,28 @@ def _scenario():
     ]
     flows_dict = correlate(pkts)
     report = analyse(flows_dict, ["A", "B"], pkts)
+    return report, flows_dict
+
+
+def _scenario():
+    """(report, list[Flow]) du scenario de `_scenario_brut`, pour les tests
+    qui appellent directement les methodes prenant des Flow."""
+    report, flows_dict = _scenario_brut()
     return report, build_flows(flows_dict)
+
+
+def _poser_run(window):
+    """Pose l'etat du dernier run exactement comme `_on_analysis_done` :
+    `analysis_outcome(...)` puis recopie de `etat()` (voir
+    `MainWindow._appliquer_outcome`). `last_flows` recoit donc le dict brut
+    de correlate() et `last_flow_objects` la liste de Flow (issue #453) --
+    injecter une liste de Flow dans `last_flows` decrirait un etat que
+    l'application ne produit jamais. Retourne (report, list[Flow])."""
+    report, flows_dict = _scenario_brut()
+    outcome = analysis_outcome("single", report, flows_dict, None, "")
+    for nom, valeur in outcome.etat().items():
+        setattr(window, nom, valeur)
+    return report, outcome.flow_objects
 
 
 def _liste_labels(list_box):
@@ -224,6 +246,7 @@ def test_stats_sort_value_repli_si_hors_plage():
 def test_refresh_stats_sans_flux_desactive_la_vue():
     window = _make_window()
     window.last_flows = None
+    window.last_flow_objects = None
     window.last_report = None
 
     window._refresh_stats()
@@ -236,9 +259,7 @@ def test_refresh_stats_sans_flux_desactive_la_vue():
 
 def test_refresh_stats_peuple_la_liste_conformement_a_run_stats():
     window = _make_window()
-    report, flows = _scenario()
-    window.last_report = report
-    window.last_flows = flows
+    report, flows = _poser_run(window)
     window.last_findings = None
     window.stats_group_drop.set_selected(0)  # "endpoint"
     window.stats_sort_drop.set_selected(0)  # "packets"
@@ -317,9 +338,7 @@ def test_stats_clear_list_vide_puis_affiche_le_placeholder():
 
 def test_stats_select_affiche_le_retour_le_titre_et_les_flux_puis_le_retour_reaffiche_les_stats():
     window = _make_window()
-    report, flows = _scenario()
-    window.last_report = report
-    window.last_flows = flows
+    report, flows = _poser_run(window)
     row = StatRow(
         label="10.0.0.1 <-> 10.0.0.2",
         group_by="endpoint",
@@ -393,9 +412,7 @@ def test_on_stats_export_csv_sans_lignes_n_ouvre_pas_de_dialogue(monkeypatch):
 
 def test_on_stats_export_csv_ouvre_un_file_dialog_csv(monkeypatch):
     window = _make_window()
-    report, flows = _scenario()
-    window.last_report = report
-    window.last_flows = flows
+    _poser_run(window)
     window._refresh_stats()
     assert window.last_stats_rows
 
@@ -421,9 +438,7 @@ def test_on_stats_export_csv_ouvre_un_file_dialog_csv(monkeypatch):
 
 def test_on_stats_csv_saved_annulation_n_ecrit_rien(monkeypatch, tmp_path):
     window = _make_window()
-    report, flows = _scenario()
-    window.last_report = report
-    window.last_flows = flows
+    _poser_run(window)
     window._refresh_stats()
     dialog = Gtk.FileDialog()
 
@@ -440,9 +455,7 @@ def test_on_stats_csv_saved_annulation_n_ecrit_rien(monkeypatch, tmp_path):
 
 def test_on_stats_csv_saved_fichier_none_n_ecrit_rien(monkeypatch, tmp_path):
     window = _make_window()
-    report, flows = _scenario()
-    window.last_report = report
-    window.last_flows = flows
+    _poser_run(window)
     window._refresh_stats()
     dialog = Gtk.FileDialog()
     monkeypatch.setattr(dialog, "save_finish", lambda result: None)
@@ -466,9 +479,7 @@ def test_on_stats_csv_saved_sans_lignes_n_ecrit_rien(monkeypatch, tmp_path):
 
 def test_on_stats_csv_saved_succes_ecrit_le_csv_et_met_a_jour_le_statut(monkeypatch, tmp_path):
     window = _make_window()
-    report, flows = _scenario()
-    window.last_report = report
-    window.last_flows = flows
+    _poser_run(window)
     window._refresh_stats()
     rows = window.last_stats_rows
     dest = tmp_path / "stats.csv"
@@ -488,9 +499,7 @@ def test_on_stats_csv_saved_succes_ecrit_le_csv_et_met_a_jour_le_statut(monkeypa
 
 def test_on_stats_csv_saved_erreur_ecriture_affiche_le_statut_d_erreur(monkeypatch):
     window = _make_window()
-    report, flows = _scenario()
-    window.last_report = report
-    window.last_flows = flows
+    _poser_run(window)
     window._refresh_stats()
     dialog = Gtk.FileDialog()
     # Repertoire inexistant -> OSError a l'ouverture en ecriture.
