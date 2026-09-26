@@ -209,8 +209,12 @@ def test_stats_sort_value_correspond_a_chaque_position_du_dropdown():
 
 
 def test_stats_sort_value_repli_si_hors_plage():
+    """Gtk.DropDown ignore set_selected(INVALID_LIST_POSITION) et garde sa
+    position : seul un modele vide rend get_selected() hors plage, ce qui
+    exerce reellement la branche de repli ("bytes")."""
     window = _make_window()
-    window.stats_sort_drop.set_selected(Gtk.INVALID_LIST_POSITION)
+    window.stats_sort_drop.set_model(Gtk.StringList())
+    assert window.stats_sort_drop.get_selected() == Gtk.INVALID_LIST_POSITION
     assert window._stats_sort_value() == "bytes"
 
 
