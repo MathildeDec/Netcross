@@ -100,8 +100,14 @@ def test_filter_text_changed_desolidarise_le_menu():
 
 def test_filter_text_changed_meme_expression_ne_desolidarise_pas():
     row = _make_row(filters=[HTTP])
-    row.filter_dropdown.set_selected(1)
-    row.filter_entry.set_text(HTTP.expression)  # meme expression (espaces pres)
+    row.filter_dropdown.set_selected(1)  # HTTP selectionne, champ = "tcp port 80"
+    assert row.filter_dropdown.get_selected() == 1
+    # Appel direct du handler plutot que filter_entry.set_text(...) : set_text()
+    # emet "changed" deux fois (suppression puis insertion), et l'etat
+    # intermediaire vide desolidariserait le menu avant meme l'ecriture du
+    # texte final, quel qu'il soit -- artefact de GtkEditable sans rapport
+    # avec la regle testee ici (meme expression -> pas de desolidarisation).
+    row._on_filter_text_changed(row.filter_entry)
     assert row.filter_dropdown.get_selected() == 1
 
 
@@ -157,6 +163,25 @@ def test_save_filter_sauvegarde_indisponible():
     assert row._save_status.get_text() == MSG_SAUVEGARDE_INDISPONIBLE
 
 
+def test_save_filter_erreur_de_sauvegarde():
+    """on_save_filter peut lever OSError/ValueError (fichier illisible, nom
+    reserve...) : l'erreur doit s'afficher dans le popover, pas remonter."""
+
+    def _on_save(flt):
+        raise OSError("permission refusee")
+
+    row = _make_row(on_save_filter=_on_save)
+    row._build_save_popover()
+    row.filter_entry.set_text("tcp port 999")
+    row._save_name_entry.set_text("MonFiltre")
+
+    row._on_save_filter_clicked(None)  # ne doit pas lever
+
+    assert row._save_status.get_text() == "permission refusee"
+    # champs non vides : l'echec ne doit pas effacer la saisie en cours
+    assert row._save_name_entry.get_text() == "MonFiltre"
+
+
 def test_save_filter_repositionne_sur_le_filtre_enregistre():
     """Apres un enregistrement reussi, la ligne se repositionne sur le
     filtre qu'elle vient de sauvegarder (via indice_du_filtre_nomme)."""
@@ -192,10 +217,10 @@ def test_up_down_remove_live_capture_row():
     listbox, rows = _listbox_with_rows(3)
 
     rows[1]._on_down(None)
-    assert list(listbox.get_row_at_index(i).get_child() for i in range(3)) == [rows[0], rows[2], rows[1]]
+    assert [listbox.get_row_at_index(i).get_child() for i in range(3)] == [rows[0], rows[2], rows[1]]
 
     rows[1]._on_up(None)  # rows[1] est maintenant en derniere position
-    assert list(listbox.get_row_at_index(i).get_child() for i in range(3)) == [rows[0], rows[1], rows[2]]
+    assert [listbox.get_row_at_index(i).get_child() for i in range(3)] == [rows[0], rows[1], rows[2]]
 
     changed = []
     rows[0]._on_change = lambda: changed.append(True)
