@@ -255,6 +255,21 @@ def test_run_diff_thread_erreur_route_vers_on_analysis_error(window, monkeypatch
     assert window.run_btn.get_sensitive()
 
 
+def test_on_analysis_done_charge_les_annotations_si_des_captures_sont_analysees(window, monkeypatch):
+    """Quand des captures annotables ont ete utilisees pour l'analyse
+    (self._annotation_captures non vide), _on_analysis_done doit charger
+    le panneau d'annotations plutot que de le vider."""
+    appels = []
+    monkeypatch.setattr(window.annotations_panel, "load", lambda captures: appels.append(captures))
+    window._annotation_captures = ["/tmp/a.pcap"]
+
+    window._on_analysis_done(
+        "single", None, [], None, "rapport ok", None, None, [], None
+    )
+
+    assert appels == [["/tmp/a.pcap"]]
+
+
 # ================= _on_analysis_error (appel direct) =================
 
 
