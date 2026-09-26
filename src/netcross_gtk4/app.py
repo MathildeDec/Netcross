@@ -136,7 +136,6 @@ class CaptureRow(Gtk.Box):
         super().__init__(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
         self.path = path
         self._on_change = on_change
-        logger.debug("CaptureRow: label={} path={}", default_label, path)
         self.set_margin_top(4)
         self.set_margin_bottom(4)
         self.set_margin_start(8)
@@ -177,12 +176,12 @@ class CaptureRow(Gtk.Box):
 
     def _deplacer(self, *, vers_le_haut):
         """Deplace la ligne d'un cran, ou ne fait rien si elle est au bord
-        logger.debug("CaptureRow._deplacer: vers_le_haut={} path={}", vers_le_haut, self.path)
         (voir `capture_list.deplacer_ligne`)."""
+        logger.debug("_deplacer: {} vers_le_haut={}", self.path, vers_le_haut)
         capture_list.deplacer_ligne(self.get_parent(), vers_le_haut=vers_le_haut)
 
     def _on_remove(self, _btn):
-        logger.debug("CaptureRow._on_remove: {}", self.path)
+        logger.debug("_on_remove: {}", self.path)
         capture_list.retirer_ligne(self.get_parent(), self._on_change)
 
     @property
@@ -219,13 +218,6 @@ class LiveCaptureRow(Gtk.Box):
     ):
         super().__init__(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
         self._on_change = on_change
-        logger.debug(
-            "LiveCaptureRow: label={} interface={} filtre={} filtres_proposes={}",
-            default_label,
-            interface,
-            bpf_filter,
-            len(filters or []),
-        )
         self.set_margin_top(4)
         self.set_margin_bottom(4)
         self.set_margin_start(8)
@@ -297,8 +289,8 @@ class LiveCaptureRow(Gtk.Box):
     def set_filters(self, filters):
         """Remplace les filtres proposes par le menu deroulant ; la selection
         revient sur le titre (le texte du champ filtre n'est pas modifie)."""
+        logger.debug("set_filters: {} filtre(s)", len(filters))
         self._filters = list(filters)
-        logger.debug("set_filters: {} filtre(s) proposé(s)", len(self._filters))
         self._syncing_dropdown = True
         try:
             noms = noms_du_menu(self._filters, _FILTER_PICKER_TITLE)
@@ -310,6 +302,7 @@ class LiveCaptureRow(Gtk.Box):
     def _select_filter_index(self, index):
         """Positionne le menu (0 = titre, i = i-eme filtre) SANS recharger le
         champ filtre, et aligne l'infobulle sur la description du filtre."""
+        logger.debug("_select_filter_index: {}", index)
         self._syncing_dropdown = True
         try:
             self.filter_dropdown.set_selected(index)
@@ -323,7 +316,7 @@ class LiveCaptureRow(Gtk.Box):
         index, expression = selection_apres_choix(dropdown.get_selected(), self._filters)
         if index is None:
             return
-        logger.debug("_on_filter_picked: index={} expression={}", index, expression)
+        logger.debug("_on_filter_picked: {}", expression)
         self._select_filter_index(index)
         self.filter_entry.set_text(expression)
 
@@ -331,11 +324,10 @@ class LiveCaptureRow(Gtk.Box):
         """Le champ a ete edite a la main : le menu ne doit plus annoncer un
         filtre dont le texte n'est plus celui du champ."""
         if doit_desolidariser_le_menu(self.filter_dropdown.get_selected(), self._filters, entry.get_text()):
-            logger.debug("_on_filter_text_changed: champ édité, menu désolidarisé")
+            logger.debug("_on_filter_text_changed: désolidarisation du menu")
             self._select_filter_index(0)
 
     def _build_save_popover(self):
-        logger.debug("_build_save_popover: construction du popover d'enregistrement")
         box = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=6)
         box.set_margin_top(8)
         box.set_margin_bottom(8)
@@ -367,7 +359,6 @@ class LiveCaptureRow(Gtk.Box):
 
     def _on_save_filter_clicked(self, _widget):
         name = self._save_name_entry.get_text().strip()
-        logger.debug("_on_save_filter_clicked: nom={}", name)
         demande = valider_sauvegarde(
             self.filter_entry.get_text(),
             name,
@@ -375,16 +366,15 @@ class LiveCaptureRow(Gtk.Box):
             sauvegarde_possible=self._on_save_filter is not None,
         )
         if not demande.acceptee:
-            logger.debug("_on_save_filter_clicked: refusé ({})", demande.message)
             self._save_status.set_text(demande.message)
             return
+        logger.debug("_on_save_filter_clicked: {}", name)
         try:
             self._on_save_filter(demande.filtre)
         except (OSError, ValueError) as exc:
             logger.exception(f"échec dans _on_save_filter_clicked: {exc}")
             self._save_status.set_text(str(exc))
             return
-        logger.debug("_on_save_filter_clicked: filtre {} enregistré", name)
         self._save_status.set_text("")
         self._save_name_entry.set_text("")
         self._save_desc_entry.set_text("")
@@ -396,15 +386,15 @@ class LiveCaptureRow(Gtk.Box):
             self._select_filter_index(indice)
 
     def _on_up(self, _btn):
-        logger.debug("LiveCaptureRow._on_up: {}", self.label)
+        logger.debug("_on_up: {}", self.interface)
         capture_list.deplacer_ligne(self.get_parent(), vers_le_haut=True)
 
     def _on_down(self, _btn):
-        logger.debug("LiveCaptureRow._on_down: {}", self.label)
+        logger.debug("_on_down: {}", self.interface)
         capture_list.deplacer_ligne(self.get_parent(), vers_le_haut=False)
 
     def _on_remove(self, _btn):
-        logger.debug("LiveCaptureRow._on_remove: {}", self.label)
+        logger.debug("_on_remove: {}", self.interface)
         capture_list.retirer_ligne(self.get_parent(), self._on_change)
 
     @property
@@ -428,7 +418,6 @@ class CaptureListPanel(Gtk.Box):
     def __init__(self, heading, on_change=None):
         super().__init__(orientation=Gtk.Orientation.VERTICAL, spacing=6)
         self._on_change = on_change
-        logger.debug("CaptureListPanel: {}", heading)
 
         header = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
         header.append(
@@ -454,7 +443,6 @@ class CaptureListPanel(Gtk.Box):
         self.append(frame)
 
     def _on_add_clicked(self, _btn):
-        logger.debug("_on_add_clicked: ouverture du sélecteur de captures")
         dialog = Gtk.FileDialog()
         filt = Gtk.FileFilter()
         filt.add_pattern("*.pcap")
@@ -471,7 +459,6 @@ class CaptureListPanel(Gtk.Box):
         except GLib.Error:
             logger.exception("échec dans _on_files_chosen")
             return
-        logger.debug("_on_files_chosen: {} fichier(s) choisi(s)", files.get_n_items())
         for i in range(files.get_n_items()):
             gfile = files.get_item(i)
             self.add_row(gfile.get_path())
@@ -481,7 +468,6 @@ class CaptureListPanel(Gtk.Box):
         pilote sans dialogue (tests automatises, appel programmatique)."""
         if default_label is None:
             default_label = capture_list.nom_par_defaut_fichier(path)
-        logger.debug("CaptureListPanel.add_row: label={} path={}", default_label, path)
         row = CaptureRow(path, default_label, on_change=self._on_change)
         self.listbox.append(row)
         if self._on_change:
@@ -516,7 +502,6 @@ class LiveCaptureListPanel(Gtk.Box):
         self._on_change = on_change
         self._filters_path = filters_path
         self._filters = self._initial_filters()
-        logger.debug("LiveCaptureListPanel: {} ({} filtre(s) BPF)", heading, len(self._filters))
 
         header = Gtk.Box(orientation=Gtk.Orientation.HORIZONTAL, spacing=8)
         header.append(
@@ -544,7 +529,6 @@ class LiveCaptureListPanel(Gtk.Box):
     def add_row(self, default_label=None, interface="", bpf_filter=""):
         if default_label is None:
             default_label = capture_list.nom_par_defaut_live(len(self.rows()))
-        logger.debug("LiveCaptureListPanel.add_row: label={} interface={}", default_label, interface)
         row = LiveCaptureRow(
             default_label,
             interface,
@@ -559,23 +543,20 @@ class LiveCaptureListPanel(Gtk.Box):
         return row
 
     def _initial_filters(self):
-        logger.debug("_initial_filters: fichier={}", self._filters_path)
         try:
             return available_bpf_filters(self._filters_path)
         except (OSError, ValueError) as exc:
             # Fichier sidecar illisible : le catalogue predefini reste
             # utilisable et le fichier n'est PAS touche (upsert_bpf_filter
             # refuse d'ecraser un fichier qu'il ne sait pas relire).
-            logger.exception(f"échec dans _initial_filters, filtres BPF sauvegardés ignorés : {exc}")
+            logger.exception(f"échec dans _initial_filters: {exc}")
             return list(PREDEFINED_BPF_FILTERS)
 
     def _save_filter(self, flt):
         """Persiste ``flt`` puis rafraichit le menu de chaque ligne. Les
         erreurs (nom reserve au catalogue, fichier illisible, E/S) remontent
         a la ligne appelante, qui les affiche dans son popover."""
-        logger.debug("_save_filter: {}", flt.name)
         self._filters = upsert_bpf_filter(flt, self._filters_path)
-        logger.debug("_save_filter: {} filtre(s), {} ligne(s) rafraîchie(s)", len(self._filters), len(self.rows()))
         for row in self.rows():
             row.set_filters(self._filters)
 
@@ -594,7 +575,6 @@ class MainWindow(Gtk.ApplicationWindow):
     def __init__(self, app):
         super().__init__(application=app, title="Analyse croisee de captures reseau")
         self.set_default_size(1080, 800)
-        logger.debug("MainWindow: construction de la fenêtre principale")
         self.last_report = None
         # etat du dernier run, pour les exports (varie selon le mode) :
         self.last_mode = None  # "single" ou "diff"
@@ -658,12 +638,10 @@ class MainWindow(Gtk.ApplicationWindow):
         self._build_results_page()
 
         self.stack.set_visible_child_name("config")
-        logger.debug("MainWindow: fenêtre prête (3 pages construites)")
 
     # ================= PAGE 1 : CONFIGURATION =================
 
     def _build_config_page(self):
-        logger.debug("_build_config_page: construction de la page Configuration")
         outer_scroller = _visible_scroller()
         page = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
         page.set_margin_top(16)
@@ -1072,13 +1050,11 @@ class MainWindow(Gtk.ApplicationWindow):
     # panneau unique : on la fait pointer vers single_panel.
 
     def add_capture_row(self, path, default_label=None):
-        logger.debug("add_capture_row: {} (API de compatibilité)", path)
         return self.single_panel.add_row(path, default_label)
 
     # ================= PAGE 2 : TRAVAIL / JOURNAL =================
 
     def _build_work_page(self):
-        logger.debug("_build_work_page: construction de la page Travail")
         page = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
         page.set_margin_top(16)
         page.set_margin_bottom(16)
@@ -1123,7 +1099,6 @@ class MainWindow(Gtk.ApplicationWindow):
         self.stack.add_titled(page, "log", "Travail")
 
     def _log(self, message):
-        logger.debug("journal: {}", message)
         buf = self.log_view.get_buffer()
         end = buf.get_end_iter()
         buf.insert(end, message + "\n")
@@ -1134,7 +1109,6 @@ class MainWindow(Gtk.ApplicationWindow):
     # ================= PAGE 3 : RESULTATS =================
 
     def _build_results_page(self):
-        logger.debug("_build_results_page: construction de la page Résultats")
         page = Gtk.Box(orientation=Gtk.Orientation.VERTICAL, spacing=10)
         page.set_margin_top(16)
         page.set_margin_bottom(16)
@@ -1544,7 +1518,6 @@ class MainWindow(Gtk.ApplicationWindow):
 
     def _on_live_duration_elapsed(self, session_id):
         if self._live_capturing and session_id == self._live_session_id:
-            logger.debug("_on_live_duration_elapsed: durée maximale atteinte, session={}", session_id)
             self._log("Duree maximale atteinte -- arret automatique de la capture.")
             self._end_live_capture()
         return False  # ne pas repeter le timeout (GLib.timeout_add_seconds)
@@ -1679,7 +1652,6 @@ class MainWindow(Gtk.ApplicationWindow):
         GLib.idle_add(self._reset_live_ui)
 
     def _reset_live_ui(self):
-        logger.debug("_reset_live_ui: réinitialisation de l'interface de capture en direct")
         self._live_capturing = False
         self.live_panel.set_sensitive(True)
         self.live_extra_box.set_sensitive(True)
@@ -1769,7 +1741,7 @@ class MainWindow(Gtk.ApplicationWindow):
         try:
             result = run_analysis_pipeline(captures, options, on_progress=_on_progress)
         except Exception as e:  # noqa: BLE001 -- thread de fond
-            logger.exception(f"échec du pipeline d'analyse dans _run_analysis_thread: {e}")
+            logger.exception(f"échec du pipeline d'analyse: {e}")
             GLib.idle_add(self._log, f"ERREUR : {e}")
             GLib.idle_add(self._on_analysis_error, str(e))
             return
@@ -1828,7 +1800,7 @@ class MainWindow(Gtk.ApplicationWindow):
         try:
             result = run_diff_pipeline(baseline_captures, current_captures, options, on_progress=_on_progress)
         except Exception as e:  # noqa: BLE001 -- thread de fond
-            logger.exception(f"échec du pipeline de comparaison dans _run_diff_thread: {e}")
+            logger.exception(f"échec du pipeline de comparaison: {e}")
             GLib.idle_add(self._log, f"ERREUR : {e}")
             GLib.idle_add(self._on_analysis_error, str(e))
             return
@@ -1986,7 +1958,6 @@ class MainWindow(Gtk.ApplicationWindow):
     def on_export_csv(self, _btn):
         if self.last_mode is None:
             return
-        logger.debug("on_export_csv: mode={}", self.last_mode)
         dialog = Gtk.FileDialog()
         dialog.set_initial_name("details_flux.csv" if self.last_mode == "single" else "ecarts.csv")
         dialog.save(self, None, self._on_csv_path_chosen)
@@ -1998,7 +1969,6 @@ class MainWindow(Gtk.ApplicationWindow):
             logger.exception("échec dans _on_csv_path_chosen")
             return
         path = gfile.get_path()
-        logger.debug("_on_csv_path_chosen: mode={} path={}", self.last_mode, path)
         try:
             if self.last_mode == "single":
                 write_detail_csv(path, self.last_flows, self.last_report.points)
@@ -2008,7 +1978,6 @@ class MainWindow(Gtk.ApplicationWindow):
             logger.exception(f"échec dans _on_csv_path_chosen: {e}")
             self.status_label.set_text(f"Erreur CSV : {e}")
             return
-        logger.debug("_on_csv_path_chosen: CSV écrit {}", path)
         self.status_label.set_text(f"CSV ecrit : {path}")
 
     # ================= export PDF =================
@@ -2016,7 +1985,6 @@ class MainWindow(Gtk.ApplicationWindow):
     def on_export_pdf(self, _btn):
         if self.last_mode is None:
             return
-        logger.debug("on_export_pdf: mode={}", self.last_mode)
         dialog = Gtk.FileDialog()
         dialog.set_initial_name("rapport_analyse.pdf" if self.last_mode == "single" else "rapport_comparaison.pdf")
         dialog.save(self, None, self._on_pdf_path_chosen)
@@ -2027,7 +1995,6 @@ class MainWindow(Gtk.ApplicationWindow):
         except GLib.Error:
             logger.exception("échec dans _on_pdf_path_chosen")
             return
-        logger.debug("_on_pdf_path_chosen: chemin choisi")
         self.export_pdf_to(gfile.get_path())
 
     def export_pdf_to(self, path):
@@ -2091,7 +2058,6 @@ class MainWindow(Gtk.ApplicationWindow):
 
     def _stats_clear_list(self):
         """Vide la ListBox des statistiques."""
-        logger.debug("_stats_clear_list: vidage de la liste des statistiques")
         box = self.stats_list_box
         child = box.get_first_child()
         while child is not None:
@@ -2174,7 +2140,6 @@ class MainWindow(Gtk.ApplicationWindow):
         if not rows:
             return
         path = file_obj.get_path()
-        logger.debug("_on_stats_csv_saved: {} ligne(s) vers {}", len(rows), path)
         try:
             with open(path, "w", encoding="utf-8") as fh:
                 fh.write(export_csv(rows))
@@ -2213,7 +2178,6 @@ class MainWindow(Gtk.ApplicationWindow):
         if not rows:
             return
         path = file_obj.get_path()
-        logger.debug("_on_stats_json_saved: {} ligne(s) vers {}", len(rows), path)
         try:
             with open(path, "w", encoding="utf-8") as fh:
                 json.dump(export_json(rows), fh, indent=2, ensure_ascii=False)
@@ -2271,7 +2235,6 @@ class MainWindow(Gtk.ApplicationWindow):
         for f in self.last_flows or []:
             if f.key == key:
                 return f
-        logger.debug("_flow_by_key: clé introuvable {}", key)
         return None
 
     def _dashboard_events(self):
@@ -2281,7 +2244,6 @@ class MainWindow(Gtk.ApplicationWindow):
         events.extend(self.last_tls_findings or [])
         events.extend(self.last_quic_findings or [])
         events.extend(self.last_wireshark_expert_events or [])
-        logger.debug("_dashboard_events: {} événement(s)", len(events))
         return events
 
     def _refresh_dashboard(self):
@@ -2316,7 +2278,6 @@ class MainWindow(Gtk.ApplicationWindow):
         """Retire toutes les sections du dashboard de l'arbre GTK. Utilise
         aussi bien avant un repeuplage qu'a la desactivation (mode sans
         flows) pour ne pas laisser de contenu stale."""
-        logger.debug("_dashboard_clear_sections: purge des sections du dashboard")
         box = self.dashboard_sections_box
         child = box.get_first_child()
         while child is not None:
@@ -2374,13 +2335,11 @@ class MainWindow(Gtk.ApplicationWindow):
                 model.get_n_items(),
                 model.get_string,
             )
-        filtres = comm_map_filters(
+        return comm_map_filters(
             protocole,
             self.comm_topn_spin.get_value(),
             self.comm_anomalies_check.get_active(),
         )
-        logger.debug("_comm_map_filters: {}", filtres)
-        return filtres
 
     def _refresh_comm_map(self):
         """Reconstruit la carte et son rendu PNG a partir des filtres
@@ -2482,12 +2441,10 @@ class MainWindow(Gtk.ApplicationWindow):
         GLib.idle_add(self._on_pdf_done, path)
 
     def _on_pdf_error(self, message):
-        logger.debug("_on_pdf_error: {}", message)
         self.status_label.set_text(f"Erreur PDF : {message}")
         return False
 
     def _on_pdf_done(self, path):
-        logger.debug("_on_pdf_done: {}", path)
         self.status_label.set_text(f"PDF ecrit : {path}")
         return False
 
@@ -2500,7 +2457,6 @@ class MainWindow(Gtk.ApplicationWindow):
     def on_export_json(self, _btn):
         if self.last_mode is None:
             return
-        logger.debug("on_export_json: mode={}", self.last_mode)
         dialog = Gtk.FileDialog()
         dialog.set_initial_name("rapport_analyse.json" if self.last_mode == "single" else "rapport_comparaison.json")
         dialog.save(self, None, self._on_json_path_chosen)
@@ -2511,7 +2467,6 @@ class MainWindow(Gtk.ApplicationWindow):
         except GLib.Error:
             logger.exception("échec dans _on_json_path_chosen")
             return
-        logger.debug("_on_json_path_chosen: chemin choisi")
         self.export_json_to(gfile.get_path())
 
     def export_json_to(self, path):
@@ -2555,12 +2510,10 @@ class MainWindow(Gtk.ApplicationWindow):
         GLib.idle_add(self._on_json_done, path)
 
     def _on_json_error(self, message):
-        logger.debug("_on_json_error: {}", message)
         self.status_label.set_text(f"Erreur JSON : {message}")
         return False
 
     def _on_json_done(self, path):
-        logger.debug("_on_json_done: {}", path)
         self.status_label.set_text(f"JSON ecrit : {path}")
         return False
 
@@ -2586,7 +2539,6 @@ class MainWindow(Gtk.ApplicationWindow):
     def on_export_security(self, suffix):
         if self.last_security_report is None:
             return
-        logger.debug("on_export_security: format={}", suffix)
         dialog = Gtk.FileDialog()
         dialog.set_initial_name(f"rapport_securite{suffix}")
         dialog.save(self, None, lambda d, r: self._on_security_path_chosen(d, r))
@@ -2597,7 +2549,6 @@ class MainWindow(Gtk.ApplicationWindow):
         except GLib.Error:
             logger.exception("échec dans _on_security_path_chosen")
             return
-        logger.debug("_on_security_path_chosen: chemin choisi")
         self.export_security_to(gfile.get_path())
 
     def export_security_to(self, path):
@@ -2618,10 +2569,8 @@ class NetcrossApp(Gtk.Application):
     def __init__(self):
         super().__init__(application_id="org.netcross.analyzer")
         self.main_window = None
-        logger.debug("NetcrossApp: application_id={}", self.get_application_id())
 
     def do_activate(self):
-        logger.debug("do_activate: fenêtre existante={}", self.main_window is not None)
         if not self.main_window:
             self.main_window = MainWindow(self)
         self.main_window.present()
@@ -2634,7 +2583,7 @@ def main():
     if DEBUG_FLAG in argv:
         argv = [a for a in argv if a != DEBUG_FLAG]
         enable_debug()
-    logger.debug("main: démarrage de la GUI GTK4, argv={} debug={}", argv[1:], is_debug_enabled())
+    logger.debug("main: demarrage de la GUI GTK4, argv={} debug={}", argv[1:], is_debug_enabled())
     app = NetcrossApp()
     return app.run(argv)
 
