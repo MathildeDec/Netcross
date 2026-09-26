@@ -66,7 +66,7 @@ from netcross_core import (  # noqa: E402
 from netcross_core.baseline_diff import write_diff_csv  # noqa: E402
 from netcross_core.bpf_filters import PREDEFINED_BPF_FILTERS, available_bpf_filters, upsert_bpf_filter  # noqa: E402
 from netcross_core.forensic import DEFAULT_DUPLICATE_THRESHOLD_MS, detect_cross_capture_duplicates  # noqa: E402
-from netcross_core.logging_config import get_logger  # noqa: E402
+from netcross_core.logging_config import DEBUG_FLAG, enable_debug, get_logger, is_debug_enabled  # noqa: E402
 from netcross_gtk4 import capture_list, row_labels  # noqa: E402
 from netcross_gtk4.annotations_panel import AnnotationsPanel  # noqa: E402
 from netcross_gtk4.bpf_panel import (  # noqa: E402
@@ -550,7 +550,6 @@ class LiveCaptureListPanel(Gtk.Box):
             # utilisable et le fichier n'est PAS touche (upsert_bpf_filter
             # refuse d'ecraser un fichier qu'il ne sait pas relire).
             logger.exception(f"échec dans _initial_filters: {exc}")
-            print(f"netcross: filtres BPF sauvegardes ignores ({exc})", file=sys.stderr)
             return list(PREDEFINED_BPF_FILTERS)
 
     def _save_filter(self, flt):
@@ -1742,7 +1741,7 @@ class MainWindow(Gtk.ApplicationWindow):
         try:
             result = run_analysis_pipeline(captures, options, on_progress=_on_progress)
         except Exception as e:  # noqa: BLE001 -- thread de fond
-            logger.exception(f"échec dans _on_progress: {e}")
+            logger.exception(f"échec du pipeline d'analyse: {e}")
             GLib.idle_add(self._log, f"ERREUR : {e}")
             GLib.idle_add(self._on_analysis_error, str(e))
             return
@@ -1801,7 +1800,7 @@ class MainWindow(Gtk.ApplicationWindow):
         try:
             result = run_diff_pipeline(baseline_captures, current_captures, options, on_progress=_on_progress)
         except Exception as e:  # noqa: BLE001 -- thread de fond
-            logger.exception(f"échec dans _on_progress: {e}")
+            logger.exception(f"échec du pipeline de comparaison: {e}")
             GLib.idle_add(self._log, f"ERREUR : {e}")
             GLib.idle_add(self._on_analysis_error, str(e))
             return
@@ -2578,8 +2577,15 @@ class NetcrossApp(Gtk.Application):
 
 
 def main():
+    # --debug est propre a Netcross : retire avant Gtk.Application.run, qui
+    # refuserait une option inconnue.
+    argv = list(sys.argv)
+    if DEBUG_FLAG in argv:
+        argv = [a for a in argv if a != DEBUG_FLAG]
+        enable_debug()
+    logger.debug("main: demarrage de la GUI GTK4, argv={} debug={}", argv[1:], is_debug_enabled())
     app = NetcrossApp()
-    return app.run(sys.argv)
+    return app.run(argv)
 
 
 if __name__ == "__main__":
