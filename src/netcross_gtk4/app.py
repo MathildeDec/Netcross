@@ -66,7 +66,7 @@ from netcross_core import (  # noqa: E402
 from netcross_core.baseline_diff import write_diff_csv  # noqa: E402
 from netcross_core.bpf_filters import PREDEFINED_BPF_FILTERS, available_bpf_filters, upsert_bpf_filter  # noqa: E402
 from netcross_core.forensic import DEFAULT_DUPLICATE_THRESHOLD_MS, detect_cross_capture_duplicates  # noqa: E402
-from netcross_core.logging_config import get_logger  # noqa: E402
+from netcross_core.logging_config import DEBUG_FLAG, enable_debug, get_logger, is_debug_enabled  # noqa: E402
 from netcross_gtk4 import capture_list, row_labels  # noqa: E402
 from netcross_gtk4.annotations_panel import AnnotationsPanel  # noqa: E402
 from netcross_gtk4.bpf_panel import (  # noqa: E402
@@ -599,6 +599,12 @@ class MainWindow(Gtk.ApplicationWindow):
         # etat du dernier run, pour les exports (varie selon le mode) :
         self.last_mode = None  # "single" ou "diff"
         self.last_flows = None  # mode single : pour --detail-csv et la cartographie
+        # Issue #453 : meme run, deux formes -- le dict brut de correlate()
+        # ci-dessus (detail CSV, cartographie, objets de session lisent les Pkt)
+        # et la liste de Flow ci-dessous (dashboard, statistiques, selection
+        # de flux lisent .endpoints/.points/.packet_count). Renseigne par
+        # RunOutcome (build_flow_objects), comme tous les last_*.
+        self.last_flow_objects = None
         self.last_stats_rows = None  # mode single : StatRow pour export CSV/JSON
         # Fichier PNG temporaire de la cartographie : un seul par fenetre,
         # reecrit a chaque changement de filtre. Gtk.Picture lit le fichier,
@@ -2058,7 +2064,10 @@ class MainWindow(Gtk.ApplicationWindow):
         """Reconstruit la liste des statistiques depuis les memes objets
         que le rapport. Desactive si pas de flows (mode diff ou analyse
         non lancee)."""
-        flows = self.last_flows
+        # Issue #453 : les StatRow se construisent depuis des Flow
+        # (.endpoints, .packet_count...), pas depuis le dict brut de
+        # correlate() -- comme le dashboard ci-dessous.
+        flows = self.last_flow_objects
         self.stats_expander.set_sensitive(bool(flows))
         self.stats_csv_btn.set_sensitive(False)
         self.stats_json_btn.set_sensitive(False)
@@ -2268,7 +2277,9 @@ class MainWindow(Gtk.ApplicationWindow):
         self._refresh_dashboard()
 
     def _flow_by_key(self, key):
-        for f in self.last_flows or []:
+        # Issue #453 : parcourt les Flow (.key), pas les cles du dict brut
+        # -- des tuples sans attribut .key.
+        for f in self.last_flow_objects or []:
             if f.key == key:
                 return f
         logger.debug("_flow_by_key: clé introuvable {}", key)
@@ -2289,7 +2300,11 @@ class MainWindow(Gtk.ApplicationWindow):
         repeuple les six vues. Aucune exception ne remonte a l'interface : un
         snapshot vide (analyse pas encore lancee) desactive simplement
         l'expander, comme la cartographie."""
-        flows = self.last_flows
+        # Issue #453 : build_dashboard_snapshot attend une liste de Flow
+        # (avec .endpoints), pas le dict brut de correlate() -- lui-meme et
+        # les vues qu'il alimentait plantaient en silence sur
+        # AttributeError: 'tuple' object has no attribute 'endpoints'.
+        flows = self.last_flow_objects
         self.dashboard_expander.set_sensitive(bool(flows))
         if not flows:
             logger.debug("_refresh_dashboard: aucun flux, dashboard désactivé")
@@ -2301,7 +2316,7 @@ class MainWindow(Gtk.ApplicationWindow):
             return
         snap = build_dashboard_snapshot(
             self.last_report,
-            self.last_flows,
+            self.last_flow_objects,
             findings=self.last_findings,
             tls_findings=self.last_tls_findings,
             quic_findings=self.last_quic_findings,
@@ -2628,9 +2643,15 @@ class NetcrossApp(Gtk.Application):
 
 
 def main():
-    logger.debug("main: démarrage de la GUI GTK4, argv={}", sys.argv[1:])
+    # --debug est propre a Netcross : retire avant Gtk.Application.run, qui
+    # refuserait une option inconnue.
+    argv = list(sys.argv)
+    if DEBUG_FLAG in argv:
+        argv = [a for a in argv if a != DEBUG_FLAG]
+        enable_debug()
+    logger.debug("main: démarrage de la GUI GTK4, argv={} debug={}", argv[1:], is_debug_enabled())
     app = NetcrossApp()
-    return app.run(sys.argv)
+    return app.run(argv)
 
 
 if __name__ == "__main__":
