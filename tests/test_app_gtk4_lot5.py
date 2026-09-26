@@ -275,8 +275,14 @@ def test_end_live_capture_ignore_si_deja_en_cours_d_arret(window, monkeypatch):
         raise AssertionError("un second thread de jonction n'aurait pas du demarrer")
 
     monkeypatch.setattr(app_module.threading, "Thread", _echoue)
+    window.run_btn.set_label("Arreter la capture")
+    window.work_stop_btn.set_sensitive(True)
 
     window._end_live_capture()  # ne doit rien declencher (retour anticipe)
+
+    # Le retour anticipe precede aussi toute mise a jour de l'interface.
+    assert window.run_btn.get_label() == "Arreter la capture"
+    assert window.work_stop_btn.get_sensitive()
 
 
 def test_arret_manuel_et_arret_automatique_convergent(monkeypatch):
