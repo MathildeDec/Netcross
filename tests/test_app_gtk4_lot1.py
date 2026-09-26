@@ -30,6 +30,7 @@ from netcross_gtk4.app import (  # noqa: E402
     LiveCaptureRow,
 )
 from netcross_gtk4.bpf_panel import noms_du_menu  # noqa: E402
+
 # --------------------------------------------------------------------------
 # CaptureRow : construction
 # --------------------------------------------------------------------------
