@@ -47,6 +47,33 @@ En mode debug :
 NETCROSS_LOG_FILE=~/netcross-debug.log netcross-gui --debug
 ```
 
+## Utiliser `pcap_parser` comme bibliothèque (issue #446)
+
+`pcap_parser` est la couche la plus basse du projet : il n'importe pas `netcross_core` (contrat import-linter) et utilise loguru directement. En usage bibliothèque (script, notebook, code tiers), sans appel à `configure_logging()`, le handler par défaut de loguru écrirait sur stderr dès le niveau `DEBUG`.
+
+Pour éviter ce bruit, `pcap_parser/__init__.py` désactive loguru pour son propre package (`logger.disable("pcap_parser")`). Les points d'entrée Netcross (CLI, GUI, API) le reactivent via `configure_logging()` (`logger.enable("pcap_parser")`), quel que soit l'ordre des imports.
+
+**En usage bibliothèque seule**, pour voir les logs de `pcap_parser` :
+
+```python
+from loguru import logger
+logger.enable("pcap_parser")
+
+from pcap_parser import parse_capture
+# les logs DEBUG de pcap_parser sont maintenant visibles
+```
+
+Ou en appelant `configure_logging()` de `netcross_core` (qui active aussi le format structuré et le niveau configurable) :
+
+```python
+from netcross_core.logging_config import configure_logging
+configure_logging("DEBUG")  # active pcap_parser + tous les modules netcross
+
+from pcap_parser import parse_capture
+```
+
+Sans l'un de ces deux appels, `pcap_parser` est silencieux.
+
 ## Règles pour les contributeurs
 
 Ces règles sont vérifiées par `tests/test_loguru_regles.py` et `tests/test_loguru_formatting.py` :
