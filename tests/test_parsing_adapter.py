@@ -203,6 +203,7 @@ def test_api_publique_inchangee():
     # contrat explicite documente dans le module : ces noms doivent
     # rester exposes tels quels.
     for name in (
+        "build_capture_info",
         "compute_mos",
         "detect_encapsulation",
         "parse_capture",

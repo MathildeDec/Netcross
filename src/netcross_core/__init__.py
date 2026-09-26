@@ -37,6 +37,7 @@ from netcross_core.correlate import (
 from netcross_core.live_diff import LiveDiffConfig, LiveDiffEngine, LiveDiffState, finding_to_alarm_signal
 from netcross_core.models import Pkt, Report
 from netcross_core.parsing import (
+    build_capture_info,
     compute_mos,
     detect_encapsulation,
     parse_capture,
@@ -71,6 +72,7 @@ __all__ = [
     "TcpreplayNotFoundError",
     "analyse",
     "build_calls",
+    "build_capture_info",
     "build_conversations",
     "build_flows",
     "build_wireshark_expert_events",
