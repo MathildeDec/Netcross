@@ -17,6 +17,7 @@ CAPTURE_API = (
     "merge_captures",
     "parse_capture",
     "parse_captures_parallel",
+    "read_capture_info",
     "replay_capture",
     "split_capture",
 )

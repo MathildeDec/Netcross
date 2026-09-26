@@ -21,7 +21,9 @@ Organisation en couches (bas en haut) :
                    (+ merge_captures : fusion de fichiers via mergecap, sans decodage
                    + replay_capture : rejeu de trafic via tcpreplay, sans decodage
                    + split_capture : decoupage par duree, nombre de paquets ou taille
-                   + iter_live_multi : capture simultanee sur plusieurs interfaces)
+                   + iter_live_multi : capture simultanee sur plusieurs interfaces
+                   + read_capture_info : metadonnees capinfos -- format, snaplen,
+                   duree... -- independant du decodage EK, Job 38)
 
 Utilisation typique :
 
@@ -52,6 +54,7 @@ from pcap_parser.capture import (
     merge_captures,
     parse_capture,
     parse_captures_parallel,
+    read_capture_info,
     replay_capture,
     split_capture,
 )
@@ -88,6 +91,7 @@ __all__ = [
     "parse_capture",
     "parse_captures_parallel",
     "read_capture_comment",
+    "read_capture_info",
     "replay_capture",
     "select_innermost_layers",
     "split_capture",
