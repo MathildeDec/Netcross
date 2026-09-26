@@ -44,7 +44,7 @@ from conftest import make_pkt
 gi = pytest.importorskip("gi", reason="pygobject absent")
 try:
     gi.require_version("Gtk", "4.0")
-    from gi.repository import Gtk
+    from gi.repository import GLib, Gtk
 except (ValueError, ImportError):
     pytest.skip("GTK4 absent", allow_module_level=True)
 if not Gtk.init_check():
@@ -146,7 +146,7 @@ class _FakeSaveDialog:
 
 
 def test_comm_map_filters_lit_les_widgets(window):
-    report, flows = _analysis_result()
+    _report, flows = _analysis_result()
     window.last_flows = flows
     window._reset_comm_map_filters()
 
@@ -163,7 +163,7 @@ def test_comm_map_filters_lit_les_widgets(window):
 
 
 def test_comm_map_filters_protocole_tous_donne_aucun_filtre(window):
-    report, flows = _analysis_result()
+    _report, flows = _analysis_result()
     window.last_flows = flows
     window._reset_comm_map_filters()
     window.comm_proto_drop.set_selected(0)
@@ -172,6 +172,18 @@ def test_comm_map_filters_protocole_tous_donne_aucun_filtre(window):
     filtres = window._comm_map_filters()
     assert filtres["protocols"] is None
     assert filtres["only_anomalies"] is False
+
+
+def test_comm_map_filters_sans_modele(window):
+    """Cas defensif : `comm_proto_drop` sans modele (jamais le cas en
+    usage normal, la fenetre en pose toujours un a la construction)."""
+    _report, flows = _analysis_result()
+    window.last_flows = flows
+    window._reset_comm_map_filters()
+    window.comm_proto_drop.set_model(None)
+
+    filtres = window._comm_map_filters()
+    assert filtres["protocols"] is None
 
 
 def test_refresh_comm_map_sans_flux_desactive_la_vue(window):
@@ -184,7 +196,7 @@ def test_refresh_comm_map_sans_flux_desactive_la_vue(window):
 def test_refresh_comm_map_avec_flux_dessine_la_carte(window):
     pytest.importorskip("matplotlib")
     pytest.importorskip("networkx")
-    report, flows = _analysis_result()
+    _report, flows = _analysis_result()
     window.last_flows = flows
     window._reset_comm_map_filters()
 
@@ -193,7 +205,7 @@ def test_refresh_comm_map_avec_flux_dessine_la_carte(window):
 
 
 def test_refresh_comm_map_erreur_rendu_affiche_le_message(window, monkeypatch):
-    report, flows = _analysis_result()
+    _report, flows = _analysis_result()
     window.last_flows = flows
 
     def _boom(*_a, **_k):
@@ -203,7 +215,7 @@ def test_refresh_comm_map_erreur_rendu_affiche_le_message(window, monkeypatch):
     window._refresh_comm_map()
 
     assert window.comm_map_picture.get_file() is None
-    assert "Cartographie indisponible : rendu impossible" == window.comm_map_label.get_text()
+    assert window.comm_map_label.get_text() == "Cartographie indisponible : rendu impossible"
 
 
 # ============================= export PDF (thread) =============================
@@ -230,6 +242,36 @@ def test_generate_pdf_thread_single_succes(window, monkeypatch, tmp_path):
     assert ecrit["path"] == dest
     assert "session_objects" in ecrit["kwargs"]
     assert f"PDF ecrit : {dest}" == window.status_label.get_text()
+
+
+def test_generate_pdf_thread_single_sans_generate_pdf(window, monkeypatch, tmp_path):
+    """`generate_pdf is None` (reportlab/matplotlib/networkx absents) :
+    l'ImportError est capturee comme toute autre exception du thread."""
+    report, flows = _analysis_result()
+    _appliquer_run_single(window, report, flows)
+    monkeypatch.setattr(app_module.GLib, "idle_add", _run_idle_now)
+    monkeypatch.setattr(netcross_report, "generate_pdf", None)
+
+    window._generate_pdf_thread(str(tmp_path / "rapport.pdf"))
+
+    assert window.status_label.get_text() == "Erreur PDF : reportlab/matplotlib/networkx requis pour l'export PDF"
+
+
+def test_generate_pdf_thread_diff_sans_generate_diff_pdf(window, monkeypatch, tmp_path):
+    window.last_mode = "diff"
+    window.last_diff_findings = []
+    window.last_baseline_report = Report(points=["A"])
+    window.last_current_report = Report(points=["B"])
+    window.last_diff_tls_findings_baseline = None
+    window.last_diff_tls_findings_current = None
+    window.last_diff_quic_findings_baseline = None
+    window.last_diff_quic_findings_current = None
+    monkeypatch.setattr(app_module.GLib, "idle_add", _run_idle_now)
+    monkeypatch.setattr(netcross_report, "generate_diff_pdf", None)
+
+    window._generate_pdf_thread(str(tmp_path / "comparaison.pdf"))
+
+    assert window.status_label.get_text() == "Erreur PDF : reportlab/matplotlib/networkx requis pour l'export PDF"
 
 
 def test_generate_pdf_thread_diff_succes(window, monkeypatch, tmp_path):
@@ -271,7 +313,7 @@ def test_generate_pdf_thread_erreur_appelle_on_pdf_error(window, monkeypatch, tm
 
     window._generate_pdf_thread(str(tmp_path / "rapport.pdf"))
 
-    assert "Erreur PDF : echec pipeline pdf" == window.status_label.get_text()
+    assert window.status_label.get_text() == "Erreur PDF : echec pipeline pdf"
 
 
 def test_on_pdf_done_et_on_pdf_error_mettent_a_jour_le_statut(window):
@@ -308,6 +350,24 @@ def test_on_export_json_declenche_lexport_reel(window, monkeypatch, tmp_path):
     assert f"JSON ecrit : {dest}" == window.status_label.get_text()
     assert pathlib.Path(dest).exists()
     assert pathlib.Path(dest).read_text(encoding="utf-8")
+
+
+def test_on_json_path_chosen_erreur_glib_ne_leve_pas(window, monkeypatch):
+    """`dialog.save_finish` peut lever GLib.Error (ex. annulation par
+    l'utilisateur) : `_on_json_path_chosen` l'avale sans appeler
+    `export_json_to`."""
+    report, flows = _analysis_result()
+    _appliquer_run_single(window, report, flows)
+    appele = {"n": 0}
+    monkeypatch.setattr(window, "export_json_to", lambda _p: appele.__setitem__("n", appele["n"] + 1))
+
+    class _DialogEnErreur:
+        def save_finish(self, result):
+            raise GLib.Error("annule par l'utilisateur")
+
+    window._on_json_path_chosen(_DialogEnErreur(), None)
+
+    assert appele["n"] == 0
 
 
 def test_generate_json_thread_diff_succes(window, monkeypatch, tmp_path):
@@ -348,7 +408,7 @@ def test_generate_json_thread_erreur_appelle_on_json_error(window, monkeypatch, 
 
     window._generate_json_thread(str(tmp_path / "rapport.json"))
 
-    assert "Erreur JSON : echec pipeline json" == window.status_label.get_text()
+    assert window.status_label.get_text() == "Erreur JSON : echec pipeline json"
 
 
 def test_generate_json_thread_appelle_session_objects(window, monkeypatch, tmp_path):
