@@ -125,11 +125,14 @@ def test_run_analysis_thread_succes_relaye_la_progression_et_le_resultat(window,
     assert captures_recues == [[("A", "/tmp/a.pcap")]]
     assert "etape de test" in _log_text(window)
     assert window.last_mode == "single"
-    assert window.result_view.get_buffer().get_text(
-        window.result_view.get_buffer().get_start_iter(),
-        window.result_view.get_buffer().get_end_iter(),
-        False,
-    ) == "rapport ok"
+    assert (
+        window.result_view.get_buffer().get_text(
+            window.result_view.get_buffer().get_start_iter(),
+            window.result_view.get_buffer().get_end_iter(),
+            False,
+        )
+        == "rapport ok"
+    )
     assert window.run_btn.get_sensitive()
     assert window.pdf_btn.get_sensitive()
     assert window.csv_btn.get_sensitive()
@@ -263,9 +266,7 @@ def test_on_analysis_done_charge_les_annotations_si_des_captures_sont_analysees(
     monkeypatch.setattr(window.annotations_panel, "load", lambda captures: appels.append(captures))
     window._annotation_captures = ["/tmp/a.pcap"]
 
-    window._on_analysis_done(
-        "single", None, [], None, "rapport ok", None, None, [], None
-    )
+    window._on_analysis_done("single", None, [], None, "rapport ok", None, None, [], None)
 
     assert appels == [["/tmp/a.pcap"]]
 
