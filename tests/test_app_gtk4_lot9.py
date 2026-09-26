@@ -327,9 +327,21 @@ def test_on_pdf_done_et_on_pdf_error_mettent_a_jour_le_statut(window):
 # ============================= export JSON =============================
 
 
-def test_on_export_json_sans_analyse_ne_fait_rien(window):
+def test_on_export_json_sans_analyse_ne_fait_rien(window, monkeypatch):
+    """Sans analyse (last_mode None), aucun dialogue n'est ouvert -- meme
+    verification que pour on_export_security ci-dessous."""
     window.last_mode = None
-    window.on_export_json(None)  # ne doit pas lever ni ouvrir de dialogue
+    appels = {"n": 0}
+
+    def _fake_dialog():
+        appels["n"] += 1
+        return _FakeSaveDialog("/tmp/inutilise")
+
+    monkeypatch.setattr(app_module.Gtk, "FileDialog", _fake_dialog)
+
+    window.on_export_json(None)
+
+    assert appels["n"] == 0
 
 
 def test_on_export_json_declenche_lexport_reel(window, monkeypatch, tmp_path):
