@@ -18,11 +18,12 @@ API publique inchangee : parse_capture(label, path, raise_on_error),
 parse_captures_parallel(captures, max_workers), parse_live, parse_rtp,
 parse_sip, compute_mos, detect_encapsulation ; seuls ajouts : parse_live_multi
 (capture simultanee sur plusieurs interfaces) puis read_capture_comments
-(Job 39, issue #159) -- seule fonction de ce module qui ne convertit PAS de
-RawPacket : elle lit le commentaire de section pcapng (metadonnee du
-FICHIER, pas d'un paquet) de chaque capture et y attache le label, meme
-raison d'etre que le point 1 ci-dessus mais appliquee a pcap_parser.
-capinfos_source plutot qu'a RawPacket/Pkt. (Le DHCP est lu
+(Job 39, issue #159) et build_capture_info (Job 38, issue #158) -- ni l'une
+ni l'autre ne convertit de RawPacket : elles lisent une metadonnee du
+FICHIER (commentaire de section pcapng / rapport capinfos), pas d'un
+paquet, de chaque capture et y attachent le label, meme raison d'etre
+que le point 1 ci-dessus mais appliquee a pcap_parser.capinfos_source/
+pcap_parser.capture plutot qu'a RawPacket/Pkt. (Le DHCP est lu
 directement depuis les paquets bruts par analysis.py, il n'y a pas de
 parse_dhcp() ici ; le choix de la couche la plus interne vit dans
 pcap_parser.tunnels.select_innermost_layers.)
@@ -34,11 +35,13 @@ import pcap_parser
 from netcross_core.application.banners import extract_banners
 from netcross_core.models import Pkt
 from pcap_parser.capinfos_source import read_capture_comment
+from pcap_parser.capture import read_capture_info
 from pcap_parser.ek_source import TsharkError, TsharkNotFoundError
 from pcap_parser.packet import RawPacket
 from pcap_parser.protocols import compute_mos
 
 __all__ = [
+    "build_capture_info",
     "compute_mos",
     "detect_encapsulation",
     "parse_capture",
@@ -245,6 +248,37 @@ def read_capture_comments(captures) -> list[str]:
         if comment:
             comments.append(f"{label} : {comment}")
     return comments
+
+
+def build_capture_info(captures) -> dict[str, list[dict]]:
+    """Lit les metadonnees capinfos (Job 38, issue #158) de chaque
+    fichier de `captures` (memes paires (label, path) que
+    parse_captures_parallel/read_capture_comments ci-dessus) et les
+    regroupe par label -- meme raison d'etre que read_capture_comments
+    juste au-dessus, mais pour pcap_parser.capture.read_capture_info
+    plutot que pcap_parser.capinfos_source.read_capture_comment : LISTE
+    par label (et non entree unique) car un point peut couvrir plusieurs
+    fichiers (captures segmentees, cf. _parse_capture_spec dans
+    cross_capture_analyzer_cli.py).
+
+    Contrairement a read_capture_comments (une capture sans commentaire
+    de section n'est PAS une erreur, elle est juste silencieusement
+    absente du resultat), un echec de lecture ICI est note explicitement
+    -- {"path": path, "error": "..."} au lieu des champs habituels de
+    read_capture_info -- plutot que d'etre avale en silence : ce ne sont
+    pas des annotations facultatives comme un commentaire, l'analyste
+    doit savoir que ces metadonnees manquent pour un fichier donne. Mais
+    comme pour read_capture_comments, un fichier en echec ne fait jamais
+    echouer les autres ni l'analyse elle-meme (meme tolerance que
+    parse_captures_parallel/per_file_stats)."""
+    result: dict[str, list[dict]] = {}
+    for label, path in captures:
+        try:
+            info = read_capture_info(path)
+        except (TsharkNotFoundError, TsharkError) as e:
+            info = {"path": path, "error": str(e)}
+        result.setdefault(label, []).append(info)
+    return result
 
 
 def parse_live(label, interface, bpf_filter=None, stop_event=None):
